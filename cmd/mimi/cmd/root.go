@@ -18,7 +18,7 @@ var (
 	BuildDate = "unknown"
 )
 
-var rootCmd = &cobra.Command{
+var RootCmd = &cobra.Command{
 	Use:   "mimi",
 	Short: "macOS event daemon — run hooks on system events",
 	Long: `mimi listens to macOS system events (app focus, sleep/wake, volume mount, etc.)
@@ -29,13 +29,13 @@ and executes shell commands you define in ~/.config/mimi/config.toml.`,
 }
 
 func Execute() error {
-	return rootCmd.Execute()
+	return RootCmd.Execute()
 }
 
 func init() {
 	// Set version info right before execution, not at init time
-	rootCmd.Version = Version
-	rootCmd.SetVersionTemplate(
+	RootCmd.Version = Version
+	RootCmd.SetVersionTemplate(
 		fmt.Sprintf(
 			"Mimi version %s\nGit commit: %s\nBuild date: %s\n",
 			Version,
@@ -44,18 +44,18 @@ func init() {
 		),
 	)
 
-	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "",
+	RootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "",
 		"path to config file")
-	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
+	RootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
 		"verbose output")
 
-	rootCmd.AddCommand(startCmd)
-	rootCmd.AddCommand(stopCmd)
-	rootCmd.AddCommand(statusCmd)
-	rootCmd.AddCommand(installCmd)
-	rootCmd.AddCommand(uninstallCmd)
-	rootCmd.AddCommand(eventsCmd)
-	rootCmd.AddCommand(testCmd)
-	rootCmd.AddCommand(initCmd)
-	rootCmd.AddCommand(configCmd)
+	RootCmd.AddCommand(startCmd)
+	RootCmd.AddCommand(stopCmd)
+	RootCmd.AddCommand(statusCmd)
+	RootCmd.AddCommand(installCmd)
+	RootCmd.AddCommand(uninstallCmd)
+	RootCmd.AddCommand(eventsCmd)
+	RootCmd.AddCommand(testCmd)
+	RootCmd.AddCommand(initCmd)
+	RootCmd.AddCommand(configCmd)
 }
