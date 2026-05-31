@@ -1,5 +1,8 @@
 # mimi — macOS Event Daemon
 
+> [!WARNING]
+> This project is still in early development. It is not yet ready for production use.
+
 mimi listens to macOS system events (app focus, sleep/wake, volume mount, etc.)
 and executes shell commands you define in `~/.config/mimi/config.toml`.
 
