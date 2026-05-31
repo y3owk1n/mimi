@@ -19,6 +19,49 @@ func Exists(path string) bool {
 	return err == nil
 }
 
+// ResolvePath resolves the config path based on CLI override and priority list:
+// 1. CLI flag override (if non-empty)
+// 2. $XDG_CONFIG_HOME/mimi/config.toml (if env set and file exists)
+// 3. ~/.config/mimi/config.toml (if file exists)
+// 4. mimi.toml in current directory (if file exists)
+// If none exists and CLI override is empty, it returns the default fallback:
+// $XDG_CONFIG_HOME/mimi/config.toml (if env set) or ~/.config/mimi/config.toml.
+func ResolvePath(cliPath string) string {
+	if cliPath != "" {
+		return expandHome(cliPath)
+	}
+
+	// 1. Check $XDG_CONFIG_HOME/mimi/config.toml
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		p := filepath.Join(xdg, "mimi/config.toml")
+		if Exists(p) {
+			return expandHome(p)
+		}
+	}
+
+	// 2. Check ~/.config/mimi/config.toml
+	p2 := "~/.config/mimi/config.toml"
+	if Exists(p2) {
+		return expandHome(p2)
+	}
+
+	// 3. Check mimi.toml (current directory)
+	p3 := "mimi.toml"
+	if Exists(p3) {
+		abs, err := filepath.Abs(p3)
+		if err == nil {
+			return abs
+		}
+		return p3
+	}
+
+	// Fallback when none exists
+	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
+		return expandHome(filepath.Join(xdg, "mimi/config.toml"))
+	}
+	return expandHome("~/.config/mimi/config.toml")
+}
+
 func WriteDefault(path string) error {
 	path = expandHome(path)
 

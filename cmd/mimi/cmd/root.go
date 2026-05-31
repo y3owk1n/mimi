@@ -4,6 +4,7 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
+	"github.com/y3owk1n/mimi/internal/config"
 )
 
 var (
@@ -22,6 +23,9 @@ var rootCmd = &cobra.Command{
 	Short: "macOS event daemon — run hooks on system events",
 	Long: `mimi listens to macOS system events (app focus, sleep/wake, volume mount, etc.)
 and executes shell commands you define in ~/.config/mimi/config.toml.`,
+	PersistentPreRun: func(cmd *cobra.Command, args []string) {
+		configPath = config.ResolvePath(configPath)
+	},
 }
 
 func Execute() error {
@@ -40,7 +44,7 @@ func init() {
 		),
 	)
 
-	rootCmd.PersistentFlags().StringVar(&configPath, "config", "~/.config/mimi/config.toml",
+	rootCmd.PersistentFlags().StringVarP(&configPath, "config", "c", "",
 		"path to config file")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,
 		"verbose output")
