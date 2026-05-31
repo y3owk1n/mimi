@@ -7,6 +7,7 @@ import (
 	"log/slog"
 	"os"
 	"os/exec"
+	"regexp"
 	"strings"
 	"sync"
 	"time"
@@ -84,7 +85,8 @@ func (ex *Executor) run(h Hook, e events.Event) {
 	ctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
 
-	cmd := exec.CommandContext(ctx, shell, "-c", h.Entry.Run)
+	runCmd := replaceEventVars(h.Entry.Run, eventEnvMap(e))
+	cmd := exec.CommandContext(ctx, shell, "-c", runCmd)
 
 	cmd.Env = append(os.Environ(), eventEnv(e)...)
 
@@ -134,4 +136,37 @@ func eventEnv(e events.Event) []string {
 	}
 
 	return vars
+}
+
+func eventEnvMap(e events.Event) map[string]string {
+	env := eventEnv(e)
+
+	m := make(map[string]string, len(env))
+	for _, kv := range env {
+		parts := strings.SplitN(kv, "=", 2)
+		if len(parts) == 2 {
+			m[parts[0]] = parts[1]
+		}
+	}
+
+	return m
+}
+
+var mimiVarRegex = regexp.MustCompile(`\${mimi_[A-Za-z0-9_]+}|\$mimi_[A-Za-z0-9_]+`)
+
+func replaceEventVars(runCmd string, envMap map[string]string) string {
+	return mimiVarRegex.ReplaceAllStringFunc(runCmd, func(m string) string {
+		var varName string
+		if strings.HasPrefix(m, "${") {
+			varName = m[2 : len(m)-1]
+		} else {
+			varName = m[1:]
+		}
+
+		if val, ok := envMap[varName]; ok {
+			return val
+		}
+
+		return m
+	})
 }

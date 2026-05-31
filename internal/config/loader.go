@@ -52,6 +52,7 @@ func ResolvePath(cliPath string) string {
 		if err == nil {
 			return abs
 		}
+
 		return p3
 	}
 
@@ -59,6 +60,7 @@ func ResolvePath(cliPath string) string {
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		return expandHome(filepath.Join(xdg, "mimi/config.toml"))
 	}
+
 	return expandHome("~/.config/mimi/config.toml")
 }
 
