@@ -10,7 +10,7 @@ and executes shell commands you define in `~/.config/mimi/config.toml`.
 # brew install mimi
 
 # Or build from source
-make dev
+just dev
 ./bin/mimi start
 ```
 
@@ -38,16 +38,16 @@ mimi config validate
 
 ## Commands
 
-| Command              | Description                              |
-| -------------------- | ---------------------------------------- |
-| `mimi start`         | Start the daemon                         |
-| `mimi stop`          | Stop the daemon                          |
-| `mimi status`        | Show daemon status and recent events     |
-| `mimi install`       | Install as launchd user agent            |
-| `mimi uninstall`     | Remove launchd agent                     |
-| `mimi events`        | Tail the live event stream               |
-| `mimi test <event>`  | Fire a synthetic event to test hooks     |
-| `mimi config validate` | Parse and validate the config file     |
+| Command                | Description                          |
+| ---------------------- | ------------------------------------ |
+| `mimi start`           | Start the daemon                     |
+| `mimi stop`            | Stop the daemon                      |
+| `mimi status`          | Show daemon status and recent events |
+| `mimi install`         | Install as launchd user agent        |
+| `mimi uninstall`       | Remove launchd agent                 |
+| `mimi events`          | Tail the live event stream           |
+| `mimi test <event>`    | Fire a synthetic event to test hooks |
+| `mimi config validate` | Parse and validate the config file   |
 
 ## Events
 
