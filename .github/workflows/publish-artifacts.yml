@@ -1,0 +1,135 @@
+on:
+    workflow_call:
+        inputs:
+            release_tag:
+                required: true
+                type: string
+            version_override:
+                required: true
+                type: string
+            macos_bundle_version:
+                required: true
+                type: string
+            macos_short_version:
+                required: true
+                type: string
+        secrets:
+            upload_token:
+                required: false
+
+name: publish-artifacts
+
+jobs:
+    build-darwin-arm64-artifacts:
+        runs-on: macos-latest
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-go@v6
+              with:
+                  go-version: "1.26.1"
+
+            - uses: extractions/setup-just@v4
+              with:
+                  just-version: "1.46.0"
+
+            - name: Build mimi darwin arm64 artifact
+              run: just release-ci-darwin arm64 ${{ inputs.version_override }}
+
+            - name: Generate man pages
+              run: go run ./cmd/genman build/man
+
+            - name: Bundle mimi-darwin-arm64
+              run: |
+                  mkdir -p build/arm64/Mimi.app/Contents/{MacOS,Resources}
+                  cp bin/mimi-darwin-arm64 build/arm64/Mimi.app/Contents/MacOS/mimi
+                  chmod +x build/arm64/Mimi.app/Contents/MacOS/mimi
+                  # cp resources/icon.icns build/arm64/Mimi.app/Contents/Resources/icon.icns
+                  mkdir -p build/arm64/share/man/man1
+                  cp build/man/*.1 build/arm64/share/man/man1/
+                  sed \
+                    -e "s/BUNDLE_VERSION/${{ inputs.macos_bundle_version }}/g" \
+                    -e "s/SHORT_VERSION/${{ inputs.macos_short_version }}/g" \
+                    -e "s/BUILD_ID/${{ inputs.version_override }}/g" \
+                    resources/Info.plist.template > build/arm64/Mimi.app/Contents/Info.plist
+
+                  # Ad-hoc codesign to preserve accessibility permissions across updates
+                  codesign --force --deep --sign - build/arm64/Mimi.app
+
+                  mkdir -p build/arm64/bin
+                  cp bin/mimi-darwin-arm64 build/arm64/bin/mimi
+                  chmod +x build/arm64/bin/mimi
+
+                  cd build/arm64
+                  zip -r ../../mimi-darwin-arm64.zip bin Mimi.app share
+                  cd ../..
+
+            - name: Generate darwin arm64 checksum
+              run: |
+                  shasum -a 256 mimi-darwin-arm64.zip | awk '{print $1}' > mimi-darwin-arm64.zip.sha256
+                  ls -l mimi-darwin-arm64.zip mimi-darwin-arm64.zip.sha256
+
+            - name: Upload darwin arm64 release artifacts
+              env:
+                  GH_TOKEN: ${{ secrets.upload_token || github.token }}
+              run: |
+                  gh release upload "${{ inputs.release_tag }}" mimi-darwin-arm64.zip mimi-darwin-arm64.zip.sha256 --clobber
+
+    build-darwin-amd64-artifacts:
+        runs-on: macos-15-intel
+        permissions:
+            contents: write
+        steps:
+            - uses: actions/checkout@v6
+
+            - uses: actions/setup-go@v6
+              with:
+                  go-version: "1.26.1"
+
+            - uses: extractions/setup-just@v4
+              with:
+                  just-version: "1.46.0"
+
+            - name: Build mimi darwin amd64 artifact
+              run: just release-ci-darwin amd64 ${{ inputs.version_override }}
+
+            - name: Generate man pages
+              run: go run ./cmd/genman build/man
+
+            - name: Bundle mimi-darwin-amd64
+              run: |
+                  mkdir -p build/amd64/Mimi.app/Contents/{MacOS,Resources}
+                  cp bin/mimi-darwin-amd64 build/amd64/Mimi.app/Contents/MacOS/mimi
+                  chmod +x build/amd64/Mimi.app/Contents/MacOS/mimi
+                  # cp resources/icon.icns build/amd64/Mimi.app/Contents/Resources/icon.icns
+                  mkdir -p build/amd64/share/man/man1
+                  cp build/man/*.1 build/amd64/share/man/man1/
+                  sed \
+                    -e "s/BUNDLE_VERSION/${{ inputs.macos_bundle_version }}/g" \
+                    -e "s/SHORT_VERSION/${{ inputs.macos_short_version }}/g" \
+                    -e "s/BUILD_ID/${{ inputs.version_override }}/g" \
+                    resources/Info.plist.template > build/amd64/Mimi.app/Contents/Info.plist
+
+                  # Ad-hoc codesign to preserve accessibility permissions across updates
+                  codesign --force --deep --sign - build/amd64/Mimi.app
+
+                  mkdir -p build/amd64/bin
+                  cp bin/mimi-darwin-amd64 build/amd64/bin/mimi
+                  chmod +x build/amd64/bin/mimi
+
+                  cd build/amd64
+                  zip -r ../../mimi-darwin-amd64.zip bin Mimi.app share
+                  cd ../..
+
+            - name: Generate darwin amd64 checksum
+              run: |
+                  shasum -a 256 mimi-darwin-amd64.zip | awk '{print $1}' > mimi-darwin-amd64.zip.sha256
+                  ls -l mimi-darwin-amd64.zip mimi-darwin-amd64.zip.sha256
+
+            - name: Upload darwin amd64 release artifacts
+              env:
+                  GH_TOKEN: ${{ secrets.upload_token || github.token }}
+              run: |
+                  gh release upload "${{ inputs.release_tag }}" mimi-darwin-amd64.zip mimi-darwin-amd64.zip.sha256 --clobber
