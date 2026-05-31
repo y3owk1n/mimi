@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN"
+"http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>CFBundleDevelopmentRegion</key>
+	<string>en</string>
+
+	<key>CFBundleDisplayName</key>
+	<string>Mimi</string>
+
+	<key>CFBundleIconFile</key>
+	<string>icon</string>
+
+	<key>CFBundleExecutable</key>
+	<string>mimi</string>
+
+	<key>CFBundleIdentifier</key>
+	<string>com.y3owk1n.mimi</string>
+
+	<key>CFBundleInfoDictionaryVersion</key>
+	<string>6.0</string>
+
+	<key>CFBundleName</key>
+	<string>Mimi</string>
+
+	<key>CFBundlePackageType</key>
+	<string>APPL</string>
+
+	<key>CFBundleVersion</key>
+	<string>BUNDLE_VERSION</string>
+
+	<key>CFBundleShortVersionString</key>
+	<string>SHORT_VERSION</string>
+
+	<key>MimiBuildID</key>
+	<string>BUILD_ID</string>
+
+	<key>NSHighResolutionCapable</key>
+	<true/>
+
+	<key>LSUIElement</key>
+	<true/>
+
+	<key>NSAccessibilityUsageDescription</key>
+	<string>Mimi needs Accessibility access to inspect and interact with user interface elements for keyboard-driven navigation.</string>
+
+	<key>NSScreenCaptureUsageDescription</key>
+	<string>Mimi may capture screen content for vision-based element detection to enhance navigation accuracy.</string>
+</dict>
+</plist>

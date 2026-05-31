@@ -43,6 +43,21 @@ release-ci-darwin ARCH VERSION_OVERRIDE:
     CGO_ENABLED=1 GOOS=darwin GOARCH={{ ARCH }} go build -ldflags="-s -w -X github.com/y3owk1n/mimi/cmd/mimi/cmd.Version={{ VERSION_OVERRIDE }} -X github.com/y3owk1n/mimi/cmd/mimi/cmd.GitCommit={{ GIT_COMMIT }} -X github.com/y3owk1n/mimi/cmd/mimi/cmd.BuildDate={{ BUILD_DATE }}" -trimpath -o bin/mimi-darwin-{{ ARCH }} ./cmd/mimi
     @echo "✓ Release artifact for darwin/{{ ARCH }} built successfully"
 
+# Bundle the application
+bundle: release
+    @echo "Bundling Mimi..."
+    mkdir -p build/Mimi.app/Contents/{MacOS,Resources}
+
+    cp -r bin/mimi build/Mimi.app/Contents/MacOS/mimi
+
+    # cp resources/icon.icns build/Mimi.app/Contents/Resources/icon.icns
+
+    sed "s/VERSION/{{ VERSION }}/g" resources/Info.plist.template > build/Mimi.app/Contents/Info.plist
+
+    codesign --force --deep --sign - build/Mimi.app
+
+    @echo "✓ Bundle complete: build/Mimi.app"
+
 # Run tests
 
 # Run all tests (unit + integration)
