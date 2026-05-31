@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/BurntSushi/toml"
+	"github.com/y3owk1n/mimi/configs"
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
@@ -26,7 +27,7 @@ func WriteDefault(path string) error {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
 
-	err = os.WriteFile(path, []byte(DefaultConfig), 0o644)
+	err = os.WriteFile(path, []byte(configs.DefaultConfig), 0o644)
 	if err != nil {
 		return fmt.Errorf("writing default config: %w", err)
 	}
