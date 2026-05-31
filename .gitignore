@@ -1,0 +1,42 @@
+# Binaries
+bin/
+build/
+*.app
+*.dmg
+/mimi
+
+# Generated man pages
+/man/
+
+# Go
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+*.test
+*.out
+coverage.txt
+coverage.html
+go.work
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Logs
+*.log
+
+# Config (keep default)
+config.toml
+!configs/default-config.toml
+
+.direnv/

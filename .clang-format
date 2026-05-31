@@ -1,0 +1,72 @@
+# Clang-Format Configuration for Objective-C
+# Compatible with LLVM 21+
+# Language: ObjC
+BasedOnStyle: LLVM
+
+# Indentation
+IndentWidth: 4
+TabWidth: 4
+UseTab: ForIndentation
+
+# Braces
+BreakBeforeBraces: Attach
+AllowShortIfStatementsOnASingleLine: Never
+AllowShortLoopsOnASingleLine: false
+
+# Line Length
+ColumnLimit: 120
+
+# Pointers & Qualifiers
+PointerAlignment: Right
+QualifierAlignment: Left
+
+# Spaces
+SpacesBeforeTrailingComments: 2
+SpacesInContainerLiterals: true
+SpacesInSquareBrackets: false
+SpaceAfterCStyleCast: false
+SpaceBeforeAssignmentOperators: true
+SpaceBeforeParens: ControlStatements
+SpaceInEmptyParentheses: false
+SpacesInParens: Never
+
+# Includes
+IncludeBlocks: Regroup
+SortIncludes: CaseSensitive
+
+# Comments
+ReflowComments: true
+
+# Blank Lines & Separation
+SeparateDefinitionBlocks: Always
+MaxEmptyLinesToKeep: 1
+KeepEmptyLinesAtTheStartOfBlocks: false
+EmptyLineAfterAccessModifier: Never
+EmptyLineBeforeAccessModifier: LogicalBlock
+
+# Wrapping & Alignment
+AlignAfterOpenBracket: AlwaysBreak
+AlignConsecutiveAssignments: None
+AlignConsecutiveDeclarations: None
+AlignOperands: Align
+AlignTrailingComments:
+    Kind: Always
+    OverEmptyLines: 0
+
+# Ternary & Conditionals
+BreakBeforeTernaryOperators: true
+
+# Objective-C Specific
+ObjCBlockIndentWidth: 4
+ObjCBinPackProtocolList: Never
+ObjCBreakBeforeNestedBlockParam: true
+
+# Penalties
+PenaltyBreakBeforeFirstCallParameter: 19
+PenaltyBreakComment: 300
+PenaltyBreakString: 1000
+PenaltyExcessCharacter: 1000000
+PenaltyReturnTypeOnItsOwnLine: 200
+
+# Misc
+InsertTrailingCommas: None
