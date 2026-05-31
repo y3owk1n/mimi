@@ -30,6 +30,7 @@ var testCmd = &cobra.Command{
 		for _, k := range events.AllKinds {
 			names = append(names, string(k))
 		}
+
 		return names, cobra.ShellCompDirectiveNoFileComp
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
@@ -42,18 +43,23 @@ var testCmd = &cobra.Command{
 			WindowTitle: testTitle,
 			At:          time.Now(),
 		}
+
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return err
 		}
+
 		reg := hooks.NewRegistry()
 		if err := reg.Reload(cfg); err != nil {
 			return err
 		}
+
 		logger := logging.New(cfg)
 		executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
+
 		fmt.Printf("Firing synthetic event: %s\n", kind)
 		executor.Handle(e)
+
 		return nil
 	},
 }

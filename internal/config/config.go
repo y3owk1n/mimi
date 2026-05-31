@@ -206,23 +206,23 @@ type HookEntry struct {
 }
 
 type rawHooksConfig struct {
-	AppActivate       []interface{} `toml:"on_app_activate"`
-	AppDeactivate     []interface{} `toml:"on_app_deactivate"`
-	AppLaunch         []interface{} `toml:"on_app_launch"`
-	AppQuit           []interface{} `toml:"on_app_quit"`
-	AppHide           []interface{} `toml:"on_app_hide"`
-	AppUnhide         []interface{} `toml:"on_app_unhide"`
-	WindowFocus       []interface{} `toml:"on_window_focus"`
-	WindowTitleChange []interface{} `toml:"on_window_title_change"`
-	WindowCreated     []interface{} `toml:"on_window_created"`
-	WindowClosed      []interface{} `toml:"on_window_closed"`
-	SystemSleep       []interface{} `toml:"on_system_sleep"`
-	SystemWake        []interface{} `toml:"on_system_wake"`
-	ScreenLock        []interface{} `toml:"on_screen_lock"`
-	ScreenUnlock      []interface{} `toml:"on_screen_unlock"`
-	SystemShutdown    []interface{} `toml:"on_system_shutdown"`
-	VolumeMount       []interface{} `toml:"on_volume_mount"`
-	VolumeUnmount     []interface{} `toml:"on_volume_unmount"`
+	AppActivate       []any `toml:"on_app_activate"`
+	AppDeactivate     []any `toml:"on_app_deactivate"`
+	AppLaunch         []any `toml:"on_app_launch"`
+	AppQuit           []any `toml:"on_app_quit"`
+	AppHide           []any `toml:"on_app_hide"`
+	AppUnhide         []any `toml:"on_app_unhide"`
+	WindowFocus       []any `toml:"on_window_focus"`
+	WindowTitleChange []any `toml:"on_window_title_change"`
+	WindowCreated     []any `toml:"on_window_created"`
+	WindowClosed      []any `toml:"on_window_closed"`
+	SystemSleep       []any `toml:"on_system_sleep"`
+	SystemWake        []any `toml:"on_system_wake"`
+	ScreenLock        []any `toml:"on_screen_lock"`
+	ScreenUnlock      []any `toml:"on_screen_unlock"`
+	SystemShutdown    []any `toml:"on_system_shutdown"`
+	VolumeMount       []any `toml:"on_volume_mount"`
+	VolumeUnmount     []any `toml:"on_volume_unmount"`
 }
 
 type rawConfig struct {
@@ -231,16 +231,18 @@ type rawConfig struct {
 }
 
 func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
-	var hc HooksConfig
-	var errs []string
+	var (
+		hc   HooksConfig
+		errs []string
+	)
 
-	decodeField := func(field string, rawItems []interface{}) []HookEntry {
+	decodeField := func(field string, rawItems []any) []HookEntry {
 		var entries []HookEntry
 		for i, item := range rawItems {
 			switch v := item.(type) {
 			case string:
 				entries = append(entries, HookEntry{Run: v})
-			case map[string]interface{}:
+			case map[string]any:
 				entry := HookEntry{
 					Run:      getString(v, "run"),
 					App:      getString(v, "app"),
@@ -250,17 +252,24 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 				if timeout, ok := getInt(v, "timeout_secs"); ok {
 					entry.TimeoutSecs = timeout
 				}
+
 				if async, ok := getBool(v, "async"); ok {
 					entry.Async = async
 				}
+
 				if entry.Run == "" {
 					errs = append(errs, fmt.Sprintf("%s[%d]: 'run' field is required", field, i))
 				}
+
 				entries = append(entries, entry)
 			default:
-				errs = append(errs, fmt.Sprintf("%s[%d]: expected string or table, got %T", field, i, item))
+				errs = append(
+					errs,
+					fmt.Sprintf("%s[%d]: expected string or table, got %T", field, i, item),
+				)
 			}
 		}
+
 		return entries
 	}
 
@@ -285,19 +294,21 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	if len(errs) > 0 {
 		return hc, fmt.Errorf("hook decode errors:\n  - %s", strings.Join(errs, "\n  - "))
 	}
+
 	return hc, nil
 }
 
-func getString(m map[string]interface{}, key string) string {
+func getString(m map[string]any, key string) string {
 	if v, ok := m[key]; ok {
 		if s, ok := v.(string); ok {
 			return s
 		}
 	}
+
 	return ""
 }
 
-func getInt(m map[string]interface{}, key string) (int, bool) {
+func getInt(m map[string]any, key string) (int, bool) {
 	if v, ok := m[key]; ok {
 		switch n := v.(type) {
 		case int64:
@@ -306,14 +317,16 @@ func getInt(m map[string]interface{}, key string) (int, bool) {
 			return int(n), true
 		}
 	}
+
 	return 0, false
 }
 
-func getBool(m map[string]interface{}, key string) (bool, bool) {
+func getBool(m map[string]any, key string) (bool, bool) {
 	if v, ok := m[key]; ok {
 		if b, ok := v.(bool); ok {
 			return b, true
 		}
 	}
+
 	return false, false
 }

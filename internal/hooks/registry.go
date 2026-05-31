@@ -27,15 +27,18 @@ func (r *Registry) Reload(cfg *config.Config) error {
 	if err != nil {
 		return err
 	}
+
 	r.mu.Lock()
 	r.m = m
 	r.mu.Unlock()
+
 	return nil
 }
 
 func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
+
 	return r.m[kind]
 }
 
@@ -45,12 +48,15 @@ func (h *Hook) Matches(e events.Event) bool {
 			return false
 		}
 	}
+
 	if h.Entry.BundleID != "" && h.Entry.BundleID != e.BundleID {
 		return false
 	}
+
 	if h.titleRegexp != nil && !h.titleRegexp.MatchString(e.WindowTitle) {
 		return false
 	}
+
 	return true
 }
 
@@ -85,14 +91,18 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 				if err != nil {
 					return nil, err
 				}
+
 				hook.titleRegexp = re
 			}
+
 			hooks = append(hooks, hook)
 		}
+
 		if len(hooks) > 0 {
 			m[kind] = hooks
 		}
 	}
+
 	return m, nil
 }
 
@@ -100,6 +110,7 @@ func globMatch(pattern, s string) bool {
 	if pattern == "" {
 		return true
 	}
+
 	if pattern == "*" {
 		return true
 	}
@@ -107,6 +118,7 @@ func globMatch(pattern, s string) bool {
 	re := regexp.QuoteMeta(pattern)
 	re = stringsReplaceAll(re, "\\*", ".*")
 	matched, _ := regexp.MatchString("^"+re+"$", s)
+
 	return matched
 }
 
@@ -121,5 +133,6 @@ func stringsReplaceAll(s, old, new string) string {
 			i++
 		}
 	}
+
 	return string(result)
 }

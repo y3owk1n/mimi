@@ -14,22 +14,29 @@ const DefaultConfigPath = "~/.config/mimi/config.toml"
 
 func Exists(path string) bool {
 	_, err := os.Stat(expandHome(path))
+
 	return err == nil
 }
 
 func WriteDefault(path string) error {
 	path = expandHome(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
 		return fmt.Errorf("creating config directory: %w", err)
 	}
-	if err := os.WriteFile(path, []byte(DefaultConfig), 0644); err != nil {
+
+	err = os.WriteFile(path, []byte(DefaultConfig), 0o644)
+	if err != nil {
 		return fmt.Errorf("writing default config: %w", err)
 	}
+
 	return nil
 }
 
 func Load(path string) (*Config, error) {
 	path = expandHome(path)
+
 	data, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("reading config: %w", err)
@@ -50,10 +57,13 @@ func Load(path string) (*Config, error) {
 		Hooks:    hooks,
 	}
 	applyDefaults(cfg)
+
 	if err := validate(cfg); err != nil {
 		return nil, err
 	}
+
 	expandPaths(cfg)
+
 	return cfg, nil
 }
 
@@ -62,21 +72,27 @@ func applyDefaults(cfg *Config) {
 	if s.LogFile == "" {
 		s.LogFile = "~/.local/share/mimi/mimi.log"
 	}
+
 	if s.LogLevel == "" {
 		s.LogLevel = "info"
 	}
+
 	if s.LogFormat == "" {
 		s.LogFormat = "text"
 	}
+
 	if s.HookTimeoutSecs == 0 {
 		s.HookTimeoutSecs = 10
 	}
+
 	if s.HookShell == "" {
 		s.HookShell = "/bin/sh"
 	}
+
 	if s.MaxHookWorkers == 0 {
 		s.MaxHookWorkers = 4
 	}
+
 	if s.PIDFile == "" {
 		s.PIDFile = "~/.local/share/mimi/mimi.pid"
 	}
@@ -87,9 +103,11 @@ func validate(cfg *Config) error {
 	if cfg.Settings.HookTimeoutSecs < 1 {
 		errs = append(errs, "settings.hook_timeout_secs must be >= 1")
 	}
+
 	if cfg.Settings.MaxHookWorkers < 1 {
 		errs = append(errs, "settings.max_hook_workers must be >= 1")
 	}
+
 	for kind, entries := range allHookEntries(cfg) {
 		for i, e := range entries {
 			if e.Run == "" {
@@ -97,9 +115,11 @@ func validate(cfg *Config) error {
 			}
 		}
 	}
+
 	if len(errs) > 0 {
 		return fmt.Errorf("config validation failed:\n  - %s", strings.Join(errs, "\n  - "))
 	}
+
 	return nil
 }
 
@@ -133,7 +153,9 @@ func expandPaths(cfg *Config) {
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~") {
 		home, _ := os.UserHomeDir()
+
 		return filepath.Join(home, path[1:])
 	}
+
 	return path
 }

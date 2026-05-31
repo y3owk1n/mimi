@@ -16,14 +16,18 @@ var startCmd = &cobra.Command{
 		if !config.Exists(configPath) {
 			fmt.Printf("No config found at %s — creating with defaults.\n", configPath)
 			fmt.Println("Edit it to customize hooks, then run 'mimi start' again.")
+
 			return config.WriteDefault(configPath)
 		}
+
 		cfg, err := config.Load(configPath)
 		if err != nil {
 			return fmt.Errorf("config: %w", err)
 		}
+
 		logger := logging.New(cfg)
-		logger.Info("mimi starting", "version", version, "config", configPath)
+		logger.Info("mimi starting", "version", Version, "config", configPath)
+
 		return daemon.Run(cfg, logger, configPath)
 	},
 }

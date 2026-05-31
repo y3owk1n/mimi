@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -43,6 +44,7 @@ func (ex *Executor) Handle(e events.Event) {
 		if !h.Matches(e) {
 			continue
 		}
+
 		if h.Entry.Async {
 			go ex.run(h, e)
 		} else {
@@ -60,6 +62,7 @@ func (ex *Executor) Run(ctx context.Context, sub events.Subscriber) {
 			if !ok {
 				return
 			}
+
 			ex.Handle(e)
 		}
 	}
@@ -82,6 +85,7 @@ func (ex *Executor) run(h Hook, e events.Event) {
 	defer cancel()
 
 	cmd := exec.CommandContext(ctx, shell, "-c", h.Entry.Run)
+
 	cmd.Env = append(os.Environ(), eventEnv(e)...)
 
 	start := time.Now()
@@ -89,7 +93,7 @@ func (ex *Executor) run(h Hook, e events.Event) {
 	elapsed := time.Since(start)
 
 	if err != nil {
-		if ctx.Err() == context.DeadlineExceeded {
+		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			ex.logger.Warn("hook timed out",
 				"kind", e.Kind, "cmd", h.Entry.Run, "timeout", timeout)
 		} else {
@@ -99,6 +103,7 @@ func (ex *Executor) run(h Hook, e events.Event) {
 		}
 	} else {
 		output := strings.TrimSpace(string(out))
+
 		attrs := []any{
 			"kind", e.Kind,
 			"cmd", h.Entry.Run,
@@ -107,6 +112,7 @@ func (ex *Executor) run(h Hook, e events.Event) {
 		if output != "" {
 			attrs = append(attrs, "output", output)
 		}
+
 		ex.logger.Info("hook ok", attrs...)
 	}
 }
@@ -114,17 +120,18 @@ func (ex *Executor) run(h Hook, e events.Event) {
 func eventEnv(e events.Event) []string {
 	vars := []string{
 		fmt.Sprintf("mimi_EVENT=%s", e.Kind),
-		fmt.Sprintf("mimi_EVENT_ID=%s", e.ID),
-		fmt.Sprintf("mimi_APP_NAME=%s", e.AppName),
-		fmt.Sprintf("mimi_BUNDLE_ID=%s", e.BundleID),
+		"mimi_EVENT_ID=" + e.ID,
+		"mimi_APP_NAME=" + e.AppName,
+		"mimi_BUNDLE_ID=" + e.BundleID,
 		fmt.Sprintf("mimi_PID=%d", e.PID),
-		fmt.Sprintf("mimi_WINDOW_TITLE=%s", e.WindowTitle),
-		fmt.Sprintf("mimi_VOLUME_PATH=%s", e.VolumePath),
-		fmt.Sprintf("mimi_VOLUME_NAME=%s", e.VolumeName),
-		fmt.Sprintf("mimi_TIMESTAMP=%s", e.At.Format(time.RFC3339)),
+		"mimi_WINDOW_TITLE=" + e.WindowTitle,
+		"mimi_VOLUME_PATH=" + e.VolumePath,
+		"mimi_VOLUME_NAME=" + e.VolumeName,
+		"mimi_TIMESTAMP=" + e.At.Format(time.RFC3339),
 	}
 	for k, v := range e.Extra {
 		vars = append(vars, fmt.Sprintf("mimi_%s=%s", strings.ToUpper(k), v))
 	}
+
 	return vars
 }

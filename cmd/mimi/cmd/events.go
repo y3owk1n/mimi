@@ -46,9 +46,11 @@ func tailEventLog(jsonOut bool, kind, app string) error {
 	if err != nil {
 		// If the file doesn't exist yet, create it and start tailing
 		if os.IsNotExist(err) {
-			if err := os.MkdirAll(filepath.Dir(eventLogPath), 0755); err != nil {
+			err := os.MkdirAll(filepath.Dir(eventLogPath), 0o755)
+			if err != nil {
 				return err
 			}
+
 			f, err = os.Create(eventLogPath)
 			if err != nil {
 				return fmt.Errorf("creating event log: %w", err)
@@ -67,31 +69,42 @@ func tailEventLog(jsonOut bool, kind, app string) error {
 		if line == "" {
 			continue
 		}
+
 		var e events.Event
-		if err := json.Unmarshal([]byte(line), &e); err != nil {
+
+		err := json.Unmarshal([]byte(line), &e)
+		if err != nil {
 			continue
 		}
+
 		if kind != "" && string(e.Kind) != kind {
 			continue
 		}
+
 		if app != "" && !strings.Contains(strings.ToLower(e.AppName), strings.ToLower(app)) {
 			continue
 		}
+
 		if jsonOut {
 			fmt.Println(line)
 		} else {
 			fmt.Printf("%s | %s", e.At.Format("15:04:05"), e.Kind)
+
 			if e.AppName != "" {
 				fmt.Printf(" | %s", e.AppName)
 			}
+
 			if e.BundleID != "" {
 				fmt.Printf(" (%s)", e.BundleID)
 			}
+
 			if e.WindowTitle != "" {
 				fmt.Printf(" | \"%s\"", e.WindowTitle)
 			}
+
 			fmt.Println()
 		}
 	}
+
 	return scanner.Err()
 }

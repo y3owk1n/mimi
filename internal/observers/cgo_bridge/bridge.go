@@ -9,6 +9,7 @@ package cgo_bridge
 #include "system_events.h"
 */
 import "C"
+
 import (
 	"runtime"
 	"time"
@@ -70,8 +71,8 @@ func RemoveAXObserver(pid int) {
 
 //export goWorkspaceEvent
 func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
-	volPath, volName *C.char) {
-
+	volPath, volName *C.char,
+) {
 	e := events.Event{
 		ID:         uuid.NewString(),
 		Kind:       kindFromInt(int(kind)),

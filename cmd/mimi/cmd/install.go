@@ -19,6 +19,7 @@ var installCmd = &cobra.Command{
 		if err != nil {
 			return err
 		}
+
 		home := os.Getenv("HOME")
 		plistPath := filepath.Join(home, "Library/LaunchAgents/com.y3owk1n.mimi.plist")
 
@@ -34,6 +35,7 @@ var installCmd = &cobra.Command{
 		if err := os.MkdirAll(filepath.Dir(plistPath), 0o755); err != nil {
 			return err
 		}
+
 		if err := os.WriteFile(plistPath, []byte(buf.String()), 0o644); err != nil {
 			return fmt.Errorf("writing plist: %w", err)
 		}
@@ -42,7 +44,9 @@ var installCmd = &cobra.Command{
 		if err != nil {
 			return fmt.Errorf("launchctl load: %s: %w", out, err)
 		}
+
 		fmt.Printf("mimi installed as launchd agent.\nPlist: %s\n", plistPath)
+
 		return nil
 	},
 }
@@ -56,6 +60,7 @@ var uninstallCmd = &cobra.Command{
 		exec.Command("launchctl", "unload", plistPath).Run()
 		os.Remove(plistPath)
 		fmt.Println("mimi uninstalled.")
+
 		return nil
 	},
 }

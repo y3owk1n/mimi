@@ -1,13 +1,20 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 )
 
 var (
 	configPath string
 	verbose    bool
-	version    = "dev"
+	// Version is set via ldflags at build time.
+	Version = "dev"
+	// GitCommit is set via ldflags at build time.
+	GitCommit = "unknown"
+	// BuildDate is set via ldflags at build time.
+	BuildDate = "unknown"
 )
 
 var rootCmd = &cobra.Command{
@@ -22,6 +29,17 @@ func Execute() error {
 }
 
 func init() {
+	// Set version info right before execution, not at init time
+	rootCmd.Version = Version
+	rootCmd.SetVersionTemplate(
+		fmt.Sprintf(
+			"Mimi version %s\nGit commit: %s\nBuild date: %s\n",
+			Version,
+			GitCommit,
+			BuildDate,
+		),
+	)
+
 	rootCmd.PersistentFlags().StringVar(&configPath, "config", "~/.config/mimi/config.toml",
 		"path to config file")
 	rootCmd.PersistentFlags().BoolVarP(&verbose, "verbose", "v", false,

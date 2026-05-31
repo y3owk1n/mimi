@@ -13,11 +13,14 @@ var initCmd = &cobra.Command{
 	Long: `Writes the default config to the config path (default: ~/.config/mimi/config.toml).
 Safe to re-run — it will overwrite any existing config.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		if err := config.WriteDefault(configPath); err != nil {
+		err := config.WriteDefault(configPath)
+		if err != nil {
 			return fmt.Errorf("writing default config: %w", err)
 		}
+
 		fmt.Printf("Default config written to %s\n", configPath)
 		fmt.Println("Edit it to customize hooks, then run 'mimi start'.")
+
 		return nil
 	},
 }

@@ -23,24 +23,31 @@ func (m *AccessibilityManager) Install(pid int) bool {
 	if !m.enabled {
 		return false
 	}
+
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if _, ok := m.tracked[pid]; ok {
 		return true
 	}
+
 	if ok := cgo_bridge.InstallAXObserver(pid); ok {
 		m.tracked[pid] = struct{}{}
+
 		return true
 	}
+
 	return false
 }
 
 func (m *AccessibilityManager) Remove(pid int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()
+
 	if _, ok := m.tracked[pid]; !ok {
 		return
 	}
+
 	cgo_bridge.RemoveAXObserver(pid)
 	delete(m.tracked, pid)
 }

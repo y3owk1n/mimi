@@ -22,8 +22,10 @@ var configValidateCmd = &cobra.Command{
 			fmt.Fprintf(os.Stderr, "Config invalid:\n  %s\n", err)
 			os.Exit(1)
 		}
+
 		hookCount := countHooks(cfg)
 		fmt.Printf("Config valid (%d hook(s) defined)\n", hookCount)
+
 		return nil
 	},
 }
@@ -59,5 +61,6 @@ func countHooks(cfg *config.Config) int {
 		_ = entries.name
 		count += len(entries.entries)
 	}
+
 	return count
 }

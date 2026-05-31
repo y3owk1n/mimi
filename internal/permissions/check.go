@@ -5,13 +5,14 @@ package permissions
 #include <ApplicationServices/ApplicationServices.h>
 */
 import "C"
+
 import (
 	"fmt"
 )
 
 type CheckResult struct {
-	Accessibility     bool
-	AccessibilityMsg  string
+	Accessibility    bool
+	AccessibilityMsg string
 }
 
 func Check() CheckResult {

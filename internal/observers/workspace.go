@@ -14,7 +14,11 @@ type WorkspaceObserver struct {
 	logger *slog.Logger
 }
 
-func NewWorkspaceObserver(bus *events.Bus, axMgr *AccessibilityManager, logger *slog.Logger) *WorkspaceObserver {
+func NewWorkspaceObserver(
+	bus *events.Bus,
+	axMgr *AccessibilityManager,
+	logger *slog.Logger,
+) *WorkspaceObserver {
 	return &WorkspaceObserver{bus: bus, axMgr: axMgr, logger: logger}
 }
 
@@ -28,6 +32,7 @@ func (o *WorkspaceObserver) Run(ctx context.Context) {
 			if !ok {
 				return
 			}
+
 			o.handle(e)
 		}
 	}

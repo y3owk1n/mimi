@@ -15,7 +15,9 @@ import (
 
 func New(cfg *config.Config) *slog.Logger {
 	level := parseLevel(cfg.Settings.LogLevel)
+
 	var handler slog.Handler
+
 	w := openLogFile(cfg.Settings.LogFile)
 	if cfg.Settings.LogFormat == "json" {
 		handler = slog.NewJSONHandler(io.MultiWriter(os.Stderr, w),
@@ -24,17 +26,26 @@ func New(cfg *config.Config) *slog.Logger {
 		handler = slog.NewTextHandler(io.MultiWriter(os.Stderr, w),
 			&slog.HandlerOptions{Level: level})
 	}
+
 	return slog.New(handler)
 }
 
-func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, logger *slog.Logger) {
+func WriteEventLog(
+	ctx context.Context,
+	sub events.Subscriber,
+	logPath string,
+	logger *slog.Logger,
+) {
 	eventLogPath := logPath + ".events.jsonl"
+
 	f, err := openAppend(eventLogPath)
 	if err != nil {
 		logger.Warn("cannot open event log", "err", err)
+
 		return
 	}
 	defer f.Close()
+
 	enc := json.NewEncoder(f)
 	for {
 		select {
@@ -44,7 +55,9 @@ func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, l
 			if !ok {
 				return
 			}
-			if err := enc.Encode(e); err != nil {
+
+			err := enc.Encode(e)
+			if err != nil {
 				logger.Warn("event log write error", "err", err)
 			}
 		}
@@ -53,29 +66,36 @@ func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, l
 
 func openLogFile(path string) *os.File {
 	path = expandHome(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return os.Stderr
 	}
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 	if err != nil {
 		return os.Stderr
 	}
+
 	return f
 }
 
 func openAppend(path string) (*os.File, error) {
 	path = expandHome(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+
+	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	if err != nil {
 		return nil, err
 	}
-	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0644)
+
+	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
 }
 
 func expandHome(path string) string {
 	if strings.HasPrefix(path, "~") {
 		home, _ := os.UserHomeDir()
+
 		return filepath.Join(home, path[1:])
 	}
+
 	return path
 }
 
