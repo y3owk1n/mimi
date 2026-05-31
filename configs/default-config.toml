@@ -137,6 +137,9 @@ on_system_wake = [
 # Shutdown or restart imminent.
 # on_system_shutdown = []
 
+# User session ended (logout).
+# on_user_session_end = []
+
 # ── Storage Events ─────────────────────────────────────────────────────────────
 
 # Volume / USB drive mounted.
@@ -147,7 +150,86 @@ on_volume_mount = [
 # Volume / USB drive unmounted.
 # on_volume_unmount = []
 
-# ── Network Events (placeholder) ───────────────────────────────────────────────
+# ── Display / Appearance Events ───────────────────────────────────────────────
 
-# on_network_up = []
-# on_network_down = []
+# External display connected.
+# on_external_display_connected = [
+#     "echo 'external display connected'"
+# ]
+
+# External display disconnected.
+# on_external_display_disconnected = [
+#     "echo 'external display disconnected'"
+# ]
+
+# Dark/Light mode changed.
+# on_appearance_changed = [
+#     "echo 'appearance changed'"
+# ]
+
+# ── Power / Battery Events ────────────────────────────────────────────────────
+
+# AC power adapter plugged in.
+# on_power_adapter_connected = [
+#     "echo 'power adapter connected'"
+# ]
+
+# AC power adapter unplugged (now on battery).
+# on_power_adapter_disconnected = [
+#     "echo 'switched to battery'"
+# ]
+
+# Battery level is low.
+# on_battery_low = [
+#     "echo 'battery low'"
+# ]
+
+# Battery level is critically low.
+# on_battery_critical = [
+#     "echo 'battery critical!'"
+# ]
+
+# ── Audio Events ──────────────────────────────────────────────────────────────
+
+# Audio device list or default input/output changed.
+# on_audio_device_changed = [
+#     "echo 'audio device changed'"
+# ]
+
+# ── Workspace / Desktop Events ────────────────────────────────────────────────
+
+# Active Space / Desktop changed (Mission Control).
+# on_workspace_changed = [
+#     "echo 'workspace changed'"
+# ]
+
+# ── USB / Peripheral Events ──────────────────────────────────────────────────
+
+# USB device connected.
+# on_usb_device_connected = [
+#     "echo 'USB device connected'"
+# ]
+
+# USB device disconnected.
+# on_usb_device_disconnected = [
+#     "echo 'USB device disconnected'"
+# ]
+
+# ── Network Events ────────────────────────────────────────────────────────────
+
+# Network connectivity restored.
+# on_network_up = [
+#     "echo 'network is up'"
+# ]
+
+# Network connectivity lost.
+# on_network_down = [
+#     "echo 'network is down'"
+# ]
+
+# ── Clipboard Events ─────────────────────────────────────────────────────────
+
+# Clipboard content changed.
+# on_clipboard_changed = [
+#     "echo 'clipboard changed'"
+# ]

@@ -8,6 +8,7 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+
 	"github.com/y3owk1n/mimi/internal/events"
 )
 

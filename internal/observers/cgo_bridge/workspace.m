@@ -94,12 +94,12 @@ void WorkspaceObserverStart(void) {
         gObserver = [[WorkspaceObserver alloc] init];
         [gObserver startObserving];
         
-        // Register for dark mode changes
-        NSNotificationCenter *nc = [NSNotificationCenter defaultCenter];
-        [nc addObserver:gObserver
-               selector:@selector(appearanceChanged:)
-                   name:@"AppleInterfaceThemeChangedNotification"
-                 object:nil];
+        // Register for dark mode changes via distributed notification center
+        NSDistributedNotificationCenter *dnc = [NSDistributedNotificationCenter defaultCenter];
+        [dnc addObserver:gObserver
+                selector:@selector(appearanceChanged:)
+                    name:@"AppleInterfaceThemeChangedNotification"
+                  object:nil];
 
         CFRunLoopRun();
         gRunLoop = NULL;
@@ -110,6 +110,7 @@ void WorkspaceObserverStop(void) {
     if (gObserver) {
         NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
         [wsnc removeObserver:gObserver];
+        [[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];
     }
     CFRunLoopStop(CFRunLoopGetCurrent());
 }

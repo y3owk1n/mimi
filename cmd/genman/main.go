@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/spf13/cobra/doc"
+
 	"github.com/y3owk1n/mimi/cmd/mimi/cmd"
 )
 

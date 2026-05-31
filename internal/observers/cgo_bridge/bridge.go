@@ -2,7 +2,7 @@ package cgo_bridge
 
 /*
 #cgo CFLAGS: -x objective-c
-#cgo LDFLAGS: -framework Cocoa -framework ApplicationServices -framework IOKit
+#cgo LDFLAGS: -framework Cocoa -framework ApplicationServices -framework IOKit -framework CoreAudio -framework SystemConfiguration
 
 #include "workspace.h"
 #include "axobserver.h"
@@ -15,6 +15,7 @@ import (
 	"time"
 
 	"github.com/google/uuid"
+
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
@@ -40,6 +41,7 @@ func Start() {
 	C.ClipboardObserverStart()
 	C.USBObserverStart()
 	C.NetworkObserverStart()
+	C.DisplayObserverStart()
 
 	// Push a synthetic startup event as a proof-of-life for the pipeline.
 	// Its kind ("_startup_") won't match any user hook.
@@ -59,6 +61,7 @@ func Stop() {
 	C.ClipboardObserverStop()
 	C.USBObserverStop()
 	C.NetworkObserverStop()
+	C.DisplayObserverStop()
 }
 
 func InstallAXObserver(pid int) bool {

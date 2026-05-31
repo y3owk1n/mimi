@@ -79,7 +79,7 @@ func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 
 	for sig := range sigCh {
 		if sig == syscall.SIGHUP {
-			newCfg, err := config.Load(config.DefaultConfigPath)
+			newCfg, err := config.Load(configPath)
 			if err != nil {
 				logger.Warn("SIGHUP reload failed", "err", err)
 

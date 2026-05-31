@@ -19,3 +19,8 @@ void USBObserverStop(void);
 // Network observer
 void NetworkObserverStart(void);
 void NetworkObserverStop(void);
+
+// Display observer
+void DisplayObserverStart(void);
+void DisplayObserverStop(void);
+

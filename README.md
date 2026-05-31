@@ -103,13 +103,14 @@ mimi config validate
 
 ### System Events
 
-| Hook key             | Fires when…                     |
-| -------------------- | ------------------------------- |
-| `on_system_sleep`    | System or display goes to sleep |
-| `on_system_wake`     | System wakes from sleep         |
-| `on_screen_lock`     | Screen is locked                |
-| `on_screen_unlock`   | Screen is unlocked              |
-| `on_system_shutdown` | Shutdown or restart is imminent |
+| Hook key              | Fires when…                     |
+| --------------------- | ------------------------------- |
+| `on_system_sleep`     | System or display goes to sleep |
+| `on_system_wake`      | System wakes from sleep         |
+| `on_screen_lock`      | Screen is locked                |
+| `on_screen_unlock`    | Screen is unlocked              |
+| `on_system_shutdown`  | Shutdown or restart is imminent |
+| `on_user_session_end` | User session ends (logout)      |
 
 ### Storage Events
 
@@ -117,6 +118,55 @@ mimi config validate
 | ------------------- | ------------------------------ | ---------------------------- |
 | `on_volume_mount`   | A volume or USB drive mounts   | `VOLUME_PATH`, `VOLUME_NAME` |
 | `on_volume_unmount` | A volume or USB drive unmounts | `VOLUME_PATH`, `VOLUME_NAME` |
+
+### Display / Appearance Events
+
+| Hook key                           | Fires when…                                 |
+| ---------------------------------- | ------------------------------------------- |
+| `on_external_display_connected`    | An external display is connected            |
+| `on_external_display_disconnected` | An external display is disconnected         |
+| `on_appearance_changed`            | System appearance changes (Dark/Light mode) |
+
+### Power / Battery Events
+
+| Hook key                        | Fires when…                           |
+| ------------------------------- | ------------------------------------- |
+| `on_power_adapter_connected`    | AC power adapter is plugged in        |
+| `on_power_adapter_disconnected` | AC power adapter is unplugged         |
+| `on_battery_low`                | Battery level drops to low            |
+| `on_battery_critical`           | Battery level drops to critically low |
+
+### Audio Events
+
+| Hook key                  | Fires when…                                       |
+| ------------------------- | ------------------------------------------------- |
+| `on_audio_device_changed` | Audio device list or default input/output changes |
+
+### Workspace / Desktop Events
+
+| Hook key               | Fires when…                                      |
+| ---------------------- | ------------------------------------------------ |
+| `on_workspace_changed` | Active Space / Desktop changes (Mission Control) |
+
+### USB / Peripheral Events
+
+| Hook key                     | Fires when…                  |
+| ---------------------------- | ---------------------------- |
+| `on_usb_device_connected`    | A USB device is connected    |
+| `on_usb_device_disconnected` | A USB device is disconnected |
+
+### Network Events
+
+| Hook key          | Fires when…                      |
+| ----------------- | -------------------------------- |
+| `on_network_up`   | Network connectivity is restored |
+| `on_network_down` | Network connectivity is lost     |
+
+### Clipboard Events
+
+| Hook key               | Fires when…               |
+| ---------------------- | ------------------------- |
+| `on_clipboard_changed` | Clipboard content changes |
 
 ---
 

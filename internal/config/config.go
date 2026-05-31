@@ -21,23 +21,38 @@ type SettingsConfig struct {
 }
 
 type HooksConfig struct {
-	AppActivate       []HookEntry `toml:"on_app_activate"`
-	AppDeactivate     []HookEntry `toml:"on_app_deactivate"`
-	AppLaunch         []HookEntry `toml:"on_app_launch"`
-	AppQuit           []HookEntry `toml:"on_app_quit"`
-	AppHide           []HookEntry `toml:"on_app_hide"`
-	AppUnhide         []HookEntry `toml:"on_app_unhide"`
-	WindowFocus       []HookEntry `toml:"on_window_focus"`
-	WindowTitleChange []HookEntry `toml:"on_window_title_change"`
-	WindowCreated     []HookEntry `toml:"on_window_created"`
-	WindowClosed      []HookEntry `toml:"on_window_closed"`
-	SystemSleep       []HookEntry `toml:"on_system_sleep"`
-	SystemWake        []HookEntry `toml:"on_system_wake"`
-	ScreenLock        []HookEntry `toml:"on_screen_lock"`
-	ScreenUnlock      []HookEntry `toml:"on_screen_unlock"`
-	SystemShutdown    []HookEntry `toml:"on_system_shutdown"`
-	VolumeMount       []HookEntry `toml:"on_volume_mount"`
-	VolumeUnmount     []HookEntry `toml:"on_volume_unmount"`
+	AppActivate                 []HookEntry `toml:"on_app_activate"`
+	AppDeactivate               []HookEntry `toml:"on_app_deactivate"`
+	AppLaunch                   []HookEntry `toml:"on_app_launch"`
+	AppQuit                     []HookEntry `toml:"on_app_quit"`
+	AppHide                     []HookEntry `toml:"on_app_hide"`
+	AppUnhide                   []HookEntry `toml:"on_app_unhide"`
+	WindowFocus                 []HookEntry `toml:"on_window_focus"`
+	WindowTitleChange           []HookEntry `toml:"on_window_title_change"`
+	WindowCreated               []HookEntry `toml:"on_window_created"`
+	WindowClosed                []HookEntry `toml:"on_window_closed"`
+	SystemSleep                 []HookEntry `toml:"on_system_sleep"`
+	SystemWake                  []HookEntry `toml:"on_system_wake"`
+	ScreenLock                  []HookEntry `toml:"on_screen_lock"`
+	ScreenUnlock                []HookEntry `toml:"on_screen_unlock"`
+	SystemShutdown              []HookEntry `toml:"on_system_shutdown"`
+	UserSessionEnd              []HookEntry `toml:"on_user_session_end"`
+	VolumeMount                 []HookEntry `toml:"on_volume_mount"`
+	VolumeUnmount               []HookEntry `toml:"on_volume_unmount"`
+	ExternalDisplayConnected    []HookEntry `toml:"on_external_display_connected"`
+	ExternalDisplayDisconnected []HookEntry `toml:"on_external_display_disconnected"`
+	AppearanceChanged           []HookEntry `toml:"on_appearance_changed"`
+	PowerAdapterConnected       []HookEntry `toml:"on_power_adapter_connected"`
+	PowerAdapterDisconnected    []HookEntry `toml:"on_power_adapter_disconnected"`
+	BatteryLow                  []HookEntry `toml:"on_battery_low"`
+	BatteryCritical             []HookEntry `toml:"on_battery_critical"`
+	AudioDeviceChanged          []HookEntry `toml:"on_audio_device_changed"`
+	WorkspaceChanged            []HookEntry `toml:"on_workspace_changed"`
+	USBDeviceConnected          []HookEntry `toml:"on_usb_device_connected"`
+	USBDeviceDisconnected       []HookEntry `toml:"on_usb_device_disconnected"`
+	NetworkUp                   []HookEntry `toml:"on_network_up"`
+	NetworkDown                 []HookEntry `toml:"on_network_down"`
+	ClipboardChanged            []HookEntry `toml:"on_clipboard_changed"`
 }
 
 type HookEntry struct {
@@ -50,23 +65,38 @@ type HookEntry struct {
 }
 
 type rawHooksConfig struct {
-	AppActivate       []any `toml:"on_app_activate"`
-	AppDeactivate     []any `toml:"on_app_deactivate"`
-	AppLaunch         []any `toml:"on_app_launch"`
-	AppQuit           []any `toml:"on_app_quit"`
-	AppHide           []any `toml:"on_app_hide"`
-	AppUnhide         []any `toml:"on_app_unhide"`
-	WindowFocus       []any `toml:"on_window_focus"`
-	WindowTitleChange []any `toml:"on_window_title_change"`
-	WindowCreated     []any `toml:"on_window_created"`
-	WindowClosed      []any `toml:"on_window_closed"`
-	SystemSleep       []any `toml:"on_system_sleep"`
-	SystemWake        []any `toml:"on_system_wake"`
-	ScreenLock        []any `toml:"on_screen_lock"`
-	ScreenUnlock      []any `toml:"on_screen_unlock"`
-	SystemShutdown    []any `toml:"on_system_shutdown"`
-	VolumeMount       []any `toml:"on_volume_mount"`
-	VolumeUnmount     []any `toml:"on_volume_unmount"`
+	AppActivate                 []any `toml:"on_app_activate"`
+	AppDeactivate               []any `toml:"on_app_deactivate"`
+	AppLaunch                   []any `toml:"on_app_launch"`
+	AppQuit                     []any `toml:"on_app_quit"`
+	AppHide                     []any `toml:"on_app_hide"`
+	AppUnhide                   []any `toml:"on_app_unhide"`
+	WindowFocus                 []any `toml:"on_window_focus"`
+	WindowTitleChange           []any `toml:"on_window_title_change"`
+	WindowCreated               []any `toml:"on_window_created"`
+	WindowClosed                []any `toml:"on_window_closed"`
+	SystemSleep                 []any `toml:"on_system_sleep"`
+	SystemWake                  []any `toml:"on_system_wake"`
+	ScreenLock                  []any `toml:"on_screen_lock"`
+	ScreenUnlock                []any `toml:"on_screen_unlock"`
+	SystemShutdown              []any `toml:"on_system_shutdown"`
+	UserSessionEnd              []any `toml:"on_user_session_end"`
+	VolumeMount                 []any `toml:"on_volume_mount"`
+	VolumeUnmount               []any `toml:"on_volume_unmount"`
+	ExternalDisplayConnected    []any `toml:"on_external_display_connected"`
+	ExternalDisplayDisconnected []any `toml:"on_external_display_disconnected"`
+	AppearanceChanged           []any `toml:"on_appearance_changed"`
+	PowerAdapterConnected       []any `toml:"on_power_adapter_connected"`
+	PowerAdapterDisconnected    []any `toml:"on_power_adapter_disconnected"`
+	BatteryLow                  []any `toml:"on_battery_low"`
+	BatteryCritical             []any `toml:"on_battery_critical"`
+	AudioDeviceChanged          []any `toml:"on_audio_device_changed"`
+	WorkspaceChanged            []any `toml:"on_workspace_changed"`
+	USBDeviceConnected          []any `toml:"on_usb_device_connected"`
+	USBDeviceDisconnected       []any `toml:"on_usb_device_disconnected"`
+	NetworkUp                   []any `toml:"on_network_up"`
+	NetworkDown                 []any `toml:"on_network_down"`
+	ClipboardChanged            []any `toml:"on_clipboard_changed"`
 }
 
 type rawConfig struct {
@@ -132,8 +162,32 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	hc.ScreenLock = decodeField("on_screen_lock", raw.ScreenLock)
 	hc.ScreenUnlock = decodeField("on_screen_unlock", raw.ScreenUnlock)
 	hc.SystemShutdown = decodeField("on_system_shutdown", raw.SystemShutdown)
+	hc.UserSessionEnd = decodeField("on_user_session_end", raw.UserSessionEnd)
 	hc.VolumeMount = decodeField("on_volume_mount", raw.VolumeMount)
 	hc.VolumeUnmount = decodeField("on_volume_unmount", raw.VolumeUnmount)
+	hc.ExternalDisplayConnected = decodeField(
+		"on_external_display_connected",
+		raw.ExternalDisplayConnected,
+	)
+	hc.ExternalDisplayDisconnected = decodeField(
+		"on_external_display_disconnected",
+		raw.ExternalDisplayDisconnected,
+	)
+	hc.AppearanceChanged = decodeField("on_appearance_changed", raw.AppearanceChanged)
+	hc.PowerAdapterConnected = decodeField("on_power_adapter_connected", raw.PowerAdapterConnected)
+	hc.PowerAdapterDisconnected = decodeField(
+		"on_power_adapter_disconnected",
+		raw.PowerAdapterDisconnected,
+	)
+	hc.BatteryLow = decodeField("on_battery_low", raw.BatteryLow)
+	hc.BatteryCritical = decodeField("on_battery_critical", raw.BatteryCritical)
+	hc.AudioDeviceChanged = decodeField("on_audio_device_changed", raw.AudioDeviceChanged)
+	hc.WorkspaceChanged = decodeField("on_workspace_changed", raw.WorkspaceChanged)
+	hc.USBDeviceConnected = decodeField("on_usb_device_connected", raw.USBDeviceConnected)
+	hc.USBDeviceDisconnected = decodeField("on_usb_device_disconnected", raw.USBDeviceDisconnected)
+	hc.NetworkUp = decodeField("on_network_up", raw.NetworkUp)
+	hc.NetworkDown = decodeField("on_network_down", raw.NetworkDown)
+	hc.ClipboardChanged = decodeField("on_clipboard_changed", raw.ClipboardChanged)
 
 	if len(errs) > 0 {
 		return hc, fmt.Errorf("hook decode errors:\n  - %s", strings.Join(errs, "\n  - "))

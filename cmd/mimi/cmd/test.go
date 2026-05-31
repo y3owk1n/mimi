@@ -6,6 +6,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
+
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
