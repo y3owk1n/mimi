@@ -11,6 +11,7 @@ import (
 type Config struct {
 	Settings SettingsConfig `toml:"settings"`
 	Hooks    HooksConfig    `toml:"hooks"`
+	Systray  SystrayConfig  `toml:"systray"`
 }
 
 // SettingsConfig holds the [settings] section of the config.
@@ -22,6 +23,11 @@ type SettingsConfig struct {
 	HookShell       string `toml:"hook_shell"`
 	MaxHookWorkers  int    `toml:"max_hook_workers"`
 	PIDFile         string `toml:"pid_file"`
+}
+
+// SystrayConfig holds the [systray] section of the config.
+type SystrayConfig struct {
+	Enabled bool `toml:"enabled"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.
@@ -106,8 +112,13 @@ type rawHooksConfig struct {
 }
 
 type rawConfig struct {
-	Settings SettingsConfig `toml:"settings"`
-	Hooks    rawHooksConfig `toml:"hooks"`
+	Settings SettingsConfig   `toml:"settings"`
+	Hooks    rawHooksConfig   `toml:"hooks"`
+	Systray  rawSystrayConfig `toml:"systray"`
+}
+
+type rawSystrayConfig struct {
+	Enabled *bool `toml:"enabled"`
 }
 
 func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {

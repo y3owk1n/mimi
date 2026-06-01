@@ -110,7 +110,13 @@ func Load(path string) (*Config, error) {
 		Settings: raw.Settings,
 		Hooks:    hooks,
 	}
-	applyDefaults(cfg)
+
+	systrayEnabledSet := raw.Systray.Enabled != nil
+	if systrayEnabledSet {
+		cfg.Systray.Enabled = *raw.Systray.Enabled
+	}
+
+	applyDefaults(cfg, systrayEnabledSet)
 
 	err = validate(cfg)
 	if err != nil {
@@ -122,7 +128,7 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
-func applyDefaults(cfg *Config) {
+func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 	settings := &cfg.Settings
 	if settings.LogLevel == "" {
 		settings.LogLevel = "info"
@@ -146,6 +152,10 @@ func applyDefaults(cfg *Config) {
 
 	if settings.PIDFile == "" {
 		settings.PIDFile = "~/.local/share/mimi/mimi.pid"
+	}
+
+	if !systrayEnabledSet {
+		cfg.Systray.Enabled = true
 	}
 }
 
