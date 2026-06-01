@@ -4,13 +4,14 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"log/slog"
 	"os"
 	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -19,12 +20,12 @@ import (
 type Executor struct {
 	registry *Registry
 	cfg      *config.SettingsConfig
-	logger   *slog.Logger
+	logger   *zap.SugaredLogger
 	sem      chan struct{}
 	cfgMu    sync.RWMutex
 }
 
-func NewExecutor(reg *Registry, cfg *config.SettingsConfig, logger *slog.Logger) *Executor {
+func NewExecutor(reg *Registry, cfg *config.SettingsConfig, logger *zap.SugaredLogger) *Executor {
 	return &Executor{
 		registry: reg,
 		cfg:      cfg,
@@ -96,10 +97,10 @@ func (ex *Executor) run(h Hook, e events.Event) {
 
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			ex.logger.Warn("hook timed out",
+			ex.logger.Warnw("hook timed out",
 				"kind", e.Kind, "cmd", h.Entry.Run, "timeout", timeout)
 		} else {
-			ex.logger.Error("hook failed",
+			ex.logger.Errorw("hook failed",
 				"kind", e.Kind, "cmd", h.Entry.Run,
 				"exit", err, "output", strings.TrimSpace(string(out)))
 		}
@@ -115,7 +116,7 @@ func (ex *Executor) run(h Hook, e events.Event) {
 			attrs = append(attrs, "output", output)
 		}
 
-		ex.logger.Info("hook ok", attrs...)
+		ex.logger.Infow("hook ok", attrs...)
 	}
 }
 

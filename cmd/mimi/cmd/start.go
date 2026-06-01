@@ -28,7 +28,7 @@ var startCmd = &cobra.Command{
 		}
 
 		logger := logging.New(cfg)
-		logger.Info("mimi starting", "version", Version, "config", configPath)
+		logger.Infow("mimi starting", "version", Version, "config", configPath)
 
 		return daemon.Run(cfg, logger, configPath)
 	},

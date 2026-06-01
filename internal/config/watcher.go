@@ -2,20 +2,20 @@ package config
 
 import (
 	"context"
-	"log/slog"
 	"path/filepath"
 	"time"
 
 	"github.com/fsnotify/fsnotify"
+	"go.uber.org/zap"
 )
 
 type Watcher struct {
 	path     string
 	onChange func(*Config)
-	logger   *slog.Logger
+	logger   *zap.SugaredLogger
 }
 
-func NewWatcher(path string, onChange func(*Config), logger *slog.Logger) *Watcher {
+func NewWatcher(path string, onChange func(*Config), logger *zap.SugaredLogger) *Watcher {
 	return &Watcher{path: expandHome(path), onChange: onChange, logger: logger}
 }
 
@@ -51,7 +51,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 				debounce = time.AfterFunc(300*time.Millisecond, func() {
 					cfg, err := Load(w.path)
 					if err != nil {
-						w.logger.Warn("config reload failed", "err", err)
+						w.logger.Warnw("config reload failed", "err", err)
 
 						return
 					}
@@ -65,7 +65,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 				return nil
 			}
 
-			w.logger.Warn("config watcher error", "err", err)
+			w.logger.Warnw("config watcher error", "err", err)
 		}
 	}
 }

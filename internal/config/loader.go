@@ -117,10 +117,6 @@ func Load(path string) (*Config, error) {
 
 func applyDefaults(cfg *Config) {
 	s := &cfg.Settings
-	if s.LogFile == "" {
-		s.LogFile = "~/.local/share/mimi/mimi.log"
-	}
-
 	if s.LogLevel == "" {
 		s.LogLevel = "info"
 	}

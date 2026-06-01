@@ -2,13 +2,14 @@ package daemon
 
 import (
 	"context"
-	"log/slog"
 	"os"
 	"os/signal"
 	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
+
+	"go.uber.org/zap"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -20,7 +21,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
-func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
+func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error {
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing pid file")
@@ -64,7 +65,7 @@ func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 
 		err := reg.Reload(newCfg)
 		if err != nil {
-			logger.Warn("hook registry reload failed", "err", err)
+			logger.Warnw("hook registry reload failed", "err", err)
 
 			return
 		}
@@ -81,7 +82,7 @@ func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 		if sig == syscall.SIGHUP {
 			newCfg, err := config.Load(configPath)
 			if err != nil {
-				logger.Warn("SIGHUP reload failed", "err", err)
+				logger.Warnw("SIGHUP reload failed", "err", err)
 
 				continue
 			}
@@ -93,7 +94,7 @@ func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 			continue
 		}
 
-		logger.Info("shutting down", "signal", sig)
+		logger.Infow("shutting down", "signal", sig)
 		cancel()
 		cgo_bridge.Stop()
 		bus.Unsubscribe(logSub)

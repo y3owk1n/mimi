@@ -17,8 +17,8 @@
 # =============================================================================
 
 [settings]
-# Log file path (supports ~/ expansion).
-log_file = "~/.local/share/mimi/mimi.log"
+# Log file path (supports ~/ expansion). Empty or omitted = console-only.
+# log_file = "~/.local/share/mimi/mimi.log"
 
 # Log level: debug | info | warn | error
 log_level = "info"

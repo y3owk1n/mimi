@@ -2,7 +2,8 @@ package observers
 
 import (
 	"context"
-	"log/slog"
+
+	"go.uber.org/zap"
 
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/observers/cgo_bridge"
@@ -11,13 +12,13 @@ import (
 type WorkspaceObserver struct {
 	bus    *events.Bus
 	axMgr  *AccessibilityManager
-	logger *slog.Logger
+	logger *zap.SugaredLogger
 }
 
 func NewWorkspaceObserver(
 	bus *events.Bus,
 	axMgr *AccessibilityManager,
-	logger *slog.Logger,
+	logger *zap.SugaredLogger,
 ) *WorkspaceObserver {
 	return &WorkspaceObserver{bus: bus, axMgr: axMgr, logger: logger}
 }
@@ -43,7 +44,7 @@ func (o *WorkspaceObserver) handle(e events.Event) {
 	case events.AppActivate, events.AppLaunch:
 		if e.PID > 0 {
 			if ok := o.axMgr.Install(e.PID); !ok {
-				o.logger.Debug("AX observer install failed",
+				o.logger.Debugw("AX observer install failed",
 					"pid", e.PID, "app", e.AppName)
 			}
 		}
@@ -53,7 +54,7 @@ func (o *WorkspaceObserver) handle(e events.Event) {
 		}
 	}
 
-	o.logger.Info("event",
+	o.logger.Infow("event",
 		"kind", e.Kind,
 		"app", e.AppName,
 		"bundle", e.BundleID,

@@ -3,44 +3,87 @@ package logging
 import (
 	"context"
 	"encoding/json"
-	"io"
-	"log/slog"
 	"os"
 	"path/filepath"
 	"strings"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"golang.org/x/term"
+	"gopkg.in/natefinch/lumberjack.v2"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
-func New(cfg *config.Config) *slog.Logger {
+func New(cfg *config.Config) *zap.SugaredLogger {
 	level := parseLevel(cfg.Settings.LogLevel)
 
-	var handler slog.Handler
-
-	w := openLogFile(cfg.Settings.LogFile)
-	if cfg.Settings.LogFormat == "json" {
-		handler = slog.NewJSONHandler(io.MultiWriter(os.Stderr, w),
-			&slog.HandlerOptions{Level: level})
-	} else {
-		handler = slog.NewTextHandler(io.MultiWriter(os.Stderr, w),
-			&slog.HandlerOptions{Level: level})
+	var consoleWriter zapcore.WriteSyncer
+	if consoleWriter == nil {
+		consoleWriter = os.Stdout
 	}
 
-	return slog.New(handler)
+	isTerminal := false
+
+	if f, ok := consoleWriter.(*os.File); ok {
+		isTerminal = term.IsTerminal(int(f.Fd()))
+	}
+
+	// Configure encoder
+	consoleEncoderConfig := zap.NewDevelopmentEncoderConfig()
+
+	consoleEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	if isTerminal {
+		consoleEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	} else {
+		consoleEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	}
+
+	fileEncoderConfig := zap.NewProductionEncoderConfig()
+
+	fileEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	fileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+
+	// Create console encoder (human-readable)
+	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderConfig)
+
+	// Create cores slice
+	cores := []zapcore.Core{
+		zapcore.NewCore(consoleEncoder, zapcore.AddSync(consoleWriter), level),
+	}
+
+	if cfg.Settings.LogFile != "" {
+		w := &lumberjack.Logger{
+			Filename:   expandHome(cfg.Settings.LogFile),
+			MaxSize:    100,
+			MaxBackups: 3,
+			MaxAge:     28,
+		}
+
+		// Create file encoder (JSON for machine parsing)
+		fileEncoder := zapcore.NewJSONEncoder(fileEncoderConfig)
+
+		// Add file core
+		cores = append(cores, zapcore.NewCore(fileEncoder, zapcore.AddSync(w), level))
+	}
+
+	core := zapcore.NewTee(cores...)
+
+	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
 }
 
-func WriteEventLog(
-	ctx context.Context,
-	sub events.Subscriber,
-	logPath string,
-	logger *slog.Logger,
-) {
+func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, logger *zap.SugaredLogger) {
+	if logPath == "" {
+		return
+	}
+
 	eventLogPath := logPath + ".events.jsonl"
 
 	f, err := openAppend(eventLogPath)
 	if err != nil {
-		logger.Warn("cannot open event log", "err", err)
+		logger.Warnw("cannot open event log", "err", err)
 
 		return
 	}
@@ -56,26 +99,11 @@ func WriteEventLog(
 				return
 			}
 
-			err := enc.Encode(e)
-			if err != nil {
-				logger.Warn("event log write error", "err", err)
+			if err := enc.Encode(e); err != nil {
+				logger.Warnw("event log write error", "err", err)
 			}
 		}
 	}
-}
-
-func openLogFile(path string) *os.File {
-	path = expandHome(path)
-	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
-		return os.Stderr
-	}
-
-	f, err := os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
-	if err != nil {
-		return os.Stderr
-	}
-
-	return f
 }
 
 func openAppend(path string) (*os.File, error) {
@@ -99,17 +127,17 @@ func expandHome(path string) string {
 	return path
 }
 
-func parseLevel(s string) slog.Level {
+func parseLevel(s string) zapcore.Level {
 	switch strings.ToLower(s) {
 	case "debug":
-		return slog.LevelDebug
+		return zapcore.DebugLevel
 	case "info":
-		return slog.LevelInfo
-	case "warn":
-		return slog.LevelWarn
+		return zapcore.InfoLevel
+	case "warn", "warning":
+		return zapcore.WarnLevel
 	case "error":
-		return slog.LevelError
+		return zapcore.ErrorLevel
 	default:
-		return slog.LevelInfo
+		return zapcore.InfoLevel
 	}
 }
