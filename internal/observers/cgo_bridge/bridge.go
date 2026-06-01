@@ -60,14 +60,17 @@ func Start() {
 
 // Stop stops all macOS event observers.
 func Stop() {
-	C.WorkspaceObserverStop()
+	// Stop AX observers first (they dispatch to the main run loop).
 	C.AXRemoveAllObservers()
+	// Stop other system observers (they only remove their own callbacks/sources).
 	C.PowerObserverStop()
 	C.AudioObserverStop()
 	C.ClipboardObserverStop()
 	C.USBObserverStop()
 	C.NetworkObserverStop()
 	C.DisplayObserverStop()
+	// Stop the main run loop last — after all observers are cleaned up.
+	C.WorkspaceObserverStop()
 }
 
 // InstallAXObserver installs an AX observer for the given PID.

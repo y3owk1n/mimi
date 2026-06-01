@@ -1,18 +1,18 @@
 package cmd
 
 import (
-	"bufio"
 	"encoding/json"
-	"io"
 	"os"
-	"path/filepath"
 	"strings"
+	"time"
 
 	"github.com/spf13/cobra"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 )
+
+const pollInterval = 500 * time.Millisecond
 
 var (
 	jsonFlag   bool
@@ -44,69 +44,92 @@ func init() {
 func tailEventLog(cmd *cobra.Command, jsonOut bool, kind, app string) error {
 	eventLogPath := expandHome("~/.local/share/mimi/mimi.log.events.jsonl")
 
-	eventFile, err := os.Open(eventLogPath)
-	if err != nil {
-		// If the file doesn't exist yet, create it and start tailing
-		if os.IsNotExist(err) {
-			err := os.MkdirAll(filepath.Dir(eventLogPath), 0o755) //nolint:mnd
-			if err != nil {
-				return err
+	offset := int64(0)
+
+	ticker := time.NewTicker(pollInterval)
+	defer ticker.Stop()
+
+	for range ticker.C {
+		eventFile, err := os.Open(eventLogPath)
+		if err != nil {
+			if os.IsNotExist(err) {
+				continue
 			}
 
-			eventFile, err = os.Create(eventLogPath)
-			if err != nil {
-				return derrors.Wrapf(err, derrors.CodeLoggingFailed, "creating event log")
-			}
-		} else {
 			return derrors.Wrapf(err, derrors.CodeLoggingFailed, "opening event log")
 		}
+
+		stat, staterr := eventFile.Stat()
+		if staterr != nil {
+			_ = eventFile.Close()
+
+			continue
+		}
+
+		if stat.Size() <= offset {
+			_ = eventFile.Close()
+
+			continue
+		}
+
+		_, seekerr := eventFile.Seek(offset, 0)
+		if seekerr != nil {
+			_ = eventFile.Close()
+
+			continue
+		}
+
+		readBuf := make([]byte, stat.Size()-offset)
+		_, readerr := eventFile.Read(readBuf)
+		offset = stat.Size()
+		_ = eventFile.Close()
+
+		if readerr != nil {
+			continue
+		}
+
+		lines := strings.SplitSeq(string(readBuf), "\n")
+		for line := range lines {
+			if line == "" {
+				continue
+			}
+
+			var evt events.Event
+
+			err := json.Unmarshal([]byte(line), &evt)
+			if err != nil {
+				continue
+			}
+
+			if kind != "" && string(evt.Kind) != kind {
+				continue
+			}
+
+			if app != "" && !strings.Contains(strings.ToLower(evt.AppName), strings.ToLower(app)) {
+				continue
+			}
+
+			if jsonOut {
+				cmd.Println(line)
+			} else {
+				cmd.Printf("%s | %s", evt.At.Format("15:04:05"), evt.Kind)
+
+				if evt.AppName != "" {
+					cmd.Printf(" | %s", evt.AppName)
+				}
+
+				if evt.BundleID != "" {
+					cmd.Printf(" (%s)", evt.BundleID)
+				}
+
+				if evt.WindowTitle != "" {
+					cmd.Printf(" | \"%s\"", evt.WindowTitle)
+				}
+
+				cmd.Println()
+			}
+		}
 	}
 
-	// Seek to end for tailing
-	_, _ = eventFile.Seek(0, io.SeekEnd)
-
-	scanner := bufio.NewScanner(eventFile)
-	for scanner.Scan() {
-		line := scanner.Text()
-		if line == "" {
-			continue
-		}
-
-		var evt events.Event
-
-		err := json.Unmarshal([]byte(line), &evt)
-		if err != nil {
-			continue
-		}
-
-		if kind != "" && string(evt.Kind) != kind {
-			continue
-		}
-
-		if app != "" && !strings.Contains(strings.ToLower(evt.AppName), strings.ToLower(app)) {
-			continue
-		}
-
-		if jsonOut {
-			cmd.Println(line)
-		} else {
-			cmd.Printf("%s | %s", evt.At.Format("15:04:05"), evt.Kind)
-
-			if evt.AppName != "" {
-				cmd.Printf(" | %s", evt.AppName)
-			}
-
-			if evt.BundleID != "" {
-				cmd.Printf(" (%s)", evt.BundleID)
-			}
-
-			if evt.WindowTitle != "" {
-				cmd.Printf(" | \"%s\"", evt.WindowTitle)
-			}
-
-			cmd.Println()
-		}
-	}
-
-	return scanner.Err()
+	return nil
 }

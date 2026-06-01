@@ -26,10 +26,7 @@ const (
 func New(cfg *config.Config) *zap.SugaredLogger {
 	level := parseLevel(cfg.Settings.LogLevel)
 
-	var consoleWriter zapcore.WriteSyncer
-	if consoleWriter == nil {
-		consoleWriter = os.Stdout
-	}
+	consoleWriter := zapcore.WriteSyncer(os.Stdout)
 
 	isTerminal := false
 

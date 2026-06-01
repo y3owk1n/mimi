@@ -44,6 +44,10 @@ func (w *Watcher) Run(ctx context.Context) error {
 	for {
 		select {
 		case <-ctx.Done():
+			if debounce != nil {
+				debounce.Stop()
+			}
+
 			return nil
 		case ev, ok := <-fileWatcher.Events:
 			if !ok {
