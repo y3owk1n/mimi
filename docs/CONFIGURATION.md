@@ -29,14 +29,21 @@ on_app_activate = ['echo "Switched to $mimi_APP_NAME"']
 Generate a starter file:
 
 ```bash
-mimi init                              # Creates ~/.config/mimi/config.toml
-mimi init -c /path/to/config.toml      # Custom path
+mimi config init                              # Creates ~/.config/mimi/config.toml
+mimi config init -c /path/to/config.toml      # Custom path
 ```
 
 Validate your config:
 
 ```bash
 mimi config validate
+```
+
+Inspect the resolved config or reload a running daemon:
+
+```bash
+mimi config dump
+mimi config reload
 ```
 
 ---

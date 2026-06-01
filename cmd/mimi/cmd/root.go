@@ -55,10 +55,8 @@ func init() {
 	RootCmd.AddCommand(startCmd)
 	RootCmd.AddCommand(stopCmd)
 	RootCmd.AddCommand(statusCmd)
-	RootCmd.AddCommand(installCmd)
-	RootCmd.AddCommand(uninstallCmd)
 	RootCmd.AddCommand(eventsCmd)
 	RootCmd.AddCommand(testCmd)
-	RootCmd.AddCommand(initCmd)
 	RootCmd.AddCommand(configCmd)
+	RootCmd.AddCommand(servicesCmd)
 }

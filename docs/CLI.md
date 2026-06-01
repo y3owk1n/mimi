@@ -1,6 +1,6 @@
 # CLI Usage
 
-Mimi provides a command-line interface for controlling the daemon, testing hooks, and managing configuration. All commands communicate with a running daemon except where noted.
+Mimi provides a command-line interface for controlling the daemon, testing hooks, managing configuration, and managing the launchd service.
 
 ---
 
@@ -71,37 +71,87 @@ mimi status
 
 ## Service Management
 
-### `mimi install`
+### `mimi services install`
 
 Install mimi as a launchd user agent for automatic startup at login.
 
 ```bash
-mimi install
+mimi services install
 ```
 
-Writes `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` and runs `launchctl load -w`. The agent is configured with `KeepAlive = true` and `RunAtLoad = true`.
+Writes `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` and loads it with `launchctl bootstrap`. The agent is configured with `KeepAlive = true` and `RunAtLoad = true`.
 
-### `mimi uninstall`
+### `mimi services uninstall`
 
 Remove the launchd agent.
 
 ```bash
-mimi uninstall
+mimi services uninstall
 ```
 
-Runs `launchctl unload -w` and deletes the plist file.
+Runs `launchctl bootout` and deletes the plist file.
+
+### `mimi services start`
+
+Start the installed launchd service.
+
+```bash
+mimi services start
+```
+
+### `mimi services stop`
+
+Stop the installed launchd service.
+
+```bash
+mimi services stop
+```
+
+### `mimi services restart`
+
+Restart the installed launchd service.
+
+```bash
+mimi services restart
+```
+
+### `mimi services status`
+
+Check whether the launchd service is loaded.
+
+```bash
+mimi services status
+```
 
 ---
 
 ## Configuration Management
 
-### `mimi init`
+### `mimi config init`
 
 Create a default config file at the resolved path.
 
 ```bash
-mimi init                               # Create at standard location
-mimi init -c /path/to/config.toml       # Create at custom path
+mimi config init                               # Create at standard location
+mimi config init -c /path/to/config.toml       # Create at custom path
+```
+
+### `mimi config dump`
+
+Print the resolved configuration as pretty-printed JSON.
+
+```bash
+mimi config dump
+mimi config dump -c /path/to/config.toml
+```
+
+### `mimi config reload`
+
+Ask a running daemon to reload its configuration without restarting.
+
+```bash
+mimi config reload
+mimi config reload -c /path/to/config.toml
 ```
 
 ### `mimi config validate`
