@@ -74,7 +74,12 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
 }
 
-func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, logger *zap.SugaredLogger) {
+func WriteEventLog(
+	ctx context.Context,
+	sub events.Subscriber,
+	logPath string,
+	logger *zap.SugaredLogger,
+) {
 	if logPath == "" {
 		return
 	}
@@ -99,7 +104,8 @@ func WriteEventLog(ctx context.Context, sub events.Subscriber, logPath string, l
 				return
 			}
 
-			if err := enc.Encode(e); err != nil {
+			err := enc.Encode(e)
+			if err != nil {
 				logger.Warnw("event log write error", "err", err)
 			}
 		}

@@ -11,6 +11,7 @@ package cgo_bridge
 import "C"
 
 import (
+	"fmt"
 	"runtime"
 	"time"
 
@@ -85,6 +86,28 @@ func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 		VolumePath: C.GoString(volPath),
 		VolumeName: C.GoString(volName),
 		At:         time.Now(),
+	}
+	select {
+	case eventCh <- e:
+	default:
+	}
+}
+
+//export goWorkspaceChangeEvent
+func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
+	e := events.Event{
+		ID:   uuid.NewString(),
+		Kind: kindFromInt(int(kind)),
+		At:   time.Now(),
+		Extra: map[string]string{
+			"windows_count": fmt.Sprintf("%d", int(windowCount)),
+		},
+	}
+	if infoJSON != nil {
+		jsonStr := C.GoString(infoJSON)
+		if jsonStr != "" {
+			e.Extra["info"] = jsonStr
+		}
 	}
 	select {
 	case eventCh <- e:

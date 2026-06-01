@@ -144,9 +144,9 @@ mimi config validate
 
 ### Workspace / Desktop Events
 
-| Hook key               | Fires when…                                      |
-| ---------------------- | ------------------------------------------------ |
-| `on_workspace_changed` | Active Space / Desktop changes (Mission Control) |
+| Hook key               | Fires when…                                      | Variables available                                  |
+| ---------------------- | ------------------------------------------------ | ---------------------------------------------------- |
+| `on_workspace_changed` | Active Space / Desktop changes (Mission Control) | `WINDOWS_COUNT`, `INFO` (JSON — see below) |
 
 ### USB / Peripheral Events
 
@@ -185,13 +185,20 @@ Every hook receives these variables, prefixed with `mimi_`:
 | `mimi_VOLUME_PATH`  | path    | Mount point (volume events only)            |
 | `mimi_VOLUME_NAME`  | string  | Volume display name (volume events only)    |
 | `mimi_TIMESTAMP`    | RFC3339 | Time the event was observed                 |
+| `mimi_WINDOWS_COUNT` | int    | On-screen window count (workspace events)   |
+| `mimi_INFO`         | JSON    | Window details (workspace events)           |
+
+The `mimi_INFO` variable is a JSON string with:
+- `total_count` — all visible windows
+- `real_count` — windows at layer 0 (normal app windows, excluding floating/utility)
+- `windows` — array of `{app, title, pid, layer, x, y, w, h}` for each window
 
 ---
 
 ## Tech Stack
 
 - **Go** — core daemon and CLI (`github.com/spf13/cobra`)
-- **Objective-C / C** — native macOS event observation via `NSWorkspace`, `NSDistributedNotificationCenter`, and Accessibility APIs
+- **Objective-C / C** — native macOS event observation via `NSWorkspace`, `NSDistributedNotificationCenter`, `CGWindowListCopyWindowInfo`, and Accessibility APIs
 - **TOML** — configuration (`github.com/BurntSushi/toml`)
 - **launchd** — optional persistent agent installation
 
