@@ -4,8 +4,9 @@
 
 #import <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
+#include <stdatomic.h>
 
-static CFRunLoopRef gRunLoop = NULL;
+static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 @interface WorkspaceObserver : NSObject
 @property(nonatomic, strong) NSDictionary *notifToKind;
@@ -164,7 +165,7 @@ static CFRunLoopRef gRunLoop = NULL;
 
 static WorkspaceObserver *gObserver = nil;
 
-CFRunLoopRef GetRunLoop(void) { return gRunLoop; }
+CFRunLoopRef GetRunLoop(void) { return atomic_load(&gRunLoop); }
 
 void InitCocoaApp(void) {
 	@autoreleasepool {
@@ -175,7 +176,7 @@ void InitCocoaApp(void) {
 
 void WorkspaceObserverStart(void) {
 	@autoreleasepool {
-		gRunLoop = CFRunLoopGetCurrent();
+		atomic_store(&gRunLoop, CFRunLoopGetCurrent());
 		gObserver = [[WorkspaceObserver alloc] init];
 		[gObserver startObserving];
 
@@ -186,7 +187,7 @@ void WorkspaceObserverStart(void) {
 		          object:nil];
 
 		CFRunLoopRun();
-		gRunLoop = NULL;
+		atomic_store(&gRunLoop, NULL);
 	}
 }
 

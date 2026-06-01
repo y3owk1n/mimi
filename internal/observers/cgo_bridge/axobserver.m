@@ -15,7 +15,6 @@
 @end
 
 static NSMutableDictionary<NSNumber *, AXEntry *> *gEntries;
-static dispatch_queue_t gAxQueue;
 
 static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {
 	@autoreleasepool {
@@ -79,7 +78,8 @@ static void axInstallBlock(int pid) {
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {
-		AXObserverAddNotification(observer, appElement, notifications[i], (void *)(intptr_t)pid);
+		AXError addErr = AXObserverAddNotification(observer, appElement, notifications[i], (void *)(intptr_t)pid);
+		(void)addErr;
 	}
 
 	CFRunLoopRef rl = GetRunLoop();
@@ -118,8 +118,6 @@ static void axRemoveBlock(int pid) {
 }
 
 bool AXInstallObserver(int pid) {
-	if (!gAxQueue)
-		gAxQueue = dispatch_queue_create("mimi.ax", DISPATCH_QUEUE_SERIAL);
 	__block bool ok = false;
 	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 	CFRunLoopRef rl = GetRunLoop();
@@ -153,7 +151,20 @@ void AXRemoveObserver(int pid) {
 void AXRemoveAllObservers(void) {
 	if (!gEntries)
 		return;
-	for (NSNumber *key in [gEntries allKeys]) {
-		AXRemoveObserver([key intValue]);
-	}
+
+	CFRunLoopRef rl = GetRunLoop();
+	if (!rl)
+		return;
+
+	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
+		NSArray *keys = [gEntries allKeys];
+		for (NSNumber *key in keys) {
+			axRemoveBlock([key intValue]);
+		}
+		dispatch_semaphore_signal(sem);
+	});
+	CFRunLoopWakeUp(rl);
+	dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+	gEntries = nil;
 }

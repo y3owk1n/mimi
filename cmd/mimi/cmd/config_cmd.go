@@ -37,30 +37,27 @@ func init() {
 
 func countHooks(cfg *config.Config) int {
 	count := 0
-	for _, entries := range []struct {
-		name    string
-		entries []config.HookEntry
-	}{
-		{"on_app_activate", cfg.Hooks.AppActivate},
-		{"on_app_deactivate", cfg.Hooks.AppDeactivate},
-		{"on_app_launch", cfg.Hooks.AppLaunch},
-		{"on_app_quit", cfg.Hooks.AppQuit},
-		{"on_app_hide", cfg.Hooks.AppHide},
-		{"on_app_unhide", cfg.Hooks.AppUnhide},
-		{"on_window_focus", cfg.Hooks.WindowFocus},
-		{"on_window_title_change", cfg.Hooks.WindowTitleChange},
-		{"on_window_created", cfg.Hooks.WindowCreated},
-		{"on_window_closed", cfg.Hooks.WindowClosed},
-		{"on_system_sleep", cfg.Hooks.SystemSleep},
-		{"on_system_wake", cfg.Hooks.SystemWake},
-		{"on_screen_lock", cfg.Hooks.ScreenLock},
-		{"on_screen_unlock", cfg.Hooks.ScreenUnlock},
-		{"on_system_shutdown", cfg.Hooks.SystemShutdown},
-		{"on_volume_mount", cfg.Hooks.VolumeMount},
-		{"on_volume_unmount", cfg.Hooks.VolumeUnmount},
+	for _, entries := range [][]config.HookEntry{
+		cfg.Hooks.AppActivate, cfg.Hooks.AppDeactivate,
+		cfg.Hooks.AppLaunch, cfg.Hooks.AppQuit,
+		cfg.Hooks.AppHide, cfg.Hooks.AppUnhide,
+		cfg.Hooks.WindowFocus, cfg.Hooks.WindowTitleChange,
+		cfg.Hooks.WindowCreated, cfg.Hooks.WindowClosed,
+		cfg.Hooks.SystemSleep, cfg.Hooks.SystemWake,
+		cfg.Hooks.ScreenLock, cfg.Hooks.ScreenUnlock,
+		cfg.Hooks.SystemShutdown, cfg.Hooks.UserSessionEnd,
+		cfg.Hooks.VolumeMount, cfg.Hooks.VolumeUnmount,
+		cfg.Hooks.ExternalDisplayConnected, cfg.Hooks.ExternalDisplayDisconnected,
+		cfg.Hooks.AppearanceChanged,
+		cfg.Hooks.PowerAdapterConnected, cfg.Hooks.PowerAdapterDisconnected,
+		cfg.Hooks.BatteryLow, cfg.Hooks.BatteryCritical,
+		cfg.Hooks.AudioDeviceChanged,
+		cfg.Hooks.WorkspaceChanged,
+		cfg.Hooks.USBDeviceConnected, cfg.Hooks.USBDeviceDisconnected,
+		cfg.Hooks.NetworkUp, cfg.Hooks.NetworkDown,
+		cfg.Hooks.ClipboardChanged,
 	} {
-		_ = entries.name
-		count += len(entries.entries)
+		count += len(entries)
 	}
 
 	return count
