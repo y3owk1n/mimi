@@ -1,0 +1,59 @@
+on:
+    pull_request:
+        branches: ["*"]
+        # Release-please PRs only bump versions in CHANGELOG/manifest files.
+        # The underlying code was already validated when the feature PRs merged
+        # to main, so running the full CI matrix again is pure waste.
+        paths-ignore:
+            - "CHANGELOG.md"
+            - ".release-please-manifest.json"
+            - "release-please-config.json"
+name: CI
+permissions:
+    contents: read
+    pull-requests: read
+jobs:
+    checks:
+        name: ${{ matrix.check }} (${{ matrix.os }})
+        strategy:
+            matrix:
+                os: [macos-latest]
+                check: [lint, vet, test, build]
+                include:
+                    # Formatting check only on macOS (Objective-C clang-format)
+                    - os: macos-latest
+                      check: formatting
+        runs-on: ${{ matrix.os }}
+        steps:
+            - uses: actions/checkout@v6
+              with:
+                  repository: ${{ github.event.pull_request.head.repo.full_name }}
+                  ref: ${{ github.head_ref }}
+
+            # Install Devbox on macOS only
+            - name: Install Devbox
+              if: runner.os == 'macOS'
+              uses: jetify-com/devbox-install-action@v0.15.0
+              with:
+                  enable-cache: true
+
+            # Run checks with Devbox on macOS
+            - name: Run just lint (macOS)
+              if: matrix.check == 'lint' && runner.os == 'macOS'
+              run: devbox run -- just lint
+
+            - name: Run just fmt-check (macOS)
+              if: matrix.check == 'formatting' && runner.os == 'macOS'
+              run: devbox run -- just fmt-check
+
+            - name: Run just vet (macOS)
+              if: matrix.check == 'vet' && runner.os == 'macOS'
+              run: devbox run -- just vet
+
+            - name: Run just build (macOS)
+              if: matrix.check == 'build' && runner.os == 'macOS'
+              run: devbox run -- just build
+
+            - name: Run just test-all (macOS)
+              if: matrix.check == 'test' && runner.os == 'macOS'
+              run: devbox run -- just test-all

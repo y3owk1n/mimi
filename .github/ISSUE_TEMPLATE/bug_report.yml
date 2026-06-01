@@ -1,0 +1,80 @@
+name: Bug Report
+description: File a bug report
+labels: ["bug"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for taking the time to report a bug!
+              Please check [existing issues](https://github.com/y3owk1n/mimi/issues?q=is%3Aissue) first to avoid duplicates.
+
+    - type: checkboxes
+      attributes:
+          label: Pre-flight checks
+          options:
+              - label: I have searched existing issues and this bug has not been reported yet
+                required: true
+
+    - type: input
+      attributes:
+          label: Mimi version
+          description: Run `mimi version` and paste the output.
+          placeholder: "0.1.0"
+      validations:
+          required: true
+
+    - type: input
+      attributes:
+          label: macOS version
+          description: |
+              macOS: Apple menu → About This Mac (e.g., 15.3.1).
+          placeholder: "e.g., macOS 15.3.1"
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: What happened?
+          description: Describe the bug clearly. What actually happened?
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: What did you expect?
+          description: What did you expect to happen instead?
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: Steps to reproduce
+          description: Minimal steps to reliably reproduce the issue.
+          placeholder: |
+              1. Launch Mimi
+              2. ...
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: Config (relevant sections)
+          description: Paste the relevant sections of your config TOML. Remove any parts that aren't related to the bug.
+          render: toml
+      validations:
+          required: false
+
+    - type: textarea
+      attributes:
+          label: Screenshots / recordings
+          description: For UI issues, a screenshot or short recording is very helpful.
+      validations:
+          required: false
+
+    - type: textarea
+      attributes:
+          label: Additional context
+          description: |
+              Any other relevant details
+      validations:
+          required: false

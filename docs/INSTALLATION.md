@@ -276,8 +276,8 @@ rm -rf /Applications/Mimi.app
 rm -rf ~/.config/mimi
 rm -rf ~/.local/share/mimi
 
-# Remove logs
-rm -rf ~/Library/Logs/mimi
+# Remove logs (if using log_file)
+rm -f ~/.local/share/mimi/mimi.log*
 ```
 
 ### Nix

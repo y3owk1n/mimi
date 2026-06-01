@@ -1,0 +1,60 @@
+name: Feature Request
+description: Suggest a new feature or enhancement for Mimi
+labels: ["enhancement"]
+body:
+    - type: markdown
+      attributes:
+          value: |
+              Thanks for suggesting an improvement!
+              Please check [existing issues](https://github.com/y3owk1n/mimi/issues?q=is%3Aissue+label%3Aenhancement) and [discussions](https://github.com/y3owk1n/mimi/discussions) first to avoid duplicates.
+
+    - type: checkboxes
+      attributes:
+          label: Pre-flight checks
+          options:
+              - label: I have searched existing issues and discussions and this has not been requested yet
+                required: true
+
+    - type: textarea
+      attributes:
+          label: Problem or use case
+          description: What problem does this solve, or what workflow does it improve?
+          placeholder: I would like to...
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: Proposed solution
+          description: How do you envision this working? Include config examples or behavior descriptions.
+          placeholder: |
+              A new config option like:
+
+              [new_config]
+              example_option = true
+
+              This would allow...
+      validations:
+          required: true
+
+    - type: textarea
+      attributes:
+          label: Alternatives considered
+          description: Other approaches you've thought about, or existing tools/features that partially address this.
+      validations:
+          required: false
+
+    - type: textarea
+      attributes:
+          label: Screenshots / mockups
+          description: Visuals to illustrate the feature — mockups, annotated screenshots, or recordings of the current behavior you'd like to improve.
+      validations:
+          required: false
+
+    - type: checkboxes
+      attributes:
+          label: Contribution
+          description: Would you be willing to help implement this?
+          options:
+              - label: I'm willing to submit a PR for this feature
+                required: false
