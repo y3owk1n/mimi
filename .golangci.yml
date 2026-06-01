@@ -36,6 +36,7 @@ linters:
         - wrapcheck # Too strict
         - wsl # Deprecated
         - interfacebloat # Complex application with legitimate large interfaces
+        - depguard
 
     settings:
         funlen:
