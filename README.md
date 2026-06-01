@@ -36,7 +36,7 @@ Edit `~/.config/mimi/config.toml`:
 
 ```toml
 [settings]
-log_file  = "~/.local/share/mimi/mimi.log"
+# log_file = "~/.local/share/mimi/mimi.log"  # omit for console-only
 log_level = "info"
 
 [hooks]
