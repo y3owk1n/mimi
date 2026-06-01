@@ -7,6 +7,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/daemon"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/logging"
+	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
 var startCmd = &cobra.Command{
@@ -14,10 +15,17 @@ var startCmd = &cobra.Command{
 	Short: "Start the mimi daemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !config.Exists(configPath) {
-			cmd.Printf("No config found at %s — creating with defaults.\n", configPath)
-			cmd.Println("Edit it to customize hooks, then run 'mimi start' again.")
+			choice := permissions.ShowConfigOnboardingAlert(configPath)
+			if choice == permissions.ConfigOnboardingQuit {
+				return nil
+			}
 
-			return config.WriteDefault(configPath)
+			err := config.WriteDefault(configPath)
+			if err != nil {
+				return err
+			}
+
+			cmd.Printf("Default config written to %s\n", configPath)
 		}
 
 		cfg, err := config.Load(configPath)
