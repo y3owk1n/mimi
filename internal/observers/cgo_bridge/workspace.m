@@ -124,7 +124,7 @@ static CFRunLoopRef gRunLoop = NULL;
     }
     self.lastWindowIDs = currentIDs;
     NSString *infoJSON = [self windowInfoJSON];
-    goWorkspaceChangeEvent(70, (int)[currentIDs count], [infoJSON UTF8String]);
+    goWorkspaceChangeEvent(70, (int)[currentIDs count], (char *)[infoJSON UTF8String]);
 }
 
 - (void)appearanceChanged:(NSNotification *)note {
@@ -142,7 +142,7 @@ static CFRunLoopRef gRunLoop = NULL;
         NSSet *windows = [self currentWindowIDs];
         self.lastWindowIDs = windows;
         NSString *infoJSON = [self windowInfoJSON];
-        goWorkspaceChangeEvent(kind, (int)[windows count], [infoJSON UTF8String]);
+        goWorkspaceChangeEvent(kind, (int)[windows count], (char *)[infoJSON UTF8String]);
         return;
     }
 
@@ -158,7 +158,7 @@ static CFRunLoopRef gRunLoop = NULL;
         volName = [[[note.userInfo[@"NSDevicePath"] lastPathComponent] stringByDeletingPathExtension] UTF8String];
     }
 
-    goWorkspaceEvent(kind, appName, bundleID, pid, volPath, volName);
+    goWorkspaceEvent(kind, (char *)appName, (char *)bundleID, pid, (char *)volPath, (char *)volName);
 }
 
 @end

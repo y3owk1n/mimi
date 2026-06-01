@@ -44,7 +44,7 @@ static void axCallback(AXObserverRef observer,
                 [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
             const char *appName  = app ? [app.localizedName UTF8String] : "";
             const char *bundleID = app ? [app.bundleIdentifier UTF8String] : "";
-            goAXEvent(kind, appName, bundleID, (int)pid, title);
+            goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title);
         }
     }
 }
