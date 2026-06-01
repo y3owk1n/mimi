@@ -9,6 +9,8 @@ import (
 	"syscall"
 
 	"github.com/spf13/cobra"
+
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 var stopCmd = &cobra.Command{
@@ -24,11 +26,11 @@ var stopCmd = &cobra.Command{
 
 		proc, err := os.FindProcess(pid)
 		if err != nil {
-			return fmt.Errorf("process %d not found: %w", pid, err)
+			return derrors.Wrapf(err, derrors.CodeInternal, "process %d not found", pid)
 		}
 
 		if err := proc.Signal(syscall.SIGTERM); err != nil {
-			return fmt.Errorf("signaling process %d: %w", pid, err)
+			return derrors.Wrapf(err, derrors.CodeInternal, "signaling process %d", pid)
 		}
 
 		fmt.Printf("Sent SIGTERM to mimi (pid %d)\n", pid)

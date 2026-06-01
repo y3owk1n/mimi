@@ -10,6 +10,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
@@ -54,10 +55,10 @@ func tailEventLog(jsonOut bool, kind, app string) error {
 
 			f, err = os.Create(eventLogPath)
 			if err != nil {
-				return fmt.Errorf("creating event log: %w", err)
+				return derrors.Wrapf(err, derrors.CodeLoggingFailed, "creating event log")
 			}
 		} else {
-			return fmt.Errorf("opening event log: %w", err)
+			return derrors.Wrapf(err, derrors.CodeLoggingFailed, "opening event log")
 		}
 	}
 

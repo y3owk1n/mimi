@@ -3,6 +3,8 @@ package config
 import (
 	"fmt"
 	"strings"
+
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 type Config struct {
@@ -190,7 +192,11 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	hc.ClipboardChanged = decodeField("on_clipboard_changed", raw.ClipboardChanged)
 
 	if len(errs) > 0 {
-		return hc, fmt.Errorf("hook decode errors:\n  - %s", strings.Join(errs, "\n  - "))
+		return hc, derrors.Newf(
+			derrors.CodeInvalidConfig,
+			"hook decode errors:\n  - %s",
+			strings.Join(errs, "\n  - "),
+		)
 	}
 
 	return hc, nil

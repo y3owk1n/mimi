@@ -9,6 +9,7 @@ import (
 	"github.com/BurntSushi/toml"
 
 	"github.com/y3owk1n/mimi/configs"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
@@ -70,12 +71,12 @@ func WriteDefault(path string) error {
 
 	err := os.MkdirAll(filepath.Dir(path), 0o755)
 	if err != nil {
-		return fmt.Errorf("creating config directory: %w", err)
+		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "creating config directory")
 	}
 
 	err = os.WriteFile(path, []byte(configs.DefaultConfig), 0o644)
 	if err != nil {
-		return fmt.Errorf("writing default config: %w", err)
+		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing default config")
 	}
 
 	return nil
@@ -86,17 +87,17 @@ func Load(path string) (*Config, error) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
-		return nil, fmt.Errorf("reading config: %w", err)
+		return nil, derrors.Wrapf(err, derrors.CodeConfigIOFailed, "reading config")
 	}
 
 	var raw rawConfig
 	if _, err := toml.Decode(string(data), &raw); err != nil {
-		return nil, fmt.Errorf("parsing config: %w", err)
+		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "parsing config")
 	}
 
 	hooks, err := decodeHooks(raw.Hooks)
 	if err != nil {
-		return nil, fmt.Errorf("decoding hooks: %w", err)
+		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "decoding hooks")
 	}
 
 	cfg := &Config{
@@ -164,7 +165,11 @@ func validate(cfg *Config) error {
 	}
 
 	if len(errs) > 0 {
-		return fmt.Errorf("config validation failed:\n  - %s", strings.Join(errs, "\n  - "))
+		return derrors.Newf(
+			derrors.CodeInvalidConfig,
+			"config validation failed:\n  - %s",
+			strings.Join(errs, "\n  - "),
+		)
 	}
 
 	return nil

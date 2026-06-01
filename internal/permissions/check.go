@@ -7,7 +7,7 @@ package permissions
 import "C"
 
 import (
-	"fmt"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 type CheckResult struct {
@@ -35,5 +35,5 @@ func FriendlyError(r CheckResult) error {
 	if r.Accessibility {
 		return nil
 	}
-	return fmt.Errorf("%s", r.AccessibilityMsg)
+	return derrors.New(derrors.CodeAccessibilityDenied, r.AccessibilityMsg)
 }

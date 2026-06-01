@@ -7,6 +7,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/daemon"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/logging"
 )
 
@@ -23,7 +24,7 @@ var startCmd = &cobra.Command{
 
 		cfg, err := config.Load(configPath)
 		if err != nil {
-			return fmt.Errorf("config: %w", err)
+			return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading config")
 		}
 
 		logger := logging.New(cfg)

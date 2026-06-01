@@ -9,6 +9,8 @@ import (
 	"text/template"
 
 	"github.com/spf13/cobra"
+
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 var installCmd = &cobra.Command{
@@ -29,7 +31,7 @@ var installCmd = &cobra.Command{
 			"ConfigPath": configPath,
 			"Home":       home,
 		}); err != nil {
-			return fmt.Errorf("rendering plist: %w", err)
+			return derrors.Wrapf(err, derrors.CodeInternal, "rendering plist")
 		}
 
 		if err := os.MkdirAll(filepath.Dir(plistPath), 0o755); err != nil {
@@ -37,12 +39,12 @@ var installCmd = &cobra.Command{
 		}
 
 		if err := os.WriteFile(plistPath, []byte(buf.String()), 0o644); err != nil {
-			return fmt.Errorf("writing plist: %w", err)
+			return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing plist")
 		}
 
 		out, err := exec.Command("launchctl", "load", "-w", plistPath).CombinedOutput()
 		if err != nil {
-			return fmt.Errorf("launchctl load: %s: %w", out, err)
+			return derrors.Wrapf(err, derrors.CodeInternal, "launchctl load: %s", out)
 		}
 
 		fmt.Printf("mimi installed as launchd agent.\nPlist: %s\n", plistPath)

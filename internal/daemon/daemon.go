@@ -2,7 +2,6 @@ package daemon
 
 import (
 	"context"
-	"fmt"
 	"log/slog"
 	"os"
 	"os/signal"
@@ -12,6 +11,7 @@ import (
 	"syscall"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
 	"github.com/y3owk1n/mimi/internal/logging"
@@ -23,7 +23,7 @@ import (
 func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
-		return fmt.Errorf("pid file: %w", err)
+		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing pid file")
 	}
 	defer removePID(cfg.Settings.PIDFile)
 
@@ -42,7 +42,7 @@ func Run(cfg *config.Config, logger *slog.Logger, configPath string) error {
 
 	err = reg.Reload(cfg)
 	if err != nil {
-		return fmt.Errorf("loading hooks: %w", err)
+		return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading hooks")
 	}
 
 	executor := hooks.NewExecutor(reg, &cfg.Settings, logger)

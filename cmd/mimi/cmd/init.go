@@ -6,6 +6,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 var initCmd = &cobra.Command{
@@ -16,7 +17,7 @@ Safe to re-run — it will overwrite any existing config.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		err := config.WriteDefault(configPath)
 		if err != nil {
-			return fmt.Errorf("writing default config: %w", err)
+			return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing default config")
 		}
 
 		fmt.Printf("Default config written to %s\n", configPath)
