@@ -206,11 +206,11 @@ mimi will warn on startup if this permission is missing. All other events (app l
 mimi start
 
 # Or install as launchd service for auto-startup
-mimi install
+mimi services install
 ```
 
 > [!NOTE]
-> If mimi is already installed via nix-darwin or home-manager, `mimi install` will detect the conflict and refuse to install.
+> If mimi is already installed via nix-darwin or home-manager, `mimi services install` will detect the conflict and refuse to install.
 
 ### 3. Verify
 
@@ -264,7 +264,7 @@ brew uninstall --cask y3owk1n/tap/mimi
 
 ```bash
 # Stop and remove launchd agent
-mimi uninstall
+mimi services uninstall
 
 # Remove binary
 rm /usr/local/bin/mimi

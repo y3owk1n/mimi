@@ -104,12 +104,11 @@ cmd/mimi/                          # Entry point
     ├── start.go                   #   mimi start
     ├── stop.go                    #   mimi stop
     ├── status.go                  #   mimi status
-    ├── install.go                 #   mimi install (launchd)
-    ├── uninstall.go               #   mimi uninstall
+    ├── services.go                #   mimi services <subcommand>
+    ├── services_darwin.go         #   launchd service implementation
     ├── events.go                  #   mimi events (live tail)
     ├── test.go                    #   mimi test <kind>
-    ├── init.go                    #   mimi init (config)
-    └── config_validate.go         #   mimi config validate
+    └── config_cmd.go              #   mimi config <subcommand>
 
 internal/
 ├── events/                        # Event types + pub-sub bus

@@ -85,7 +85,7 @@ cat ~/.local/share/mimi/mimi.log
 **Try with fresh config:**
 
 ```bash
-mimi init --force             # Overwrite with defaults
+mimi config init              # Overwrite with defaults
 mimi start
 ```
 

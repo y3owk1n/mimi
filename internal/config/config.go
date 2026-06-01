@@ -9,116 +9,116 @@ import (
 
 // Config holds the full mimi configuration.
 type Config struct {
-	Settings SettingsConfig `toml:"settings"`
-	Hooks    HooksConfig    `toml:"hooks"`
-	Systray  SystrayConfig  `toml:"systray"`
+	Settings SettingsConfig `json:"settings" toml:"settings"`
+	Hooks    HooksConfig    `json:"hooks"    toml:"hooks"`
+	Systray  SystrayConfig  `json:"systray"  toml:"systray"`
 }
 
 // SettingsConfig holds the [settings] section of the config.
 type SettingsConfig struct {
-	LogFile         string `toml:"log_file"`
-	LogLevel        string `toml:"log_level"`
-	LogFormat       string `toml:"log_format"`
-	HookTimeoutSecs int    `toml:"hook_timeout_secs"`
-	HookShell       string `toml:"hook_shell"`
-	MaxHookWorkers  int    `toml:"max_hook_workers"`
-	PIDFile         string `toml:"pid_file"`
+	LogFile         string `json:"logFile"         toml:"log_file"`
+	LogLevel        string `json:"logLevel"        toml:"log_level"`
+	LogFormat       string `json:"logFormat"       toml:"log_format"`
+	HookTimeoutSecs int    `json:"hookTimeoutSecs" toml:"hook_timeout_secs"`
+	HookShell       string `json:"hookShell"       toml:"hook_shell"`
+	MaxHookWorkers  int    `json:"maxHookWorkers"  toml:"max_hook_workers"`
+	PIDFile         string `json:"pidFile"         toml:"pid_file"`
 }
 
 // SystrayConfig holds the [systray] section of the config.
 type SystrayConfig struct {
-	Enabled bool `toml:"enabled"`
+	Enabled bool `json:"enabled" toml:"enabled"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {
-	AppActivate                 []HookEntry `toml:"on_app_activate"`
-	AppDeactivate               []HookEntry `toml:"on_app_deactivate"`
-	AppLaunch                   []HookEntry `toml:"on_app_launch"`
-	AppQuit                     []HookEntry `toml:"on_app_quit"`
-	AppHide                     []HookEntry `toml:"on_app_hide"`
-	AppUnhide                   []HookEntry `toml:"on_app_unhide"`
-	WindowFocus                 []HookEntry `toml:"on_window_focus"`
-	WindowTitleChange           []HookEntry `toml:"on_window_title_change"`
-	WindowCreated               []HookEntry `toml:"on_window_created"`
-	WindowClosed                []HookEntry `toml:"on_window_closed"`
-	SystemSleep                 []HookEntry `toml:"on_system_sleep"`
-	SystemWake                  []HookEntry `toml:"on_system_wake"`
-	ScreenLock                  []HookEntry `toml:"on_screen_lock"`
-	ScreenUnlock                []HookEntry `toml:"on_screen_unlock"`
-	SystemShutdown              []HookEntry `toml:"on_system_shutdown"`
-	UserSessionEnd              []HookEntry `toml:"on_user_session_end"`
-	VolumeMount                 []HookEntry `toml:"on_volume_mount"`
-	VolumeUnmount               []HookEntry `toml:"on_volume_unmount"`
-	ExternalDisplayConnected    []HookEntry `toml:"on_external_display_connected"`
-	ExternalDisplayDisconnected []HookEntry `toml:"on_external_display_disconnected"`
-	AppearanceChanged           []HookEntry `toml:"on_appearance_changed"`
-	PowerAdapterConnected       []HookEntry `toml:"on_power_adapter_connected"`
-	PowerAdapterDisconnected    []HookEntry `toml:"on_power_adapter_disconnected"`
-	BatteryLow                  []HookEntry `toml:"on_battery_low"`
-	BatteryCritical             []HookEntry `toml:"on_battery_critical"`
-	AudioDeviceChanged          []HookEntry `toml:"on_audio_device_changed"`
-	WorkspaceChanged            []HookEntry `toml:"on_workspace_changed"`
-	USBDeviceConnected          []HookEntry `toml:"on_usb_device_connected"`
-	USBDeviceDisconnected       []HookEntry `toml:"on_usb_device_disconnected"`
-	NetworkUp                   []HookEntry `toml:"on_network_up"`
-	NetworkDown                 []HookEntry `toml:"on_network_down"`
-	ClipboardChanged            []HookEntry `toml:"on_clipboard_changed"`
+	AppActivate                 []HookEntry `json:"onAppActivate"                 toml:"on_app_activate"`
+	AppDeactivate               []HookEntry `json:"onAppDeactivate"               toml:"on_app_deactivate"`
+	AppLaunch                   []HookEntry `json:"onAppLaunch"                   toml:"on_app_launch"`
+	AppQuit                     []HookEntry `json:"onAppQuit"                     toml:"on_app_quit"`
+	AppHide                     []HookEntry `json:"onAppHide"                     toml:"on_app_hide"`
+	AppUnhide                   []HookEntry `json:"onAppUnhide"                   toml:"on_app_unhide"`
+	WindowFocus                 []HookEntry `json:"onWindowFocus"                 toml:"on_window_focus"`
+	WindowTitleChange           []HookEntry `json:"onWindowTitleChange"           toml:"on_window_title_change"`
+	WindowCreated               []HookEntry `json:"onWindowCreated"               toml:"on_window_created"`
+	WindowClosed                []HookEntry `json:"onWindowClosed"                toml:"on_window_closed"`
+	SystemSleep                 []HookEntry `json:"onSystemSleep"                 toml:"on_system_sleep"`
+	SystemWake                  []HookEntry `json:"onSystemWake"                  toml:"on_system_wake"`
+	ScreenLock                  []HookEntry `json:"onScreenLock"                  toml:"on_screen_lock"`
+	ScreenUnlock                []HookEntry `json:"onScreenUnlock"                toml:"on_screen_unlock"`
+	SystemShutdown              []HookEntry `json:"onSystemShutdown"              toml:"on_system_shutdown"`
+	UserSessionEnd              []HookEntry `json:"onUserSessionEnd"              toml:"on_user_session_end"`
+	VolumeMount                 []HookEntry `json:"onVolumeMount"                 toml:"on_volume_mount"`
+	VolumeUnmount               []HookEntry `json:"onVolumeUnmount"               toml:"on_volume_unmount"`
+	ExternalDisplayConnected    []HookEntry `json:"onExternalDisplayConnected"    toml:"on_external_display_connected"`
+	ExternalDisplayDisconnected []HookEntry `json:"onExternalDisplayDisconnected" toml:"on_external_display_disconnected"`
+	AppearanceChanged           []HookEntry `json:"onAppearanceChanged"           toml:"on_appearance_changed"`
+	PowerAdapterConnected       []HookEntry `json:"onPowerAdapterConnected"       toml:"on_power_adapter_connected"`
+	PowerAdapterDisconnected    []HookEntry `json:"onPowerAdapterDisconnected"    toml:"on_power_adapter_disconnected"`
+	BatteryLow                  []HookEntry `json:"onBatteryLow"                  toml:"on_battery_low"`
+	BatteryCritical             []HookEntry `json:"onBatteryCritical"             toml:"on_battery_critical"`
+	AudioDeviceChanged          []HookEntry `json:"onAudioDeviceChanged"          toml:"on_audio_device_changed"`
+	WorkspaceChanged            []HookEntry `json:"onWorkspaceChanged"            toml:"on_workspace_changed"`
+	USBDeviceConnected          []HookEntry `json:"onUsbDeviceConnected"          toml:"on_usb_device_connected"`
+	USBDeviceDisconnected       []HookEntry `json:"onUsbDeviceDisconnected"       toml:"on_usb_device_disconnected"`
+	NetworkUp                   []HookEntry `json:"onNetworkUp"                   toml:"on_network_up"`
+	NetworkDown                 []HookEntry `json:"onNetworkDown"                 toml:"on_network_down"`
+	ClipboardChanged            []HookEntry `json:"onClipboardChanged"            toml:"on_clipboard_changed"`
 }
 
 // HookEntry defines a single hook command and its optional filters.
 type HookEntry struct {
-	Run         string `toml:"run"`
-	App         string `toml:"app"`
-	BundleID    string `toml:"bundle_id"`
-	Title       string `toml:"title"`
-	TimeoutSecs int    `toml:"timeout_secs"`
-	Async       bool   `toml:"async"`
+	Run         string `json:"run"         toml:"run"`
+	App         string `json:"app"         toml:"app"`
+	BundleID    string `json:"bundleId"    toml:"bundle_id"`
+	Title       string `json:"title"       toml:"title"`
+	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
+	Async       bool   `json:"async"       toml:"async"`
 }
 
 type rawHooksConfig struct {
-	AppActivate                 []any `toml:"on_app_activate"`
-	AppDeactivate               []any `toml:"on_app_deactivate"`
-	AppLaunch                   []any `toml:"on_app_launch"`
-	AppQuit                     []any `toml:"on_app_quit"`
-	AppHide                     []any `toml:"on_app_hide"`
-	AppUnhide                   []any `toml:"on_app_unhide"`
-	WindowFocus                 []any `toml:"on_window_focus"`
-	WindowTitleChange           []any `toml:"on_window_title_change"`
-	WindowCreated               []any `toml:"on_window_created"`
-	WindowClosed                []any `toml:"on_window_closed"`
-	SystemSleep                 []any `toml:"on_system_sleep"`
-	SystemWake                  []any `toml:"on_system_wake"`
-	ScreenLock                  []any `toml:"on_screen_lock"`
-	ScreenUnlock                []any `toml:"on_screen_unlock"`
-	SystemShutdown              []any `toml:"on_system_shutdown"`
-	UserSessionEnd              []any `toml:"on_user_session_end"`
-	VolumeMount                 []any `toml:"on_volume_mount"`
-	VolumeUnmount               []any `toml:"on_volume_unmount"`
-	ExternalDisplayConnected    []any `toml:"on_external_display_connected"`
-	ExternalDisplayDisconnected []any `toml:"on_external_display_disconnected"`
-	AppearanceChanged           []any `toml:"on_appearance_changed"`
-	PowerAdapterConnected       []any `toml:"on_power_adapter_connected"`
-	PowerAdapterDisconnected    []any `toml:"on_power_adapter_disconnected"`
-	BatteryLow                  []any `toml:"on_battery_low"`
-	BatteryCritical             []any `toml:"on_battery_critical"`
-	AudioDeviceChanged          []any `toml:"on_audio_device_changed"`
-	WorkspaceChanged            []any `toml:"on_workspace_changed"`
-	USBDeviceConnected          []any `toml:"on_usb_device_connected"`
-	USBDeviceDisconnected       []any `toml:"on_usb_device_disconnected"`
-	NetworkUp                   []any `toml:"on_network_up"`
-	NetworkDown                 []any `toml:"on_network_down"`
-	ClipboardChanged            []any `toml:"on_clipboard_changed"`
+	AppActivate                 []any `json:"onAppActivate"                 toml:"on_app_activate"`
+	AppDeactivate               []any `json:"onAppDeactivate"               toml:"on_app_deactivate"`
+	AppLaunch                   []any `json:"onAppLaunch"                   toml:"on_app_launch"`
+	AppQuit                     []any `json:"onAppQuit"                     toml:"on_app_quit"`
+	AppHide                     []any `json:"onAppHide"                     toml:"on_app_hide"`
+	AppUnhide                   []any `json:"onAppUnhide"                   toml:"on_app_unhide"`
+	WindowFocus                 []any `json:"onWindowFocus"                 toml:"on_window_focus"`
+	WindowTitleChange           []any `json:"onWindowTitleChange"           toml:"on_window_title_change"`
+	WindowCreated               []any `json:"onWindowCreated"               toml:"on_window_created"`
+	WindowClosed                []any `json:"onWindowClosed"                toml:"on_window_closed"`
+	SystemSleep                 []any `json:"onSystemSleep"                 toml:"on_system_sleep"`
+	SystemWake                  []any `json:"onSystemWake"                  toml:"on_system_wake"`
+	ScreenLock                  []any `json:"onScreenLock"                  toml:"on_screen_lock"`
+	ScreenUnlock                []any `json:"onScreenUnlock"                toml:"on_screen_unlock"`
+	SystemShutdown              []any `json:"onSystemShutdown"              toml:"on_system_shutdown"`
+	UserSessionEnd              []any `json:"onUserSessionEnd"              toml:"on_user_session_end"`
+	VolumeMount                 []any `json:"onVolumeMount"                 toml:"on_volume_mount"`
+	VolumeUnmount               []any `json:"onVolumeUnmount"               toml:"on_volume_unmount"`
+	ExternalDisplayConnected    []any `json:"onExternalDisplayConnected"    toml:"on_external_display_connected"`
+	ExternalDisplayDisconnected []any `json:"onExternalDisplayDisconnected" toml:"on_external_display_disconnected"`
+	AppearanceChanged           []any `json:"onAppearanceChanged"           toml:"on_appearance_changed"`
+	PowerAdapterConnected       []any `json:"onPowerAdapterConnected"       toml:"on_power_adapter_connected"`
+	PowerAdapterDisconnected    []any `json:"onPowerAdapterDisconnected"    toml:"on_power_adapter_disconnected"`
+	BatteryLow                  []any `json:"onBatteryLow"                  toml:"on_battery_low"`
+	BatteryCritical             []any `json:"onBatteryCritical"             toml:"on_battery_critical"`
+	AudioDeviceChanged          []any `json:"onAudioDeviceChanged"          toml:"on_audio_device_changed"`
+	WorkspaceChanged            []any `json:"onWorkspaceChanged"            toml:"on_workspace_changed"`
+	USBDeviceConnected          []any `json:"onUsbDeviceConnected"          toml:"on_usb_device_connected"`
+	USBDeviceDisconnected       []any `json:"onUsbDeviceDisconnected"       toml:"on_usb_device_disconnected"`
+	NetworkUp                   []any `json:"onNetworkUp"                   toml:"on_network_up"`
+	NetworkDown                 []any `json:"onNetworkDown"                 toml:"on_network_down"`
+	ClipboardChanged            []any `json:"onClipboardChanged"            toml:"on_clipboard_changed"`
 }
 
 type rawConfig struct {
-	Settings SettingsConfig   `toml:"settings"`
-	Hooks    rawHooksConfig   `toml:"hooks"`
-	Systray  rawSystrayConfig `toml:"systray"`
+	Settings SettingsConfig   `json:"settings" toml:"settings"`
+	Hooks    rawHooksConfig   `json:"hooks"    toml:"hooks"`
+	Systray  rawSystrayConfig `json:"systray"  toml:"systray"`
 }
 
 type rawSystrayConfig struct {
-	Enabled *bool `toml:"enabled"`
+	Enabled *bool `json:"enabled" toml:"enabled"`
 }
 
 func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {

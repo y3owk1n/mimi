@@ -92,8 +92,10 @@ Mimi observes **30 macOS system events** across 10 categories. Every hook receiv
 Your config lives at `~/.config/mimi/config.toml`. Human-readable, dotfile-friendly.
 
 ```bash
-mimi init               # Create a starter config
+mimi config init        # Create a starter config
 mimi config validate    # Validate your TOML
+mimi config dump        # Print resolved config as JSON
+mimi config reload      # Reload a running daemon
 ```
 
 Each hook can filter by `app`, `bundle_id`, and `title`, supports timeouts and async execution — see the [Configuration Guide](docs/CONFIGURATION.md).
@@ -109,10 +111,11 @@ Each hook can filter by `app`, `bundle_id`, and `title`, supports timeouts and a
 | `mimi status`            | Show daemon status and recent events |
 | `mimi events`            | Tail the live event stream           |
 | `mimi test <event-kind>` | Fire a synthetic event to test hooks |
-| `mimi install`           | Install as a launchd agent           |
-| `mimi uninstall`         | Remove the launchd agent             |
+| `mimi services install`  | Install as a launchd agent           |
+| `mimi services uninstall` | Remove the launchd agent            |
+| `mimi services status`   | Show launchd service status          |
 | `mimi config validate`   | Validate your config file            |
-| `mimi init`              | Create a default config file         |
+| `mimi config init`       | Create a default config file         |
 
 > Full CLI reference → [CLI.md](docs/CLI.md)
 
