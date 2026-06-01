@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.2.0](https://github.com/y3owk1n/mimi/compare/v0.1.0...v0.2.0) (2026-06-01)
+
+
+### Features
+
+* add accesibility prompt flow with tcc reset ([#7](https://github.com/y3owk1n/mimi/issues/7)) ([522df04](https://github.com/y3owk1n/mimi/commit/522df0422a2b2f14489720e779b78e7138ff1c8e))
+* add config init prompt on startup ([#8](https://github.com/y3owk1n/mimi/issues/8)) ([ab94093](https://github.com/y3owk1n/mimi/commit/ab940939e54a4407bd078639c483303082698013))
+* add systray menubar ([#9](https://github.com/y3owk1n/mimi/issues/9)) ([64653f7](https://github.com/y3owk1n/mimi/commit/64653f79af8ba55e0fd4886dbd01bf5355ed3a52))
+
+
+### Bug Fixes
+
+* **nix:** wrong launch command ([17001fb](https://github.com/y3owk1n/mimi/commit/17001fb408a8d396306d8135b78b1e7482dce823))
+* optimise memory allocation and prevent leak ([#12](https://github.com/y3owk1n/mimi/issues/12)) ([7afd71c](https://github.com/y3owk1n/mimi/commit/7afd71cda72030e150e637908be49f9fb857b742))
+
 ## [0.1.0](https://github.com/y3owk1n/mimi/compare/v0.0.0...v0.1.0) (2026-06-01)
 
 
