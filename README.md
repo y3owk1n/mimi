@@ -40,14 +40,28 @@ mimi status         # Show status and recent events
 
 ## 📥 Installation
 
+### Homebrew (Recommended)
+
 ```bash
-git clone https://github.com/y3owk1n/mimi.git
-cd mimi
-just build
-cp ./bin/mimi /usr/local/bin/mimi
+brew tap y3owk1n/tap
+brew install --cask y3owk1n/tap/mimi
 ```
 
-For auto-start at login: `mimi install` — see the [Installation Guide](docs/INSTALLATION.md).
+### Nix Flake
+
+```nix
+# flake.nix
+{ inputs.mimi.url = "github:y3owk1n/mimi"; }
+```
+
+### From Source
+
+```bash
+git clone https://github.com/y3owk1n/mimi.git
+cd mimi && just build
+```
+
+For auto-start at login, launchd agent setup, Nix modules, and troubleshooting — see [Installation Guide](docs/INSTALLATION.md).
 
 ---
 
