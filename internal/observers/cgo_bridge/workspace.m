@@ -24,6 +24,9 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 - (NSSet *)currentWindowIDs {
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
 	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+	if (!windowList)
+		return [NSSet set];
+
 	NSMutableSet *ids = [NSMutableSet setWithCapacity:CFArrayGetCount(windowList)];
 	for (NSDictionary *info in (__bridge NSArray *)windowList) {
 		NSNumber *winID = info[(__bridge NSString *)kCGWindowNumber];
@@ -37,11 +40,17 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 - (NSArray *)currentWindowList {
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
 	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
-	return (NSArray *)windowList;
+	if (!windowList)
+		return nil;
+
+	return CFBridgingRelease(windowList);
 }
 
 - (NSString *)windowInfoJSON {
 	NSArray *windows = [self currentWindowList];
+	if (!windows)
+		return @"";
+
 	NSInteger totalCount = [windows count];
 	NSMutableArray *items = [NSMutableArray arrayWithCapacity:totalCount];
 	NSInteger realCount = 0;
@@ -71,7 +80,6 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 			@"h" : @(h),
 		}];
 	}
-	CFRelease((CFArrayRef)windows);
 
 	NSDictionary *payload = @{
 		@"total_count" : @(totalCount),
@@ -174,9 +182,11 @@ void InitCocoaApp(void) {
 	}
 }
 
+void InitBridgeRunLoop(void) { atomic_store(&gRunLoop, CFRunLoopGetCurrent()); }
+
 void WorkspaceObserverStart(void) {
 	@autoreleasepool {
-		atomic_store(&gRunLoop, CFRunLoopGetCurrent());
+		InitBridgeRunLoop();
 		gObserver = [[WorkspaceObserver alloc] init];
 		[gObserver startObserving];
 
@@ -192,12 +202,36 @@ void WorkspaceObserverStart(void) {
 }
 
 void WorkspaceObserverStop(void) {
-	if (gObserver) {
-		[gObserver.spacePollTimer invalidate];
-		gObserver.spacePollTimer = nil;
-		NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
-		[wsnc removeObserver:gObserver];
-		[[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];
+	CFRunLoopRef rl = GetRunLoop();
+	if (!rl)
+		return;
+
+	if (CFRunLoopGetCurrent() == rl) {
+		if (gObserver) {
+			[gObserver.spacePollTimer invalidate];
+			gObserver.spacePollTimer = nil;
+			NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
+			[wsnc removeObserver:gObserver];
+			[[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];
+			gObserver = nil;
+		}
+		CFRunLoopStop(rl);
+		return;
 	}
-	CFRunLoopStop(CFRunLoopGetCurrent());
+
+	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
+		if (gObserver) {
+			[gObserver.spacePollTimer invalidate];
+			gObserver.spacePollTimer = nil;
+			NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
+			[wsnc removeObserver:gObserver];
+			[[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];
+			gObserver = nil;
+		}
+		CFRunLoopStop(rl);
+		dispatch_semaphore_signal(sem);
+	});
+	CFRunLoopWakeUp(rl);
+	dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
 }

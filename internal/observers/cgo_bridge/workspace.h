@@ -6,6 +6,8 @@
 // NSWorkspace notifications.
 void InitCocoaApp(void);
 
+void InitBridgeRunLoop(void);
+
 void WorkspaceObserverStart(void);
 
 void WorkspaceObserverStop(void);

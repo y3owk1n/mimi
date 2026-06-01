@@ -1,6 +1,7 @@
 #import "system_events.h"
 
 #include "_cgo_export.h"
+#import "workspace.h"
 
 #import <Cocoa/Cocoa.h>
 #import <CoreAudio/CoreAudio.h>
@@ -9,6 +10,22 @@
 #import <IOKit/ps/IOPowerSources.h>
 #import <SystemConfiguration/SystemConfiguration.h>
 #import <netinet/in.h>
+
+static void runOnBridgeRunLoopSync(void (^block)(void)) {
+	CFRunLoopRef rl = GetRunLoop();
+	if (!rl || CFRunLoopGetCurrent() == rl) {
+		block();
+		return;
+	}
+
+	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
+		block();
+		dispatch_semaphore_signal(sem);
+	});
+	CFRunLoopWakeUp(rl);
+	dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
+}
 
 #pragma mark - Power/Battery Observer
 
@@ -130,10 +147,12 @@ void PowerObserverStart(void) {
 }
 
 void PowerObserverStop(void) {
-	if (gPowerObserver) {
-		[gPowerObserver stopObserving];
-		gPowerObserver = nil;
-	}
+	runOnBridgeRunLoopSync(^{
+		if (gPowerObserver) {
+			[gPowerObserver stopObserving];
+			gPowerObserver = nil;
+		}
+	});
 }
 
 #pragma mark - Audio Device Observer
@@ -218,10 +237,12 @@ void ClipboardObserverStart(void) {
 }
 
 void ClipboardObserverStop(void) {
-	if (gClipboardObserver) {
-		[gClipboardObserver stopObserving];
-		gClipboardObserver = nil;
-	}
+	runOnBridgeRunLoopSync(^{
+		if (gClipboardObserver) {
+			[gClipboardObserver stopObserving];
+			gClipboardObserver = nil;
+		}
+	});
 }
 
 #pragma mark - USB/Peripheral Observer
@@ -316,10 +337,12 @@ void USBObserverStart(void) {
 }
 
 void USBObserverStop(void) {
-	if (gUSBObserver) {
-		[gUSBObserver stopObserving];
-		gUSBObserver = nil;
-	}
+	runOnBridgeRunLoopSync(^{
+		if (gUSBObserver) {
+			[gUSBObserver stopObserving];
+			gUSBObserver = nil;
+		}
+	});
 }
 
 #pragma mark - Network Observer
@@ -400,10 +423,12 @@ void NetworkObserverStart(void) {
 }
 
 void NetworkObserverStop(void) {
-	if (gNetworkObserver) {
-		[gNetworkObserver stopObserving];
-		gNetworkObserver = nil;
-	}
+	runOnBridgeRunLoopSync(^{
+		if (gNetworkObserver) {
+			[gNetworkObserver stopObserving];
+			gNetworkObserver = nil;
+		}
+	});
 }
 
 #pragma mark - Display Observer

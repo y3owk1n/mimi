@@ -1,7 +1,7 @@
 package cgo_bridge
 
 /*
-#cgo CFLAGS: -x objective-c
+#cgo CFLAGS: -x objective-c -fobjc-arc
 #cgo LDFLAGS: -framework Cocoa -framework ApplicationServices -framework IOKit -framework CoreAudio -framework SystemConfiguration
 
 #include "workspace.h"
@@ -42,20 +42,22 @@ func Start(beforeRunLoop func() bool) bool {
 			return
 		}
 
+		C.InitBridgeRunLoop()
+		// Run-loop-backed observers must be created on the same locked thread
+		// that owns the Cocoa run loop below.
+		C.PowerObserverStart()
+		C.AudioObserverStart()
+		C.ClipboardObserverStart()
+		C.USBObserverStart()
+		C.NetworkObserverStart()
+		C.DisplayObserverStart()
+
 		mainThread <- true
 		C.WorkspaceObserverStart()
 	}()
 	if !<-mainThread {
 		return false
 	}
-
-	// Start system observers
-	C.PowerObserverStart()
-	C.AudioObserverStart()
-	C.ClipboardObserverStart()
-	C.USBObserverStart()
-	C.NetworkObserverStart()
-	C.DisplayObserverStart()
 
 	// Push a synthetic startup event as a proof-of-life for the pipeline.
 	// Its kind ("_startup_") won't match any user hook.
