@@ -1,6 +1,6 @@
 # Configuration Guide
 
-Mimi uses TOML for configuration. No config file is required — Mimi creates a sensible default on first `mimi start`. Only define the options you want to change.
+Mimi uses TOML for configuration. On first `mimi start`, Mimi prompts you to create a sensible default config or quit. Only define the options you want to change.
 
 ---
 
@@ -48,8 +48,8 @@ Config is resolved in this priority order (first match wins):
 2. `$XDG_CONFIG_HOME/mimi/config.toml` (if `$XDG_CONFIG_HOME` is set and file exists)
 3. `~/.config/mimi/config.toml` (if file exists)
 4. `./mimi.toml` (current directory)
-5. Falls back to `$XDG_CONFIG_HOME/mimi/config.toml` (creates if missing)
-6. Falls back to `~/.config/mimi/config.toml` (creates if missing)
+5. Falls back to `$XDG_CONFIG_HOME/mimi/config.toml` (prompts to create if missing)
+6. Falls back to `~/.config/mimi/config.toml` (prompts to create if missing)
 
 ---
 

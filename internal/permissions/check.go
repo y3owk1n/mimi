@@ -5,6 +5,7 @@ package permissions
 #cgo LDFLAGS: -framework Cocoa -framework ApplicationServices
 #import <Cocoa/Cocoa.h>
 #include <ApplicationServices/ApplicationServices.h>
+#include <stdlib.h>
 
 static int MimiCheckAccessibilityPermissions(void) {
 	Boolean trusted = AXIsProcessTrusted();
@@ -91,17 +92,62 @@ static int MimiShowAccessibilityPermissionStartupAlert(void) {
 		return 1;
 	}
 }
+
+static int MimiShowConfigOnboardingAlert(const char *configPath) {
+	@autoreleasepool {
+		[NSApplication sharedApplication];
+
+		NSString *path = configPath ? [NSString stringWithUTF8String:configPath] : @"~/.config/mimi/config.toml";
+
+		NSAlert *alert = [[NSAlert alloc] init];
+		alert.messageText = @"Welcome to Mimi";
+		alert.informativeText =
+			[NSString stringWithFormat:@"No configuration file found.\n\nCreate a starter config at:\n%@",
+			                           path];
+		alert.alertStyle = NSAlertStyleInformational;
+
+		[alert addButtonWithTitle:@"Create Config"];
+		[alert addButtonWithTitle:@"Quit"];
+
+		[[alert window] setLevel:NSFloatingWindowLevel];
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+		[[alert window] center];
+		[[alert window] makeKeyAndOrderFront:nil];
+		[NSApp activateIgnoringOtherApps:YES];
+
+		NSModalResponse response = [alert runModal];
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+		if (response == NSAlertFirstButtonReturn) {
+			return 1;
+		} else if (response == NSAlertSecondButtonReturn) {
+			return 2;
+		}
+
+		return 2;
+	}
+}
 */
 import "C"
 
 import (
+	"unsafe"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
+
+// ConfigOnboardingChoice represents the user's choice in the config onboarding alert.
+type ConfigOnboardingChoice int
 
 // AccessibilityStartupChoice represents the user's choice in the startup permission alert.
 type AccessibilityStartupChoice int
 
 const (
+	// ConfigOnboardingCreate indicates the user chose to create a config file.
+	ConfigOnboardingCreate ConfigOnboardingChoice = 1
+	// ConfigOnboardingQuit indicates the user chose to quit.
+	ConfigOnboardingQuit ConfigOnboardingChoice = 2
+
 	// AccessibilityStartupGranted indicates accessibility permission is granted.
 	AccessibilityStartupGranted AccessibilityStartupChoice = 1
 	// AccessibilityStartupQuit indicates the user chose to quit.
@@ -135,6 +181,14 @@ func Check() CheckResult {
 // RequestAccessibility asks macOS to start the accessibility permission flow.
 func RequestAccessibility() bool {
 	return C.MimiRequestAccessibilityPermissions() != 0
+}
+
+// ShowConfigOnboardingAlert displays startup guidance for creating the first config file.
+func ShowConfigOnboardingAlert(configPath string) ConfigOnboardingChoice {
+	cPath := C.CString(configPath)
+	defer C.free(unsafe.Pointer(cPath)) //nolint:nlreturn
+
+	return ConfigOnboardingChoice(C.MimiShowConfigOnboardingAlert(cPath))
 }
 
 // ShowAccessibilityStartupAlert displays startup guidance for granting accessibility permission.

@@ -30,7 +30,7 @@ Mimi provides a command-line interface for controlling the daemon, testing hooks
 
 ### `mimi start`
 
-Start the mimi daemon. If no config file exists, creates one with sensible defaults.
+Start the mimi daemon. If no config file exists, prompts to create one with sensible defaults or quit.
 
 ```bash
 mimi start                             # Start with auto-resolved config
