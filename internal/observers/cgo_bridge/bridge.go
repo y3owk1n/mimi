@@ -28,17 +28,26 @@ var eventCh = make(chan events.Event, eventChBufSize)
 func EventCh() <-chan events.Event { return eventCh }
 
 // Start initializes and starts all macOS event observers.
-func Start() {
+func Start(beforeRunLoop func() bool) bool {
 	// Lock to main OS thread to initialize NSApplication properly.
 	// NSWorkspace notifications require proper Cocoa initialization.
-	mainThread := make(chan struct{})
+	mainThread := make(chan bool)
 	go func() {
 		runtime.LockOSThread()
 		C.InitCocoaApp()
-		close(mainThread)
+
+		if beforeRunLoop != nil && !beforeRunLoop() {
+			mainThread <- false
+
+			return
+		}
+
+		mainThread <- true
 		C.WorkspaceObserverStart()
 	}()
-	<-mainThread
+	if !<-mainThread {
+		return false
+	}
 
 	// Start system observers
 	C.PowerObserverStart()
@@ -56,6 +65,8 @@ func Start() {
 		AppName: "mimi",
 		At:      time.Now(),
 	}
+
+	return true
 }
 
 // Stop stops all macOS event observers.

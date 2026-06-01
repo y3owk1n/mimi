@@ -35,11 +35,24 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error
 	defer removePID(cfg.Settings.PIDFile)
 
 	perm := permissions.Check()
+
+	var accessibilityPrompt func() bool
+	if !perm.Accessibility {
+		accessibilityPrompt = func() bool {
+			choice := permissions.ShowAccessibilityStartupAlert()
+
+			return choice != permissions.AccessibilityStartupQuit
+		}
+	}
+
+	if !cgo_bridge.Start(accessibilityPrompt) {
+		return nil
+	}
+
+	perm = permissions.Check()
 	if !perm.Accessibility {
 		logger.Warn("accessibility permission not granted — window events disabled")
 	}
-
-	cgo_bridge.Start()
 
 	bus := events.NewBus()
 	axMgr := observers.NewAccessibilityManager(perm.Accessibility)
