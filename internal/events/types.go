@@ -2,64 +2,87 @@ package events
 
 import "time"
 
+// EventKind classifies an event (e.g. app_activate, workspace_changed).
 type EventKind string
 
 const (
-	// App lifecycle.
-	AppActivate   EventKind = "app_activate"
+	// AppActivate fires when an app becomes the frontmost.
+	AppActivate EventKind = "app_activate"
+	// AppDeactivate fires when an app loses focus.
 	AppDeactivate EventKind = "app_deactivate"
-	AppLaunch     EventKind = "app_launch"
-	AppQuit       EventKind = "app_quit"
-	AppHide       EventKind = "app_hide"
-	AppUnhide     EventKind = "app_unhide"
+	// AppLaunch fires when a new app process starts.
+	AppLaunch EventKind = "app_launch"
+	// AppQuit fires when an app process terminates.
+	AppQuit EventKind = "app_quit"
+	// AppHide fires when an app is hidden (⌘H).
+	AppHide EventKind = "app_hide"
+	// AppUnhide fires when a hidden app is shown again.
+	AppUnhide EventKind = "app_unhide"
 
-	// Window events.
-	WindowFocus       EventKind = "window_focus"
+	// WindowFocus fires when the focused window changes.
+	WindowFocus EventKind = "window_focus"
+	// WindowTitleChange fires when the active window title changes.
 	WindowTitleChange EventKind = "window_title_change"
-	WindowCreated     EventKind = "window_created"
-	WindowClosed      EventKind = "window_closed"
+	// WindowCreated fires when a new window opens.
+	WindowCreated EventKind = "window_created"
+	// WindowClosed fires when a window closes.
+	WindowClosed EventKind = "window_closed"
 
-	// System events.
-	SystemSleep    EventKind = "system_sleep"
-	SystemWake     EventKind = "system_wake"
-	ScreenLock     EventKind = "screen_lock"
-	ScreenUnlock   EventKind = "screen_unlock"
+	// SystemSleep fires when the system or display goes to sleep.
+	SystemSleep EventKind = "system_sleep"
+	// SystemWake fires when the system wakes.
+	SystemWake EventKind = "system_wake"
+	// ScreenLock fires when the screen is locked.
+	ScreenLock EventKind = "screen_lock"
+	// ScreenUnlock fires when the screen is unlocked.
+	ScreenUnlock EventKind = "screen_unlock"
+	// SystemShutdown fires when a shutdown or restart is imminent.
 	SystemShutdown EventKind = "system_shutdown"
+	// UserSessionEnd fires when the user session ends (logout).
 	UserSessionEnd EventKind = "user_session_end"
 
-	// Storage events.
-	VolumeMount   EventKind = "volume_mount"
+	// VolumeMount fires when a volume or USB drive mounts.
+	VolumeMount EventKind = "volume_mount"
+	// VolumeUnmount fires when a volume or USB drive unmounts.
 	VolumeUnmount EventKind = "volume_unmount"
 
-	// Display/Appearance events.
-	ExternalDisplayConnected    EventKind = "external_display_connected"
+	// ExternalDisplayConnected fires when an external display is connected.
+	ExternalDisplayConnected EventKind = "external_display_connected"
+	// ExternalDisplayDisconnected fires when an external display is disconnected.
 	ExternalDisplayDisconnected EventKind = "external_display_disconnected"
-	AppearanceChanged           EventKind = "appearance_changed"
+	// AppearanceChanged fires when the system appearance changes (dark/light mode).
+	AppearanceChanged EventKind = "appearance_changed"
 
-	// Power/Battery events.
-	PowerAdapterConnected    EventKind = "power_adapter_connected"
+	// PowerAdapterConnected fires when AC power is plugged in.
+	PowerAdapterConnected EventKind = "power_adapter_connected"
+	// PowerAdapterDisconnected fires when AC power is unplugged.
 	PowerAdapterDisconnected EventKind = "power_adapter_disconnected"
-	BatteryLow               EventKind = "battery_low"
-	BatteryCritical          EventKind = "battery_critical"
+	// BatteryLow fires when the battery level drops to low.
+	BatteryLow EventKind = "battery_low"
+	// BatteryCritical fires when the battery is critically low.
+	BatteryCritical EventKind = "battery_critical"
 
-	// Audio events.
+	// AudioDeviceChanged fires when the audio device list or default changes.
 	AudioDeviceChanged EventKind = "audio_device_changed"
 
-	// Workspace/Desktop events.
+	// WorkspaceChanged fires when the active macOS Space/Desktop changes.
 	WorkspaceChanged EventKind = "workspace_changed"
 
-	// USB/Peripheral events.
-	USBDeviceConnected    EventKind = "usb_device_connected"
+	// USBDeviceConnected fires when a USB device is connected.
+	USBDeviceConnected EventKind = "usb_device_connected"
+	// USBDeviceDisconnected fires when a USB device is disconnected.
 	USBDeviceDisconnected EventKind = "usb_device_disconnected"
 
-	// Network events.
-	NetworkUp   EventKind = "network_up"
+	// NetworkUp fires when network connectivity is restored.
+	NetworkUp EventKind = "network_up"
+	// NetworkDown fires when network connectivity is lost.
 	NetworkDown EventKind = "network_down"
 
-	// Clipboard events.
+	// ClipboardChanged fires when the clipboard content changes.
 	ClipboardChanged EventKind = "clipboard_changed"
 )
 
+// AllKinds lists every known event kind.
 var AllKinds = []EventKind{
 	AppActivate, AppDeactivate, AppLaunch, AppQuit, AppHide, AppUnhide,
 	WindowFocus, WindowTitleChange, WindowCreated, WindowClosed,
@@ -74,19 +97,21 @@ var AllKinds = []EventKind{
 	ClipboardChanged,
 }
 
+// Event carries information about a system event through the bus.
 type Event struct {
 	ID          string            `json:"id"`
 	Kind        EventKind         `json:"kind"`
-	AppName     string            `json:"app_name,omitempty"`
-	BundleID    string            `json:"bundle_id,omitempty"`
+	AppName     string            `json:"appName,omitempty"`
+	BundleID    string            `json:"bundleId,omitempty"`
 	PID         int               `json:"pid,omitempty"`
-	WindowTitle string            `json:"window_title,omitempty"`
-	VolumePath  string            `json:"volume_path,omitempty"`
-	VolumeName  string            `json:"volume_name,omitempty"`
+	WindowTitle string            `json:"windowTitle,omitempty"`
+	VolumePath  string            `json:"volumePath,omitempty"`
+	VolumeName  string            `json:"volumeName,omitempty"`
 	At          time.Time         `json:"at"`
 	Extra       map[string]string `json:"extra,omitempty"`
 }
 
+// Publisher is the interface for publishing events to the bus.
 type Publisher interface {
-	Publish(Event)
+	Publish(e Event)
 }

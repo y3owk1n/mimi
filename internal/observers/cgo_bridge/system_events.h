@@ -23,4 +23,3 @@ void NetworkObserverStop(void);
 // Display observer
 void DisplayObserverStart(void);
 void DisplayObserverStop(void);
-

@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/config"
@@ -16,8 +14,8 @@ var startCmd = &cobra.Command{
 	Short: "Start the mimi daemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !config.Exists(configPath) {
-			fmt.Printf("No config found at %s — creating with defaults.\n", configPath)
-			fmt.Println("Edit it to customize hooks, then run 'mimi start' again.")
+			cmd.Printf("No config found at %s — creating with defaults.\n", configPath)
+			cmd.Println("Edit it to customize hooks, then run 'mimi start' again.")
 
 			return config.WriteDefault(configPath)
 		}

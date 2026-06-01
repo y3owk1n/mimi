@@ -9,25 +9,32 @@ import (
 	"go.uber.org/zap"
 )
 
+const debounceDelay = 300 * time.Millisecond
+
+// Watcher monitors a config file and triggers a callback on changes.
 type Watcher struct {
 	path     string
 	onChange func(*Config)
 	logger   *zap.SugaredLogger
 }
 
+// NewWatcher creates a new config file watcher.
 func NewWatcher(path string, onChange func(*Config), logger *zap.SugaredLogger) *Watcher {
 	return &Watcher{path: expandHome(path), onChange: onChange, logger: logger}
 }
 
+// Run starts the config file watcher loop. It blocks until the context is canceled.
 func (w *Watcher) Run(ctx context.Context) error {
-	fw, err := fsnotify.NewWatcher()
+	fileWatcher, err := fsnotify.NewWatcher()
 	if err != nil {
 		return err
 	}
-	defer fw.Close()
 
-	if err := fw.Add(w.path); err != nil {
-		err2 := fw.Add(filepath.Dir(w.path))
+	defer func() { _ = fileWatcher.Close() }()
+
+	err = fileWatcher.Add(w.path)
+	if err != nil {
+		err2 := fileWatcher.Add(filepath.Dir(w.path))
 		if err2 != nil {
 			return err
 		}
@@ -38,7 +45,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case ev, ok := <-fw.Events:
+		case ev, ok := <-fileWatcher.Events:
 			if !ok {
 				return nil
 			}
@@ -48,7 +55,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 					debounce.Stop()
 				}
 
-				debounce = time.AfterFunc(300*time.Millisecond, func() {
+				debounce = time.AfterFunc(debounceDelay, func() {
 					cfg, err := Load(w.path)
 					if err != nil {
 						w.logger.Warnw("config reload failed", "err", err)
@@ -60,7 +67,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 					w.onChange(cfg)
 				})
 			}
-		case err, ok := <-fw.Errors:
+		case err, ok := <-fileWatcher.Errors:
 			if !ok {
 				return nil
 			}

@@ -21,6 +21,12 @@ import (
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
+const (
+	logSubBufSize  = 128
+	hookSubBufSize = 256
+)
+
+// Run starts the mimi daemon: event observers, hooks executor, and config watcher.
 func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error {
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
@@ -48,8 +54,8 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error
 
 	executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
 
-	logSub := bus.Subscribe(128)
-	hookSub := bus.Subscribe(256)
+	logSub := bus.Subscribe(logSubBufSize)
+	hookSub := bus.Subscribe(hookSubBufSize)
 
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
@@ -73,7 +79,7 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error
 		executor.UpdateSettings(&newCfg.Settings)
 		logger.Info("hooks reloaded from config")
 	}, logger)
-	go watcher.Run(ctx)
+	go func() { _ = watcher.Run(ctx) }()
 
 	sigCh := make(chan os.Signal, 1)
 	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
@@ -109,16 +115,16 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error
 func writePID(path string) error {
 	path = expandHome(path)
 
-	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
 	if err != nil {
 		return err
 	}
 
-	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o644)
+	return os.WriteFile(path, []byte(strconv.Itoa(os.Getpid())), 0o644) //nolint:mnd
 }
 
 func removePID(path string) {
-	os.Remove(expandHome(path))
+	_ = os.Remove(expandHome(path))
 }
 
 func expandHome(path string) string {

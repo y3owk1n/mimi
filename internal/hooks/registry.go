@@ -8,33 +8,38 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+// Hook wraps a HookEntry with its compiled title regex.
 type Hook struct {
 	Entry       config.HookEntry
 	titleRegexp *regexp.Regexp
 }
 
+// Registry maps event kinds to their registered hooks.
 type Registry struct {
 	mu sync.RWMutex
 	m  map[events.EventKind][]Hook
 }
 
+// NewRegistry creates an empty hook registry.
 func NewRegistry() *Registry {
 	return &Registry{m: make(map[events.EventKind][]Hook)}
 }
 
+// Reload rebuilds the hook map from a config.
 func (r *Registry) Reload(cfg *config.Config) error {
-	m, err := buildMap(cfg)
+	hookMap, err := buildMap(cfg)
 	if err != nil {
 		return err
 	}
 
 	r.mu.Lock()
-	r.m = m
+	r.m = hookMap
 	r.mu.Unlock()
 
 	return nil
 }
 
+// HooksFor returns all hooks registered for the given event kind.
 func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 	r.mu.RLock()
 	defer r.mu.RUnlock()
@@ -42,18 +47,19 @@ func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 	return r.m[kind]
 }
 
-func (h *Hook) Matches(e events.Event) bool {
+// Matches checks whether a hook's filters (app, bundle_id, title) match an event.
+func (h *Hook) Matches(evt events.Event) bool {
 	if h.Entry.App != "" {
-		if !globMatch(h.Entry.App, e.AppName) {
+		if !globMatch(h.Entry.App, evt.AppName) {
 			return false
 		}
 	}
 
-	if h.Entry.BundleID != "" && h.Entry.BundleID != e.BundleID {
+	if h.Entry.BundleID != "" && h.Entry.BundleID != evt.BundleID {
 		return false
 	}
 
-	if h.titleRegexp != nil && !h.titleRegexp.MatchString(e.WindowTitle) {
+	if h.titleRegexp != nil && !h.titleRegexp.MatchString(evt.WindowTitle) {
 		return false
 	}
 
@@ -61,7 +67,7 @@ func (h *Hook) Matches(e events.Event) bool {
 }
 
 func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
-	m := make(map[events.EventKind][]Hook)
+	hookMap := make(map[events.EventKind][]Hook)
 	entries := map[events.EventKind][]config.HookEntry{
 		events.AppActivate:                 cfg.Hooks.AppActivate,
 		events.AppDeactivate:               cfg.Hooks.AppDeactivate,
@@ -114,14 +120,14 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 		}
 
 		if len(hooks) > 0 {
-			m[kind] = hooks
+			hookMap[kind] = hooks
 		}
 	}
 
-	return m, nil
+	return hookMap, nil
 }
 
-func globMatch(pattern, s string) bool {
+func globMatch(pattern, str string) bool {
 	if pattern == "" {
 		return true
 	}
@@ -132,20 +138,20 @@ func globMatch(pattern, s string) bool {
 	// Simple glob: support * wildcard
 	re := regexp.QuoteMeta(pattern)
 	re = stringsReplaceAll(re, "\\*", ".*")
-	matched, _ := regexp.MatchString("^"+re+"$", s)
+	matched, _ := regexp.MatchString("^"+re+"$", str)
 
 	return matched
 }
 
-func stringsReplaceAll(s, old, new string) string {
+func stringsReplaceAll(str, old, replacement string) string {
 	var result []byte
-	for i := 0; i < len(s); {
-		if s[i] == old[0] && i+len(old) <= len(s) && s[i:i+len(old)] == old {
-			result = append(result, []byte(new)...)
-			i += len(old)
+	for idx := 0; idx < len(str); {
+		if str[idx] == old[0] && idx+len(old) <= len(str) && str[idx:idx+len(old)] == old {
+			result = append(result, []byte(replacement)...)
+			idx += len(old)
 		} else {
-			result = append(result, s[i])
-			i++
+			result = append(result, str[idx])
+			idx++
 		}
 	}
 

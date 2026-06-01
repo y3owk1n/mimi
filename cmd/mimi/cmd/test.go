@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"time"
 
 	"github.com/google/uuid"
@@ -27,7 +26,7 @@ var testCmd = &cobra.Command{
   mimi test system_sleep`,
 	Args: cobra.ExactArgs(1),
 	ValidArgsFunction: func(cmd *cobra.Command, args []string, toComplete string) ([]string, cobra.ShellCompDirective) {
-		var names []string
+		names := make([]string, 0, len(events.AllKinds))
 		for _, k := range events.AllKinds {
 			names = append(names, string(k))
 		}
@@ -36,7 +35,7 @@ var testCmd = &cobra.Command{
 	},
 	RunE: func(cmd *cobra.Command, args []string) error {
 		kind := events.EventKind(args[0])
-		e := events.Event{
+		evt := events.Event{
 			ID:          uuid.NewString(),
 			Kind:        kind,
 			AppName:     testApp,
@@ -51,15 +50,17 @@ var testCmd = &cobra.Command{
 		}
 
 		reg := hooks.NewRegistry()
-		if err := reg.Reload(cfg); err != nil {
+
+		err = reg.Reload(cfg)
+		if err != nil {
 			return err
 		}
 
 		logger := logging.New(cfg)
 		executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
 
-		fmt.Printf("Firing synthetic event: %s\n", kind)
-		executor.Handle(e)
+		cmd.Printf("Firing synthetic event: %s\n", kind)
+		executor.Handle(evt)
 
 		return nil
 	},

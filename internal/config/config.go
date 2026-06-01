@@ -7,11 +7,13 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
+// Config holds the full mimi configuration.
 type Config struct {
 	Settings SettingsConfig `toml:"settings"`
 	Hooks    HooksConfig    `toml:"hooks"`
 }
 
+// SettingsConfig holds the [settings] section of the config.
 type SettingsConfig struct {
 	LogFile         string `toml:"log_file"`
 	LogLevel        string `toml:"log_level"`
@@ -22,6 +24,7 @@ type SettingsConfig struct {
 	PIDFile         string `toml:"pid_file"`
 }
 
+// HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {
 	AppActivate                 []HookEntry `toml:"on_app_activate"`
 	AppDeactivate               []HookEntry `toml:"on_app_deactivate"`
@@ -57,6 +60,7 @@ type HooksConfig struct {
 	ClipboardChanged            []HookEntry `toml:"on_clipboard_changed"`
 }
 
+// HookEntry defines a single hook command and its optional filters.
 type HookEntry struct {
 	Run         string `toml:"run"`
 	App         string `toml:"app"`
@@ -108,40 +112,40 @@ type rawConfig struct {
 
 func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	var (
-		hc   HooksConfig
-		errs []string
+		hooksCfg HooksConfig
+		errs     []string
 	)
 
 	decodeField := func(field string, rawItems []any) []HookEntry {
 		var entries []HookEntry
-		for i, item := range rawItems {
-			switch v := item.(type) {
+		for idx, item := range rawItems {
+			switch val := item.(type) {
 			case string:
-				entries = append(entries, HookEntry{Run: v})
+				entries = append(entries, HookEntry{Run: val})
 			case map[string]any:
 				entry := HookEntry{
-					Run:      getString(v, "run"),
-					App:      getString(v, "app"),
-					BundleID: getString(v, "bundle_id"),
-					Title:    getString(v, "title"),
+					Run:      getString(val, "run"),
+					App:      getString(val, "app"),
+					BundleID: getString(val, "bundle_id"),
+					Title:    getString(val, "title"),
 				}
-				if timeout, ok := getInt(v, "timeout_secs"); ok {
+				if timeout, ok := getInt(val, "timeout_secs"); ok {
 					entry.TimeoutSecs = timeout
 				}
 
-				if async, ok := getBool(v, "async"); ok {
+				if async, ok := getBool(val, "async"); ok {
 					entry.Async = async
 				}
 
 				if entry.Run == "" {
-					errs = append(errs, fmt.Sprintf("%s[%d]: 'run' field is required", field, i))
+					errs = append(errs, fmt.Sprintf("%s[%d]: 'run' field is required", field, idx))
 				}
 
 				entries = append(entries, entry)
 			default:
 				errs = append(
 					errs,
-					fmt.Sprintf("%s[%d]: expected string or table, got %T", field, i, item),
+					fmt.Sprintf("%s[%d]: expected string or table, got %T", field, idx, item),
 				)
 			}
 		}
@@ -149,57 +153,63 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 		return entries
 	}
 
-	hc.AppActivate = decodeField("on_app_activate", raw.AppActivate)
-	hc.AppDeactivate = decodeField("on_app_deactivate", raw.AppDeactivate)
-	hc.AppLaunch = decodeField("on_app_launch", raw.AppLaunch)
-	hc.AppQuit = decodeField("on_app_quit", raw.AppQuit)
-	hc.AppHide = decodeField("on_app_hide", raw.AppHide)
-	hc.AppUnhide = decodeField("on_app_unhide", raw.AppUnhide)
-	hc.WindowFocus = decodeField("on_window_focus", raw.WindowFocus)
-	hc.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
-	hc.WindowCreated = decodeField("on_window_created", raw.WindowCreated)
-	hc.WindowClosed = decodeField("on_window_closed", raw.WindowClosed)
-	hc.SystemSleep = decodeField("on_system_sleep", raw.SystemSleep)
-	hc.SystemWake = decodeField("on_system_wake", raw.SystemWake)
-	hc.ScreenLock = decodeField("on_screen_lock", raw.ScreenLock)
-	hc.ScreenUnlock = decodeField("on_screen_unlock", raw.ScreenUnlock)
-	hc.SystemShutdown = decodeField("on_system_shutdown", raw.SystemShutdown)
-	hc.UserSessionEnd = decodeField("on_user_session_end", raw.UserSessionEnd)
-	hc.VolumeMount = decodeField("on_volume_mount", raw.VolumeMount)
-	hc.VolumeUnmount = decodeField("on_volume_unmount", raw.VolumeUnmount)
-	hc.ExternalDisplayConnected = decodeField(
+	hooksCfg.AppActivate = decodeField("on_app_activate", raw.AppActivate)
+	hooksCfg.AppDeactivate = decodeField("on_app_deactivate", raw.AppDeactivate)
+	hooksCfg.AppLaunch = decodeField("on_app_launch", raw.AppLaunch)
+	hooksCfg.AppQuit = decodeField("on_app_quit", raw.AppQuit)
+	hooksCfg.AppHide = decodeField("on_app_hide", raw.AppHide)
+	hooksCfg.AppUnhide = decodeField("on_app_unhide", raw.AppUnhide)
+	hooksCfg.WindowFocus = decodeField("on_window_focus", raw.WindowFocus)
+	hooksCfg.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
+	hooksCfg.WindowCreated = decodeField("on_window_created", raw.WindowCreated)
+	hooksCfg.WindowClosed = decodeField("on_window_closed", raw.WindowClosed)
+	hooksCfg.SystemSleep = decodeField("on_system_sleep", raw.SystemSleep)
+	hooksCfg.SystemWake = decodeField("on_system_wake", raw.SystemWake)
+	hooksCfg.ScreenLock = decodeField("on_screen_lock", raw.ScreenLock)
+	hooksCfg.ScreenUnlock = decodeField("on_screen_unlock", raw.ScreenUnlock)
+	hooksCfg.SystemShutdown = decodeField("on_system_shutdown", raw.SystemShutdown)
+	hooksCfg.UserSessionEnd = decodeField("on_user_session_end", raw.UserSessionEnd)
+	hooksCfg.VolumeMount = decodeField("on_volume_mount", raw.VolumeMount)
+	hooksCfg.VolumeUnmount = decodeField("on_volume_unmount", raw.VolumeUnmount)
+	hooksCfg.ExternalDisplayConnected = decodeField(
 		"on_external_display_connected",
 		raw.ExternalDisplayConnected,
 	)
-	hc.ExternalDisplayDisconnected = decodeField(
+	hooksCfg.ExternalDisplayDisconnected = decodeField(
 		"on_external_display_disconnected",
 		raw.ExternalDisplayDisconnected,
 	)
-	hc.AppearanceChanged = decodeField("on_appearance_changed", raw.AppearanceChanged)
-	hc.PowerAdapterConnected = decodeField("on_power_adapter_connected", raw.PowerAdapterConnected)
-	hc.PowerAdapterDisconnected = decodeField(
+	hooksCfg.AppearanceChanged = decodeField("on_appearance_changed", raw.AppearanceChanged)
+	hooksCfg.PowerAdapterConnected = decodeField(
+		"on_power_adapter_connected",
+		raw.PowerAdapterConnected,
+	)
+	hooksCfg.PowerAdapterDisconnected = decodeField(
 		"on_power_adapter_disconnected",
 		raw.PowerAdapterDisconnected,
 	)
-	hc.BatteryLow = decodeField("on_battery_low", raw.BatteryLow)
-	hc.BatteryCritical = decodeField("on_battery_critical", raw.BatteryCritical)
-	hc.AudioDeviceChanged = decodeField("on_audio_device_changed", raw.AudioDeviceChanged)
-	hc.WorkspaceChanged = decodeField("on_workspace_changed", raw.WorkspaceChanged)
-	hc.USBDeviceConnected = decodeField("on_usb_device_connected", raw.USBDeviceConnected)
-	hc.USBDeviceDisconnected = decodeField("on_usb_device_disconnected", raw.USBDeviceDisconnected)
-	hc.NetworkUp = decodeField("on_network_up", raw.NetworkUp)
-	hc.NetworkDown = decodeField("on_network_down", raw.NetworkDown)
-	hc.ClipboardChanged = decodeField("on_clipboard_changed", raw.ClipboardChanged)
+	hooksCfg.BatteryLow = decodeField("on_battery_low", raw.BatteryLow)
+	hooksCfg.BatteryCritical = decodeField("on_battery_critical", raw.BatteryCritical)
+	hooksCfg.AudioDeviceChanged = decodeField("on_audio_device_changed", raw.AudioDeviceChanged)
+	hooksCfg.WorkspaceChanged = decodeField("on_workspace_changed", raw.WorkspaceChanged)
+	hooksCfg.USBDeviceConnected = decodeField("on_usb_device_connected", raw.USBDeviceConnected)
+	hooksCfg.USBDeviceDisconnected = decodeField(
+		"on_usb_device_disconnected",
+		raw.USBDeviceDisconnected,
+	)
+	hooksCfg.NetworkUp = decodeField("on_network_up", raw.NetworkUp)
+	hooksCfg.NetworkDown = decodeField("on_network_down", raw.NetworkDown)
+	hooksCfg.ClipboardChanged = decodeField("on_clipboard_changed", raw.ClipboardChanged)
 
 	if len(errs) > 0 {
-		return hc, derrors.Newf(
+		return hooksCfg, derrors.Newf(
 			derrors.CodeInvalidConfig,
 			"hook decode errors:\n  - %s",
 			strings.Join(errs, "\n  - "),
 		)
 	}
 
-	return hc, nil
+	return hooksCfg, nil
 }
 
 func getString(m map[string]any, key string) string {

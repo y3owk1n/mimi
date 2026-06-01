@@ -13,8 +13,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+// DefaultConfigPath is the default path for the mimi config file.
 const DefaultConfigPath = "~/.config/mimi/config.toml"
 
+// Exists returns true if the config file exists.
 func Exists(path string) bool {
 	_, err := os.Stat(expandHome(path))
 
@@ -48,14 +50,14 @@ func ResolvePath(cliPath string) string {
 	}
 
 	// 3. Check mimi.toml (current directory)
-	p3 := "mimi.toml"
-	if Exists(p3) {
-		abs, err := filepath.Abs(p3)
+	altPath := "mimi.toml"
+	if Exists(altPath) {
+		abs, err := filepath.Abs(altPath)
 		if err == nil {
 			return abs
 		}
 
-		return p3
+		return altPath
 	}
 
 	// Fallback when none exists
@@ -66,15 +68,16 @@ func ResolvePath(cliPath string) string {
 	return expandHome("~/.config/mimi/config.toml")
 }
 
+// WriteDefault writes the default config to the given path.
 func WriteDefault(path string) error {
 	path = expandHome(path)
 
-	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "creating config directory")
 	}
 
-	err = os.WriteFile(path, []byte(configs.DefaultConfig), 0o644)
+	err = os.WriteFile(path, configs.DefaultConfig, 0o644) //nolint:mnd
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing default config")
 	}
@@ -82,6 +85,7 @@ func WriteDefault(path string) error {
 	return nil
 }
 
+// Load parses and validates the config from a TOML file.
 func Load(path string) (*Config, error) {
 	path = expandHome(path)
 
@@ -91,7 +95,9 @@ func Load(path string) (*Config, error) {
 	}
 
 	var raw rawConfig
-	if _, err := toml.Decode(string(data), &raw); err != nil {
+
+	_, err = toml.Decode(string(data), &raw)
+	if err != nil {
 		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "parsing config")
 	}
 
@@ -106,7 +112,8 @@ func Load(path string) (*Config, error) {
 	}
 	applyDefaults(cfg)
 
-	if err := validate(cfg); err != nil {
+	err = validate(cfg)
+	if err != nil {
 		return nil, err
 	}
 
@@ -116,29 +123,29 @@ func Load(path string) (*Config, error) {
 }
 
 func applyDefaults(cfg *Config) {
-	s := &cfg.Settings
-	if s.LogLevel == "" {
-		s.LogLevel = "info"
+	settings := &cfg.Settings
+	if settings.LogLevel == "" {
+		settings.LogLevel = "info"
 	}
 
-	if s.LogFormat == "" {
-		s.LogFormat = "text"
+	if settings.LogFormat == "" {
+		settings.LogFormat = "text"
 	}
 
-	if s.HookTimeoutSecs == 0 {
-		s.HookTimeoutSecs = 10
+	if settings.HookTimeoutSecs == 0 {
+		settings.HookTimeoutSecs = 10
 	}
 
-	if s.HookShell == "" {
-		s.HookShell = "/bin/sh"
+	if settings.HookShell == "" {
+		settings.HookShell = "/bin/sh"
 	}
 
-	if s.MaxHookWorkers == 0 {
-		s.MaxHookWorkers = 4
+	if settings.MaxHookWorkers == 0 {
+		settings.MaxHookWorkers = 4
 	}
 
-	if s.PIDFile == "" {
-		s.PIDFile = "~/.local/share/mimi/mimi.pid"
+	if settings.PIDFile == "" {
+		settings.PIDFile = "~/.local/share/mimi/mimi.pid"
 	}
 }
 

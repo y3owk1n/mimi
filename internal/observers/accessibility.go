@@ -6,12 +6,14 @@ import (
 	"github.com/y3owk1n/mimi/internal/observers/cgo_bridge"
 )
 
+// AccessibilityManager tracks which PIDs have AX observers installed.
 type AccessibilityManager struct {
 	mu      sync.Mutex
 	tracked map[int]struct{}
 	enabled bool
 }
 
+// NewAccessibilityManager creates a manager with the enabled flag.
 func NewAccessibilityManager(axEnabled bool) *AccessibilityManager {
 	return &AccessibilityManager{
 		tracked: make(map[int]struct{}),
@@ -19,6 +21,7 @@ func NewAccessibilityManager(axEnabled bool) *AccessibilityManager {
 	}
 }
 
+// Install installs an AX observer for the given PID. Returns false if AX is disabled.
 func (m *AccessibilityManager) Install(pid int) bool {
 	if !m.enabled {
 		return false
@@ -40,6 +43,7 @@ func (m *AccessibilityManager) Install(pid int) bool {
 	return false
 }
 
+// Remove removes the AX observer for the given PID.
 func (m *AccessibilityManager) Remove(pid int) {
 	m.mu.Lock()
 	defer m.mu.Unlock()

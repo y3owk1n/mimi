@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -26,19 +25,23 @@ var installCmd = &cobra.Command{
 		plistPath := filepath.Join(home, "Library/LaunchAgents/com.y3owk1n.mimi.plist")
 
 		var buf strings.Builder
-		if err := plistTmpl.Execute(&buf, map[string]string{
+
+		err = plistTmpl.Execute(&buf, map[string]string{
 			"BinaryPath": binaryPath,
 			"ConfigPath": configPath,
 			"Home":       home,
-		}); err != nil {
+		})
+		if err != nil {
 			return derrors.Wrapf(err, derrors.CodeInternal, "rendering plist")
 		}
 
-		if err := os.MkdirAll(filepath.Dir(plistPath), 0o755); err != nil {
+		err = os.MkdirAll(filepath.Dir(plistPath), 0o755) //nolint:mnd
+		if err != nil {
 			return err
 		}
 
-		if err := os.WriteFile(plistPath, []byte(buf.String()), 0o644); err != nil {
+		err = os.WriteFile(plistPath, []byte(buf.String()), 0o644) //nolint:mnd
+		if err != nil {
 			return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing plist")
 		}
 
@@ -47,7 +50,7 @@ var installCmd = &cobra.Command{
 			return derrors.Wrapf(err, derrors.CodeInternal, "launchctl load: %s", out)
 		}
 
-		fmt.Printf("mimi installed as launchd agent.\nPlist: %s\n", plistPath)
+		cmd.Printf("mimi installed as launchd agent.\nPlist: %s\n", plistPath)
 
 		return nil
 	},
@@ -59,9 +62,10 @@ var uninstallCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		home := os.Getenv("HOME")
 		plistPath := filepath.Join(home, "Library/LaunchAgents/com.y3owk1n.mimi.plist")
-		exec.Command("launchctl", "unload", plistPath).Run()
-		os.Remove(plistPath)
-		fmt.Println("mimi uninstalled.")
+		_ = exec.Command("launchctl", "unload", plistPath).Run()
+		_ = os.Remove(plistPath)
+
+		cmd.Println("mimi uninstalled.")
 
 		return nil
 	},

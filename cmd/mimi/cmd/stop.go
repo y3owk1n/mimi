@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -19,7 +18,7 @@ var stopCmd = &cobra.Command{
 	RunE: func(cmd *cobra.Command, args []string) error {
 		pid, err := readPID(defaultPIDPath())
 		if err != nil {
-			fmt.Println("mimi: not running (no PID file)")
+			cmd.Println("mimi: not running (no PID file)")
 
 			return nil
 		}
@@ -29,11 +28,12 @@ var stopCmd = &cobra.Command{
 			return derrors.Wrapf(err, derrors.CodeInternal, "process %d not found", pid)
 		}
 
-		if err := proc.Signal(syscall.SIGTERM); err != nil {
+		err = proc.Signal(syscall.SIGTERM)
+		if err != nil {
 			return derrors.Wrapf(err, derrors.CodeInternal, "signaling process %d", pid)
 		}
 
-		fmt.Printf("Sent SIGTERM to mimi (pid %d)\n", pid)
+		cmd.Printf("Sent SIGTERM to mimi (pid %d)\n", pid)
 
 		return nil
 	},

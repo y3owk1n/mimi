@@ -25,7 +25,7 @@ var configValidateCmd = &cobra.Command{
 		}
 
 		hookCount := countHooks(cfg)
-		fmt.Printf("Config valid (%d hook(s) defined)\n", hookCount)
+		cmd.Printf("Config valid (%d hook(s) defined)\n", hookCount)
 
 		return nil
 	},

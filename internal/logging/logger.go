@@ -16,6 +16,13 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+const (
+	logMaxSizeMB  = 100
+	logMaxBackups = 3
+	logMaxAgeDays = 28
+)
+
+// New creates a zap sugared logger with console and optional file output.
 func New(cfg *config.Config) *zap.SugaredLogger {
 	level := parseLevel(cfg.Settings.LogLevel)
 
@@ -55,18 +62,18 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 	}
 
 	if cfg.Settings.LogFile != "" {
-		w := &lumberjack.Logger{
+		logWriter := &lumberjack.Logger{
 			Filename:   expandHome(cfg.Settings.LogFile),
-			MaxSize:    100,
-			MaxBackups: 3,
-			MaxAge:     28,
+			MaxSize:    logMaxSizeMB,
+			MaxBackups: logMaxBackups,
+			MaxAge:     logMaxAgeDays,
 		}
 
 		// Create file encoder (JSON for machine parsing)
 		fileEncoder := zapcore.NewJSONEncoder(fileEncoderConfig)
 
 		// Add file core
-		cores = append(cores, zapcore.NewCore(fileEncoder, zapcore.AddSync(w), level))
+		cores = append(cores, zapcore.NewCore(fileEncoder, zapcore.AddSync(logWriter), level))
 	}
 
 	core := zapcore.NewTee(cores...)
@@ -74,6 +81,7 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
 }
 
+// WriteEventLog subscribes to the event bus and writes JSON events to a log file.
 func WriteEventLog(
 	ctx context.Context,
 	sub events.Subscriber,
@@ -86,15 +94,16 @@ func WriteEventLog(
 
 	eventLogPath := logPath + ".events.jsonl"
 
-	f, err := openAppend(eventLogPath)
+	logFile, err := openAppend(eventLogPath)
 	if err != nil {
 		logger.Warnw("cannot open event log", "err", err)
 
 		return
 	}
-	defer f.Close()
 
-	enc := json.NewEncoder(f)
+	defer func() { _ = logFile.Close() }()
+
+	enc := json.NewEncoder(logFile)
 	for {
 		select {
 		case <-ctx.Done():
@@ -115,12 +124,12 @@ func WriteEventLog(
 func openAppend(path string) (*os.File, error) {
 	path = expandHome(path)
 
-	err := os.MkdirAll(filepath.Dir(path), 0o755)
+	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
 	if err != nil {
 		return nil, err
 	}
 
-	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644)
+	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:mnd
 }
 
 func expandHome(path string) string {

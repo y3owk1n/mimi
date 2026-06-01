@@ -3,7 +3,7 @@ package cmd
 import (
 	"bufio"
 	"encoding/json"
-	"fmt"
+	"io"
 	"os"
 	"path/filepath"
 	"strings"
@@ -31,7 +31,7 @@ var eventsCmd = &cobra.Command{
     --app      filter by app name glob
 `,
 	RunE: func(cmd *cobra.Command, args []string) error {
-		return tailEventLog(jsonFlag, kindFilter, appFilter)
+		return tailEventLog(cmd, jsonFlag, kindFilter, appFilter)
 	},
 }
 
@@ -41,19 +41,19 @@ func init() {
 	eventsCmd.Flags().StringVar(&appFilter, "app", "", "filter by app name")
 }
 
-func tailEventLog(jsonOut bool, kind, app string) error {
+func tailEventLog(cmd *cobra.Command, jsonOut bool, kind, app string) error {
 	eventLogPath := expandHome("~/.local/share/mimi/mimi.log.events.jsonl")
 
-	f, err := os.Open(eventLogPath)
+	eventFile, err := os.Open(eventLogPath)
 	if err != nil {
 		// If the file doesn't exist yet, create it and start tailing
 		if os.IsNotExist(err) {
-			err := os.MkdirAll(filepath.Dir(eventLogPath), 0o755)
+			err := os.MkdirAll(filepath.Dir(eventLogPath), 0o755) //nolint:mnd
 			if err != nil {
 				return err
 			}
 
-			f, err = os.Create(eventLogPath)
+			eventFile, err = os.Create(eventLogPath)
 			if err != nil {
 				return derrors.Wrapf(err, derrors.CodeLoggingFailed, "creating event log")
 			}
@@ -63,48 +63,48 @@ func tailEventLog(jsonOut bool, kind, app string) error {
 	}
 
 	// Seek to end for tailing
-	_, _ = f.Seek(0, 2)
+	_, _ = eventFile.Seek(0, io.SeekEnd)
 
-	scanner := bufio.NewScanner(f)
+	scanner := bufio.NewScanner(eventFile)
 	for scanner.Scan() {
 		line := scanner.Text()
 		if line == "" {
 			continue
 		}
 
-		var e events.Event
+		var evt events.Event
 
-		err := json.Unmarshal([]byte(line), &e)
+		err := json.Unmarshal([]byte(line), &evt)
 		if err != nil {
 			continue
 		}
 
-		if kind != "" && string(e.Kind) != kind {
+		if kind != "" && string(evt.Kind) != kind {
 			continue
 		}
 
-		if app != "" && !strings.Contains(strings.ToLower(e.AppName), strings.ToLower(app)) {
+		if app != "" && !strings.Contains(strings.ToLower(evt.AppName), strings.ToLower(app)) {
 			continue
 		}
 
 		if jsonOut {
-			fmt.Println(line)
+			cmd.Println(line)
 		} else {
-			fmt.Printf("%s | %s", e.At.Format("15:04:05"), e.Kind)
+			cmd.Printf("%s | %s", evt.At.Format("15:04:05"), evt.Kind)
 
-			if e.AppName != "" {
-				fmt.Printf(" | %s", e.AppName)
+			if evt.AppName != "" {
+				cmd.Printf(" | %s", evt.AppName)
 			}
 
-			if e.BundleID != "" {
-				fmt.Printf(" (%s)", e.BundleID)
+			if evt.BundleID != "" {
+				cmd.Printf(" (%s)", evt.BundleID)
 			}
 
-			if e.WindowTitle != "" {
-				fmt.Printf(" | \"%s\"", e.WindowTitle)
+			if evt.WindowTitle != "" {
+				cmd.Printf(" | \"%s\"", evt.WindowTitle)
 			}
 
-			fmt.Println()
+			cmd.Println()
 		}
 	}
 

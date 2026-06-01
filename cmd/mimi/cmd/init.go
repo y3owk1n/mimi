@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"fmt"
-
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/config"
@@ -20,8 +18,8 @@ Safe to re-run — it will overwrite any existing config.`,
 			return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing default config")
 		}
 
-		fmt.Printf("Default config written to %s\n", configPath)
-		fmt.Println("Edit it to customize hooks, then run 'mimi start'.")
+		cmd.Printf("Default config written to %s\n", configPath)
+		cmd.Println("Edit it to customize hooks, then run 'mimi start'.")
 
 		return nil
 	},

@@ -19,6 +19,7 @@ var (
 	BuildDate = "unknown"
 )
 
+// RootCmd is the root cobra command for the mimi CLI.
 var RootCmd = &cobra.Command{
 	Use:   "mimi",
 	Short: "macOS event daemon — run hooks on system events",
@@ -29,6 +30,7 @@ and executes shell commands you define in ~/.config/mimi/config.toml.`,
 	},
 }
 
+// Execute runs the root command and returns any error.
 func Execute() error {
 	return RootCmd.Execute()
 }

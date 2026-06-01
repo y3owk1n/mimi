@@ -11,8 +11,8 @@ package cgo_bridge
 import "C"
 
 import (
-	"fmt"
 	"runtime"
+	"strconv"
 	"time"
 
 	"github.com/google/uuid"
@@ -20,10 +20,14 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
-var eventCh = make(chan events.Event, 256)
+const eventChBufSize = 256
 
+var eventCh = make(chan events.Event, eventChBufSize)
+
+// EventCh returns a read-only channel of events from the CGO bridge.
 func EventCh() <-chan events.Event { return eventCh }
 
+// Start initializes and starts all macOS event observers.
 func Start() {
 	// Lock to main OS thread to initialize NSApplication properly.
 	// NSWorkspace notifications require proper Cocoa initialization.
@@ -54,6 +58,7 @@ func Start() {
 	}
 }
 
+// Stop stops all macOS event observers.
 func Stop() {
 	C.WorkspaceObserverStop()
 	C.AXRemoveAllObservers()
@@ -65,10 +70,12 @@ func Stop() {
 	C.DisplayObserverStop()
 }
 
+// InstallAXObserver installs an AX observer for the given PID.
 func InstallAXObserver(pid int) bool {
 	return bool(C.AXInstallObserver(C.int(pid)))
 }
 
+// RemoveAXObserver removes the AX observer for the given PID.
 func RemoveAXObserver(pid int) {
 	C.AXRemoveObserver(C.int(pid))
 }
@@ -77,7 +84,7 @@ func RemoveAXObserver(pid int) {
 func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 	volPath, volName *C.char,
 ) {
-	e := events.Event{
+	evt := events.Event{
 		ID:         uuid.NewString(),
 		Kind:       kindFromInt(int(kind)),
 		AppName:    C.GoString(appName),
@@ -88,36 +95,36 @@ func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 		At:         time.Now(),
 	}
 	select {
-	case eventCh <- e:
+	case eventCh <- evt:
 	default:
 	}
 }
 
 //export goWorkspaceChangeEvent
 func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
-	e := events.Event{
+	evt := events.Event{
 		ID:   uuid.NewString(),
 		Kind: kindFromInt(int(kind)),
 		At:   time.Now(),
 		Extra: map[string]string{
-			"windows_count": fmt.Sprintf("%d", int(windowCount)),
+			"windows_count": strconv.Itoa(int(windowCount)),
 		},
 	}
 	if infoJSON != nil {
 		jsonStr := C.GoString(infoJSON)
 		if jsonStr != "" {
-			e.Extra["info"] = jsonStr
+			evt.Extra["info"] = jsonStr
 		}
 	}
 	select {
-	case eventCh <- e:
+	case eventCh <- evt:
 	default:
 	}
 }
 
 //export goAXEvent
 func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.char) {
-	e := events.Event{
+	evt := events.Event{
 		ID:          uuid.NewString(),
 		Kind:        kindFromInt(int(kind)),
 		AppName:     C.GoString(appName),
@@ -127,26 +134,26 @@ func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.
 		At:          time.Now(),
 	}
 	select {
-	case eventCh <- e:
+	case eventCh <- evt:
 	default:
 	}
 }
 
 //export goSystemEvent
 func goSystemEvent(kind C.int) {
-	e := events.Event{
+	evt := events.Event{
 		ID:   uuid.NewString(),
 		Kind: kindFromInt(int(kind)),
 		At:   time.Now(),
 	}
 	select {
-	case eventCh <- e:
+	case eventCh <- evt:
 	default:
 	}
 }
 
-func kindFromInt(n int) events.EventKind {
-	m := map[int]events.EventKind{
+func kindFromInt(kindInt int) events.EventKind {
+	kindMap := map[int]events.EventKind{
 		// App lifecycle
 		0: events.AppActivate, 1: events.AppDeactivate,
 		2: events.AppLaunch, 3: events.AppQuit,
@@ -177,8 +184,9 @@ func kindFromInt(n int) events.EventKind {
 		// Clipboard events
 		100: events.ClipboardChanged,
 	}
-	if k, ok := m[n]; ok {
+	if k, ok := kindMap[kindInt]; ok {
 		return k
 	}
+
 	return events.EventKind("unknown")
 }
