@@ -27,7 +27,16 @@ const (
 )
 
 // Run starts the mimi daemon: event observers, hooks executor, and config watcher.
-func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error {
+func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, version string) error {
+	return runWithHost(cfg, logger, configPath, version)
+}
+
+func runCore(
+	cfg *config.Config,
+	logger *zap.SugaredLogger,
+	configPath string,
+	quitCh <-chan struct{},
+) error {
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing pid file")
@@ -95,34 +104,45 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string) error
 	go func() { _ = watcher.Run(ctx) }()
 
 	sigCh := make(chan os.Signal, 1)
-	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
 
-	for sig := range sigCh {
-		if sig == syscall.SIGHUP {
-			newCfg, err := config.Load(configPath)
-			if err != nil {
-				logger.Warnw("SIGHUP reload failed", "err", err)
+	signal.Notify(sigCh, syscall.SIGTERM, syscall.SIGINT, syscall.SIGHUP)
+	defer signal.Stop(sigCh)
+
+	for {
+		select {
+		case <-quitCh:
+			logger.Info("shutting down from systray")
+			cancel()
+			cgo_bridge.Stop()
+			bus.Unsubscribe(logSub)
+			bus.Unsubscribe(hookSub)
+
+			return nil
+		case sig := <-sigCh:
+			if sig == syscall.SIGHUP {
+				newCfg, err := config.Load(configPath)
+				if err != nil {
+					logger.Warnw("SIGHUP reload failed", "err", err)
+
+					continue
+				}
+
+				_ = reg.Reload(newCfg)
+				executor.UpdateSettings(&newCfg.Settings)
+				logger.Info("reloaded config via SIGHUP")
 
 				continue
 			}
 
-			_ = reg.Reload(newCfg)
-			executor.UpdateSettings(&newCfg.Settings)
-			logger.Info("reloaded config via SIGHUP")
+			logger.Infow("shutting down", "signal", sig)
+			cancel()
+			cgo_bridge.Stop()
+			bus.Unsubscribe(logSub)
+			bus.Unsubscribe(hookSub)
 
-			continue
+			return nil
 		}
-
-		logger.Infow("shutting down", "signal", sig)
-		cancel()
-		cgo_bridge.Stop()
-		bus.Unsubscribe(logSub)
-		bus.Unsubscribe(hookSub)
-
-		return nil
 	}
-
-	return nil
 }
 
 func writePID(path string) error {

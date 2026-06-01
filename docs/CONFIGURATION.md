@@ -9,6 +9,7 @@ Mimi uses TOML for configuration. On first `mimi start`, Mimi prompts you to cre
 - [Quick Start](#quick-start)
 - [Config File Location](#config-file-location)
 - [Settings](#settings)
+- [Systray](#systray)
 - [Hooks](#hooks)
 - [Environment Variables](#environment-variables)
 - [Event Reference](#event-reference)
@@ -75,6 +76,21 @@ hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
 ```
+
+---
+
+## [systray]
+
+| Key       | Type | Default | Description                          |
+| --------- | ---- | ------- | ------------------------------------ |
+| `enabled` | bool | `true`  | Show the Mimi menu bar item on macOS |
+
+```toml
+[systray]
+enabled = true
+```
+
+The tray menu includes links to Mimi docs/source, a config reload action, and Quit Mimi.
 
 ---
 
