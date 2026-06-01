@@ -110,11 +110,7 @@ go build \
 
 ### CGO Requirement
 
-Mimi requires `CGO_ENABLED=1` (default on macOS) for the Objective-C bridge. The build system handles this automatically:
-
-```
-{{ if os() == "windows" { "CGO_ENABLED=0" } else { "CGO_ENABLED=1" } }} go build ...
-```
+Mimi requires `CGO_ENABLED=1` (default on macOS) for the Objective-C bridge.
 
 ---
 
