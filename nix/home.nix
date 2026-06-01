@@ -75,7 +75,7 @@ in
       config = {
         ProgramArguments = [
           "${cfg.package}/Applications/Mimi.app/Contents/MacOS/mimi"
-          "launch"
+          "start"
           "--config"
           "${config.xdg.configHome}/mimi/config.toml"
         ];

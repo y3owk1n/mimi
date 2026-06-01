@@ -32,7 +32,7 @@ in
 
       launchd.user.agents.mimi = {
         command =
-          "${cfg.package}/Applications/Mimi.app/Contents/MacOS/mimi launch"
+          "${cfg.package}/Applications/Mimi.app/Contents/MacOS/mimi start"
           + (lib.optionalString (cfg.configFile != null || cfg.config != "") " --config ${configFile}");
         serviceConfig = {
           KeepAlive = true;
