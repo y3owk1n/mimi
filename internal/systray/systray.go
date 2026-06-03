@@ -103,6 +103,11 @@ func SetTooltip(tooltip string) {
 	C.MimiSetTooltip(cTooltip)
 }
 
+// ActiveWorkspaceNumber returns the number of the active workspace.
+func ActiveWorkspaceNumber() int {
+	return int(C.MimiGetActiveWorkspaceNumber())
+}
+
 // SetIcon sets the icon of the system tray item.
 func SetIcon(icon []byte) {
 	if len(icon) == 0 {

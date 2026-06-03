@@ -8,6 +8,8 @@
 #import "systray.h"
 
 #import <Cocoa/Cocoa.h>
+#include <CoreGraphics/CoreGraphics.h>
+#include <dlfcn.h>
 
 #pragma mark - External Function Declarations
 
@@ -31,12 +33,11 @@ static BOOL _exitCalled = NO;
 
 - (void)applicationDidFinishLaunching:(NSNotification *)notification {
 	if (_showSystray) {
-		self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSSquareStatusItemLength];
+		self.statusItem = [[NSStatusBar systemStatusBar] statusItemWithLength:NSVariableStatusItemLength];
 		self.menu = [[NSMenu alloc] init];
 		[self.menu setAutoenablesItems:NO];
 		[self.menu setDelegate:self];
 		[self.statusItem setMenu:self.menu];
-		[self.statusItem.button setImagePosition:NSImageOnly];
 	}
 
 	// Notify Go that we are ready
@@ -126,6 +127,8 @@ void MimiSetIcon(const char *iconBytes, int length, bool isTemplate) {
 		[image setTemplate:isTemplate];
 
 		if (appDelegate && appDelegate.statusItem) {
+			appDelegate.statusItem.button.title = @"";
+			[appDelegate.statusItem.button setImagePosition:NSImageOnly];
 			appDelegate.statusItem.button.image = image;
 		}
 	});
@@ -136,6 +139,8 @@ void MimiSetTitle(const char *title) {
 
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (appDelegate && appDelegate.statusItem) {
+			appDelegate.statusItem.button.image = nil;
+			[appDelegate.statusItem.button setImagePosition:NSNoImage];
 			appDelegate.statusItem.button.title = str;
 		}
 	});
@@ -149,6 +154,119 @@ void MimiSetTooltip(const char *tooltip) {
 			appDelegate.statusItem.button.toolTip = str;
 		}
 	});
+}
+
+int MimiGetActiveWorkspaceNumber(void) {
+	@autoreleasepool {
+		CFArrayRef windowList = CGWindowListCopyWindowInfo(
+		    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+		if (windowList) {
+			int workspace = -1;
+			for (NSDictionary *info in (__bridge NSArray *)windowList) {
+				NSNumber *layer = info[(__bridge NSString *)kCGWindowLayer];
+				int l = layer ? [layer intValue] : 0;
+				if (l != 0) {
+					continue;
+				}
+
+				id ws = info[@"kCGWindowWorkspace"];
+				if ([ws isKindOfClass:[NSNumber class]]) {
+					workspace = [ws intValue];
+					break;
+				}
+
+				ws = info[@"Workspace"];
+				if ([ws isKindOfClass:[NSNumber class]]) {
+					workspace = [ws intValue];
+					break;
+				}
+			}
+
+			CFRelease(windowList);
+			if (workspace >= 0) {
+				return workspace;
+			}
+		}
+
+		static void *skyLight = NULL;
+		static dispatch_once_t onceToken;
+		dispatch_once(&onceToken, ^{
+			skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY);
+		});
+
+		if (!skyLight) {
+			return -1;
+		}
+
+		typedef int (*SLSMainConnectionIDFunc)(void);
+		typedef uint64_t (*SLSGetActiveSpaceFunc)(int);
+		typedef CFArrayRef (*SLSCopyManagedDisplaySpacesFunc)(int);
+
+		SLSMainConnectionIDFunc SLSMainConnectionID =
+		    (SLSMainConnectionIDFunc)dlsym(skyLight, "SLSMainConnectionID");
+		if (!SLSMainConnectionID) {
+			SLSMainConnectionID = (SLSMainConnectionIDFunc)dlsym(skyLight, "CGSMainConnectionID");
+		}
+
+		SLSGetActiveSpaceFunc SLSGetActiveSpace = (SLSGetActiveSpaceFunc)dlsym(skyLight, "SLSGetActiveSpace");
+		if (!SLSGetActiveSpace) {
+			SLSGetActiveSpace = (SLSGetActiveSpaceFunc)dlsym(skyLight, "CGSGetActiveSpace");
+		}
+
+		SLSCopyManagedDisplaySpacesFunc SLSCopyManagedDisplaySpaces =
+		    (SLSCopyManagedDisplaySpacesFunc)dlsym(skyLight, "SLSCopyManagedDisplaySpaces");
+
+		if (!SLSMainConnectionID || !SLSGetActiveSpace || !SLSCopyManagedDisplaySpaces) {
+			return -1;
+		}
+
+		int conn = SLSMainConnectionID();
+		uint64_t active = SLSGetActiveSpace(conn);
+		if (active == 0) {
+			return -1;
+		}
+
+		CFArrayRef managed = SLSCopyManagedDisplaySpaces(conn);
+		if (!managed) {
+			return -1;
+		}
+
+		int idx = -1;
+		NSArray *displays = (__bridge NSArray *)managed;
+		for (NSDictionary *display in displays) {
+			NSArray *spaces = display[@"Spaces"];
+			if (![spaces isKindOfClass:[NSArray class]]) {
+				continue;
+			}
+
+			for (NSUInteger i = 0; i < [spaces count]; i++) {
+				id spaceDict = spaces[i];
+				if (![spaceDict isKindOfClass:[NSDictionary class]]) {
+					continue;
+				}
+
+				id sid = spaceDict[@"id64"];
+				if (![sid isKindOfClass:[NSNumber class]]) {
+					sid = spaceDict[@"ManagedSpaceID"];
+				}
+				if (![sid isKindOfClass:[NSNumber class]]) {
+					continue;
+				}
+
+				if ((uint64_t)[sid unsignedLongLongValue] == active) {
+					idx = (int)i;
+					break;
+				}
+			}
+
+			if (idx >= 0) {
+				break;
+			}
+		}
+
+		CFRelease(managed);
+		return idx;
+	}
 }
 
 #pragma mark - Menu Item Lookup

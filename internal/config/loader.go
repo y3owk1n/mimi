@@ -116,6 +116,10 @@ func Load(path string) (*Config, error) {
 		cfg.Systray.Enabled = *raw.Systray.Enabled
 	}
 
+	if raw.Systray.ShowWorkspaceNumber != nil {
+		cfg.Systray.ShowWorkspaceNumber = *raw.Systray.ShowWorkspaceNumber
+	}
+
 	applyDefaults(cfg, systrayEnabledSet)
 
 	err = validate(cfg)

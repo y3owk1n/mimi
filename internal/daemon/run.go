@@ -47,7 +47,14 @@ func runWithHost(
 			}
 		}
 
-		component = systray.NewComponent(version, configPath, reload, requestQuit, logger)
+		component = systray.NewComponent(
+			version,
+			configPath,
+			reload,
+			requestQuit,
+			cfg.Systray.ShowWorkspaceNumber,
+			logger,
+		)
 	}
 
 	go func() {
