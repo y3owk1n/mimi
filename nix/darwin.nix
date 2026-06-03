@@ -37,6 +37,9 @@ in
         serviceConfig = {
           KeepAlive = true;
           RunAtLoad = true;
+          EnvironmentVariables = {
+            PATH = "/run/current-system/sw/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+          };
           StandardOutPath = "/tmp/mimi.log";
           StandardErrorPath = "/tmp/mimi.err.log";
           ProcessType = "Interactive";
