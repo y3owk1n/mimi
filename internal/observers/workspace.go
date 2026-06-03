@@ -58,7 +58,7 @@ func (o *WorkspaceObserver) handle(evt events.Event) {
 	default:
 	}
 
-	o.logger.Infow("event",
+	o.logger.Debugw("event",
 		"kind", evt.Kind,
 		"app", evt.AppName,
 		"bundle", evt.BundleID,

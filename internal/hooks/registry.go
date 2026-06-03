@@ -48,22 +48,23 @@ func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 }
 
 // Matches checks whether a hook's filters (app, bundle_id, title) match an event.
-func (h *Hook) Matches(evt events.Event) bool {
+// Returns a boolean indicating match status and a string with the mismatch reason if applicable.
+func (h *Hook) Matches(evt events.Event) (bool, string) {
 	if h.Entry.App != "" {
 		if !globMatch(h.Entry.App, evt.AppName) {
-			return false
+			return false, "app filter mismatch"
 		}
 	}
 
 	if h.Entry.BundleID != "" && h.Entry.BundleID != evt.BundleID {
-		return false
+		return false, "bundle_id filter mismatch"
 	}
 
 	if h.titleRegexp != nil && !h.titleRegexp.MatchString(evt.WindowTitle) {
-		return false
+		return false, "title filter mismatch"
 	}
 
-	return true
+	return true, ""
 }
 
 func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
