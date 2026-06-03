@@ -8,7 +8,9 @@ void InitCocoaApp(void);
 
 void InitBridgeRunLoop(void);
 
-void WorkspaceObserverStart(void);
+void WorkspaceObserverStart(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance);
+
+void WorkspaceObserverUpdate(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance);
 
 void WorkspaceObserverStop(void);
 

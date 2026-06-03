@@ -54,17 +54,20 @@ func runCore(
 		}
 	}
 
-	if !cgo_bridge.Start(accessibilityPrompt) {
+	obsCfg := getObserverConfig(cfg)
+	if !cgo_bridge.Start(obsCfg, accessibilityPrompt) {
 		return nil
 	}
 
 	perm = permissions.Check()
-	if !perm.Accessibility {
+
+	axEnabled := perm.Accessibility && hasWindowEvents(cfg)
+	if hasWindowEvents(cfg) && !perm.Accessibility {
 		logger.Warn("accessibility permission not granted — window events disabled")
 	}
 
 	bus := events.NewBus()
-	axMgr := observers.NewAccessibilityManager(perm.Accessibility)
+	axMgr := observers.NewAccessibilityManager(axEnabled)
 	wsObs := observers.NewWorkspaceObserver(bus, axMgr, logger)
 
 	reg := hooks.NewRegistry()
@@ -99,6 +102,10 @@ func runCore(
 		}
 
 		executor.UpdateSettings(&newCfg.Settings)
+		cgo_bridge.UpdateObservers(getObserverConfig(newCfg))
+
+		perm := permissions.Check()
+		axMgr.Update(perm.Accessibility && hasWindowEvents(newCfg))
 		logger.Info("hooks reloaded from config")
 	}, logger)
 	go func() { _ = watcher.Run(ctx) }()
@@ -129,6 +136,10 @@ func runCore(
 
 				_ = reg.Reload(newCfg)
 				executor.UpdateSettings(&newCfg.Settings)
+				cgo_bridge.UpdateObservers(getObserverConfig(newCfg))
+
+				perm := permissions.Check()
+				axMgr.Update(perm.Accessibility && hasWindowEvents(newCfg))
 				logger.Info("reloaded config via SIGHUP")
 
 				continue
@@ -168,4 +179,54 @@ func expandHome(path string) string {
 	}
 
 	return path
+}
+
+func hasWindowEvents(cfg *config.Config) bool {
+	return len(cfg.Hooks.WindowFocus) > 0 ||
+		len(cfg.Hooks.WindowTitleChange) > 0 ||
+		len(cfg.Hooks.WindowCreated) > 0 ||
+		len(cfg.Hooks.WindowClosed) > 0
+}
+
+func getObserverConfig(cfg *config.Config) cgo_bridge.ObserverConfig {
+	return cgo_bridge.ObserverConfig{
+		Power: len(cfg.Hooks.PowerAdapterConnected) > 0 ||
+			len(cfg.Hooks.PowerAdapterDisconnected) > 0 ||
+			len(cfg.Hooks.BatteryLow) > 0 ||
+			len(cfg.Hooks.BatteryCritical) > 0,
+
+		Audio: len(cfg.Hooks.AudioDeviceChanged) > 0,
+
+		Clipboard: len(cfg.Hooks.ClipboardChanged) > 0,
+
+		USB: len(cfg.Hooks.USBDeviceConnected) > 0 ||
+			len(cfg.Hooks.USBDeviceDisconnected) > 0,
+
+		Network: len(cfg.Hooks.NetworkUp) > 0 ||
+			len(cfg.Hooks.NetworkDown) > 0,
+
+		Display: len(cfg.Hooks.ExternalDisplayConnected) > 0 ||
+			len(cfg.Hooks.ExternalDisplayDisconnected) > 0,
+
+		AppLifecycle: len(cfg.Hooks.AppActivate) > 0 ||
+			len(cfg.Hooks.AppDeactivate) > 0 ||
+			len(cfg.Hooks.AppLaunch) > 0 ||
+			len(cfg.Hooks.AppQuit) > 0 ||
+			len(cfg.Hooks.AppHide) > 0 ||
+			len(cfg.Hooks.AppUnhide) > 0,
+
+		SystemState: len(cfg.Hooks.SystemSleep) > 0 ||
+			len(cfg.Hooks.SystemWake) > 0 ||
+			len(cfg.Hooks.ScreenLock) > 0 ||
+			len(cfg.Hooks.ScreenUnlock) > 0 ||
+			len(cfg.Hooks.SystemShutdown) > 0 ||
+			len(cfg.Hooks.UserSessionEnd) > 0,
+
+		Volume: len(cfg.Hooks.VolumeMount) > 0 ||
+			len(cfg.Hooks.VolumeUnmount) > 0,
+
+		Workspace: len(cfg.Hooks.WorkspaceChanged) > 0,
+
+		Appearance: len(cfg.Hooks.AppearanceChanged) > 0,
+	}
 }

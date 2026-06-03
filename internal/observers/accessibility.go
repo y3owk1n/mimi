@@ -21,6 +21,21 @@ func NewAccessibilityManager(axEnabled bool) *AccessibilityManager {
 	}
 }
 
+// Update updates the enabled state of the manager.
+// If disabled, it removes all active AX observers.
+func (m *AccessibilityManager) Update(axEnabled bool) {
+	m.mu.Lock()
+	defer m.mu.Unlock()
+
+	m.enabled = axEnabled
+	if !axEnabled {
+		for pid := range m.tracked {
+			cgo_bridge.RemoveAXObserver(pid)
+			delete(m.tracked, pid)
+		}
+	}
+}
+
 // Install installs an AX observer for the given PID. Returns false if AX is disabled.
 func (m *AccessibilityManager) Install(pid int) bool {
 	if !m.enabled {
