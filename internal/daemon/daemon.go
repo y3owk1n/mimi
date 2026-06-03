@@ -213,7 +213,8 @@ func getObserverConfig(cfg *config.Config) cgo_bridge.ObserverConfig {
 			len(cfg.Hooks.AppLaunch) > 0 ||
 			len(cfg.Hooks.AppQuit) > 0 ||
 			len(cfg.Hooks.AppHide) > 0 ||
-			len(cfg.Hooks.AppUnhide) > 0,
+			len(cfg.Hooks.AppUnhide) > 0 ||
+			hasWindowEvents(cfg),
 
 		SystemState: len(cfg.Hooks.SystemSleep) > 0 ||
 			len(cfg.Hooks.SystemWake) > 0 ||

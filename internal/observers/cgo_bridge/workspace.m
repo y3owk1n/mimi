@@ -223,33 +223,41 @@ void InitCocoaApp(void) {
 
 void InitBridgeRunLoop(void) { atomic_store(&gRunLoop, CFRunLoopGetCurrent()); }
 
-void WorkspaceObserverStart(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance) {
+void WorkspaceObserverStart(int appLifecycle, int systemState, int volume, int workspace, int appearance) {
 	@autoreleasepool {
 		InitBridgeRunLoop();
 		gObserver = [[WorkspaceObserver alloc] init];
-		[gObserver updateObserversWithAppLifecycle:appLifecycle
-		                               systemState:systemState
-		                                    volume:volume
-		                                 workspace:workspace
-		                                appearance:appearance];
+		[gObserver updateObserversWithAppLifecycle:appLifecycle != 0
+		                               systemState:systemState != 0
+		                                    volume:volume != 0
+		                                 workspace:workspace != 0
+		                                appearance:appearance != 0];
+
+		CFRunLoopSourceContext context = {0};
+		CFRunLoopSourceRef dummySource = CFRunLoopSourceCreate(NULL, 0, &context);
+		CFRunLoopAddSource(CFRunLoopGetCurrent(), dummySource, kCFRunLoopDefaultMode);
 
 		CFRunLoopRun();
+
+		CFRunLoopRemoveSource(CFRunLoopGetCurrent(), dummySource, kCFRunLoopDefaultMode);
+		CFRelease(dummySource);
+
 		atomic_store(&gRunLoop, NULL);
 	}
 }
 
-void WorkspaceObserverUpdate(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance) {
+void WorkspaceObserverUpdate(int appLifecycle, int systemState, int volume, int workspace, int appearance) {
 	CFRunLoopRef rl = GetRunLoop();
 	if (!rl)
 		return;
 
 	if (CFRunLoopGetCurrent() == rl) {
 		if (gObserver) {
-			[gObserver updateObserversWithAppLifecycle:appLifecycle
-			                               systemState:systemState
-			                                    volume:volume
-			                                 workspace:workspace
-			                                appearance:appearance];
+			[gObserver updateObserversWithAppLifecycle:appLifecycle != 0
+			                               systemState:systemState != 0
+			                                    volume:volume != 0
+			                                 workspace:workspace != 0
+			                                appearance:appearance != 0];
 		}
 		return;
 	}
@@ -257,11 +265,11 @@ void WorkspaceObserverUpdate(bool appLifecycle, bool systemState, bool volume, b
 	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
 		if (gObserver) {
-			[gObserver updateObserversWithAppLifecycle:appLifecycle
-			                               systemState:systemState
-			                                    volume:volume
-			                                 workspace:workspace
-			                                appearance:appearance];
+			[gObserver updateObserversWithAppLifecycle:appLifecycle != 0
+			                               systemState:systemState != 0
+			                                    volume:volume != 0
+			                                 workspace:workspace != 0
+			                                appearance:appearance != 0];
 		}
 		dispatch_semaphore_signal(sem);
 	});
