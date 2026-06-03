@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.3.0](https://github.com/y3owk1n/mimi/compare/v0.2.0...v0.3.0) (2026-06-03)
+
+
+### Features
+
+* add simple workspace number for systray ([#15](https://github.com/y3owk1n/mimi/issues/15)) ([f3e3e6e](https://github.com/y3owk1n/mimi/commit/f3e3e6ebd0bf826e1b45cae22917a8399bba28da))
+
+
+### Bug Fixes
+
+* **nix:** set PATH for launchd agent hooks ([#16](https://github.com/y3owk1n/mimi/issues/16)) ([5aeac04](https://github.com/y3owk1n/mimi/commit/5aeac0436ccf281ed99c346eec91a8aca3e62551))
+* run permission alerts on main thread + headless Cocoa loop without systray ([#13](https://github.com/y3owk1n/mimi/issues/13)) ([676ae2d](https://github.com/y3owk1n/mimi/commit/676ae2daf2d15a1339c9372badf21be4ff7de8fb))
+
 ## [0.2.0](https://github.com/y3owk1n/mimi/compare/v0.1.0...v0.2.0) (2026-06-01)
 
 
