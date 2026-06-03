@@ -137,4 +137,29 @@ func TestGetObserverConfig(t *testing.T) {
 		emptyObs.SystemState {
 		t.Errorf("expected all observers to be disabled on empty config, got: %+v", emptyObs)
 	}
+
+	// Window events only case
+	windowOnlyCfg := &config.Config{
+		Hooks: config.HooksConfig{
+			WindowFocus: []config.HookEntry{{Run: "echo"}},
+		},
+	}
+
+	windowOnlyObs := getObserverConfig(windowOnlyCfg)
+	if !windowOnlyObs.AppLifecycle {
+		t.Error("expected AppLifecycle to be enabled when WindowFocus is configured")
+	}
+
+	if windowOnlyObs.Audio ||
+		windowOnlyObs.Power ||
+		windowOnlyObs.Clipboard ||
+		windowOnlyObs.USB ||
+		windowOnlyObs.Network ||
+		windowOnlyObs.Volume ||
+		windowOnlyObs.Workspace ||
+		windowOnlyObs.Appearance ||
+		windowOnlyObs.Display ||
+		windowOnlyObs.SystemState {
+		t.Errorf("expected only AppLifecycle to be enabled, got: %+v", windowOnlyObs)
+	}
 }

@@ -81,11 +81,11 @@ func Start(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 
 		mainThread <- true
 		C.WorkspaceObserverStart(
-			C.bool(obsCfg.AppLifecycle),
-			C.bool(obsCfg.SystemState),
-			C.bool(obsCfg.Volume),
-			C.bool(obsCfg.Workspace),
-			C.bool(obsCfg.Appearance),
+			boolToInt(obsCfg.AppLifecycle),
+			boolToInt(obsCfg.SystemState),
+			boolToInt(obsCfg.Volume),
+			boolToInt(obsCfg.Workspace),
+			boolToInt(obsCfg.Appearance),
 		)
 	}()
 	if !<-mainThread {
@@ -143,11 +143,11 @@ func UpdateObservers(obsCfg ObserverConfig) {
 	}
 
 	C.WorkspaceObserverUpdate(
-		C.bool(obsCfg.AppLifecycle),
-		C.bool(obsCfg.SystemState),
-		C.bool(obsCfg.Volume),
-		C.bool(obsCfg.Workspace),
-		C.bool(obsCfg.Appearance),
+		boolToInt(obsCfg.AppLifecycle),
+		boolToInt(obsCfg.SystemState),
+		boolToInt(obsCfg.Volume),
+		boolToInt(obsCfg.Workspace),
+		boolToInt(obsCfg.Appearance),
 	)
 }
 
@@ -285,4 +285,12 @@ func kindFromInt(kindInt int) events.EventKind {
 	}
 
 	return events.EventKind("unknown")
+}
+
+func boolToInt(b bool) C.int {
+	if b {
+		return 1
+	}
+
+	return 0
 }
