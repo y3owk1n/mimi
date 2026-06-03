@@ -19,20 +19,12 @@ func runWithHost(
 	configPath string,
 	version string,
 ) error {
-	if !cfg.Systray.Enabled {
-		return runCore(cfg, logger, configPath, nil)
-	}
+	var (
+		quitCh    <-chan struct{}
+		component *systray.Component
+	)
 
-	quitCh := make(chan struct{})
 	runDone := make(chan error, 1)
-
-	requestQuit := func() {
-		select {
-		case <-quitCh:
-		default:
-			close(quitCh)
-		}
-	}
 
 	reload := func(ctx context.Context, path string) error {
 		process, err := os.FindProcess(os.Getpid())
@@ -43,7 +35,20 @@ func runWithHost(
 		return process.Signal(syscall.SIGHUP)
 	}
 
-	component := systray.NewComponent(version, configPath, reload, requestQuit, logger)
+	if cfg.Systray.Enabled {
+		quitChWritable := make(chan struct{})
+		quitCh = quitChWritable
+
+		requestQuit := func() {
+			select {
+			case <-quitChWritable:
+			default:
+				close(quitChWritable)
+			}
+		}
+
+		component = systray.NewComponent(version, configPath, reload, requestQuit, logger)
+	}
 
 	go func() {
 		err := runCore(cfg, logger, configPath, quitCh)
@@ -53,8 +58,12 @@ func runWithHost(
 		runDone <- err
 	}()
 
-	systray.Run(component.OnReady, component.OnExit)
-	component.Close()
+	if cfg.Systray.Enabled {
+		systray.Run(component.OnReady, component.OnExit)
+		component.Close()
+	} else {
+		systray.RunHeadless(func() {}, func() {})
+	}
 
 	return <-runDone
 }
