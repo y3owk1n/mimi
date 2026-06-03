@@ -14,7 +14,7 @@
       ];
 
       # Update this to your latest release version
-      latestVersion = "0.2.0";
+      latestVersion = "0.3.0";
 
       # Function to build package with specific version
       makeMimiPackage =
