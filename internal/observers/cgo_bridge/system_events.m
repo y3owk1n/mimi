@@ -140,10 +140,12 @@ static void PowerSourceCallback(void *context) {
 static PowerObserver *gPowerObserver = nil;
 
 void PowerObserverStart(void) {
-	@autoreleasepool {
-		gPowerObserver = [[PowerObserver alloc] init];
-		[gPowerObserver startObserving];
-	}
+	runOnBridgeRunLoopSync(^{
+		if (!gPowerObserver) {
+			gPowerObserver = [[PowerObserver alloc] init];
+			[gPowerObserver startObserving];
+		}
+	});
 }
 
 void PowerObserverStop(void) {
@@ -164,30 +166,44 @@ static OSStatus AudioPropertyListener(
 	return noErr;
 }
 
-void AudioObserverStart(void) {
-	AudioObjectPropertyAddress address1 = {
-	    kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-	AudioObjectPropertyAddress address2 = {
-	    kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-	AudioObjectPropertyAddress address3 = {
-	    kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+static BOOL gAudioObserverRunning = NO;
 
-	AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address1, AudioPropertyListener, NULL);
-	AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address2, AudioPropertyListener, NULL);
-	AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address3, AudioPropertyListener, NULL);
+void AudioObserverStart(void) {
+	runOnBridgeRunLoopSync(^{
+		if (gAudioObserverRunning)
+			return;
+		AudioObjectPropertyAddress address1 = {
+		    kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+		AudioObjectPropertyAddress address2 = {
+		    kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
+		    kAudioObjectPropertyElementMain};
+		AudioObjectPropertyAddress address3 = {
+		    kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+
+		AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address1, AudioPropertyListener, NULL);
+		AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address2, AudioPropertyListener, NULL);
+		AudioObjectAddPropertyListener(kAudioObjectSystemObject, &address3, AudioPropertyListener, NULL);
+		gAudioObserverRunning = YES;
+	});
 }
 
 void AudioObserverStop(void) {
-	AudioObjectPropertyAddress address1 = {
-	    kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-	AudioObjectPropertyAddress address2 = {
-	    kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
-	AudioObjectPropertyAddress address3 = {
-	    kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+	runOnBridgeRunLoopSync(^{
+		if (!gAudioObserverRunning)
+			return;
+		AudioObjectPropertyAddress address1 = {
+		    kAudioHardwarePropertyDevices, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
+		AudioObjectPropertyAddress address2 = {
+		    kAudioHardwarePropertyDefaultOutputDevice, kAudioObjectPropertyScopeGlobal,
+		    kAudioObjectPropertyElementMain};
+		AudioObjectPropertyAddress address3 = {
+		    kAudioHardwarePropertyDefaultInputDevice, kAudioObjectPropertyScopeGlobal, kAudioObjectPropertyElementMain};
 
-	AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address1, AudioPropertyListener, NULL);
-	AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address2, AudioPropertyListener, NULL);
-	AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address3, AudioPropertyListener, NULL);
+		AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address1, AudioPropertyListener, NULL);
+		AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address2, AudioPropertyListener, NULL);
+		AudioObjectRemovePropertyListener(kAudioObjectSystemObject, &address3, AudioPropertyListener, NULL);
+		gAudioObserverRunning = NO;
+	});
 }
 
 #pragma mark - Clipboard Observer
@@ -230,10 +246,12 @@ void AudioObserverStop(void) {
 static ClipboardObserver *gClipboardObserver = nil;
 
 void ClipboardObserverStart(void) {
-	@autoreleasepool {
-		gClipboardObserver = [[ClipboardObserver alloc] init];
-		[gClipboardObserver startObserving];
-	}
+	runOnBridgeRunLoopSync(^{
+		if (!gClipboardObserver) {
+			gClipboardObserver = [[ClipboardObserver alloc] init];
+			[gClipboardObserver startObserving];
+		}
+	});
 }
 
 void ClipboardObserverStop(void) {
@@ -330,10 +348,12 @@ static void USBDeviceRemoved(void *refCon, io_iterator_t iterator) {
 static USBObserver *gUSBObserver = nil;
 
 void USBObserverStart(void) {
-	@autoreleasepool {
-		gUSBObserver = [[USBObserver alloc] init];
-		[gUSBObserver startObserving];
-	}
+	runOnBridgeRunLoopSync(^{
+		if (!gUSBObserver) {
+			gUSBObserver = [[USBObserver alloc] init];
+			[gUSBObserver startObserving];
+		}
+	});
 }
 
 void USBObserverStop(void) {
@@ -416,10 +436,12 @@ static void ReachabilityCallback(SCNetworkReachabilityRef target, SCNetworkReach
 static NetworkObserver *gNetworkObserver = nil;
 
 void NetworkObserverStart(void) {
-	@autoreleasepool {
-		gNetworkObserver = [[NetworkObserver alloc] init];
-		[gNetworkObserver startObserving];
-	}
+	runOnBridgeRunLoopSync(^{
+		if (!gNetworkObserver) {
+			gNetworkObserver = [[NetworkObserver alloc] init];
+			[gNetworkObserver startObserving];
+		}
+	});
 }
 
 void NetworkObserverStop(void) {
@@ -446,6 +468,22 @@ static void DisplayReconfigurationCallBack(
 	}
 }
 
-void DisplayObserverStart(void) { CGDisplayRegisterReconfigurationCallback(DisplayReconfigurationCallBack, NULL); }
+static BOOL gDisplayObserverRunning = NO;
 
-void DisplayObserverStop(void) { CGDisplayRemoveReconfigurationCallback(DisplayReconfigurationCallBack, NULL); }
+void DisplayObserverStart(void) {
+	runOnBridgeRunLoopSync(^{
+		if (gDisplayObserverRunning)
+			return;
+		CGDisplayRegisterReconfigurationCallback(DisplayReconfigurationCallBack, NULL);
+		gDisplayObserverRunning = YES;
+	});
+}
+
+void DisplayObserverStop(void) {
+	runOnBridgeRunLoopSync(^{
+		if (!gDisplayObserverRunning)
+			return;
+		CGDisplayRemoveReconfigurationCallback(DisplayReconfigurationCallBack, NULL);
+		gDisplayObserverRunning = NO;
+	});
+}

@@ -27,8 +27,23 @@ var eventCh = make(chan events.Event, eventChBufSize)
 // EventCh returns a read-only channel of events from the CGO bridge.
 func EventCh() <-chan events.Event { return eventCh }
 
-// Start initializes and starts all macOS event observers.
-func Start(beforeRunLoop func() bool) bool {
+// ObserverConfig specifies which macOS event observers are active.
+type ObserverConfig struct {
+	Power        bool
+	Audio        bool
+	Clipboard    bool
+	USB          bool
+	Network      bool
+	Display      bool
+	AppLifecycle bool
+	SystemState  bool
+	Volume       bool
+	Workspace    bool
+	Appearance   bool
+}
+
+// Start initializes and starts all configured macOS event observers.
+func Start(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 	// Lock to main OS thread to initialize NSApplication properly.
 	// NSWorkspace notifications require proper Cocoa initialization.
 	mainThread := make(chan bool)
@@ -45,15 +60,33 @@ func Start(beforeRunLoop func() bool) bool {
 		C.InitBridgeRunLoop()
 		// Run-loop-backed observers must be created on the same locked thread
 		// that owns the Cocoa run loop below.
-		C.PowerObserverStart()
-		C.AudioObserverStart()
-		C.ClipboardObserverStart()
-		C.USBObserverStart()
-		C.NetworkObserverStart()
-		C.DisplayObserverStart()
+		if obsCfg.Power {
+			C.PowerObserverStart()
+		}
+		if obsCfg.Audio {
+			C.AudioObserverStart()
+		}
+		if obsCfg.Clipboard {
+			C.ClipboardObserverStart()
+		}
+		if obsCfg.USB {
+			C.USBObserverStart()
+		}
+		if obsCfg.Network {
+			C.NetworkObserverStart()
+		}
+		if obsCfg.Display {
+			C.DisplayObserverStart()
+		}
 
 		mainThread <- true
-		C.WorkspaceObserverStart()
+		C.WorkspaceObserverStart(
+			C.bool(obsCfg.AppLifecycle),
+			C.bool(obsCfg.SystemState),
+			C.bool(obsCfg.Volume),
+			C.bool(obsCfg.Workspace),
+			C.bool(obsCfg.Appearance),
+		)
 	}()
 	if !<-mainThread {
 		return false
@@ -69,6 +102,53 @@ func Start(beforeRunLoop func() bool) bool {
 	}
 
 	return true
+}
+
+// UpdateObservers dynamically starts or stops macOS event observers based on config.
+func UpdateObservers(obsCfg ObserverConfig) {
+	if obsCfg.Power {
+		C.PowerObserverStart()
+	} else {
+		C.PowerObserverStop()
+	}
+
+	if obsCfg.Audio {
+		C.AudioObserverStart()
+	} else {
+		C.AudioObserverStop()
+	}
+
+	if obsCfg.Clipboard {
+		C.ClipboardObserverStart()
+	} else {
+		C.ClipboardObserverStop()
+	}
+
+	if obsCfg.USB {
+		C.USBObserverStart()
+	} else {
+		C.USBObserverStop()
+	}
+
+	if obsCfg.Network {
+		C.NetworkObserverStart()
+	} else {
+		C.NetworkObserverStop()
+	}
+
+	if obsCfg.Display {
+		C.DisplayObserverStart()
+	} else {
+		C.DisplayObserverStop()
+	}
+
+	C.WorkspaceObserverUpdate(
+		C.bool(obsCfg.AppLifecycle),
+		C.bool(obsCfg.SystemState),
+		C.bool(obsCfg.Volume),
+		C.bool(obsCfg.Workspace),
+		C.bool(obsCfg.Appearance),
+	)
 }
 
 // Stop stops all macOS event observers.

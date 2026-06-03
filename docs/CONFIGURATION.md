@@ -107,6 +107,9 @@ The tray menu includes links to Mimi docs/source, a config reload action, and Qu
 
 Each hook key maps to an array of hook entries. An entry can be:
 
+> [!NOTE]
+> **Selective Event Listening**: Mimi only starts the underlying macOS system observers (e.g. power, audio, clipboard, USB, display, workspace) if there is at least one active hook configured for those events. If a hook array is empty (`[]`) or omitted, Mimi does not listen to that category of events on the OS level, keeping CPU and resource usage to an absolute minimum.
+
 ### Simplified String Form
 
 ```toml

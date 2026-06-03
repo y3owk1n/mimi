@@ -12,7 +12,11 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 @property(nonatomic, strong) NSDictionary *notifToKind;
 @property(nonatomic, strong) NSTimer *spacePollTimer;
 @property(nonatomic, strong) NSSet *lastWindowIDs;
-- (void)startObserving;
+- (void)updateObserversWithAppLifecycle:(BOOL)appLifecycle
+                            systemState:(BOOL)systemState
+                                 volume:(BOOL)volume
+                              workspace:(BOOL)workspace
+                             appearance:(BOOL)appearance;
 - (int)kindForNotificationName:(NSString *)name;
 - (NSArray *)currentWindowList;
 - (NSSet *)currentWindowIDs;
@@ -94,35 +98,70 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	return [[NSString alloc] initWithData:json encoding:NSUTF8StringEncoding];
 }
 
-- (void)startObserving {
-	self.notifToKind = @{
-		NSWorkspaceDidActivateApplicationNotification : @(0),
-		NSWorkspaceDidDeactivateApplicationNotification : @(1),
-		NSWorkspaceDidLaunchApplicationNotification : @(2),
-		NSWorkspaceDidTerminateApplicationNotification : @(3),
-		NSWorkspaceDidHideApplicationNotification : @(4),
-		NSWorkspaceDidUnhideApplicationNotification : @(5),
-		NSWorkspaceWillSleepNotification : @(10),
-		NSWorkspaceDidWakeNotification : @(11),
-		NSWorkspaceSessionDidResignActiveNotification : @(12),
-		NSWorkspaceSessionDidBecomeActiveNotification : @(13),
-		NSWorkspaceWillPowerOffNotification : @(14),
-		NSWorkspaceDidMountNotification : @(20),
-		NSWorkspaceDidUnmountNotification : @(21),
-		NSWorkspaceActiveSpaceDidChangeNotification : @(70),
-	};
-
+- (void)updateObserversWithAppLifecycle:(BOOL)appLifecycle
+                            systemState:(BOOL)systemState
+                                 volume:(BOOL)volume
+                              workspace:(BOOL)workspace
+                             appearance:(BOOL)appearance {
 	NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
+	[wsnc removeObserver:self];
+	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
+
+	if (self.spacePollTimer) {
+		[self.spacePollTimer invalidate];
+		self.spacePollTimer = nil;
+	}
+
+	NSMutableDictionary *tempNotifToKind = [NSMutableDictionary dictionary];
+
+	if (appLifecycle) {
+		tempNotifToKind[NSWorkspaceDidActivateApplicationNotification] = @(0);
+		tempNotifToKind[NSWorkspaceDidDeactivateApplicationNotification] = @(1);
+		tempNotifToKind[NSWorkspaceDidLaunchApplicationNotification] = @(2);
+		tempNotifToKind[NSWorkspaceDidTerminateApplicationNotification] = @(3);
+		tempNotifToKind[NSWorkspaceDidHideApplicationNotification] = @(4);
+		tempNotifToKind[NSWorkspaceDidUnhideApplicationNotification] = @(5);
+	}
+
+	if (systemState) {
+		tempNotifToKind[NSWorkspaceWillSleepNotification] = @(10);
+		tempNotifToKind[NSWorkspaceDidWakeNotification] = @(11);
+		tempNotifToKind[NSWorkspaceSessionDidResignActiveNotification] = @(12);
+		tempNotifToKind[NSWorkspaceSessionDidBecomeActiveNotification] = @(13);
+		tempNotifToKind[NSWorkspaceWillPowerOffNotification] = @(14);
+	}
+
+	if (volume) {
+		tempNotifToKind[NSWorkspaceDidMountNotification] = @(20);
+		tempNotifToKind[NSWorkspaceDidUnmountNotification] = @(21);
+	}
+
+	if (workspace) {
+		tempNotifToKind[NSWorkspaceActiveSpaceDidChangeNotification] = @(70);
+	}
+
+	self.notifToKind = tempNotifToKind;
+
 	for (NSString *notifName in self.notifToKind) {
 		[wsnc addObserver:self selector:@selector(handleNotification:) name:notifName object:nil];
 	}
 
-	self.lastWindowIDs = [self currentWindowIDs];
-	self.spacePollTimer = [NSTimer scheduledTimerWithTimeInterval:0.2
-	                                                       target:self
-	                                                     selector:@selector(checkSpaceChange:)
-	                                                     userInfo:nil
-	                                                      repeats:YES];
+	if (appearance) {
+		NSDistributedNotificationCenter *dnc = [NSDistributedNotificationCenter defaultCenter];
+		[dnc addObserver:self
+		        selector:@selector(appearanceChanged:)
+		            name:@"AppleInterfaceThemeChangedNotification"
+		          object:nil];
+	}
+
+	if (workspace) {
+		self.lastWindowIDs = [self currentWindowIDs];
+		self.spacePollTimer = [NSTimer scheduledTimerWithTimeInterval:0.2
+		                                                       target:self
+		                                                     selector:@selector(checkSpaceChange:)
+		                                                     userInfo:nil
+		                                                      repeats:YES];
+	}
 }
 
 - (void)checkSpaceChange:(NSTimer *)timer {
@@ -184,21 +223,50 @@ void InitCocoaApp(void) {
 
 void InitBridgeRunLoop(void) { atomic_store(&gRunLoop, CFRunLoopGetCurrent()); }
 
-void WorkspaceObserverStart(void) {
+void WorkspaceObserverStart(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance) {
 	@autoreleasepool {
 		InitBridgeRunLoop();
 		gObserver = [[WorkspaceObserver alloc] init];
-		[gObserver startObserving];
-
-		NSDistributedNotificationCenter *dnc = [NSDistributedNotificationCenter defaultCenter];
-		[dnc addObserver:gObserver
-		        selector:@selector(appearanceChanged:)
-		            name:@"AppleInterfaceThemeChangedNotification"
-		          object:nil];
+		[gObserver updateObserversWithAppLifecycle:appLifecycle
+		                               systemState:systemState
+		                                    volume:volume
+		                                 workspace:workspace
+		                                appearance:appearance];
 
 		CFRunLoopRun();
 		atomic_store(&gRunLoop, NULL);
 	}
+}
+
+void WorkspaceObserverUpdate(bool appLifecycle, bool systemState, bool volume, bool workspace, bool appearance) {
+	CFRunLoopRef rl = GetRunLoop();
+	if (!rl)
+		return;
+
+	if (CFRunLoopGetCurrent() == rl) {
+		if (gObserver) {
+			[gObserver updateObserversWithAppLifecycle:appLifecycle
+			                               systemState:systemState
+			                                    volume:volume
+			                                 workspace:workspace
+			                                appearance:appearance];
+		}
+		return;
+	}
+
+	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
+		if (gObserver) {
+			[gObserver updateObserversWithAppLifecycle:appLifecycle
+			                               systemState:systemState
+			                                    volume:volume
+			                                 workspace:workspace
+			                                appearance:appearance];
+		}
+		dispatch_semaphore_signal(sem);
+	});
+	CFRunLoopWakeUp(rl);
+	dispatch_semaphore_wait(sem, DISPATCH_TIME_FOREVER);
 }
 
 void WorkspaceObserverStop(void) {
