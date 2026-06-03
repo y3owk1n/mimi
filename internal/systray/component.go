@@ -97,7 +97,7 @@ func (c *Component) handleEvents() {
 		case <-c.ctx.Done():
 			return
 		case <-c.mVersion.ClickedCh:
-			c.logger.Infow("mimi version selected from systray", "version", c.version)
+			c.logger.Debugw("mimi version selected from systray", "version", c.version)
 		case <-c.mSourceCode.ClickedCh:
 			c.openURL("https://github.com/y3owk1n/mimi", "source code")
 		case <-c.mConfigDocs.ClickedCh:

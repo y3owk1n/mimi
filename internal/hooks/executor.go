@@ -46,10 +46,41 @@ func (ex *Executor) UpdateSettings(cfg *config.SettingsConfig) {
 // Handle processes a single event and runs matching hooks.
 func (ex *Executor) Handle(evt events.Event) {
 	hooks := ex.registry.HooksFor(evt.Kind)
+	ex.logger.Debugw(
+		"processing event",
+		"kind",
+		evt.Kind,
+		"event_id",
+		evt.ID,
+		"hooks_registered",
+		len(hooks),
+	)
+
 	for _, hook := range hooks {
-		if !hook.Matches(evt) {
+		matched, reason := hook.Matches(evt)
+		if !matched {
+			ex.logger.Debugw(
+				"hook skipped",
+				"kind",
+				evt.Kind,
+				"cmd",
+				hook.Entry.Run,
+				"reason",
+				reason,
+			)
+
 			continue
 		}
+
+		ex.logger.Debugw(
+			"hook matched",
+			"kind",
+			evt.Kind,
+			"cmd",
+			hook.Entry.Run,
+			"async",
+			hook.Entry.Async,
+		)
 
 		if hook.Entry.Async {
 			go ex.run(hook, evt)
@@ -121,7 +152,7 @@ func (ex *Executor) run(hook Hook, evt events.Event) {
 			attrs = append(attrs, "output", output)
 		}
 
-		ex.logger.Infow("hook ok", attrs...)
+		ex.logger.Debugw("hook ok", attrs...)
 	}
 }
 
