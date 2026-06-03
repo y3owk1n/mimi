@@ -3,6 +3,17 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <Cocoa/Cocoa.h>
 
+static int MimiRunOnMainThreadSync(int (^block)(void)) {
+	if ([NSThread isMainThread]) {
+		return block();
+	}
+	__block int result = 0;
+	dispatch_sync(dispatch_get_main_queue(), ^{
+		result = block();
+	});
+	return result;
+}
+
 static int MimiResetAccessibilityPermissionDecision(void) {
 	NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
 	if (bundleID == nil || [bundleID length] == 0) {
@@ -50,21 +61,63 @@ int MimiRequestAccessibilityPermissions(void) {
 }
 
 int MimiShowAccessibilityPermissionStartupAlert(void) {
-	@autoreleasepool {
-		[NSApplication sharedApplication];
+	return MimiRunOnMainThreadSync(^int{
+		@autoreleasepool {
+			[NSApplication sharedApplication];
 
-		while (MimiCheckAccessibilityPermissions() != 1) {
+			while (MimiCheckAccessibilityPermissions() != 1) {
+				NSAlert *alert = [[NSAlert alloc] init];
+				alert.messageText = @"Accessibility Permission Needed";
+				alert.informativeText =
+				    @"Mimi needs Accessibility permission to receive window focus and title change events. "
+				    @"Click Request Permission to open the macOS permission flow, grant access in System Settings, "
+				    @"then return here and click Granted, Start Mimi.";
+				alert.alertStyle = NSAlertStyleWarning;
+				alert.icon = [NSImage imageNamed:NSImageNameCaution];
+
+				[alert addButtonWithTitle:@"Request Permission"];
+				[alert addButtonWithTitle:@"Granted, Start Mimi"];
+				[alert addButtonWithTitle:@"Quit"];
+
+				[[alert window] setLevel:NSFloatingWindowLevel];
+				[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+				[[alert window] center];
+				[[alert window] makeKeyAndOrderFront:nil];
+				[NSApp activateIgnoringOtherApps:YES];
+
+				NSModalResponse response = [alert runModal];
+				[[alert window] orderOut:nil];
+				[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+				if (response == NSAlertFirstButtonReturn) {
+					MimiRequestAccessibilityPermissions();
+				} else if (response == NSAlertSecondButtonReturn) {
+					return 1;
+				} else if (response == NSAlertThirdButtonReturn) {
+					return 2;
+				}
+			}
+
+			return 1;
+		}
+	});
+}
+
+int MimiShowConfigOnboardingAlert(const char *configPath) {
+	return MimiRunOnMainThreadSync(^int{
+		@autoreleasepool {
+			[NSApplication sharedApplication];
+
+			NSString *path =
+			    configPath ? [NSString stringWithUTF8String:configPath] : @"~/.config/mimi/config.toml";
+
 			NSAlert *alert = [[NSAlert alloc] init];
-			alert.messageText = @"Accessibility Permission Needed";
+			alert.messageText = @"Welcome to Mimi";
 			alert.informativeText =
-			    @"Mimi needs Accessibility permission to receive window focus and title change events. "
-			    @"Click Request Permission to open the macOS permission flow, grant access in System Settings, "
-			    @"then return here and click Granted, Start Mimi.";
-			alert.alertStyle = NSAlertStyleWarning;
-			alert.icon = [NSImage imageNamed:NSImageNameCaution];
+			    [NSString stringWithFormat:@"No configuration file found.\n\nCreate a starter config at:\n%@", path];
+			alert.alertStyle = NSAlertStyleInformational;
 
-			[alert addButtonWithTitle:@"Request Permission"];
-			[alert addButtonWithTitle:@"Granted, Start Mimi"];
+			[alert addButtonWithTitle:@"Create Config"];
 			[alert addButtonWithTitle:@"Quit"];
 
 			[[alert window] setLevel:NSFloatingWindowLevel];
@@ -74,51 +127,16 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 			[NSApp activateIgnoringOtherApps:YES];
 
 			NSModalResponse response = [alert runModal];
+			[[alert window] orderOut:nil];
 			[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
 
 			if (response == NSAlertFirstButtonReturn) {
-				MimiRequestAccessibilityPermissions();
-			} else if (response == NSAlertSecondButtonReturn) {
 				return 1;
-			} else if (response == NSAlertThirdButtonReturn) {
+			} else if (response == NSAlertSecondButtonReturn) {
 				return 2;
 			}
-		}
 
-		return 1;
-	}
-}
-
-int MimiShowConfigOnboardingAlert(const char *configPath) {
-	@autoreleasepool {
-		[NSApplication sharedApplication];
-
-		NSString *path = configPath ? [NSString stringWithUTF8String:configPath] : @"~/.config/mimi/config.toml";
-
-		NSAlert *alert = [[NSAlert alloc] init];
-		alert.messageText = @"Welcome to Mimi";
-		alert.informativeText =
-		    [NSString stringWithFormat:@"No configuration file found.\n\nCreate a starter config at:\n%@", path];
-		alert.alertStyle = NSAlertStyleInformational;
-
-		[alert addButtonWithTitle:@"Create Config"];
-		[alert addButtonWithTitle:@"Quit"];
-
-		[[alert window] setLevel:NSFloatingWindowLevel];
-		[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-		[[alert window] center];
-		[[alert window] makeKeyAndOrderFront:nil];
-		[NSApp activateIgnoringOtherApps:YES];
-
-		NSModalResponse response = [alert runModal];
-		[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-
-		if (response == NSAlertFirstButtonReturn) {
-			return 1;
-		} else if (response == NSAlertSecondButtonReturn) {
 			return 2;
 		}
-
-		return 2;
-	}
+	});
 }
