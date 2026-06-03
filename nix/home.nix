@@ -79,6 +79,9 @@ in
           "--config"
           "${config.xdg.configHome}/mimi/config.toml"
         ];
+        EnvironmentVariables = {
+          PATH = "${config.home.profileDirectory}/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
+        };
         RunAtLoad = true;
         KeepAlive = cfg.launchd.keepAlive;
         StandardOutPath = "/tmp/mimi.log";
