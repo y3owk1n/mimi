@@ -70,9 +70,7 @@ show_workspace_number = false
 # ── Application Lifecycle ─────────────────────────────────────────────────────
 
 # App comes to foreground.
-on_app_activate = [
-    "echo 'activated: $mimi_APP_NAME ($mimi_BUNDLE_ID)'"
-]
+on_app_activate = []
 
 # App loses foreground.
 # on_app_deactivate = [
@@ -124,14 +122,10 @@ on_app_activate = [
 # ── System Power Events ────────────────────────────────────────────────────────
 
 # System going to sleep.
-on_system_sleep = [
-    "logger 'mimi: system sleeping'"
-]
+on_system_sleep = []
 
 # System woke up.
-on_system_wake = [
-    "logger 'mimi: system woke'"
-]
+on_system_wake = []
 
 # Screen locked / session resigned active.
 # on_screen_lock = []
@@ -148,9 +142,7 @@ on_system_wake = [
 # ── Storage Events ─────────────────────────────────────────────────────────────
 
 # Volume / USB drive mounted.
-on_volume_mount = [
-    "echo 'mounted: $mimi_VOLUME_NAME at $mimi_VOLUME_PATH'"
-]
+on_volume_mount = []
 
 # Volume / USB drive unmounted.
 # on_volume_unmount = []
