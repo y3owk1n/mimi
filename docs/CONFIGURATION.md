@@ -88,13 +88,15 @@ pid_file = "~/.local/share/mimi/mimi.pid"
 
 ## [systray]
 
-| Key       | Type | Default | Description                          |
-| --------- | ---- | ------- | ------------------------------------ |
-| `enabled` | bool | `true`  | Show the Mimi menu bar item on macOS |
+| Key                    | Type | Default | Description                                                   |
+| ---------------------- | ---- | ------- | ------------------------------------------------------------- |
+| `enabled`              | bool | `true`  | Show the Mimi menu bar item on macOS                          |
+| `show_workspace_number` | bool | `false` | Show the current macOS Space number in the menu bar (opt-in) |
 
 ```toml
 [systray]
 enabled = true
+show_workspace_number = false
 ```
 
 The tray menu includes links to Mimi docs/source, a config reload action, and Quit Mimi.

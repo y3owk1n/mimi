@@ -27,7 +27,8 @@ type SettingsConfig struct {
 
 // SystrayConfig holds the [systray] section of the config.
 type SystrayConfig struct {
-	Enabled bool `json:"enabled" toml:"enabled"`
+	Enabled             bool `json:"enabled"             toml:"enabled"`
+	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.
@@ -118,7 +119,8 @@ type rawConfig struct {
 }
 
 type rawSystrayConfig struct {
-	Enabled *bool `json:"enabled" toml:"enabled"`
+	Enabled             *bool `json:"enabled"             toml:"enabled"`
+	ShowWorkspaceNumber *bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
 }
 
 func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {

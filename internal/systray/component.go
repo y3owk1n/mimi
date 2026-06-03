@@ -3,17 +3,20 @@ package systray
 import (
 	"context"
 	"os/exec"
+	"strconv"
+	"time"
 
 	"go.uber.org/zap"
 )
 
 // Component owns Mimi's system tray menu.
 type Component struct {
-	version    string
-	configPath string
-	reload     func(context.Context, string) error
-	quit       func()
-	logger     *zap.SugaredLogger
+	version             string
+	configPath          string
+	reload              func(context.Context, string) error
+	quit                func()
+	logger              *zap.SugaredLogger
+	showWorkspaceNumber bool
 
 	ctx    context.Context //nolint:containedctx // Ties menu event goroutine to tray lifecycle.
 	cancel context.CancelFunc
@@ -33,18 +36,20 @@ func NewComponent(
 	configPath string,
 	reload func(context.Context, string) error,
 	quit func(),
+	showWorkspaceNumber bool,
 	logger *zap.SugaredLogger,
 ) *Component {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Component{
-		version:    version,
-		configPath: configPath,
-		reload:     reload,
-		quit:       quit,
-		logger:     logger,
-		ctx:        ctx,
-		cancel:     cancel,
+		version:             version,
+		configPath:          configPath,
+		reload:              reload,
+		quit:                quit,
+		showWorkspaceNumber: showWorkspaceNumber,
+		logger:              logger,
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
 }
 
@@ -66,10 +71,14 @@ func (c *Component) OnReady() {
 
 	c.mQuit = AddMenuItem("Quit Mimi")
 
-	SetTitle("M")
+	c.setTrayTitle()
 	SetTooltip("Mimi")
 
 	go c.handleEvents()
+
+	if c.showWorkspaceNumber {
+		go c.handleTitleUpdates()
+	}
 }
 
 // OnExit stops menu event handling.
@@ -106,6 +115,53 @@ func (c *Component) handleEvents() {
 			return
 		}
 	}
+}
+
+func (c *Component) handleTitleUpdates() {
+	if !c.showWorkspaceNumber {
+		return
+	}
+
+	ticker := time.NewTicker(500 * time.Millisecond) //nolint:mnd
+	defer ticker.Stop()
+
+	last := ""
+	for {
+		select {
+		case <-c.ctx.Done():
+			return
+		case <-ticker.C:
+			n := ActiveWorkspaceNumber()
+			if n >= 0 {
+				title := strconv.Itoa(n + 1)
+				if title != last {
+					SetTitle(title)
+					last = title
+				}
+			} else if last != "M" {
+				SetTitle("M")
+
+				last = "M"
+			}
+		}
+	}
+}
+
+func (c *Component) setTrayTitle() {
+	if !c.showWorkspaceNumber {
+		SetTitle("M")
+
+		return
+	}
+
+	wsNum := ActiveWorkspaceNumber()
+	if wsNum < 0 {
+		SetTitle("M")
+
+		return
+	}
+
+	SetTitle(strconv.Itoa(wsNum + 1))
 }
 
 func (c *Component) openURL(url string, label string) {

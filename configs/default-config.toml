@@ -41,6 +41,7 @@ pid_file = "~/.local/share/mimi/mimi.pid"
 [systray]
 # Show the Mimi menu bar item while the daemon is running.
 enabled = true
+show_workspace_number = false
 
 # =============================================================================
 # Hooks

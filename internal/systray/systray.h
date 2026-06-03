@@ -11,6 +11,7 @@ void MimiQuit(void);
 void MimiSetIcon(const char *iconBytes, int length, bool isTemplate);
 void MimiSetTitle(const char *title);
 void MimiSetTooltip(const char *tooltip);
+int MimiGetActiveWorkspaceNumber(void);
 
 void MimiAddMenuItem(int menuId, const char *title, short disabled, short checked);
 void MimiAddSubMenuItem(int parentId, int menuId, const char *title, short disabled, short checked);
