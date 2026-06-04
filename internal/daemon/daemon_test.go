@@ -37,6 +37,15 @@ func TestHasWindowEvents(t *testing.T) {
 			expected: true,
 		},
 		{
+			name: "window resize only",
+			cfg: &config.Config{
+				Hooks: config.HooksConfig{
+					WindowResize: []config.HookEntry{{Run: "echo"}},
+				},
+			},
+			expected: true,
+		},
+		{
 			name: "app activate only",
 			cfg: &config.Config{
 				Hooks: config.HooksConfig{
@@ -161,5 +170,33 @@ func TestGetObserverConfig(t *testing.T) {
 		windowOnlyObs.Display ||
 		windowOnlyObs.SystemState {
 		t.Errorf("expected only AppLifecycle to be enabled, got: %+v", windowOnlyObs)
+	}
+
+	// WindowResize only case — should also enable AppLifecycle
+	resizeOnlyCfg := &config.Config{
+		Hooks: config.HooksConfig{
+			WindowResize: []config.HookEntry{{Run: "echo"}},
+		},
+	}
+
+	resizeOnlyObs := getObserverConfig(resizeOnlyCfg)
+	if !resizeOnlyObs.AppLifecycle {
+		t.Error("expected AppLifecycle to be enabled when WindowResize is configured")
+	}
+
+	if resizeOnlyObs.Audio ||
+		resizeOnlyObs.Power ||
+		resizeOnlyObs.Clipboard ||
+		resizeOnlyObs.USB ||
+		resizeOnlyObs.Network ||
+		resizeOnlyObs.Volume ||
+		resizeOnlyObs.Workspace ||
+		resizeOnlyObs.Appearance ||
+		resizeOnlyObs.Display ||
+		resizeOnlyObs.SystemState {
+		t.Errorf(
+			"expected only AppLifecycle to be enabled for resize-only config, got: %+v",
+			resizeOnlyObs,
+		)
 	}
 }

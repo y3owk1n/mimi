@@ -283,12 +283,13 @@ For `on_workspace_changed` events, `mimi_INFO` contains a JSON string:
 
 ### Window Events (requires Accessibility permission)
 
-| Hook key                 | Fires when…                 | Variables available         |
-| ------------------------ | --------------------------- | --------------------------- |
-| `on_window_focus`        | Focused window changes      | APP_NAME, WINDOW_TITLE, PID |
-| `on_window_title_change` | Active window title changes | APP_NAME, WINDOW_TITLE, PID |
-| `on_window_created`      | A new window opens          | APP_NAME, PID               |
-| `on_window_closed`       | A window closes             | APP_NAME, PID               |
+| Hook key                 | Fires when…                                   | Variables available                    |
+| ------------------------ | --------------------------------------------- | -------------------------------------- |
+| `on_window_focus`        | Focused window changes                        | APP_NAME, WINDOW_TITLE, BUNDLE_ID, PID |
+| `on_window_title_change` | Active window title changes                   | APP_NAME, WINDOW_TITLE, BUNDLE_ID, PID |
+| `on_window_created`      | A new window opens                            | APP_NAME, BUNDLE_ID, PID               |
+| `on_window_closed`       | A window closes                               | APP_NAME, BUNDLE_ID, PID               |
+| `on_window_resize`       | A window finishes resizing (debounced, 250ms) | APP_NAME, WINDOW_TITLE, BUNDLE_ID, PID |
 
 ### System Events
 

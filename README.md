@@ -67,12 +67,12 @@ For auto-start at login, launchd agent setup, Nix modules, and troubleshooting �
 
 ## ⌨️ Events
 
-Mimi observes **30 macOS system events** across 10 categories. Every hook receives rich context via `mimi_*` environment variables.
+Mimi observes **33 macOS system events** across 11 categories. Every hook receives rich context via `mimi_*` environment variables.
 
 | Category             | Events                                                 |
 | :------------------- | :----------------------------------------------------- |
 | App Lifecycle        | activate, deactivate, launch, quit, hide, unhide       |
-| Window (AX)          | focus, title change, created, closed                   |
+| Window (AX)          | focus, title change, created, closed, resize           |
 | System Power         | sleep, wake, screen lock/unlock, shutdown, session end |
 | Storage              | volume mount, unmount                                  |
 | Display / Appearance | external display connect/disconnect, dark/light mode   |

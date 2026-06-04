@@ -204,7 +204,7 @@ The bridge has two layers:
 |                     |                                            | volume_mount, unmount                                      |
 | **Appearance**      | NSDistributedNotificationCenter            | appearance_changed                                         |
 | **Space Poll**      | CGWindowListCopyWindowInfo polling (200ms) | workspace_changed (with window info JSON)                  |
-| **AXObserver**      | Accessibility API (per-app)                | window_focus, title_change, created, closed                |
+| **AXObserver**      | Accessibility API (per-app)                | window_focus, title_change, created, closed, window_resize |
 | **Power / Battery** | IOKit (IOPowerSources)                     | power_adapter_connected/disconnected, battery_low/critical |
 | **Audio**           | CoreAudio property listeners               | audio_device_changed                                       |
 | **Clipboard**       | NSPasteboard polling (500ms)               | clipboard_changed                                          |

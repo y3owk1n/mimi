@@ -204,6 +204,7 @@ func allHookEntries(cfg *Config) map[string][]HookEntry {
 		string(events.WindowTitleChange):           cfg.Hooks.WindowTitleChange,
 		string(events.WindowCreated):               cfg.Hooks.WindowCreated,
 		string(events.WindowClosed):                cfg.Hooks.WindowClosed,
+		string(events.WindowResize):                cfg.Hooks.WindowResize,
 		string(events.SystemSleep):                 cfg.Hooks.SystemSleep,
 		string(events.SystemWake):                  cfg.Hooks.SystemWake,
 		string(events.ScreenLock):                  cfg.Hooks.ScreenLock,
