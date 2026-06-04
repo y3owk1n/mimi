@@ -43,6 +43,7 @@ type HooksConfig struct {
 	WindowTitleChange           []HookEntry `json:"onWindowTitleChange"           toml:"on_window_title_change"`
 	WindowCreated               []HookEntry `json:"onWindowCreated"               toml:"on_window_created"`
 	WindowClosed                []HookEntry `json:"onWindowClosed"                toml:"on_window_closed"`
+	WindowResize                []HookEntry `json:"onWindowResize"                toml:"on_window_resize"`
 	SystemSleep                 []HookEntry `json:"onSystemSleep"                 toml:"on_system_sleep"`
 	SystemWake                  []HookEntry `json:"onSystemWake"                  toml:"on_system_wake"`
 	ScreenLock                  []HookEntry `json:"onScreenLock"                  toml:"on_screen_lock"`
@@ -88,6 +89,7 @@ type rawHooksConfig struct {
 	WindowTitleChange           []any `json:"onWindowTitleChange"           toml:"on_window_title_change"`
 	WindowCreated               []any `json:"onWindowCreated"               toml:"on_window_created"`
 	WindowClosed                []any `json:"onWindowClosed"                toml:"on_window_closed"`
+	WindowResize                []any `json:"onWindowResize"                toml:"on_window_resize"`
 	SystemSleep                 []any `json:"onSystemSleep"                 toml:"on_system_sleep"`
 	SystemWake                  []any `json:"onSystemWake"                  toml:"on_system_wake"`
 	ScreenLock                  []any `json:"onScreenLock"                  toml:"on_screen_lock"`
@@ -176,6 +178,7 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	hooksCfg.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
 	hooksCfg.WindowCreated = decodeField("on_window_created", raw.WindowCreated)
 	hooksCfg.WindowClosed = decodeField("on_window_closed", raw.WindowClosed)
+	hooksCfg.WindowResize = decodeField("on_window_resize", raw.WindowResize)
 	hooksCfg.SystemSleep = decodeField("on_system_sleep", raw.SystemSleep)
 	hooksCfg.SystemWake = decodeField("on_system_wake", raw.SystemWake)
 	hooksCfg.ScreenLock = decodeField("on_screen_lock", raw.ScreenLock)

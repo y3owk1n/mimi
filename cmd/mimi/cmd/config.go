@@ -128,6 +128,7 @@ func countHooks(cfg *config.Config) int {
 		cfg.Hooks.AppHide, cfg.Hooks.AppUnhide,
 		cfg.Hooks.WindowFocus, cfg.Hooks.WindowTitleChange,
 		cfg.Hooks.WindowCreated, cfg.Hooks.WindowClosed,
+		cfg.Hooks.WindowResize,
 		cfg.Hooks.SystemSleep, cfg.Hooks.SystemWake,
 		cfg.Hooks.ScreenLock, cfg.Hooks.ScreenUnlock,
 		cfg.Hooks.SystemShutdown, cfg.Hooks.UserSessionEnd,

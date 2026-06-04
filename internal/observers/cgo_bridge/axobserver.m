@@ -41,6 +41,8 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			kind = 32;
 		else if (CFEqual(notification, kAXUIElementDestroyedNotification))
 			kind = 33;
+		else if (CFEqual(notification, kAXWindowResizedNotification))
+			kind = 34;
 
 		if (kind >= 0) {
 			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
@@ -71,10 +73,8 @@ static void axInstallBlock(int pid) {
 	}
 
 	CFStringRef notifications[] = {
-	    kAXFocusedWindowChangedNotification,
-	    kAXTitleChangedNotification,
-	    kAXWindowCreatedNotification,
-	    kAXUIElementDestroyedNotification,
+	    kAXFocusedWindowChangedNotification, kAXTitleChangedNotification,  kAXWindowCreatedNotification,
+	    kAXUIElementDestroyedNotification,   kAXWindowResizedNotification,
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {

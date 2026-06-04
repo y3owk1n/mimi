@@ -80,6 +80,7 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 		events.WindowTitleChange:           cfg.Hooks.WindowTitleChange,
 		events.WindowCreated:               cfg.Hooks.WindowCreated,
 		events.WindowClosed:                cfg.Hooks.WindowClosed,
+		events.WindowResize:                cfg.Hooks.WindowResize,
 		events.SystemSleep:                 cfg.Hooks.SystemSleep,
 		events.SystemWake:                  cfg.Hooks.SystemWake,
 		events.ScreenLock:                  cfg.Hooks.ScreenLock,

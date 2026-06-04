@@ -185,7 +185,8 @@ func hasWindowEvents(cfg *config.Config) bool {
 	return len(cfg.Hooks.WindowFocus) > 0 ||
 		len(cfg.Hooks.WindowTitleChange) > 0 ||
 		len(cfg.Hooks.WindowCreated) > 0 ||
-		len(cfg.Hooks.WindowClosed) > 0
+		len(cfg.Hooks.WindowClosed) > 0 ||
+		len(cfg.Hooks.WindowResize) > 0
 }
 
 func getObserverConfig(cfg *config.Config) cgo_bridge.ObserverConfig {

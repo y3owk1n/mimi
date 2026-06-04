@@ -263,6 +263,7 @@ func kindFromInt(kindInt int) events.EventKind {
 		// Window events
 		30: events.WindowFocus, 31: events.WindowTitleChange,
 		32: events.WindowCreated, 33: events.WindowClosed,
+		34: events.WindowResizing,
 		// Display/Appearance events
 		40: events.ExternalDisplayConnected, 41: events.ExternalDisplayDisconnected,
 		42: events.AppearanceChanged,

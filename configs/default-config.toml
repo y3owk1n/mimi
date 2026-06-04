@@ -119,6 +119,11 @@ on_app_activate = []
 #     "echo 'window closed: $mimi_APP_NAME'"
 # ]
 
+# Window finished resizing (debounced, fires once after resize ends).
+# on_window_resize = [
+#     "echo 'window resized: $mimi_APP_NAME — $mimi_WINDOW_TITLE'"
+# ]
+
 # ── System Power Events ────────────────────────────────────────────────────────
 
 # System going to sleep.

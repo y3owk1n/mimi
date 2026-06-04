@@ -116,7 +116,7 @@ Or use Activity Monitor → search "mimi" → Force Quit.
 
 ### Accessibility Permission
 
-Window events (`window_focus`, `window_title_change`, etc.) require Accessibility permission.
+Window events (`window_focus`, `window_title_change`, `window_resize`, etc.) require Accessibility permission.
 
 **Grant permissions:**
 

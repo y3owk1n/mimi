@@ -27,6 +27,10 @@ const (
 	WindowCreated EventKind = "window_created"
 	// WindowClosed fires when a window closes.
 	WindowClosed EventKind = "window_closed"
+	// WindowResizing fires when a window is being resized (raw).
+	WindowResizing EventKind = "_window_resizing"
+	// WindowResize fires when a window resize is completed (debounced).
+	WindowResize EventKind = "window_resize"
 
 	// SystemSleep fires when the system or display goes to sleep.
 	SystemSleep EventKind = "system_sleep"
@@ -85,7 +89,7 @@ const (
 // AllKinds lists every known event kind.
 var AllKinds = []EventKind{
 	AppActivate, AppDeactivate, AppLaunch, AppQuit, AppHide, AppUnhide,
-	WindowFocus, WindowTitleChange, WindowCreated, WindowClosed,
+	WindowFocus, WindowTitleChange, WindowCreated, WindowClosed, WindowResize, WindowResizing,
 	SystemSleep, SystemWake, ScreenLock, ScreenUnlock, SystemShutdown, UserSessionEnd,
 	VolumeMount, VolumeUnmount,
 	ExternalDisplayConnected, ExternalDisplayDisconnected, AppearanceChanged,
