@@ -1,5 +1,15 @@
 # Changelog
 
+## [0.3.1](https://github.com/y3owk1n/mimi/compare/v0.3.0...v0.3.1) (2026-06-03)
+
+
+### Bug Fixes
+
+* cleaner logging ([#20](https://github.com/y3owk1n/mimi/issues/20)) ([4c6c300](https://github.com/y3owk1n/mimi/commit/4c6c300cb94e2d23bd0eafd310235cd4c2776c2a))
+* ensure default-config is empty ([50a69e4](https://github.com/y3owk1n/mimi/commit/50a69e4c6a2f0c3b05414355580692788aa2698d))
+* **observers:** resolve window focus observer registration regression ([#21](https://github.com/y3owk1n/mimi/issues/21)) ([ff63df8](https://github.com/y3owk1n/mimi/commit/ff63df8be2fcbfa4a8b19f91d80dc4f282538a2a))
+* only run the observers if defined ([#18](https://github.com/y3owk1n/mimi/issues/18)) ([13c0f3d](https://github.com/y3owk1n/mimi/commit/13c0f3d012647ed3549285b18e273842ee9fd476))
+
 ## [0.3.0](https://github.com/y3owk1n/mimi/compare/v0.2.0...v0.3.0) (2026-06-03)
 
 
