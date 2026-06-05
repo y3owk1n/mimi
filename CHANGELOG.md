@@ -5,7 +5,6 @@
 
 ### Features
 
-* add `space`, `focus_window` and `move_window_to_space` action ([#24](https://github.com/y3owk1n/mimi/issues/24)) ([0ad1044](https://github.com/y3owk1n/mimi/commit/0ad104438c010833a3ac399d676865cbf755f838))
 * **event:** add `on_window_resize` observer ([#22](https://github.com/y3owk1n/mimi/issues/22)) ([7c3c7bf](https://github.com/y3owk1n/mimi/commit/7c3c7bfb1d272d4cb44bdab1d9520c51faf936ab))
 
 ## [0.3.1](https://github.com/y3owk1n/mimi/compare/v0.3.0...v0.3.1) (2026-06-03)
