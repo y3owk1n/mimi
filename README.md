@@ -44,7 +44,7 @@ If you like native Spaces and want to stay close to stock macOS — or you are t
 
 | Mode               | When to use it                                                                                 |
 | :----------------- | :--------------------------------------------------------------------------------------------- |
-| **CLI actions**    | One-shot commands — bind to hotkeys, scripts, or Alfred/Raycast. No daemon required.           |
+| **CLI actions**    | One-shot commands — bind to hotkeys, scripts, or Alfred/Raycast. Work without the daemon; route over IPC when it is running for lower latency. |
 | **Daemon + hooks** | React to window and space changes with shell commands (`on_window_*`, `on_workspace_changed`). |
 | **Menu bar**       | See the active space number, reload config, or quit — enabled by default when the daemon runs. |
 

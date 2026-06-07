@@ -16,7 +16,9 @@ var stopCmd = &cobra.Command{
 	Use:   "stop",
 	Short: "Stop the running mimi daemon",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pid, err := readPID(defaultPIDPath())
+		pidPath, _ := resolveRuntimePaths()
+
+		pid, err := readPID(pidPath)
 		if err != nil {
 			cmd.Println("mimi: not running (no PID file)")
 
@@ -48,10 +50,6 @@ func readPID(path string) (int, error) {
 	}
 
 	return strconv.Atoi(strings.TrimSpace(string(data)))
-}
-
-func defaultPIDPath() string {
-	return "~/.local/share/mimi/mimi.pid"
 }
 
 func expandHome(path string) string {

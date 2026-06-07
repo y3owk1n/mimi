@@ -4,11 +4,13 @@
 # Validate:      mimi config validate
 # Re-create:     mimi config init
 #
-# Immediate actions (no daemon required):
+# Immediate actions (no daemon required, but faster when it is running):
 #   mimi action focus_window
 #   mimi action space <number>
 #   mimi action move_window_to_space <number>
 #
+# When the daemon is running, actions are routed over a Unix socket
+# (~/.local/share/mimi/mimi.sock by default) to avoid process startup cost.
 # Every hook receives these environment variables:
 #   mimi_EVENT        — event kind (e.g. "window_focus", "workspace_changed")
 #   mimi_EVENT_ID     — unique event UUID
@@ -29,6 +31,7 @@ hook_timeout_secs = 10
 hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
+socket_file = "~/.local/share/mimi/mimi.sock"
 
 [systray]
 enabled = true

@@ -114,6 +114,7 @@ var configValidateCmd = &cobra.Command{
 }
 
 func init() {
+	addConfigPreRun(configCmd)
 	configCmd.AddCommand(configDumpCmd)
 	configCmd.AddCommand(configReloadCmd)
 	configCmd.AddCommand(configInitCmd)

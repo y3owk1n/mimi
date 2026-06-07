@@ -26,7 +26,7 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 
 ## Window & Space Actions
 
-These commands run directly in the CLI process. The daemon does not need to be running. **Accessibility permission is required.**
+These commands run directly in the CLI process when the daemon is not running. When the daemon **is** running, mimi routes actions over its Unix socket (`settings.socket_file`, default `~/.local/share/mimi/mimi.sock`) so hotkeys feel instant. **Accessibility permission is required.**
 
 ```bash
 mimi action focus_window
@@ -76,7 +76,7 @@ mimi stop
 
 ### `mimi status`
 
-Show whether the daemon is running and whether Accessibility permission is granted.
+Show whether the daemon is running, whether Accessibility permission is granted, and whether the IPC socket is available.
 
 ```bash
 mimi status

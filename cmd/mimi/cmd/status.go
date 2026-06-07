@@ -13,7 +13,9 @@ var statusCmd = &cobra.Command{
 	Use:   "status",
 	Short: "Show daemon and permission status",
 	RunE: func(cmd *cobra.Command, args []string) error {
-		pid, err := readPID(defaultPIDPath())
+		pidPath, socketPath := resolveRuntimePaths()
+
+		pid, err := readPID(pidPath)
 		if err != nil {
 			cmd.Println("mimi: not running")
 		} else {
@@ -32,6 +34,13 @@ var statusCmd = &cobra.Command{
 			cmd.Println("accessibility: granted")
 		} else {
 			cmd.Println("accessibility: not granted (required for window hooks and actions)")
+		}
+
+		_, statErr := os.Stat(expandHome(socketPath))
+		if statErr == nil {
+			cmd.Printf("ipc: socket available at %s\n", expandHome(socketPath))
+		} else {
+			cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
 		}
 
 		return nil

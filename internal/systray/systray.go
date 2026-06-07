@@ -106,6 +106,21 @@ func ActiveWorkspaceNumber() int {
 	return int(C.MimiGetActiveWorkspaceNumber())
 }
 
+// StartWorkspaceTitleObserver listens for space changes and updates the tray title immediately.
+func StartWorkspaceTitleObserver() {
+	C.MimiStartWorkspaceTitleObserver()
+}
+
+// StopWorkspaceTitleObserver stops listening for space changes.
+func StopWorkspaceTitleObserver() {
+	C.MimiStopWorkspaceTitleObserver()
+}
+
+// RefreshWorkspaceTitle updates the tray title to match the active space immediately.
+func RefreshWorkspaceTitle() {
+	C.MimiRefreshWorkspaceTitle()
+}
+
 // SetIcon sets the icon of the system tray item.
 func SetIcon(icon []byte) {
 	if len(icon) == 0 {

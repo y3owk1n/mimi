@@ -4,8 +4,6 @@ import (
 	"fmt"
 
 	"github.com/spf13/cobra"
-
-	"github.com/y3owk1n/mimi/internal/config"
 )
 
 var (
@@ -27,9 +25,6 @@ var RootCmd = &cobra.Command{
 
 Use "mimi action" for immediate commands (focus window, switch space, move window).
 Use "mimi start" to run the background daemon and react to window/space events via hooks.`,
-	PersistentPreRun: func(cmd *cobra.Command, args []string) {
-		configPath = config.ResolvePath(configPath)
-	},
 }
 
 // Execute runs the root command and returns any error.

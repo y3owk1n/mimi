@@ -1,9 +1,10 @@
 # Architecture
 
-mimi is a macOS window and space utility with two execution paths:
+mimi is a macOS window and space utility with three execution paths:
 
-1. **CLI actions** — immediate one-shot commands (`mimi action …`)
-2. **Hook daemon** — background process that fires shell hooks on window/space events
+1. **CLI actions (direct)** — immediate one-shot commands (`mimi action …`)
+2. **CLI actions (via daemon IPC)** — same commands routed over a Unix socket when the daemon is running
+3. **Hook daemon** — background process that fires shell hooks on window/space events
 
 Both paths use native macOS APIs via CGO. No SIP disable is required.
 
@@ -25,6 +26,8 @@ mimi action <subcommand>
 | `move_window_to_space` | Private SkyLight (`SLSMoveWindowsToManagedSpace`) |
 
 CLI actions pump the run loop briefly after posting events so gestures complete before the process exits.
+
+When the daemon is running, `mimi action` first tries the Unix socket at `settings.socket_file`. The daemon executes the action on a dedicated OS thread and returns the result. If the socket is unavailable, the CLI falls back to direct execution.
 
 ---
 

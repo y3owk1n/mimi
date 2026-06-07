@@ -6,6 +6,43 @@
 #import "mimi.h"
 
 #import <Cocoa/Cocoa.h>
+#import <CoreGraphics/CoreGraphics.h>
+
+static NSSet<NSNumber *> *mimiVisibleRegularAppPIDs(void) {
+	CFArrayRef windowList = CGWindowListCopyWindowInfo(
+	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+	if (!windowList)
+		return [NSSet set];
+
+	NSMutableSet<NSNumber *> *pids = [NSMutableSet set];
+	CFIndex count = CFArrayGetCount(windowList);
+	for (CFIndex i = 0; i < count; i++) {
+		CFDictionaryRef info = CFArrayGetValueAtIndex(windowList, i);
+		if (!info)
+			continue;
+
+		CFNumberRef layerRef = CFDictionaryGetValue(info, kCGWindowLayer);
+		if (!layerRef)
+			continue;
+
+		int layer = 0;
+		if (!CFNumberGetValue(layerRef, kCFNumberIntType, &layer) || layer != 0)
+			continue;
+
+		CFNumberRef pidRef = CFDictionaryGetValue(info, kCGWindowOwnerPID);
+		if (!pidRef)
+			continue;
+
+		int pid = 0;
+		if (!CFNumberGetValue(pidRef, kCFNumberIntType, &pid) || pid <= 0)
+			continue;
+
+		[pids addObject:@(pid)];
+	}
+
+	CFRelease(windowList);
+	return [pids copy];
+}
 
 void *MimiGetFrontmostWindow(void) {
 	@autoreleasepool {
@@ -117,6 +154,7 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 	@autoreleasepool {
 		*count = 0;
 
+		NSSet<NSNumber *> *visiblePIDs = mimiVisibleRegularAppPIDs();
 		NSArray *runningApps = [[NSWorkspace sharedWorkspace].runningApplications
 		    sortedArrayUsingComparator:^NSComparisonResult(NSRunningApplication *obj1, NSRunningApplication *obj2) {
 			    if (obj1.processIdentifier < obj2.processIdentifier) {
@@ -137,6 +175,9 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 				continue;
 
 			pid_t pid = app.processIdentifier;
+			if (![visiblePIDs containsObject:@(pid)])
+				continue;
+
 			AXUIElementRef appElement = AXUIElementCreateApplication(pid);
 			if (!appElement)
 				continue;

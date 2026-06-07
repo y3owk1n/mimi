@@ -1,0 +1,127 @@
+package ipc
+
+import (
+	"bufio"
+	"context"
+	"net"
+	"os"
+	"path/filepath"
+	"runtime"
+	"strings"
+	"sync"
+
+	"github.com/y3owk1n/mimi/internal/action"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/systray"
+)
+
+// Server accepts action requests over a Unix domain socket.
+type Server struct {
+	path string
+	ln   net.Listener
+
+	actionCh chan actionJob
+	once     sync.Once
+}
+
+type actionJob struct {
+	name string
+	args []string
+	done chan error
+}
+
+// NewServer creates a Unix socket server at path.
+func NewServer(path string) *Server {
+	return &Server{
+		path:     expandHome(path),
+		actionCh: make(chan actionJob),
+	}
+}
+
+// Run listens for connections until ctx is canceled.
+func (s *Server) Run(ctx context.Context) error {
+	s.once.Do(s.startActionWorker)
+
+	err := os.MkdirAll(filepath.Dir(s.path), 0o755) //nolint:mnd
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeIPCFailed, "creating socket directory")
+	}
+
+	_ = os.Remove(s.path)
+
+	lc := net.ListenConfig{}
+
+	listener, err := lc.Listen(ctx, "unix", s.path)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeIPCFailed, "listening on socket")
+	}
+
+	s.ln = listener
+
+	go func() {
+		<-ctx.Done()
+
+		_ = listener.Close()
+		_ = os.Remove(s.path)
+	}()
+
+	for {
+		conn, acceptErr := listener.Accept()
+		if acceptErr != nil {
+			select {
+			case <-ctx.Done():
+				return nil
+			default:
+				if errorsIsUseClosed(acceptErr) {
+					return nil
+				}
+
+				continue
+			}
+		}
+
+		go s.handleConn(conn)
+	}
+}
+
+func (s *Server) startActionWorker() {
+	go func() {
+		runtime.LockOSThread()
+
+		for job := range s.actionCh {
+			job.done <- action.Execute(job.name, job.args)
+		}
+	}()
+}
+
+func (s *Server) handleConn(conn net.Conn) {
+	defer func() { _ = conn.Close() }()
+
+	reader := bufio.NewReader(conn)
+
+	req, err := readRequest(reader)
+	if err != nil {
+		_ = writeResponse(conn, responseFromError(err))
+
+		return
+	}
+
+	done := make(chan error, 1)
+	s.actionCh <- actionJob{name: req.Action, args: req.Args, done: done}
+
+	err = <-done
+	if err == nil &&
+		(req.Action == string(action.NameSpace) || req.Action == string(action.NameMoveWindowToSpace)) {
+		systray.RefreshWorkspaceTitle()
+	}
+
+	_ = writeResponse(conn, responseFromError(err))
+}
+
+func errorsIsUseClosed(err error) bool {
+	if err == nil {
+		return false
+	}
+
+	return strings.Contains(err.Error(), "use of closed network connection")
+}

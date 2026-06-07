@@ -126,6 +126,7 @@ var servicesStatusCmd = &cobra.Command{
 }
 
 func init() {
+	addConfigPreRun(servicesInstallCmd)
 	servicesCmd.AddCommand(servicesInstallCmd)
 	servicesCmd.AddCommand(servicesUninstallCmd)
 	servicesCmd.AddCommand(servicesStartCmd)

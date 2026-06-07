@@ -23,6 +23,7 @@ type SettingsConfig struct {
 	HookShell       string `json:"hookShell"       toml:"hook_shell"`
 	MaxHookWorkers  int    `json:"maxHookWorkers"  toml:"max_hook_workers"`
 	PIDFile         string `json:"pidFile"         toml:"pid_file"`
+	SocketFile      string `json:"socketFile"      toml:"socket_file"`
 }
 
 // SystrayConfig holds the [systray] section of the config.
