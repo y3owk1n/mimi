@@ -1,6 +1,7 @@
 #import "workspace.h"
 
 #include "_cgo_export.h"
+#import "eventkinds.h"
 
 #import <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
@@ -115,29 +116,29 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	NSMutableDictionary *tempNotifToKind = [NSMutableDictionary dictionary];
 
 	if (appLifecycle) {
-		tempNotifToKind[NSWorkspaceDidActivateApplicationNotification] = @(0);
-		tempNotifToKind[NSWorkspaceDidDeactivateApplicationNotification] = @(1);
-		tempNotifToKind[NSWorkspaceDidLaunchApplicationNotification] = @(2);
-		tempNotifToKind[NSWorkspaceDidTerminateApplicationNotification] = @(3);
-		tempNotifToKind[NSWorkspaceDidHideApplicationNotification] = @(4);
-		tempNotifToKind[NSWorkspaceDidUnhideApplicationNotification] = @(5);
+		tempNotifToKind[NSWorkspaceDidActivateApplicationNotification] = @(MIMI_KIND_APP_ACTIVATE);
+		tempNotifToKind[NSWorkspaceDidDeactivateApplicationNotification] = @(MIMI_KIND_APP_DEACTIVATE);
+		tempNotifToKind[NSWorkspaceDidLaunchApplicationNotification] = @(MIMI_KIND_APP_LAUNCH);
+		tempNotifToKind[NSWorkspaceDidTerminateApplicationNotification] = @(MIMI_KIND_APP_QUIT);
+		tempNotifToKind[NSWorkspaceDidHideApplicationNotification] = @(MIMI_KIND_APP_HIDE);
+		tempNotifToKind[NSWorkspaceDidUnhideApplicationNotification] = @(MIMI_KIND_APP_UNHIDE);
 	}
 
 	if (systemState) {
-		tempNotifToKind[NSWorkspaceWillSleepNotification] = @(10);
-		tempNotifToKind[NSWorkspaceDidWakeNotification] = @(11);
-		tempNotifToKind[NSWorkspaceSessionDidResignActiveNotification] = @(12);
-		tempNotifToKind[NSWorkspaceSessionDidBecomeActiveNotification] = @(13);
-		tempNotifToKind[NSWorkspaceWillPowerOffNotification] = @(14);
+		tempNotifToKind[NSWorkspaceWillSleepNotification] = @(MIMI_KIND_WILL_SLEEP);
+		tempNotifToKind[NSWorkspaceDidWakeNotification] = @(MIMI_KIND_DID_WAKE);
+		tempNotifToKind[NSWorkspaceSessionDidResignActiveNotification] = @(MIMI_KIND_SESSION_RESIGN);
+		tempNotifToKind[NSWorkspaceSessionDidBecomeActiveNotification] = @(MIMI_KIND_SESSION_BECOME);
+		tempNotifToKind[NSWorkspaceWillPowerOffNotification] = @(MIMI_KIND_WILL_POWER_OFF);
 	}
 
 	if (volume) {
-		tempNotifToKind[NSWorkspaceDidMountNotification] = @(20);
-		tempNotifToKind[NSWorkspaceDidUnmountNotification] = @(21);
+		tempNotifToKind[NSWorkspaceDidMountNotification] = @(MIMI_KIND_VOLUME_MOUNT);
+		tempNotifToKind[NSWorkspaceDidUnmountNotification] = @(MIMI_KIND_VOLUME_UNMOUNT);
 	}
 
 	if (workspace) {
-		tempNotifToKind[NSWorkspaceActiveSpaceDidChangeNotification] = @(70);
+		tempNotifToKind[NSWorkspaceActiveSpaceDidChangeNotification] = @(MIMI_KIND_WORKSPACE_CHANGED);
 	}
 
 	self.notifToKind = tempNotifToKind;
@@ -156,7 +157,7 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 	if (workspace) {
 		self.lastWindowIDs = [self currentWindowIDs];
-		self.spacePollTimer = [NSTimer scheduledTimerWithTimeInterval:0.2
+		self.spacePollTimer = [NSTimer scheduledTimerWithTimeInterval:2.0
 		                                                       target:self
 		                                                     selector:@selector(checkSpaceChange:)
 		                                                     userInfo:nil
@@ -171,11 +172,11 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	}
 	self.lastWindowIDs = currentIDs;
 	NSString *infoJSON = [self windowInfoJSON];
-	goWorkspaceChangeEvent(70, (int)[currentIDs count], (char *)[infoJSON UTF8String]);
+	goWorkspaceChangeEvent(MIMI_KIND_WORKSPACE_CHANGED, (int)[currentIDs count], (char *)[infoJSON UTF8String]);
 }
 
 - (void)appearanceChanged:(NSNotification *)note {
-	goWorkspaceEvent(42, "", "", 0, "", "");
+	goWorkspaceEvent(MIMI_KIND_APPEARANCE_CHANGED, "", "", 0, "", "");
 }
 
 - (int)kindForNotificationName:(NSString *)name {
@@ -185,7 +186,7 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 - (void)handleNotification:(NSNotification *)note {
 	int kind = [self kindForNotificationName:note.name];
-	if (kind == 70) {
+	if (kind == MIMI_KIND_WORKSPACE_CHANGED) {
 		NSSet *windows = [self currentWindowIDs];
 		self.lastWindowIDs = windows;
 		NSString *infoJSON = [self windowInfoJSON];

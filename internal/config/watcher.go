@@ -7,6 +7,8 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"go.uber.org/zap"
+
+	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 const debounceDelay = 300 * time.Millisecond
@@ -20,7 +22,7 @@ type Watcher struct {
 
 // NewWatcher creates a new config file watcher.
 func NewWatcher(path string, onChange func(*Config), logger *zap.SugaredLogger) *Watcher {
-	return &Watcher{path: expandHome(path), onChange: onChange, logger: logger}
+	return &Watcher{path: paths.ExpandHome(path), onChange: onChange, logger: logger}
 }
 
 // Run starts the config file watcher loop. It blocks until the context is canceled.

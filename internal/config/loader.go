@@ -11,6 +11,7 @@ import (
 	"github.com/y3owk1n/mimi/configs"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
+	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 // DefaultConfigPath is the default path for the mimi config file.
@@ -24,7 +25,7 @@ const DefaultSocketPath = "~/.local/share/mimi/mimi.sock"
 
 // Exists returns true if the config file exists.
 func Exists(path string) bool {
-	_, err := os.Stat(expandHome(path))
+	_, err := os.Stat(paths.ExpandHome(path))
 
 	return err == nil
 }
@@ -38,24 +39,21 @@ func Exists(path string) bool {
 // $XDG_CONFIG_HOME/mimi/config.toml (if env set) or ~/.config/mimi/config.toml.
 func ResolvePath(cliPath string) string {
 	if cliPath != "" {
-		return expandHome(cliPath)
+		return paths.ExpandHome(cliPath)
 	}
 
-	// 1. Check $XDG_CONFIG_HOME/mimi/config.toml
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
 		p := filepath.Join(xdg, "mimi/config.toml")
 		if Exists(p) {
-			return expandHome(p)
+			return paths.ExpandHome(p)
 		}
 	}
 
-	// 2. Check ~/.config/mimi/config.toml
 	p2 := "~/.config/mimi/config.toml"
 	if Exists(p2) {
-		return expandHome(p2)
+		return paths.ExpandHome(p2)
 	}
 
-	// 3. Check mimi.toml (current directory)
 	altPath := "mimi.toml"
 	if Exists(altPath) {
 		abs, err := filepath.Abs(altPath)
@@ -66,17 +64,16 @@ func ResolvePath(cliPath string) string {
 		return altPath
 	}
 
-	// Fallback when none exists
 	if xdg := os.Getenv("XDG_CONFIG_HOME"); xdg != "" {
-		return expandHome(filepath.Join(xdg, "mimi/config.toml"))
+		return paths.ExpandHome(filepath.Join(xdg, "mimi/config.toml"))
 	}
 
-	return expandHome("~/.config/mimi/config.toml")
+	return paths.ExpandHome("~/.config/mimi/config.toml")
 }
 
 // WriteDefault writes the default config to the given path.
 func WriteDefault(path string) error {
-	path = expandHome(path)
+	path = paths.ExpandHome(path)
 
 	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
 	if err != nil {
@@ -93,7 +90,7 @@ func WriteDefault(path string) error {
 
 // Load parses and validates the config from a TOML file.
 func Load(path string) (*Config, error) {
-	path = expandHome(path)
+	path = paths.ExpandHome(path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -214,17 +211,7 @@ func allHookEntries(cfg *Config) map[string][]HookEntry {
 }
 
 func expandPaths(cfg *Config) {
-	cfg.Settings.LogFile = expandHome(cfg.Settings.LogFile)
-	cfg.Settings.PIDFile = expandHome(cfg.Settings.PIDFile)
-	cfg.Settings.SocketFile = expandHome(cfg.Settings.SocketFile)
-}
-
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~") {
-		home, _ := os.UserHomeDir()
-
-		return filepath.Join(home, path[1:])
-	}
-
-	return path
+	cfg.Settings.LogFile = paths.ExpandHome(cfg.Settings.LogFile)
+	cfg.Settings.PIDFile = paths.ExpandHome(cfg.Settings.PIDFile)
+	cfg.Settings.SocketFile = paths.ExpandHome(cfg.Settings.SocketFile)
 }

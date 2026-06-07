@@ -3,12 +3,14 @@ package native
 /*
 #include "workspace.h"
 #include "axobserver.h"
+#include "eventkinds.h"
 */
 import "C"
 
 import (
 	"runtime"
 	"strconv"
+	"sync/atomic"
 	"time"
 
 	"github.com/google/uuid"
@@ -16,12 +18,18 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
-const eventChBufSize = 256
+const eventChBufSize = 4096
 
-var eventCh = make(chan events.Event, eventChBufSize)
+var (
+	eventCh      = make(chan events.Event, eventChBufSize)
+	eventDropped atomic.Int64
+)
 
 // Events returns a read-only channel of events from native observers.
 func Events() <-chan events.Event { return eventCh }
+
+// EventDropCount returns the number of events dropped due to channel congestion.
+func EventDropCount() int64 { return eventDropped.Load() }
 
 // ObserverConfig specifies which macOS event observers are active.
 type ObserverConfig struct {
@@ -94,23 +102,27 @@ func RemoveAXObserver(pid int) {
 	C.AXRemoveObserver(C.int(pid))
 }
 
+func trySend(evt events.Event) {
+	select {
+	case eventCh <- evt:
+	default:
+		eventDropped.Add(1)
+	}
+}
+
 //export goWorkspaceEvent
 func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 	volPath, volName *C.char,
 ) {
 	_, _ = volPath, volName
-	evt := events.Event{
+	trySend(events.Event{
 		ID:       uuid.NewString(),
 		Kind:     kindFromInt(int(kind)),
 		AppName:  C.GoString(appName),
 		BundleID: C.GoString(bundleID),
 		PID:      int(pid),
 		At:       time.Now(),
-	}
-	select {
-	case eventCh <- evt:
-	default:
-	}
+	})
 }
 
 //export goWorkspaceChangeEvent
@@ -129,15 +141,12 @@ func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
 			evt.Extra["info"] = jsonStr
 		}
 	}
-	select {
-	case eventCh <- evt:
-	default:
-	}
+	trySend(evt)
 }
 
 //export goAXEvent
 func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.char) {
-	evt := events.Event{
+	trySend(events.Event{
 		ID:          uuid.NewString(),
 		Kind:        kindFromInt(int(kind)),
 		AppName:     C.GoString(appName),
@@ -145,30 +154,32 @@ func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.
 		PID:         int(pid),
 		WindowTitle: C.GoString(windowTitle),
 		At:          time.Now(),
-	}
-	select {
-	case eventCh <- evt:
-	default:
-	}
+	})
 }
 
 func kindFromInt(kindInt int) events.EventKind {
-	kindMap := map[int]events.EventKind{
-		0:  events.AppActivate,
-		2:  events.AppLaunch,
-		3:  events.AppQuit,
-		30: events.WindowFocus,
-		31: events.WindowTitleChange,
-		32: events.WindowCreated,
-		33: events.WindowClosed,
-		34: events.WindowResizing,
-		70: events.WorkspaceChanged,
+	switch kindInt {
+	case int(C.MIMI_KIND_APP_ACTIVATE):
+		return events.AppActivate
+	case int(C.MIMI_KIND_APP_LAUNCH):
+		return events.AppLaunch
+	case int(C.MIMI_KIND_APP_QUIT):
+		return events.AppQuit
+	case int(C.MIMI_KIND_WINDOW_FOCUS):
+		return events.WindowFocus
+	case int(C.MIMI_KIND_WINDOW_TITLE_CHANGE):
+		return events.WindowTitleChange
+	case int(C.MIMI_KIND_WINDOW_CREATED):
+		return events.WindowCreated
+	case int(C.MIMI_KIND_WINDOW_CLOSED):
+		return events.WindowClosed
+	case int(C.MIMI_KIND_WINDOW_RESIZING):
+		return events.WindowResizing
+	case int(C.MIMI_KIND_WORKSPACE_CHANGED):
+		return events.WorkspaceChanged
+	default:
+		return events.EventKind("unknown")
 	}
-	if k, ok := kindMap[kindInt]; ok {
-		return k
-	}
-
-	return events.EventKind("unknown")
 }
 
 func boolToInt(b bool) C.int {

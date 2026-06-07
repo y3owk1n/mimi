@@ -2,7 +2,6 @@ package cmd
 
 import (
 	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 	"syscall"
@@ -10,6 +9,7 @@ import (
 	"github.com/spf13/cobra"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 var stopCmd = &cobra.Command{
@@ -42,7 +42,7 @@ var stopCmd = &cobra.Command{
 }
 
 func readPID(path string) (int, error) {
-	path = expandHome(path)
+	path = paths.ExpandHome(path)
 
 	data, err := os.ReadFile(path)
 	if err != nil {
@@ -50,14 +50,4 @@ func readPID(path string) (int, error) {
 	}
 
 	return strconv.Atoi(strings.TrimSpace(string(data)))
-}
-
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~") {
-		home, _ := os.UserHomeDir()
-
-		return filepath.Join(home, path[1:])
-	}
-
-	return path
 }

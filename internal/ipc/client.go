@@ -6,12 +6,11 @@ import (
 	"errors"
 	"net"
 	"os"
-	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 const dialTimeout = 100 * time.Millisecond
@@ -20,7 +19,7 @@ const dialTimeout = 100 * time.Millisecond
 // Returns CodeDaemonUnavailable when the daemon is not reachable so callers can
 // fall back to direct execution.
 func TryExecute(socketPath, action string, args []string) error {
-	socketPath = expandHome(socketPath)
+	socketPath = paths.ExpandHome(socketPath)
 
 	_, err := os.Stat(socketPath)
 	if err != nil {
@@ -75,14 +74,4 @@ func ResolveSocketPath(cliConfigPath string) string {
 	}
 
 	return cfg.Settings.SocketFile
-}
-
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~") {
-		home, _ := os.UserHomeDir()
-
-		return filepath.Join(home, path[1:])
-	}
-
-	return path
 }

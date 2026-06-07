@@ -1,0 +1,30 @@
+#pragma once
+
+// Event kind constants — single source of truth for both Go (bridge.go)
+// and Obj-C (workspace.m, axobserver.m). Keep in sync with events/types.go.
+
+#define MIMI_KIND_APP_ACTIVATE 0
+#define MIMI_KIND_APP_DEACTIVATE 1
+#define MIMI_KIND_APP_LAUNCH 2
+#define MIMI_KIND_APP_QUIT 3
+#define MIMI_KIND_APP_HIDE 4
+#define MIMI_KIND_APP_UNHIDE 5
+
+#define MIMI_KIND_WILL_SLEEP 10
+#define MIMI_KIND_DID_WAKE 11
+#define MIMI_KIND_SESSION_RESIGN 12
+#define MIMI_KIND_SESSION_BECOME 13
+#define MIMI_KIND_WILL_POWER_OFF 14
+
+#define MIMI_KIND_VOLUME_MOUNT 20
+#define MIMI_KIND_VOLUME_UNMOUNT 21
+
+#define MIMI_KIND_APPEARANCE_CHANGED 42
+
+#define MIMI_KIND_WINDOW_FOCUS 30
+#define MIMI_KIND_WINDOW_TITLE_CHANGE 31
+#define MIMI_KIND_WINDOW_CREATED 32
+#define MIMI_KIND_WINDOW_CLOSED 33
+#define MIMI_KIND_WINDOW_RESIZING 34
+
+#define MIMI_KIND_WORKSPACE_CHANGED 70

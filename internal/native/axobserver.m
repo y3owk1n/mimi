@@ -1,6 +1,7 @@
 #import "axobserver.h"
 
 #include "_cgo_export.h"
+#import "eventkinds.h"
 #import "workspace.h"
 
 #import <ApplicationServices/ApplicationServices.h>
@@ -34,15 +35,15 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 
 		int kind = -1;
 		if (CFEqual(notification, kAXFocusedWindowChangedNotification))
-			kind = 30;
+			kind = MIMI_KIND_WINDOW_FOCUS;
 		else if (CFEqual(notification, kAXTitleChangedNotification))
-			kind = 31;
+			kind = MIMI_KIND_WINDOW_TITLE_CHANGE;
 		else if (CFEqual(notification, kAXWindowCreatedNotification))
-			kind = 32;
+			kind = MIMI_KIND_WINDOW_CREATED;
 		else if (CFEqual(notification, kAXUIElementDestroyedNotification))
-			kind = 33;
+			kind = MIMI_KIND_WINDOW_CLOSED;
 		else if (CFEqual(notification, kAXWindowResizedNotification))
-			kind = 34;
+			kind = MIMI_KIND_WINDOW_RESIZING;
 
 		if (kind >= 0) {
 			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];

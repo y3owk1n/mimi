@@ -218,17 +218,6 @@ func installService() error {
 		return fmt.Errorf("failed to expand LaunchAgents path: %w", err)
 	}
 
-	expandedPlist := filepath.Join(expandedDir, serviceLabel+".plist")
-
-	_, statErr := os.Stat(expandedPlist)
-	if statErr == nil {
-		return fmt.Errorf(
-			"%w at %s; remove it manually or uninstall first",
-			errPlistAlreadyExists,
-			expandedPlist,
-		)
-	}
-
 	const dirPerm = 0o755
 
 	err = os.MkdirAll(expandedDir, dirPerm)
@@ -236,11 +225,35 @@ func installService() error {
 		return fmt.Errorf("failed to create LaunchAgents directory: %w", err)
 	}
 
+	expandedPlist := filepath.Join(expandedDir, serviceLabel+".plist")
+
 	const filePerm = 0o644
 
-	err = os.WriteFile(expandedPlist, []byte(plistContent), filePerm)
+	// Use O_EXCL to atomically create the file, avoiding TOCTOU between Stat and WriteFile.
+	plistFile, err := os.OpenFile(expandedPlist, os.O_WRONLY|os.O_CREATE|os.O_EXCL, filePerm)
 	if err != nil {
+		if os.IsExist(err) {
+			return fmt.Errorf(
+				"%w at %s; remove it manually or uninstall first",
+				errPlistAlreadyExists,
+				expandedPlist,
+			)
+		}
+
+		return fmt.Errorf("failed to create plist: %w", err)
+	}
+
+	_, err = plistFile.WriteString(plistContent)
+	if err != nil {
+		_ = plistFile.Close()
+		_ = os.Remove(expandedPlist)
+
 		return fmt.Errorf("failed to write plist: %w", err)
+	}
+
+	err = plistFile.Close()
+	if err != nil {
+		return fmt.Errorf("failed to close plist: %w", err)
 	}
 
 	currentUser, err := user.Current()

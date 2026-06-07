@@ -107,13 +107,23 @@ func (r *Router) debounceResize(evt events.Event) {
 	}
 
 	if rState, ok := r.timers[key]; ok {
-		rState.timer.Stop()
-		rState.evt = evt
-		rState.timer.Reset(resizeDebounceDuration)
+		if rState.timer.Stop() {
+			rState.evt = evt
+			rState.timer.Reset(resizeDebounceDuration)
 
-		return
+			return
+		}
+
+		// Timer already fired — create a fresh entry to avoid resetting
+		// an AfterFunc timer whose callback may still be running.
+		delete(r.timers, key)
 	}
 
+	rState := r.newDebounceEntry(key, evt)
+	r.timers[key] = rState
+}
+
+func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 	rState := &resizeState{evt: evt}
 	rState.timer = time.AfterFunc(resizeDebounceDuration, func() {
 		r.mu.Lock()
@@ -148,7 +158,8 @@ func (r *Router) debounceResize(evt events.Event) {
 		)
 		r.bus.Publish(resizeEvt)
 	})
-	r.timers[key] = rState
+
+	return rState
 }
 
 func (r *Router) cancelTimersForPID(pid int) {
