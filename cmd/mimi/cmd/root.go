@@ -22,9 +22,11 @@ var (
 // RootCmd is the root cobra command for the mimi CLI.
 var RootCmd = &cobra.Command{
 	Use:   "mimi",
-	Short: "macOS event daemon — run hooks on system events",
-	Long: `mimi listens to macOS system events (app focus, sleep/wake, volume mount, etc.)
-and executes shell commands you define in ~/.config/mimi/config.toml.`,
+	Short: "macOS window and space utility",
+	Long: `mimi provides macOS-native window and space management without disabling SIP.
+
+Use "mimi action" for immediate commands (focus window, switch space, move window).
+Use "mimi start" to run the background daemon and react to window/space events via hooks.`,
 	PersistentPreRun: func(cmd *cobra.Command, args []string) {
 		configPath = config.ResolvePath(configPath)
 	},
@@ -36,7 +38,6 @@ func Execute() error {
 }
 
 func init() {
-	// Set version info right before execution, not at init time
 	RootCmd.Version = Version
 	RootCmd.SetVersionTemplate(
 		fmt.Sprintf(
@@ -55,8 +56,7 @@ func init() {
 	RootCmd.AddCommand(startCmd)
 	RootCmd.AddCommand(stopCmd)
 	RootCmd.AddCommand(statusCmd)
-	RootCmd.AddCommand(eventsCmd)
-	RootCmd.AddCommand(testCmd)
 	RootCmd.AddCommand(configCmd)
 	RootCmd.AddCommand(servicesCmd)
+	RootCmd.AddCommand(actionCmd)
 }

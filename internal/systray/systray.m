@@ -202,8 +202,7 @@ int MimiGetActiveWorkspaceNumber(void) {
 		typedef uint64_t (*SLSGetActiveSpaceFunc)(int);
 		typedef CFArrayRef (*SLSCopyManagedDisplaySpacesFunc)(int);
 
-		SLSMainConnectionIDFunc SLSMainConnectionID =
-		    (SLSMainConnectionIDFunc)dlsym(skyLight, "SLSMainConnectionID");
+		SLSMainConnectionIDFunc SLSMainConnectionID = (SLSMainConnectionIDFunc)dlsym(skyLight, "SLSMainConnectionID");
 		if (!SLSMainConnectionID) {
 			SLSMainConnectionID = (SLSMainConnectionIDFunc)dlsym(skyLight, "CGSMainConnectionID");
 		}

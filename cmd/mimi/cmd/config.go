@@ -123,25 +123,12 @@ func init() {
 func countHooks(cfg *config.Config) int {
 	count := 0
 	for _, entries := range [][]config.HookEntry{
-		cfg.Hooks.AppActivate, cfg.Hooks.AppDeactivate,
-		cfg.Hooks.AppLaunch, cfg.Hooks.AppQuit,
-		cfg.Hooks.AppHide, cfg.Hooks.AppUnhide,
-		cfg.Hooks.WindowFocus, cfg.Hooks.WindowTitleChange,
-		cfg.Hooks.WindowCreated, cfg.Hooks.WindowClosed,
+		cfg.Hooks.WindowFocus,
+		cfg.Hooks.WindowTitleChange,
+		cfg.Hooks.WindowCreated,
+		cfg.Hooks.WindowClosed,
 		cfg.Hooks.WindowResize,
-		cfg.Hooks.SystemSleep, cfg.Hooks.SystemWake,
-		cfg.Hooks.ScreenLock, cfg.Hooks.ScreenUnlock,
-		cfg.Hooks.SystemShutdown, cfg.Hooks.UserSessionEnd,
-		cfg.Hooks.VolumeMount, cfg.Hooks.VolumeUnmount,
-		cfg.Hooks.ExternalDisplayConnected, cfg.Hooks.ExternalDisplayDisconnected,
-		cfg.Hooks.AppearanceChanged,
-		cfg.Hooks.PowerAdapterConnected, cfg.Hooks.PowerAdapterDisconnected,
-		cfg.Hooks.BatteryLow, cfg.Hooks.BatteryCritical,
-		cfg.Hooks.AudioDeviceChanged,
 		cfg.Hooks.WorkspaceChanged,
-		cfg.Hooks.USBDeviceConnected, cfg.Hooks.USBDeviceDisconnected,
-		cfg.Hooks.NetworkUp, cfg.Hooks.NetworkDown,
-		cfg.Hooks.ClipboardChanged,
 	} {
 		count += len(entries)
 	}

@@ -4,9 +4,13 @@
 
 ### CGO and Go Files
 
-Native bridge implementations belong in `.m` / `.h` files under `internal/observers/cgo_bridge/`, not in Go CGO comment blocks.
+Native implementations belong in `.m` / `.h` files:
 
-Go files in `internal/observers/cgo_bridge/` use a minimal CGO preamble (`#include` headers, `#cgo` flags, and `extern` declarations for `//export` callbacks only).
+- `internal/native/` — window/space action APIs and hook daemon observers (SkyLight, Accessibility, workspace, AX)
+- `internal/systray/` — menu bar UI
+- `internal/permissions/` — accessibility permission prompts
+
+Go files use a minimal CGO preamble (`#include` headers, `#cgo` flags, and `extern` declarations for `//export` callbacks only).
 
 Bridge `.m` files must `#include` their matching header and must **not** re-declare structs or typedefs already defined in that header (duplicate definitions cause `conflicting types` errors when CGO includes the same header).
 

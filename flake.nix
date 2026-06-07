@@ -1,5 +1,5 @@
 {
-  description = "Listen to macOS system events and react";
+  description = "macOS window and space utility";
 
   inputs = {
     nixpkgs.url = "github:NixOS/nixpkgs/nixos-unstable";

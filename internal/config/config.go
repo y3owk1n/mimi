@@ -31,41 +31,14 @@ type SystrayConfig struct {
 	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
 }
 
-// HooksConfig holds all hook entries grouped by event kind.
+// HooksConfig holds window and workspace hook entries.
 type HooksConfig struct {
-	AppActivate                 []HookEntry `json:"onAppActivate"                 toml:"on_app_activate"`
-	AppDeactivate               []HookEntry `json:"onAppDeactivate"               toml:"on_app_deactivate"`
-	AppLaunch                   []HookEntry `json:"onAppLaunch"                   toml:"on_app_launch"`
-	AppQuit                     []HookEntry `json:"onAppQuit"                     toml:"on_app_quit"`
-	AppHide                     []HookEntry `json:"onAppHide"                     toml:"on_app_hide"`
-	AppUnhide                   []HookEntry `json:"onAppUnhide"                   toml:"on_app_unhide"`
-	WindowFocus                 []HookEntry `json:"onWindowFocus"                 toml:"on_window_focus"`
-	WindowTitleChange           []HookEntry `json:"onWindowTitleChange"           toml:"on_window_title_change"`
-	WindowCreated               []HookEntry `json:"onWindowCreated"               toml:"on_window_created"`
-	WindowClosed                []HookEntry `json:"onWindowClosed"                toml:"on_window_closed"`
-	WindowResize                []HookEntry `json:"onWindowResize"                toml:"on_window_resize"`
-	SystemSleep                 []HookEntry `json:"onSystemSleep"                 toml:"on_system_sleep"`
-	SystemWake                  []HookEntry `json:"onSystemWake"                  toml:"on_system_wake"`
-	ScreenLock                  []HookEntry `json:"onScreenLock"                  toml:"on_screen_lock"`
-	ScreenUnlock                []HookEntry `json:"onScreenUnlock"                toml:"on_screen_unlock"`
-	SystemShutdown              []HookEntry `json:"onSystemShutdown"              toml:"on_system_shutdown"`
-	UserSessionEnd              []HookEntry `json:"onUserSessionEnd"              toml:"on_user_session_end"`
-	VolumeMount                 []HookEntry `json:"onVolumeMount"                 toml:"on_volume_mount"`
-	VolumeUnmount               []HookEntry `json:"onVolumeUnmount"               toml:"on_volume_unmount"`
-	ExternalDisplayConnected    []HookEntry `json:"onExternalDisplayConnected"    toml:"on_external_display_connected"`
-	ExternalDisplayDisconnected []HookEntry `json:"onExternalDisplayDisconnected" toml:"on_external_display_disconnected"`
-	AppearanceChanged           []HookEntry `json:"onAppearanceChanged"           toml:"on_appearance_changed"`
-	PowerAdapterConnected       []HookEntry `json:"onPowerAdapterConnected"       toml:"on_power_adapter_connected"`
-	PowerAdapterDisconnected    []HookEntry `json:"onPowerAdapterDisconnected"    toml:"on_power_adapter_disconnected"`
-	BatteryLow                  []HookEntry `json:"onBatteryLow"                  toml:"on_battery_low"`
-	BatteryCritical             []HookEntry `json:"onBatteryCritical"             toml:"on_battery_critical"`
-	AudioDeviceChanged          []HookEntry `json:"onAudioDeviceChanged"          toml:"on_audio_device_changed"`
-	WorkspaceChanged            []HookEntry `json:"onWorkspaceChanged"            toml:"on_workspace_changed"`
-	USBDeviceConnected          []HookEntry `json:"onUsbDeviceConnected"          toml:"on_usb_device_connected"`
-	USBDeviceDisconnected       []HookEntry `json:"onUsbDeviceDisconnected"       toml:"on_usb_device_disconnected"`
-	NetworkUp                   []HookEntry `json:"onNetworkUp"                   toml:"on_network_up"`
-	NetworkDown                 []HookEntry `json:"onNetworkDown"                 toml:"on_network_down"`
-	ClipboardChanged            []HookEntry `json:"onClipboardChanged"            toml:"on_clipboard_changed"`
+	WindowFocus       []HookEntry `json:"onWindowFocus"       toml:"on_window_focus"`
+	WindowTitleChange []HookEntry `json:"onWindowTitleChange" toml:"on_window_title_change"`
+	WindowCreated     []HookEntry `json:"onWindowCreated"     toml:"on_window_created"`
+	WindowClosed      []HookEntry `json:"onWindowClosed"      toml:"on_window_closed"`
+	WindowResize      []HookEntry `json:"onWindowResize"      toml:"on_window_resize"`
+	WorkspaceChanged  []HookEntry `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
 }
 
 // HookEntry defines a single hook command and its optional filters.
@@ -79,39 +52,12 @@ type HookEntry struct {
 }
 
 type rawHooksConfig struct {
-	AppActivate                 []any `json:"onAppActivate"                 toml:"on_app_activate"`
-	AppDeactivate               []any `json:"onAppDeactivate"               toml:"on_app_deactivate"`
-	AppLaunch                   []any `json:"onAppLaunch"                   toml:"on_app_launch"`
-	AppQuit                     []any `json:"onAppQuit"                     toml:"on_app_quit"`
-	AppHide                     []any `json:"onAppHide"                     toml:"on_app_hide"`
-	AppUnhide                   []any `json:"onAppUnhide"                   toml:"on_app_unhide"`
-	WindowFocus                 []any `json:"onWindowFocus"                 toml:"on_window_focus"`
-	WindowTitleChange           []any `json:"onWindowTitleChange"           toml:"on_window_title_change"`
-	WindowCreated               []any `json:"onWindowCreated"               toml:"on_window_created"`
-	WindowClosed                []any `json:"onWindowClosed"                toml:"on_window_closed"`
-	WindowResize                []any `json:"onWindowResize"                toml:"on_window_resize"`
-	SystemSleep                 []any `json:"onSystemSleep"                 toml:"on_system_sleep"`
-	SystemWake                  []any `json:"onSystemWake"                  toml:"on_system_wake"`
-	ScreenLock                  []any `json:"onScreenLock"                  toml:"on_screen_lock"`
-	ScreenUnlock                []any `json:"onScreenUnlock"                toml:"on_screen_unlock"`
-	SystemShutdown              []any `json:"onSystemShutdown"              toml:"on_system_shutdown"`
-	UserSessionEnd              []any `json:"onUserSessionEnd"              toml:"on_user_session_end"`
-	VolumeMount                 []any `json:"onVolumeMount"                 toml:"on_volume_mount"`
-	VolumeUnmount               []any `json:"onVolumeUnmount"               toml:"on_volume_unmount"`
-	ExternalDisplayConnected    []any `json:"onExternalDisplayConnected"    toml:"on_external_display_connected"`
-	ExternalDisplayDisconnected []any `json:"onExternalDisplayDisconnected" toml:"on_external_display_disconnected"`
-	AppearanceChanged           []any `json:"onAppearanceChanged"           toml:"on_appearance_changed"`
-	PowerAdapterConnected       []any `json:"onPowerAdapterConnected"       toml:"on_power_adapter_connected"`
-	PowerAdapterDisconnected    []any `json:"onPowerAdapterDisconnected"    toml:"on_power_adapter_disconnected"`
-	BatteryLow                  []any `json:"onBatteryLow"                  toml:"on_battery_low"`
-	BatteryCritical             []any `json:"onBatteryCritical"             toml:"on_battery_critical"`
-	AudioDeviceChanged          []any `json:"onAudioDeviceChanged"          toml:"on_audio_device_changed"`
-	WorkspaceChanged            []any `json:"onWorkspaceChanged"            toml:"on_workspace_changed"`
-	USBDeviceConnected          []any `json:"onUsbDeviceConnected"          toml:"on_usb_device_connected"`
-	USBDeviceDisconnected       []any `json:"onUsbDeviceDisconnected"       toml:"on_usb_device_disconnected"`
-	NetworkUp                   []any `json:"onNetworkUp"                   toml:"on_network_up"`
-	NetworkDown                 []any `json:"onNetworkDown"                 toml:"on_network_down"`
-	ClipboardChanged            []any `json:"onClipboardChanged"            toml:"on_clipboard_changed"`
+	WindowFocus       []any `json:"onWindowFocus"       toml:"on_window_focus"`
+	WindowTitleChange []any `json:"onWindowTitleChange" toml:"on_window_title_change"`
+	WindowCreated     []any `json:"onWindowCreated"     toml:"on_window_created"`
+	WindowClosed      []any `json:"onWindowClosed"      toml:"on_window_closed"`
+	WindowResize      []any `json:"onWindowResize"      toml:"on_window_resize"`
+	WorkspaceChanged  []any `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
 }
 
 type rawConfig struct {
@@ -168,54 +114,12 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 		return entries
 	}
 
-	hooksCfg.AppActivate = decodeField("on_app_activate", raw.AppActivate)
-	hooksCfg.AppDeactivate = decodeField("on_app_deactivate", raw.AppDeactivate)
-	hooksCfg.AppLaunch = decodeField("on_app_launch", raw.AppLaunch)
-	hooksCfg.AppQuit = decodeField("on_app_quit", raw.AppQuit)
-	hooksCfg.AppHide = decodeField("on_app_hide", raw.AppHide)
-	hooksCfg.AppUnhide = decodeField("on_app_unhide", raw.AppUnhide)
 	hooksCfg.WindowFocus = decodeField("on_window_focus", raw.WindowFocus)
 	hooksCfg.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
 	hooksCfg.WindowCreated = decodeField("on_window_created", raw.WindowCreated)
 	hooksCfg.WindowClosed = decodeField("on_window_closed", raw.WindowClosed)
 	hooksCfg.WindowResize = decodeField("on_window_resize", raw.WindowResize)
-	hooksCfg.SystemSleep = decodeField("on_system_sleep", raw.SystemSleep)
-	hooksCfg.SystemWake = decodeField("on_system_wake", raw.SystemWake)
-	hooksCfg.ScreenLock = decodeField("on_screen_lock", raw.ScreenLock)
-	hooksCfg.ScreenUnlock = decodeField("on_screen_unlock", raw.ScreenUnlock)
-	hooksCfg.SystemShutdown = decodeField("on_system_shutdown", raw.SystemShutdown)
-	hooksCfg.UserSessionEnd = decodeField("on_user_session_end", raw.UserSessionEnd)
-	hooksCfg.VolumeMount = decodeField("on_volume_mount", raw.VolumeMount)
-	hooksCfg.VolumeUnmount = decodeField("on_volume_unmount", raw.VolumeUnmount)
-	hooksCfg.ExternalDisplayConnected = decodeField(
-		"on_external_display_connected",
-		raw.ExternalDisplayConnected,
-	)
-	hooksCfg.ExternalDisplayDisconnected = decodeField(
-		"on_external_display_disconnected",
-		raw.ExternalDisplayDisconnected,
-	)
-	hooksCfg.AppearanceChanged = decodeField("on_appearance_changed", raw.AppearanceChanged)
-	hooksCfg.PowerAdapterConnected = decodeField(
-		"on_power_adapter_connected",
-		raw.PowerAdapterConnected,
-	)
-	hooksCfg.PowerAdapterDisconnected = decodeField(
-		"on_power_adapter_disconnected",
-		raw.PowerAdapterDisconnected,
-	)
-	hooksCfg.BatteryLow = decodeField("on_battery_low", raw.BatteryLow)
-	hooksCfg.BatteryCritical = decodeField("on_battery_critical", raw.BatteryCritical)
-	hooksCfg.AudioDeviceChanged = decodeField("on_audio_device_changed", raw.AudioDeviceChanged)
 	hooksCfg.WorkspaceChanged = decodeField("on_workspace_changed", raw.WorkspaceChanged)
-	hooksCfg.USBDeviceConnected = decodeField("on_usb_device_connected", raw.USBDeviceConnected)
-	hooksCfg.USBDeviceDisconnected = decodeField(
-		"on_usb_device_disconnected",
-		raw.USBDeviceDisconnected,
-	)
-	hooksCfg.NetworkUp = decodeField("on_network_up", raw.NetworkUp)
-	hooksCfg.NetworkDown = decodeField("on_network_down", raw.NetworkDown)
-	hooksCfg.ClipboardChanged = decodeField("on_clipboard_changed", raw.ClipboardChanged)
 
 	if len(errs) > 0 {
 		return hooksCfg, derrors.Newf(

@@ -99,7 +99,7 @@ if useZip then
     };
 
     meta = with lib; {
-      description = "Listen to macOS system events and react";
+      description = "macOS window and space utility";
       homepage = "https://github.com/y3owk1n/mimi";
       license = licenses.mit;
       platforms = platforms.darwin;
@@ -179,7 +179,7 @@ else
     };
 
     meta = with lib; {
-      description = "Listen to macOS system events and react";
+      description = "macOS window and space utility";
       homepage = "https://github.com/y3owk1n/mimi";
       license = licenses.mit;
       platforms = platforms.darwin;

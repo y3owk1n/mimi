@@ -1,2 +1,2 @@
-// Package daemon manages the mimi background daemon lifecycle.
+// Package daemon runs the mimi hook daemon for window and workspace events.
 package daemon

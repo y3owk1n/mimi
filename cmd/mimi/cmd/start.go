@@ -12,7 +12,7 @@ import (
 
 var startCmd = &cobra.Command{
 	Use:   "start",
-	Short: "Start the mimi daemon",
+	Short: "Start the mimi hook daemon for window and space events",
 	RunE: func(cmd *cobra.Command, args []string) error {
 		if !config.Exists(configPath) {
 			choice := permissions.ShowConfigOnboardingAlert(configPath)

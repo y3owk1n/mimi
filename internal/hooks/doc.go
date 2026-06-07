@@ -1,2 +1,2 @@
-// Package hooks provides event-driven shell command execution.
+// Package hooks executes shell commands in response to window and workspace events.
 package hooks
