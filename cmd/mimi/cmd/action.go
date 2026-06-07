@@ -56,7 +56,7 @@ current space are included.`,
 				args = append(args, "--backward")
 			}
 
-			return action.Execute(string(action.NameFocusWindow), args)
+			return runAction(string(action.NameFocusWindow), args)
 		},
 	}
 
@@ -87,7 +87,7 @@ Examples:
   mimi action space 3     Focus the third`,
 		Args: validateActionSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return action.Execute(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
+			return runAction(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
 		},
 	}
 }
@@ -109,7 +109,7 @@ Examples:
   mimi action move_window_to_space 4     Move current window to space 4`,
 		Args: validateActionMoveWindowToSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return action.Execute(
+			return runAction(
 				string(action.NameMoveWindowToSpace),
 				[]string{strings.TrimSpace(args[0])},
 			)

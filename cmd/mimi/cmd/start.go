@@ -39,3 +39,7 @@ var startCmd = &cobra.Command{
 		return daemon.Run(cfg, logger, configPath, Version)
 	},
 }
+
+func init() {
+	addConfigPreRun(startCmd)
+}

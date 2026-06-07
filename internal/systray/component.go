@@ -4,7 +4,6 @@ import (
 	"context"
 	"os/exec"
 	"strconv"
-	"time"
 
 	"go.uber.org/zap"
 )
@@ -77,17 +76,25 @@ func (c *Component) OnReady() {
 	go c.handleEvents()
 
 	if c.showWorkspaceNumber {
-		go c.handleTitleUpdates()
+		StartWorkspaceTitleObserver()
 	}
 }
 
 // OnExit stops menu event handling.
 func (c *Component) OnExit() {
+	if c.showWorkspaceNumber {
+		StopWorkspaceTitleObserver()
+	}
+
 	c.cancel()
 }
 
 // Close stops menu event handling.
 func (c *Component) Close() {
+	if c.showWorkspaceNumber {
+		StopWorkspaceTitleObserver()
+	}
+
 	c.cancel()
 }
 
@@ -113,36 +120,6 @@ func (c *Component) handleEvents() {
 			c.quit()
 
 			return
-		}
-	}
-}
-
-func (c *Component) handleTitleUpdates() {
-	if !c.showWorkspaceNumber {
-		return
-	}
-
-	ticker := time.NewTicker(500 * time.Millisecond) //nolint:mnd
-	defer ticker.Stop()
-
-	last := ""
-	for {
-		select {
-		case <-c.ctx.Done():
-			return
-		case <-ticker.C:
-			n := ActiveWorkspaceNumber()
-			if n >= 0 {
-				title := strconv.Itoa(n + 1)
-				if title != last {
-					SetTitle(title)
-					last = title
-				}
-			} else if last != "M" {
-				SetTitle("M")
-
-				last = "M"
-			}
 		}
 	}
 }

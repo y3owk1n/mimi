@@ -16,6 +16,12 @@ import (
 // DefaultConfigPath is the default path for the mimi config file.
 const DefaultConfigPath = "~/.config/mimi/config.toml"
 
+// DefaultPIDPath is the default path for the mimi PID file.
+const DefaultPIDPath = "~/.local/share/mimi/mimi.pid"
+
+// DefaultSocketPath is the default Unix socket path for daemon IPC.
+const DefaultSocketPath = "~/.local/share/mimi/mimi.sock"
+
 // Exists returns true if the config file exists.
 func Exists(path string) bool {
 	_, err := os.Stat(expandHome(path))
@@ -158,6 +164,10 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		settings.PIDFile = "~/.local/share/mimi/mimi.pid"
 	}
 
+	if settings.SocketFile == "" {
+		settings.SocketFile = DefaultSocketPath
+	}
+
 	if !systrayEnabledSet {
 		cfg.Systray.Enabled = true
 	}
@@ -206,6 +216,7 @@ func allHookEntries(cfg *Config) map[string][]HookEntry {
 func expandPaths(cfg *Config) {
 	cfg.Settings.LogFile = expandHome(cfg.Settings.LogFile)
 	cfg.Settings.PIDFile = expandHome(cfg.Settings.PIDFile)
+	cfg.Settings.SocketFile = expandHome(cfg.Settings.SocketFile)
 }
 
 func expandHome(path string) string {

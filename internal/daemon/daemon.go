@@ -15,6 +15,7 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
+	"github.com/y3owk1n/mimi/internal/ipc"
 	"github.com/y3owk1n/mimi/internal/logging"
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
@@ -163,6 +164,14 @@ func runCore(
 		logger.Info("hooks reloaded from config")
 	}, logger)
 	go func() { _ = watcher.Run(ctx) }()
+
+	ipcServer := ipc.NewServer(cfg.Settings.SocketFile)
+	go func() {
+		err := ipcServer.Run(ctx)
+		if err != nil && ctx.Err() == nil {
+			logger.Warnw("IPC server stopped", "err", err)
+		}
+	}()
 
 	sigCh := make(chan os.Signal, 1)
 

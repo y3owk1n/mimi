@@ -46,6 +46,12 @@ const (
 	// CodeBridgeFailed indicates a failure in native bridge interactions.
 	CodeBridgeFailed Code = "BRIDGE_FAILED"
 
+	// CodeDaemonUnavailable indicates the daemon is not running or unreachable.
+	CodeDaemonUnavailable Code = "DAEMON_UNAVAILABLE"
+
+	// CodeIPCFailed indicates a failure in IPC communication.
+	CodeIPCFailed Code = "IPCF_FAILED"
+
 	// CodeNotSupported indicates the operation is not supported on the current platform.
 	// Use this in stub implementations so callers can distinguish "not implemented yet"
 	// from "actually failed". Example:
