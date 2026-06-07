@@ -48,7 +48,6 @@ func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 }
 
 // Matches checks whether a hook's filters (app, bundle_id, title) match an event.
-// Returns a boolean indicating match status and a string with the mismatch reason if applicable.
 func (h *Hook) Matches(evt events.Event) (bool, string) {
 	if h.Entry.App != "" {
 		if !globMatch(h.Entry.App, evt.AppName) {
@@ -70,44 +69,17 @@ func (h *Hook) Matches(evt events.Event) (bool, string) {
 func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 	hookMap := make(map[events.EventKind][]Hook)
 	entries := map[events.EventKind][]config.HookEntry{
-		events.AppActivate:                 cfg.Hooks.AppActivate,
-		events.AppDeactivate:               cfg.Hooks.AppDeactivate,
-		events.AppLaunch:                   cfg.Hooks.AppLaunch,
-		events.AppQuit:                     cfg.Hooks.AppQuit,
-		events.AppHide:                     cfg.Hooks.AppHide,
-		events.AppUnhide:                   cfg.Hooks.AppUnhide,
-		events.WindowFocus:                 cfg.Hooks.WindowFocus,
-		events.WindowTitleChange:           cfg.Hooks.WindowTitleChange,
-		events.WindowCreated:               cfg.Hooks.WindowCreated,
-		events.WindowClosed:                cfg.Hooks.WindowClosed,
-		events.WindowResize:                cfg.Hooks.WindowResize,
-		events.SystemSleep:                 cfg.Hooks.SystemSleep,
-		events.SystemWake:                  cfg.Hooks.SystemWake,
-		events.ScreenLock:                  cfg.Hooks.ScreenLock,
-		events.ScreenUnlock:                cfg.Hooks.ScreenUnlock,
-		events.SystemShutdown:              cfg.Hooks.SystemShutdown,
-		events.UserSessionEnd:              cfg.Hooks.UserSessionEnd,
-		events.VolumeMount:                 cfg.Hooks.VolumeMount,
-		events.VolumeUnmount:               cfg.Hooks.VolumeUnmount,
-		events.ExternalDisplayConnected:    cfg.Hooks.ExternalDisplayConnected,
-		events.ExternalDisplayDisconnected: cfg.Hooks.ExternalDisplayDisconnected,
-		events.AppearanceChanged:           cfg.Hooks.AppearanceChanged,
-		events.PowerAdapterConnected:       cfg.Hooks.PowerAdapterConnected,
-		events.PowerAdapterDisconnected:    cfg.Hooks.PowerAdapterDisconnected,
-		events.BatteryLow:                  cfg.Hooks.BatteryLow,
-		events.BatteryCritical:             cfg.Hooks.BatteryCritical,
-		events.AudioDeviceChanged:          cfg.Hooks.AudioDeviceChanged,
-		events.WorkspaceChanged:            cfg.Hooks.WorkspaceChanged,
-		events.USBDeviceConnected:          cfg.Hooks.USBDeviceConnected,
-		events.USBDeviceDisconnected:       cfg.Hooks.USBDeviceDisconnected,
-		events.NetworkUp:                   cfg.Hooks.NetworkUp,
-		events.NetworkDown:                 cfg.Hooks.NetworkDown,
-		events.ClipboardChanged:            cfg.Hooks.ClipboardChanged,
+		events.WindowFocus:       cfg.Hooks.WindowFocus,
+		events.WindowTitleChange: cfg.Hooks.WindowTitleChange,
+		events.WindowCreated:     cfg.Hooks.WindowCreated,
+		events.WindowClosed:      cfg.Hooks.WindowClosed,
+		events.WindowResize:      cfg.Hooks.WindowResize,
+		events.WorkspaceChanged:  cfg.Hooks.WorkspaceChanged,
 	}
 
-	for kind, entries := range entries {
+	for kind, hookEntries := range entries {
 		var hooks []Hook
-		for _, e := range entries {
+		for _, e := range hookEntries {
 			hook := Hook{Entry: e}
 			if e.Title != "" {
 				re, err := regexp.Compile(e.Title)
@@ -130,14 +102,10 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 }
 
 func globMatch(pattern, str string) bool {
-	if pattern == "" {
+	if pattern == "" || pattern == "*" {
 		return true
 	}
 
-	if pattern == "*" {
-		return true
-	}
-	// Simple glob: support * wildcard
 	re := regexp.QuoteMeta(pattern)
 	re = stringsReplaceAll(re, "\\*", ".*")
 	matched, _ := regexp.MatchString("^"+re+"$", str)

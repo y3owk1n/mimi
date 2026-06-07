@@ -28,28 +28,10 @@ func TestHasWindowEvents(t *testing.T) {
 			expected: true,
 		},
 		{
-			name: "window created only",
+			name: "workspace only",
 			cfg: &config.Config{
 				Hooks: config.HooksConfig{
-					WindowCreated: []config.HookEntry{{Run: "echo"}},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "window resize only",
-			cfg: &config.Config{
-				Hooks: config.HooksConfig{
-					WindowResize: []config.HookEntry{{Run: "echo"}},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "app activate only",
-			cfg: &config.Config{
-				Hooks: config.HooksConfig{
-					AppActivate: []config.HookEntry{{Run: "echo"}},
+					WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
 				},
 			},
 			expected: false,
@@ -69,134 +51,36 @@ func TestHasWindowEvents(t *testing.T) {
 func TestGetObserverConfig(t *testing.T) {
 	cfg := &config.Config{
 		Hooks: config.HooksConfig{
-			AppActivate:              []config.HookEntry{{Run: "echo"}},
-			AudioDeviceChanged:       []config.HookEntry{{Run: "echo"}},
-			BatteryLow:               []config.HookEntry{{Run: "echo"}},
-			ClipboardChanged:         []config.HookEntry{{Run: "echo"}},
-			USBDeviceConnected:       []config.HookEntry{{Run: "echo"}},
-			NetworkUp:                []config.HookEntry{{Run: "echo"}},
-			VolumeMount:              []config.HookEntry{{Run: "echo"}},
-			WorkspaceChanged:         []config.HookEntry{{Run: "echo"}},
-			AppearanceChanged:        []config.HookEntry{{Run: "echo"}},
-			ExternalDisplayConnected: []config.HookEntry{{Run: "echo"}},
-			SystemSleep:              []config.HookEntry{{Run: "echo"}},
+			WindowFocus:      []config.HookEntry{{Run: "echo"}},
+			WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
 		},
 	}
 
 	obs := getObserverConfig(cfg)
 
 	if !obs.AppLifecycle {
-		t.Error("expected AppLifecycle to be true")
-	}
-
-	if !obs.Audio {
-		t.Error("expected Audio to be true")
-	}
-
-	if !obs.Power {
-		t.Error("expected Power to be true")
-	}
-
-	if !obs.Clipboard {
-		t.Error("expected Clipboard to be true")
-	}
-
-	if !obs.USB {
-		t.Error("expected USB to be true")
-	}
-
-	if !obs.Network {
-		t.Error("expected Network to be true")
-	}
-
-	if !obs.Volume {
-		t.Error("expected Volume to be true")
+		t.Error("expected AppLifecycle to be true when window hooks are configured")
 	}
 
 	if !obs.Workspace {
-		t.Error("expected Workspace to be true")
+		t.Error("expected Workspace to be true when workspace hooks are configured")
 	}
 
-	if !obs.Appearance {
-		t.Error("expected Appearance to be true")
+	emptyObs := getObserverConfig(&config.Config{})
+	if emptyObs.AppLifecycle || emptyObs.Workspace {
+		t.Errorf("expected all observers disabled on empty config, got: %+v", emptyObs)
 	}
 
-	if !obs.Display {
-		t.Error("expected Display to be true")
-	}
-
-	if !obs.SystemState {
-		t.Error("expected SystemState to be true")
-	}
-
-	// Empty config case
-	emptyCfg := &config.Config{}
-
-	emptyObs := getObserverConfig(emptyCfg)
-	if emptyObs.AppLifecycle ||
-		emptyObs.Audio ||
-		emptyObs.Power ||
-		emptyObs.Clipboard ||
-		emptyObs.USB ||
-		emptyObs.Network ||
-		emptyObs.Volume ||
-		emptyObs.Workspace ||
-		emptyObs.Appearance ||
-		emptyObs.Display ||
-		emptyObs.SystemState {
-		t.Errorf("expected all observers to be disabled on empty config, got: %+v", emptyObs)
-	}
-
-	// Window events only case
-	windowOnlyCfg := &config.Config{
+	workspaceOnlyObs := getObserverConfig(&config.Config{
 		Hooks: config.HooksConfig{
-			WindowFocus: []config.HookEntry{{Run: "echo"}},
+			WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
 		},
+	})
+	if workspaceOnlyObs.AppLifecycle {
+		t.Error("expected AppLifecycle disabled for workspace-only config")
 	}
 
-	windowOnlyObs := getObserverConfig(windowOnlyCfg)
-	if !windowOnlyObs.AppLifecycle {
-		t.Error("expected AppLifecycle to be enabled when WindowFocus is configured")
-	}
-
-	if windowOnlyObs.Audio ||
-		windowOnlyObs.Power ||
-		windowOnlyObs.Clipboard ||
-		windowOnlyObs.USB ||
-		windowOnlyObs.Network ||
-		windowOnlyObs.Volume ||
-		windowOnlyObs.Workspace ||
-		windowOnlyObs.Appearance ||
-		windowOnlyObs.Display ||
-		windowOnlyObs.SystemState {
-		t.Errorf("expected only AppLifecycle to be enabled, got: %+v", windowOnlyObs)
-	}
-
-	// WindowResize only case — should also enable AppLifecycle
-	resizeOnlyCfg := &config.Config{
-		Hooks: config.HooksConfig{
-			WindowResize: []config.HookEntry{{Run: "echo"}},
-		},
-	}
-
-	resizeOnlyObs := getObserverConfig(resizeOnlyCfg)
-	if !resizeOnlyObs.AppLifecycle {
-		t.Error("expected AppLifecycle to be enabled when WindowResize is configured")
-	}
-
-	if resizeOnlyObs.Audio ||
-		resizeOnlyObs.Power ||
-		resizeOnlyObs.Clipboard ||
-		resizeOnlyObs.USB ||
-		resizeOnlyObs.Network ||
-		resizeOnlyObs.Volume ||
-		resizeOnlyObs.Workspace ||
-		resizeOnlyObs.Appearance ||
-		resizeOnlyObs.Display ||
-		resizeOnlyObs.SystemState {
-		t.Errorf(
-			"expected only AppLifecycle to be enabled for resize-only config, got: %+v",
-			resizeOnlyObs,
-		)
+	if !workspaceOnlyObs.Workspace {
+		t.Error("expected Workspace enabled for workspace-only config")
 	}
 }

@@ -170,7 +170,7 @@ return b.String()
 
 ## macOS-Specific Conventions
 
-mimi is macOS-only, so no cross-platform build tags or platform factories are needed. CGo code lives in `internal/observers/cgo_bridge/`.
+mimi is macOS-only, so no cross-platform build tags or platform factories are needed. CGo code lives in `internal/native/`.
 
 ## See Also
 

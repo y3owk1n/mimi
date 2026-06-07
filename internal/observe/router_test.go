@@ -1,5 +1,5 @@
 //nolint:testpackage
-package observers
+package observe
 
 import (
 	"testing"
@@ -10,13 +10,20 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
-func TestDebounceResize_SingleEvent(t *testing.T) {
+func newTestRouter(t *testing.T) (*Router, <-chan events.Event) {
+	t.Helper()
+
 	bus := events.NewBus()
 	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
+	ax := NewAXTracker(false)
 	logger := zap.NewNop().Sugar()
+	router := NewRouter(bus, ax, logger)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
+	return router, sub
+}
+
+func TestDebounceResize_SingleEvent(t *testing.T) {
+	router, sub := newTestRouter(t)
 
 	evt := events.Event{
 		Kind:        events.WindowResizing,
@@ -27,7 +34,7 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 		At:          time.Now(),
 	}
 
-	obs.debounceResize(evt)
+	router.debounceResize(evt)
 
 	select {
 	case _evt := <-sub:
@@ -46,10 +53,9 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 		t.Fatal("timed out waiting for debounced resize event")
 	}
 
-	// Verify no stale timers remain.
-	obs.mu.Lock()
-	remaining := len(obs.timers)
-	obs.mu.Unlock()
+	router.mu.Lock()
+	remaining := len(router.timers)
+	router.mu.Unlock()
 
 	if remaining != 0 {
 		t.Errorf("expected 0 remaining timers, got %d", remaining)
@@ -57,14 +63,8 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 }
 
 func TestDebounceResize_MultipleEventsCoalesce(t *testing.T) {
-	bus := events.NewBus()
-	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
-	logger := zap.NewNop().Sugar()
+	router, sub := newTestRouter(t)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
-
-	// Simulate rapid resize events — only the last should produce an event.
 	for index := range 5 {
 		evt := events.Event{
 			Kind:        events.WindowResizing,
@@ -75,11 +75,10 @@ func TestDebounceResize_MultipleEventsCoalesce(t *testing.T) {
 			At:          time.Now(),
 			Extra:       map[string]string{"seq": string(rune('0' + index))},
 		}
-		obs.debounceResize(evt)
-		time.Sleep(50 * time.Millisecond) // well within the 250ms debounce
+		router.debounceResize(evt)
+		time.Sleep(50 * time.Millisecond)
 	}
 
-	// Should get exactly one event.
 	select {
 	case e := <-sub:
 		if e.Kind != events.WindowResize {
@@ -89,28 +88,20 @@ func TestDebounceResize_MultipleEventsCoalesce(t *testing.T) {
 		t.Fatal("timed out waiting for debounced resize event")
 	}
 
-	// Verify no second event arrives.
 	select {
 	case e := <-sub:
 		t.Errorf("unexpected second event: %+v", e)
 	case <-time.After(500 * time.Millisecond):
-		// Expected — no more events.
 	}
 }
 
 func TestDebounceResize_DifferentWindows(t *testing.T) {
-	bus := events.NewBus()
-	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
-	logger := zap.NewNop().Sugar()
+	router, sub := newTestRouter(t)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
-
-	// Two different windows should produce two separate events.
-	obs.debounceResize(events.Event{
+	router.debounceResize(events.Event{
 		Kind: events.WindowResizing, PID: 1, WindowTitle: "Win A", AppName: "AppA",
 	})
-	obs.debounceResize(events.Event{
+	router.debounceResize(events.Event{
 		Kind: events.WindowResizing, PID: 2, WindowTitle: "Win B", AppName: "AppB",
 	})
 
@@ -131,30 +122,23 @@ func TestDebounceResize_DifferentWindows(t *testing.T) {
 }
 
 func TestDebounceResize_CancelTimersForPID(t *testing.T) {
-	bus := events.NewBus()
-	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
-	logger := zap.NewNop().Sugar()
+	router, sub := newTestRouter(t)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
-
-	obs.debounceResize(events.Event{
+	router.debounceResize(events.Event{
 		Kind: events.WindowResizing, PID: 99, WindowTitle: "Win", AppName: "App",
 	})
 
-	// Cancel before the timer fires.
-	obs.cancelTimersForPID(99)
+	router.cancelTimersForPID(99)
 
 	select {
 	case e := <-sub:
 		t.Errorf("expected no event after cancel, got: %+v", e)
 	case <-time.After(500 * time.Millisecond):
-		// Expected — timer was canceled.
 	}
 
-	obs.mu.Lock()
-	remaining := len(obs.timers)
-	obs.mu.Unlock()
+	router.mu.Lock()
+	remaining := len(router.timers)
+	router.mu.Unlock()
 
 	if remaining != 0 {
 		t.Errorf("expected 0 remaining timers after cancel, got %d", remaining)
@@ -162,33 +146,26 @@ func TestDebounceResize_CancelTimersForPID(t *testing.T) {
 }
 
 func TestDebounceResize_StopAllTimers(t *testing.T) {
-	bus := events.NewBus()
-	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
-	logger := zap.NewNop().Sugar()
+	router, sub := newTestRouter(t)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
-
-	// Queue up several resize events for different windows.
 	for i := range 3 {
-		obs.debounceResize(events.Event{
+		router.debounceResize(events.Event{
 			Kind: events.WindowResizing, PID: i + 1, WindowTitle: "Win", AppName: "App",
 		})
 	}
 
-	obs.stopAllTimers()
+	router.stopAllTimers()
 
 	select {
 	case e := <-sub:
 		t.Errorf("expected no events after stopAllTimers, got: %+v", e)
 	case <-time.After(500 * time.Millisecond):
-		// Expected — all timers were stopped.
 	}
 
-	obs.mu.Lock()
-	remaining := len(obs.timers)
-	stopped := obs.stopped
-	obs.mu.Unlock()
+	router.mu.Lock()
+	remaining := len(router.timers)
+	stopped := router.stopped
+	router.mu.Unlock()
 
 	if remaining != 0 {
 		t.Errorf("expected 0 remaining timers, got %d", remaining)
@@ -200,17 +177,11 @@ func TestDebounceResize_StopAllTimers(t *testing.T) {
 }
 
 func TestDebounceResize_NoPublishAfterStop(t *testing.T) {
-	bus := events.NewBus()
-	sub := bus.Subscribe(16)
-	axMgr := NewAccessibilityManager(false)
-	logger := zap.NewNop().Sugar()
+	router, sub := newTestRouter(t)
 
-	obs := NewWorkspaceObserver(bus, axMgr, logger)
+	router.stopAllTimers()
 
-	// Stop immediately — any subsequent debounce calls should be no-ops.
-	obs.stopAllTimers()
-
-	obs.debounceResize(events.Event{
+	router.debounceResize(events.Event{
 		Kind: events.WindowResizing, PID: 1, WindowTitle: "Win", AppName: "App",
 	})
 
@@ -218,6 +189,5 @@ func TestDebounceResize_NoPublishAfterStop(t *testing.T) {
 	case e := <-sub:
 		t.Errorf("expected no events after stop, got: %+v", e)
 	case <-time.After(500 * time.Millisecond):
-		// Expected.
 	}
 }

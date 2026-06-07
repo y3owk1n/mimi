@@ -1,2 +1,2 @@
-// Package events defines event types and a pub-sub bus.
+// Package events defines window and workspace event types for the hook daemon.
 package events

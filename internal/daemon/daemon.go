@@ -16,9 +16,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
 	"github.com/y3owk1n/mimi/internal/logging"
-	"github.com/y3owk1n/mimi/internal/observers"
-	"github.com/y3owk1n/mimi/internal/observers/cgo_bridge"
+	"github.com/y3owk1n/mimi/internal/native"
+	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/systray"
 )
 
 const (
@@ -26,9 +27,62 @@ const (
 	hookSubBufSize = 256
 )
 
-// Run starts the mimi daemon: event observers, hooks executor, and config watcher.
+// Run starts the mimi daemon: window/space observers, hooks executor, and config watcher.
 func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, version string) error {
-	return runWithHost(cfg, logger, configPath, version)
+	var (
+		quitCh    <-chan struct{}
+		component *systray.Component
+	)
+
+	runDone := make(chan error, 1)
+
+	reload := func(ctx context.Context, path string) error {
+		process, err := os.FindProcess(os.Getpid())
+		if err != nil {
+			return err
+		}
+
+		return process.Signal(syscall.SIGHUP)
+	}
+
+	if cfg.Systray.Enabled {
+		quitChWritable := make(chan struct{})
+		quitCh = quitChWritable
+
+		requestQuit := func() {
+			select {
+			case <-quitChWritable:
+			default:
+				close(quitChWritable)
+			}
+		}
+
+		component = systray.NewComponent(
+			version,
+			configPath,
+			reload,
+			requestQuit,
+			cfg.Systray.ShowWorkspaceNumber,
+			logger,
+		)
+	}
+
+	go func() {
+		err := runCore(cfg, logger, configPath, quitCh)
+
+		systray.Quit()
+
+		runDone <- err
+	}()
+
+	if cfg.Systray.Enabled {
+		systray.Run(component.OnReady, component.OnExit)
+		component.Close()
+	} else {
+		systray.RunHeadless(func() {}, func() {})
+	}
+
+	return <-runDone
 }
 
 func runCore(
@@ -55,7 +109,7 @@ func runCore(
 	}
 
 	obsCfg := getObserverConfig(cfg)
-	if !cgo_bridge.Start(obsCfg, accessibilityPrompt) {
+	if !native.StartObservers(obsCfg, accessibilityPrompt) {
 		return nil
 	}
 
@@ -63,12 +117,12 @@ func runCore(
 
 	axEnabled := perm.Accessibility && hasWindowEvents(cfg)
 	if hasWindowEvents(cfg) && !perm.Accessibility {
-		logger.Warn("accessibility permission not granted — window events disabled")
+		logger.Warn("accessibility permission not granted — window hooks disabled")
 	}
 
 	bus := events.NewBus()
-	axMgr := observers.NewAccessibilityManager(axEnabled)
-	wsObs := observers.NewWorkspaceObserver(bus, axMgr, logger)
+	axTracker := observe.NewAXTracker(axEnabled)
+	router := observe.NewRouter(bus, axTracker, logger)
 
 	reg := hooks.NewRegistry()
 
@@ -85,7 +139,7 @@ func runCore(
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	go wsObs.Run(ctx)
+	go router.Run(ctx)
 	go executor.Run(ctx, hookSub)
 	go logging.WriteEventLog(ctx, logSub, cfg.Settings.LogFile, logger)
 
@@ -102,10 +156,10 @@ func runCore(
 		}
 
 		executor.UpdateSettings(&newCfg.Settings)
-		cgo_bridge.UpdateObservers(getObserverConfig(newCfg))
+		native.UpdateObservers(getObserverConfig(newCfg))
 
 		perm := permissions.Check()
-		axMgr.Update(perm.Accessibility && hasWindowEvents(newCfg))
+		axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))
 		logger.Info("hooks reloaded from config")
 	}, logger)
 	go func() { _ = watcher.Run(ctx) }()
@@ -120,7 +174,7 @@ func runCore(
 		case <-quitCh:
 			logger.Info("shutting down from systray")
 			cancel()
-			cgo_bridge.Stop()
+			native.StopObservers()
 			bus.Unsubscribe(logSub)
 			bus.Unsubscribe(hookSub)
 
@@ -136,10 +190,10 @@ func runCore(
 
 				_ = reg.Reload(newCfg)
 				executor.UpdateSettings(&newCfg.Settings)
-				cgo_bridge.UpdateObservers(getObserverConfig(newCfg))
+				native.UpdateObservers(getObserverConfig(newCfg))
 
 				perm := permissions.Check()
-				axMgr.Update(perm.Accessibility && hasWindowEvents(newCfg))
+				axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))
 				logger.Info("reloaded config via SIGHUP")
 
 				continue
@@ -147,7 +201,7 @@ func runCore(
 
 			logger.Infow("shutting down", "signal", sig)
 			cancel()
-			cgo_bridge.Stop()
+			native.StopObservers()
 			bus.Unsubscribe(logSub)
 			bus.Unsubscribe(hookSub)
 
@@ -189,46 +243,13 @@ func hasWindowEvents(cfg *config.Config) bool {
 		len(cfg.Hooks.WindowResize) > 0
 }
 
-func getObserverConfig(cfg *config.Config) cgo_bridge.ObserverConfig {
-	return cgo_bridge.ObserverConfig{
-		Power: len(cfg.Hooks.PowerAdapterConnected) > 0 ||
-			len(cfg.Hooks.PowerAdapterDisconnected) > 0 ||
-			len(cfg.Hooks.BatteryLow) > 0 ||
-			len(cfg.Hooks.BatteryCritical) > 0,
+func hasWorkspaceEvents(cfg *config.Config) bool {
+	return len(cfg.Hooks.WorkspaceChanged) > 0
+}
 
-		Audio: len(cfg.Hooks.AudioDeviceChanged) > 0,
-
-		Clipboard: len(cfg.Hooks.ClipboardChanged) > 0,
-
-		USB: len(cfg.Hooks.USBDeviceConnected) > 0 ||
-			len(cfg.Hooks.USBDeviceDisconnected) > 0,
-
-		Network: len(cfg.Hooks.NetworkUp) > 0 ||
-			len(cfg.Hooks.NetworkDown) > 0,
-
-		Display: len(cfg.Hooks.ExternalDisplayConnected) > 0 ||
-			len(cfg.Hooks.ExternalDisplayDisconnected) > 0,
-
-		AppLifecycle: len(cfg.Hooks.AppActivate) > 0 ||
-			len(cfg.Hooks.AppDeactivate) > 0 ||
-			len(cfg.Hooks.AppLaunch) > 0 ||
-			len(cfg.Hooks.AppQuit) > 0 ||
-			len(cfg.Hooks.AppHide) > 0 ||
-			len(cfg.Hooks.AppUnhide) > 0 ||
-			hasWindowEvents(cfg),
-
-		SystemState: len(cfg.Hooks.SystemSleep) > 0 ||
-			len(cfg.Hooks.SystemWake) > 0 ||
-			len(cfg.Hooks.ScreenLock) > 0 ||
-			len(cfg.Hooks.ScreenUnlock) > 0 ||
-			len(cfg.Hooks.SystemShutdown) > 0 ||
-			len(cfg.Hooks.UserSessionEnd) > 0,
-
-		Volume: len(cfg.Hooks.VolumeMount) > 0 ||
-			len(cfg.Hooks.VolumeUnmount) > 0,
-
-		Workspace: len(cfg.Hooks.WorkspaceChanged) > 0,
-
-		Appearance: len(cfg.Hooks.AppearanceChanged) > 0,
+func getObserverConfig(cfg *config.Config) native.ObserverConfig {
+	return native.ObserverConfig{
+		AppLifecycle: hasWindowEvents(cfg),
+		Workspace:    hasWorkspaceEvents(cfg),
 	}
 }

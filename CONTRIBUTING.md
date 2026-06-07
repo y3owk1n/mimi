@@ -1,6 +1,6 @@
 # Contributing to mimi
 
-Thanks for your interest in contributing! mimi is a small project with an approachable codebase, and we welcome contributions of all kinds — code, docs, bug reports, config examples, or ideas.
+Thanks for your interest in contributing! mimi is a macOS window and space utility with an approachable codebase. We welcome contributions of all kinds — code, docs, bug reports, config examples, or ideas.
 
 ---
 
@@ -123,7 +123,7 @@ docs: update configuration reference for workspace events
 
 ## Pull Requests
 
-- **Title** should follow the same conventional commit format (e.g. `feat(events): add new USB observer`).
+- **Title** should follow the same conventional commit format (e.g. `feat(action): add space count command`).
 - **Description** should explain _what_ changed and _why_.
 - **Keep PRs focused** — one logical change per PR.
 - **Link related issues** (e.g. `Closes #123`).

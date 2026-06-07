@@ -61,7 +61,7 @@ int MimiRequestAccessibilityPermissions(void) {
 }
 
 int MimiShowAccessibilityPermissionStartupAlert(void) {
-	return MimiRunOnMainThreadSync(^int{
+	return MimiRunOnMainThreadSync(^int {
 		@autoreleasepool {
 			[NSApplication sharedApplication];
 
@@ -104,12 +104,11 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 }
 
 int MimiShowConfigOnboardingAlert(const char *configPath) {
-	return MimiRunOnMainThreadSync(^int{
+	return MimiRunOnMainThreadSync(^int {
 		@autoreleasepool {
 			[NSApplication sharedApplication];
 
-			NSString *path =
-			    configPath ? [NSString stringWithUTF8String:configPath] : @"~/.config/mimi/config.toml";
+			NSString *path = configPath ? [NSString stringWithUTF8String:configPath] : @"~/.config/mimi/config.toml";
 
 			NSAlert *alert = [[NSAlert alloc] init];
 			alert.messageText = @"Welcome to Mimi";

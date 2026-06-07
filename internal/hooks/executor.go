@@ -156,7 +156,7 @@ func (ex *Executor) run(hook Hook, evt events.Event) {
 	}
 }
 
-const baseEnvVarCount = 9
+const baseEnvVarCount = 7
 
 func eventEnv(evt events.Event) []string {
 	vars := make([]string, 0, baseEnvVarCount+len(evt.Extra))
@@ -168,8 +168,6 @@ func eventEnv(evt events.Event) []string {
 		"mimi_BUNDLE_ID="+evt.BundleID,
 		fmt.Sprintf("mimi_PID=%d", evt.PID),
 		"mimi_WINDOW_TITLE="+evt.WindowTitle,
-		"mimi_VOLUME_PATH="+evt.VolumePath,
-		"mimi_VOLUME_NAME="+evt.VolumeName,
 		"mimi_TIMESTAMP="+evt.At.Format(time.RFC3339),
 	)
 	for k, v := range evt.Extra {

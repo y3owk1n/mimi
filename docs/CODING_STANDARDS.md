@@ -50,8 +50,11 @@ mimi/
 │   ├── events/         # Event types + pub-sub bus
 │   ├── hooks/          # Hook registry + executor
 │   ├── logging/        # Structured logging
-│   ├── observers/      # Go-side observer orchestration
-│   │   └── cgo_bridge/ # CGo + Objective-C bridge
+│   ├── native/         # Objective-C + CGO bridge
+│   ├── observe/        # Go-side event routing
+│   ├── action/         # CLI action dispatch
+│   ├── window/         # AX window wrappers
+│   ├── space/          # Mission Control operations
 │   └── permissions/    # Accessibility permission checks
 ├── configs/            # Embedded default config
 ├── docs/               # Documentation
@@ -62,7 +65,7 @@ mimi/
 
 - **Directories**: lowercase, underscore-separated
 - **Files**: lowercase, underscore-separated
-- **Test files**: `*_test.go`, `*_integration_darwin_test.go`
+- **Test files**: `*_test.go`, `*_integration_test.go`
 
 ---
 

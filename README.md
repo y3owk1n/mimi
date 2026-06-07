@@ -2,152 +2,223 @@
 
 # mimi
 
-**A macOS event daemon that runs your shell commands when things happen.**
+**A macOS window and space utility — fast actions, shell hooks, and a menu bar companion.**
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/y3owk1n/mimi?style=flat-square&logo=go)](https://github.com/y3owk1n/mimi)
 [![License](https://img.shields.io/github/license/y3owk1n/mimi?style=flat-square)](LICENSE)
+
+[Why mimi](#why-mimi) · [Quick Start](#quick-start) · [Installation](#installation) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
 
 </div>
 
 ---
 
-**mimi** watches macOS system events — app focus changes, sleep/wake cycles, USB mounts, network flips, screen locks, clipboard changes — and fires the shell hooks you define in a single TOML config file. Think of it as a lightweight, scriptable automation layer that reacts to what your machine is doing.
+**mimi** helps you move around macOS with less friction — switch Mission Control spaces, move windows between desktops, cycle focus on the active space, and optionally react to those changes with shell hooks when the daemon is running.
 
-No GUI. No cloud. Just your shell.
+No SIP disable. No scripting additions. Public Accessibility APIs where possible; private SkyLight for instant window-to-space moves.
+
+---
+
+## Why mimi
+
+This project started from a simple goal: **use macOS Spaces the way Apple intended**, without bolting on a tiling window manager.
+
+Tools like [yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https://github.com/nikitabobko/AeroSpace) are excellent if you want a full window-management layer — tiling layouts, custom rules, and deep control over every frame. But they come with trade-offs: another long-running dependency, more configuration surface, and often SIP changes or a more invasive setup.
+
+**mimi is none of that.** It is not a tiling window manager. It is not a window manager. It does not replace Mission Control, Stage Manager, or the native window chrome. It is a thin enhancement on top of what macOS already gives you:
+
+- Jump to a space by number from the CLI or a hotkey
+- Move the frontmost window to another space instantly
+- Cycle focus among windows on the current space
+- Optionally run shell hooks when windows or spaces change
+- A small menu bar companion when the daemon is running
+
+If you like native Spaces and want to stay close to stock macOS — or you are trying to **reduce your reliance on a TWM** rather than add another one — mimi is built for that workflow. Think of it as glue: keyboard shortcuts, scripts, and automation around Apple's own space model, not a replacement for it.
 
 > [!CAUTION]
-> **Early development.** mimi is in an early, experimental stage. APIs, config format, and behaviour may change without notice. Not yet recommended for production use.
+> **Early development.** Config format, CLI, and behaviour may change between releases.
 
 ---
 
-## 🚀 Quick Start
+## What you get
 
-```toml
-# ~/.config/mimi/config.toml
-[hooks]
-on_app_activate    = ['echo "Focused: $mimi_APP_NAME" >> ~/app-log.txt']
-on_system_sleep    = ['pmset displaysleepnow']
-on_volume_mount    = ['rsync -a ~/Documents "$mimi_VOLUME_PATH/backup"']
-on_battery_low     = ['osascript -e "display notification \"Plug me in!\" with title \"mimi\""']
-```
-
-```bash
-mimi start          # Launch the daemon
-mimi status         # Show status and recent events
-```
+| Mode               | When to use it                                                                                 |
+| :----------------- | :--------------------------------------------------------------------------------------------- |
+| **CLI actions**    | One-shot commands — bind to hotkeys, scripts, or Alfred/Raycast. No daemon required.           |
+| **Daemon + hooks** | React to window and space changes with shell commands (`on_window_*`, `on_workspace_changed`). |
+| **Menu bar**       | See the active space number, reload config, or quit — enabled by default when the daemon runs. |
 
 ---
 
-## 📥 Installation
+## Quick Start
 
-### Homebrew (Recommended)
+### 1. Install
 
 ```bash
 brew tap y3owk1n/tap
 brew install --cask y3owk1n/tap/mimi
 ```
 
-### Nix Flake
+Other options → [Installation Guide](docs/INSTALLATION.md)
 
-```nix
-# flake.nix
-{ inputs.mimi.url = "github:y3owk1n/mimi"; }
-```
+### 2. Run actions immediately
 
-### From Source
+Grant **Accessibility** to `mimi` in **System Settings → Privacy & Security → Accessibility**, then:
 
 ```bash
-git clone https://github.com/y3owk1n/mimi.git
-cd mimi && just build
+mimi action focus_window              # cycle focus on the active space
+mimi action focus_window --backward   # cycle backward
+mimi action space 2                   # jump to space 2
+mimi action move_window_to_space 3    # move frontmost window to space 3
 ```
 
-For auto-start at login, launchd agent setup, Nix modules, and troubleshooting — see [Installation Guide](docs/INSTALLATION.md).
+Full command reference → [CLI Guide](docs/CLI.md)
 
----
-
-## ⌨️ Events
-
-Mimi observes **33 macOS system events** across 11 categories. Every hook receives rich context via `mimi_*` environment variables.
-
-| Category             | Events                                                 |
-| :------------------- | :----------------------------------------------------- |
-| App Lifecycle        | activate, deactivate, launch, quit, hide, unhide       |
-| Window (AX)          | focus, title change, created, closed, resize           |
-| System Power         | sleep, wake, screen lock/unlock, shutdown, session end |
-| Storage              | volume mount, unmount                                  |
-| Display / Appearance | external display connect/disconnect, dark/light mode   |
-| Power / Battery      | AC adapter on/off, battery low/critical                |
-| Audio                | device changed                                         |
-| Workspace / Desktop  | Space changed (Mission Control)                        |
-| USB / Peripheral     | device connect, disconnect                             |
-| Network              | up, down                                               |
-| Clipboard            | content changed                                        |
-
-> Full event reference, all `mimi_*` variables, and workspace JSON schema → [Configuration Guide](docs/CONFIGURATION.md#environment-variables)
-
----
-
-## ⚙️ Configuration
-
-Your config lives at `~/.config/mimi/config.toml`. Human-readable, dotfile-friendly.
+### 3. Optional — run the daemon with hooks
 
 ```bash
-mimi config init        # Create a starter config
-mimi config validate    # Validate your TOML
-mimi config dump        # Print resolved config as JSON
-mimi config reload      # Reload a running daemon
+mimi config init
+mimi start
 ```
 
-Each hook can filter by `app`, `bundle_id`, and `title`, supports timeouts and async execution — see the [Configuration Guide](docs/CONFIGURATION.md).
+Edit `~/.config/mimi/config.toml`:
+
+```toml
+[systray]
+enabled = true
+show_workspace_number = true
+
+[hooks]
+on_window_focus = ['echo "Focused: $mimi_APP_NAME — $mimi_WINDOW_TITLE"']
+on_workspace_changed = ['echo "Space changed"']
+```
+
+Check status anytime:
+
+```bash
+mimi status
+```
+
+Hook options, filters, and `mimi_*` env vars → [Configuration Guide](docs/CONFIGURATION.md)
+
+Auto-start at login → [Installation Guide — launchd](docs/INSTALLATION.md#auto-start-launchd)
 
 ---
 
-## 🛠️ Commands
+## Features
 
-| Command                  | Description                          |
-| :----------------------- | :----------------------------------- |
-| `mimi start`             | Start the daemon                     |
-| `mimi stop`              | Stop the daemon                      |
-| `mimi status`            | Show daemon status and recent events |
-| `mimi events`            | Tail the live event stream           |
-| `mimi test <event-kind>` | Fire a synthetic event to test hooks |
-| `mimi services install`  | Install as a launchd agent           |
-| `mimi services uninstall` | Remove the launchd agent            |
-| `mimi services status`   | Show launchd service status          |
-| `mimi config validate`   | Validate your config file            |
-| `mimi config init`       | Create a default config file         |
+### Window & space actions
 
-> Full CLI reference → [CLI.md](docs/CLI.md)
+| Action                           | Command                                |
+| :------------------------------- | :------------------------------------- |
+| Cycle window focus               | `mimi action focus_window`             |
+| Switch to a space (1-based)      | `mimi action space <n>`                |
+| Move frontmost window to a space | `mimi action move_window_to_space <n>` |
+
+Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight for instant relocation without animation.
+
+### Hooks (daemon)
+
+| Event                      | Hook                     | Accessibility required |
+| :------------------------- | :----------------------- | :--------------------- |
+| Window focused             | `on_window_focus`        | Yes                    |
+| Window title changed       | `on_window_title_change` | Yes                    |
+| Window opened              | `on_window_created`      | Yes                    |
+| Window closed              | `on_window_closed`       | Yes                    |
+| Window resized (debounced) | `on_window_resize`       | Yes                    |
+| Active space changed       | `on_workspace_changed`   | No                     |
+
+Hooks support app/title filters, async execution, and per-hook timeouts. See [Configuration Guide](docs/CONFIGURATION.md).
+
+### Menu bar
+
+When `[systray] enabled = true` (the default), the daemon shows a menu bar icon with the current space number, config reload, and quit. Disable it in config if you prefer a headless daemon.
 
 ---
 
-## 🏗️ Architecture
+## Commands at a glance
 
-```
-macOS Event (NSWorkspace, IOKit, CoreAudio, AX, etc.)
-  → Obj-C Observer → CGo Bridge → Event Bus → Hook Executor → Your Shell Command
-```
+| Command                    | Description                        |
+| :------------------------- | :--------------------------------- |
+| `mimi action …`            | Immediate window/space actions     |
+| `mimi start` / `mimi stop` | Start or stop the hook daemon      |
+| `mimi status`              | Daemon state and permission checks |
+| `mimi config init`         | Create default config              |
+| `mimi config validate`     | Validate config                    |
+| `mimi config reload`       | Reload running daemon (SIGHUP)     |
+| `mimi services install`    | Install launchd agent              |
 
-Mimi uses a pub-sub event bus with non-blocking fan-out. Events are produced by native Objective-C observers and consumed by the hook executor and event log writer. See [Architecture Guide](docs/ARCHITECTURE.md).
+→ [CLI Guide](docs/CLI.md)
 
 ---
 
-## 🤝 Contributing
+## Installation
 
-Mimi is written in Go and Objective-C with a clean package layout.
+| Method          | Command / link                            |
+| :-------------- | :---------------------------------------- |
+| **Homebrew**    | `brew install --cask y3owk1n/tap/mimi`    |
+| **Nix flake**   | `inputs.mimi.url = "github:y3owk1n/mimi"` |
+| **From source** | `git clone … && just build`               |
+
+Details, Nix modules, permissions, and launchd setup → [Installation Guide](docs/INSTALLATION.md)
+
+---
+
+## Documentation
+
+| Guide                                      | Contents                                          |
+| :----------------------------------------- | :------------------------------------------------ |
+| [Installation](docs/INSTALLATION.md)       | Homebrew, Nix, source build, permissions, launchd |
+| [CLI](docs/CLI.md)                         | All commands, flags, and examples                 |
+| [Configuration](docs/CONFIGURATION.md)     | Hooks, systray, settings, env vars                |
+| [Architecture](docs/ARCHITECTURE.md)       | How actions, daemon, and native code fit together |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes                           |
+| [Development](docs/DEVELOPMENT.md)         | Build, test, and project layout                   |
+| [Contributing](CONTRIBUTING.md)            | How to send PRs and report bugs                   |
+| [Security](SECURITY.md)                    | Reporting vulnerabilities                         |
+
+Developer references: [Go conventions](docs/go/CONVENTIONS.md) · [Objective-C guidelines](docs/go/OBJECTIVE_C.md) · [Coding standards](docs/CODING_STANDARDS.md)
+
+---
+
+## Permissions
+
+| Capability                           | Accessibility required |
+| :----------------------------------- | :--------------------- |
+| `mimi action …`                      | Yes                    |
+| Window hooks (`on_window_*`)         | Yes                    |
+| Space hooks (`on_workspace_changed`) | No                     |
+| Menu bar / daemon lifecycle          | No                     |
+
+---
+
+## How it works
+
+```
+CLI actions     →  action  →  native (AX + SkyLight)
+
+Hook daemon     →  observe →  event bus  →  hooks  →  your shell
+                      ↓
+                  systray (optional menu bar)
+```
+
+→ [Architecture Guide](docs/ARCHITECTURE.md)
+
+---
+
+## Contributing
 
 ```bash
 just build && just lint && just test
-# Open a pull request!
 ```
 
-Refer to the [Development Guide](docs/DEVELOPMENT.md).
+See [Development Guide](docs/DEVELOPMENT.md) and [Contributing](CONTRIBUTING.md).
 
 ---
 
-## 📄 License
+## License
 
-Distributed under the MIT License. See [LICENSE](LICENSE).
+MIT — see [LICENSE](LICENSE).
 
 <div align="center">
 

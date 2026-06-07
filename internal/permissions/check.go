@@ -43,13 +43,14 @@ func Check() CheckResult {
 	trusted := C.MimiCheckAccessibilityPermissions() != 0
 	res := CheckResult{Accessibility: trusted}
 	if !trusted {
-		res.AccessibilityMsg = `Accessibility permission is required for window focus events.
+		res.AccessibilityMsg = `Accessibility permission is required for window/space actions and window focus events.
 
   Grant it in:
     System Settings -> Privacy & Security -> Accessibility -> enable "mimi"
 
-  After granting, restart mimi.
-  Window events (on_window_focus, on_window_title_change, etc.) will be
+  After granting, restart mimi (or re-run the action command).
+  Window events (on_window_focus, on_window_title_change, etc.) and
+  action commands (focus_window, space, move_window_to_space) will be
   unavailable until the permission is granted.`
 	}
 

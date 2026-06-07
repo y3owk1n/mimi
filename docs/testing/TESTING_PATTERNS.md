@@ -3,7 +3,7 @@
 ## Test File Naming
 
 - Unit tests: `*_test.go` (no build tag required)
-- macOS integration tests: `*_integration_darwin_test.go` (tagged `//go:build integration && darwin`)
+- macOS integration tests: `*_integration_test.go` (tagged `//go:build integration`)
 
 ## Test Function Naming
 
@@ -17,7 +17,7 @@ func TestService_Method_EdgeCase(t *testing.T)
 | Type        | Command                 | Purpose                                                                        |
 | ----------- | ----------------------- | ------------------------------------------------------------------------------ |
 | Unit        | `just test-unit`        | Business logic, algorithms, config validation with mocks                        |
-| Integration | `just test-integration` | Real macOS APIs, file system, IPC (tagged `//go:build integration && darwin`)  |
+| Integration | `just test-integration` | Real macOS APIs, file system (tagged `//go:build integration`)                   |
 
 ## When to Use Each Type
 
@@ -71,9 +71,9 @@ func TestValidate(t *testing.T) {
 Integration tests that depend on native macOS APIs must use build tags:
 
 ```go
-//go:build integration && darwin
+//go:build integration
 
-package observers_test
+package observe_test
 
 import "testing"
 

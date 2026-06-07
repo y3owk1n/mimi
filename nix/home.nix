@@ -10,7 +10,7 @@ in
 {
   options = {
     services.mimi = {
-      enable = lib.mkEnableOption "Mimi system event reactor";
+      enable = lib.mkEnableOption "Mimi window and space utility daemon";
 
       package = lib.mkPackageOption pkgs "mimi" { };
 
