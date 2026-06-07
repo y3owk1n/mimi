@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.5.0](https://github.com/y3owk1n/mimi/compare/v0.4.0...v0.5.0) (2026-06-07)
+
+
+### Features
+
+* add IPC subsystem and event-driven workspace title ([#27](https://github.com/y3owk1n/mimi/issues/27)) ([fdd209b](https://github.com/y3owk1n/mimi/commit/fdd209b847defb39cbc948edf3c64bda4275a608))
+* changes scope of this project to space and window utility ([#25](https://github.com/y3owk1n/mimi/issues/25)) ([6d790ff](https://github.com/y3owk1n/mimi/commit/6d790ff2882e2ab619bd05683a0dfceaf613868a))
+
+
+### Performance Improvements
+
+* reduce polling overhead, fix event loss and timer races, consolidate duplicated utilities ([#28](https://github.com/y3owk1n/mimi/issues/28)) ([e96befe](https://github.com/y3owk1n/mimi/commit/e96befe8801d2ab36c07ff1d7511b2e2d1f53a07))
+
 ## [0.4.0](https://github.com/y3owk1n/mimi/compare/v0.3.1...v0.4.0) (2026-06-05)
 
 
