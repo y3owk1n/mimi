@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
@@ -36,9 +37,9 @@ var statusCmd = &cobra.Command{
 			cmd.Println("accessibility: not granted (required for window hooks and actions)")
 		}
 
-		_, statErr := os.Stat(expandHome(socketPath))
+		_, statErr := os.Stat(paths.ExpandHome(socketPath))
 		if statErr == nil {
-			cmd.Printf("ipc: socket available at %s\n", expandHome(socketPath))
+			cmd.Printf("ipc: socket available at %s\n", paths.ExpandHome(socketPath))
 		} else {
 			cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
 		}

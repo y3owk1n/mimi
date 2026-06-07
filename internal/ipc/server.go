@@ -12,6 +12,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/systray"
 )
 
@@ -33,7 +34,7 @@ type actionJob struct {
 // NewServer creates a Unix socket server at path.
 func NewServer(path string) *Server {
 	return &Server{
-		path:     expandHome(path),
+		path:     paths.ExpandHome(path),
 		actionCh: make(chan actionJob),
 	}
 }

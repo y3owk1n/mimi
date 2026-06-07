@@ -14,6 +14,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
+	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 const (
@@ -60,7 +61,7 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 
 	if cfg.Settings.LogFile != "" {
 		logWriter := &lumberjack.Logger{
-			Filename:   expandHome(cfg.Settings.LogFile),
+			Filename:   paths.ExpandHome(cfg.Settings.LogFile),
 			MaxSize:    logMaxSizeMB,
 			MaxBackups: logMaxBackups,
 			MaxAge:     logMaxAgeDays,
@@ -119,7 +120,7 @@ func WriteEventLog(
 }
 
 func openAppend(path string) (*os.File, error) {
-	path = expandHome(path)
+	path = paths.ExpandHome(path)
 
 	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
 	if err != nil {
@@ -127,16 +128,6 @@ func openAppend(path string) (*os.File, error) {
 	}
 
 	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:mnd
-}
-
-func expandHome(path string) string {
-	if strings.HasPrefix(path, "~") {
-		home, _ := os.UserHomeDir()
-
-		return filepath.Join(home, path[1:])
-	}
-
-	return path
 }
 
 func parseLevel(s string) zapcore.Level {
