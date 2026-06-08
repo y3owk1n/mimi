@@ -48,13 +48,88 @@ func TestExecute_InvalidAction(t *testing.T) {
 func TestExecute_SpaceValidation(t *testing.T) {
 	t.Parallel()
 
-	err := action.Execute("space", []string{"0"})
-	if err == nil {
-		t.Fatal("Execute(space 0) expected error")
+	tests := []struct {
+		name string
+		arg  string
+		code derrors.Code
+	}{
+		{name: "zero", arg: "0", code: derrors.CodeInvalidInput},
+		{name: "negative", arg: "-1", code: derrors.CodeInvalidInput},
+		{name: "non-numeric", arg: "foo", code: derrors.CodeInvalidInput},
+		{name: "empty", arg: "", code: derrors.CodeInvalidInput},
 	}
 
-	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
-		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.Execute("space", []string{testCase.arg})
+			if err == nil {
+				t.Fatalf("Execute(space %q) expected error", testCase.arg)
+			}
+
+			if !derrors.IsCode(err, testCase.code) {
+				t.Fatalf("Execute(space %q) got code %v, want %v", testCase.arg, err, testCase.code)
+			}
+		})
+	}
+}
+
+func TestExecute_SpaceNextPrev(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		arg  string
+	}{
+		{name: "next", arg: "next"},
+		{name: "prev", arg: "prev"},
+		{name: "previous", arg: "previous"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.Execute("space", []string{testCase.arg})
+
+			if derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf(
+					"Execute(space %q) got unexpected CodeInvalidInput; keyword should be recognized: %v",
+					testCase.arg,
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestExecute_MoveWindowToSpaceNextPrev(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		arg  string
+	}{
+		{name: "next", arg: "next"},
+		{name: "prev", arg: "prev"},
+		{name: "previous", arg: "previous"},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.Execute("move_window_to_space", []string{testCase.arg})
+
+			if derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf(
+					"Execute(move_window_to_space %q) got unexpected CodeInvalidInput; keyword should be recognized: %v",
+					testCase.arg,
+					err,
+				)
+			}
+		})
 	}
 }
 
