@@ -156,7 +156,7 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 		accessibilityPrompt = func() bool {
 			choice := permissions.ShowAccessibilityStartupAlert()
 
-			return choice != permissions.AccessibilityStartupQuit
+			return choice == permissions.AccessibilityStartupGranted
 		}
 	}
 

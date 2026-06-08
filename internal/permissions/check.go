@@ -30,6 +30,8 @@ const (
 	AccessibilityStartupGranted AccessibilityStartupChoice = 1
 	// AccessibilityStartupQuit indicates the user chose to quit.
 	AccessibilityStartupQuit AccessibilityStartupChoice = 2
+	// AccessibilityStartupRestartRequired indicates user needs to restart the app after granting permission.
+	AccessibilityStartupRestartRequired AccessibilityStartupChoice = 3
 )
 
 // CheckResult holds the results of a permissions check.
