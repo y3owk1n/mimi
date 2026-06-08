@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.6.0](https://github.com/y3owk1n/mimi/compare/v0.5.0...v0.6.0) (2026-06-08)
+
+
+### Features
+
+* add `next/prev` cycle with wrapping to space related commands ([#34](https://github.com/y3owk1n/mimi/issues/34)) ([8ae6620](https://github.com/y3owk1n/mimi/commit/8ae6620866dc73ea0795379dde839da5b33d1c37))
+* **hook:** add `application` lifecycle hooks ([#32](https://github.com/y3owk1n/mimi/issues/32)) ([d401641](https://github.com/y3owk1n/mimi/commit/d401641b11faedf290b07bcdbe86a4acc1267bef))
+
+
+### Bug Fixes
+
+* show restart prompt after granting accessibility permission ([#35](https://github.com/y3owk1n/mimi/issues/35)) ([ccc1314](https://github.com/y3owk1n/mimi/commit/ccc131496057a3f84052e7e1853970a9466ca7f2))
+
 ## [0.5.0](https://github.com/y3owk1n/mimi/compare/v0.4.0...v0.5.0) (2026-06-07)
 
 
