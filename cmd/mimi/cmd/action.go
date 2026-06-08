@@ -17,7 +17,7 @@ var actionCmd = &cobra.Command{
 	Long: `Perform immediate window and space utility actions.
 
 Available subcommands:
-  Window control:   focus_window
+  Window control:   focus_window, resize_window
   Space control:    space, move_window_to_space
 
 Examples:
@@ -28,7 +28,10 @@ Examples:
   mimi action space prev
   mimi action move_window_to_space 2
   mimi action move_window_to_space next
-  mimi action move_window_to_space prev`,
+  mimi action move_window_to_space prev
+  mimi action resize_window left-half
+  mimi action resize_window --width 800 --height 600 --anchor cc
+  mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return derrors.New(
 			derrors.CodeInvalidInput,
@@ -41,6 +44,7 @@ var (
 	actionFocusWindowCmd       = buildFocusWindowCommand()
 	actionSpaceCmd             = buildSpaceCommand()
 	actionMoveWindowToSpaceCmd = buildMoveWindowToSpaceCommand()
+	actionResizeWindowCmd      = buildResizeWindowCommand()
 )
 
 func buildFocusWindowCommand() *cobra.Command {
@@ -133,6 +137,140 @@ Examples:
 	}
 }
 
+func buildResizeWindowCommand() *cobra.Command {
+	var (
+		width     int
+		height    int
+		widthPct  float64
+		heightPct float64
+		xCoord    int
+		yCoord    int
+		anchor    string
+		useMargin bool
+		noMargin  bool
+	)
+
+	cmd := &cobra.Command{
+		Use:   "resize_window [preset]",
+		Short: "Resize and reposition the frontmost window",
+		Long: `Resize and reposition the frontmost window using presets or custom flags.
+
+Presets provide quick tiling:
+  left-half      Fill the left half of the screen
+  right-half     Fill the right half of the screen
+  top-half       Fill the top half of the screen
+  bottom-half    Fill the bottom half of the screen
+  top-left       Fill the top-left quadrant
+  top-right      Fill the top-right quadrant
+  bottom-left    Fill the bottom-left quadrant
+  bottom-right   Fill the bottom-right quadrant
+  center         Center the window at 60% x 80% of screen
+  fill           Fill the entire screen (respecting margins)
+
+Custom flags allow precise control using an anchor system:
+  Anchors: tl (top-left), tc (top-center), tr (top-right),
+           cl (center-left), cc (center-center), cr (center-right),
+           bl (bottom-left), bc (bottom-center), br (bottom-right)
+
+  When --x or --y are specified, the window's anchor point is
+  placed at those absolute screen coordinates. When omitted, the
+  anchor point defaults to the corresponding screen edge or center.
+
+  The tiled window margins setting (com.apple.WindowManager
+  EnableTiledWindowMargins) is respected by default. Margins are
+  applied intelligently: full margin on screen-facing edges, half
+  margin on internal (split) edges so adjacent windows share a
+  single gap. Use --margin or --no-margin to override.
+
+Examples:
+  mimi action resize_window left-half
+  mimi action resize_window --width 800 --height 600 --anchor cc
+  mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl
+  mimi action resize_window --width 1024 --height 768 --x 0 --y 0 --anchor tl
+  mimi action resize_window fill --no-margin
+  mimi action resize_window center --width-percent 80 --height-percent 90`,
+		Args: cobra.MaximumNArgs(1),
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			cmdArgs := []string{}
+
+			if len(args) > 0 {
+				preset := strings.TrimSpace(args[0])
+				if action.IsResizePreset(preset) {
+					cmdArgs = append(cmdArgs, preset)
+				} else {
+					return derrors.Newf(
+						derrors.CodeInvalidInput,
+						"unknown preset %q (valid: left-half, right-half, top-half, bottom-half, top-left, top-right, bottom-left, bottom-right, center, fill)",
+						preset,
+					)
+				}
+			}
+
+			if width > 0 {
+				cmdArgs = append(cmdArgs, "--width", strconv.Itoa(width))
+			}
+
+			if height > 0 {
+				cmdArgs = append(cmdArgs, "--height", strconv.Itoa(height))
+			}
+
+			if widthPct > 0 {
+				cmdArgs = append(
+					cmdArgs,
+					"--width-percent",
+					strconv.FormatFloat(widthPct, 'f', -1, 64),
+				)
+			}
+
+			if heightPct > 0 {
+				cmdArgs = append(
+					cmdArgs,
+					"--height-percent",
+					strconv.FormatFloat(heightPct, 'f', -1, 64),
+				)
+			}
+
+			if cobraCmd.Flags().Changed("x") {
+				cmdArgs = append(cmdArgs, "--x", strconv.Itoa(xCoord))
+			}
+
+			if cobraCmd.Flags().Changed("y") {
+				cmdArgs = append(cmdArgs, "--y", strconv.Itoa(yCoord))
+			}
+
+			if cobraCmd.Flags().Changed("anchor") {
+				cmdArgs = append(cmdArgs, "--anchor", anchor)
+			}
+
+			if useMargin {
+				cmdArgs = append(cmdArgs, "--margin")
+			}
+
+			if noMargin {
+				cmdArgs = append(cmdArgs, "--no-margin")
+			}
+
+			return runAction(string(action.NameResizeWindow), cmdArgs)
+		},
+	}
+
+	cmd.Flags().IntVarP(&width, "width", "w", 0, "Absolute window width in points")
+	cmd.Flags().IntVar(&height, "height", 0, "Absolute window height in points")
+	cmd.Flags().Float64Var(&widthPct, "width-percent", 0, "Width as percentage of screen (0-100)")
+	cmd.Flags().
+		Float64Var(&heightPct, "height-percent", 0, "Height as percentage of screen (0-100)")
+	cmd.Flags().IntVar(&xCoord, "x", 0, "Absolute x position in screen coordinates")
+	cmd.Flags().IntVar(&yCoord, "y", 0, "Absolute y position in screen coordinates")
+	cmd.Flags().
+		StringVarP(&anchor, "anchor", "a", "", "Anchor point for positioning (tl, tc, tr, cl, cc, cr, bl, bc, br)")
+	cmd.Flags().
+		BoolVar(&useMargin, "margin", false, "Enable tiled window margins (overrides system setting)")
+	cmd.Flags().
+		BoolVar(&noMargin, "no-margin", false, "Disable tiled window margins (overrides system setting)")
+
+	return cmd
+}
+
 func validateActionSpaceArgs(_ *cobra.Command, args []string) error {
 	if len(args) != 1 {
 		return derrors.Newf(
@@ -206,4 +344,5 @@ func init() {
 	actionCmd.AddCommand(actionFocusWindowCmd)
 	actionCmd.AddCommand(actionSpaceCmd)
 	actionCmd.AddCommand(actionMoveWindowToSpaceCmd)
+	actionCmd.AddCommand(actionResizeWindowCmd)
 }

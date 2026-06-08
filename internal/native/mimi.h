@@ -20,6 +20,18 @@ int MimiActivateWindow(void *window);
 #pragma mark - Screen Functions
 
 bool MimiIsMissionControlActive(void);
+double *MimiGetScreenFrameForPoint(double x, double y);
+double *MimiGetScreenVisibleFrameForPoint(double x, double y);
+
+#pragma mark - Window Frame Functions
+
+double *MimiGetWindowFrame(void *window);
+int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
+
+#pragma mark - Tiling Margins
+
+bool MimiTiledWindowMarginsEnabled(void);
+double MimiTiledWindowMarginSize(void);
 
 #pragma mark - Space Functions
 
