@@ -111,6 +111,125 @@ func (e *Element) Equal(other *Element) bool {
 	return result == 1
 }
 
+// GetFrame returns the window's position and size [x, y, w, h] in screen coordinates.
+func (e *Element) GetFrame() (float64, float64, float64, float64, error) {
+	if e.ref == nil {
+		return 0, 0, 0, 0, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot get window frame: element reference is nil",
+		)
+	}
+
+	frame := C.MimiGetWindowFrame(e.ref) //nolint:nlreturn
+	if frame == nil {
+		return 0, 0, 0, 0, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to get window frame",
+		)
+	}
+
+	defer C.free(unsafe.Pointer(frame)) //nolint:nlreturn
+
+	frameArr := (*[4]C.double)(unsafe.Pointer(frame))
+
+	return float64(
+			frameArr[0],
+		), float64(
+			frameArr[1],
+		), float64(
+			frameArr[2],
+		), float64(
+			frameArr[3],
+		), nil
+}
+
+// SetFrame sets the window's position (x, y) and size (w, h) in screen coordinates.
+func (e *Element) SetFrame(posX, posY, width, height float64) error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot set window frame: element reference is nil",
+		)
+	}
+
+	result := C.MimiSetWindowFrame(
+		e.ref,
+		C.double(posX),
+		C.double(posY),
+		C.double(width),
+		C.double(height), //nolint:nlreturn
+	)
+	if result == 0 {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to set window frame",
+		)
+	}
+
+	return nil
+}
+
+// ScreenFrame returns the full frame [x, y, w, h] of the screen containing (x, y).
+func ScreenFrame(xCoord, yCoord float64) (float64, float64, float64, float64, error) {
+	frame := C.MimiGetScreenFrameForPoint(C.double(xCoord), C.double(yCoord))
+	if frame == nil {
+		return 0, 0, 0, 0, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to get screen frame",
+		)
+	}
+
+	defer C.free(unsafe.Pointer(frame)) //nolint:nlreturn
+
+	frameArr := (*[4]C.double)(unsafe.Pointer(frame))
+
+	return float64(
+			frameArr[0],
+		), float64(
+			frameArr[1],
+		), float64(
+			frameArr[2],
+		), float64(
+			frameArr[3],
+		), nil
+}
+
+// ScreenVisibleFrame returns the visible frame [x, y, w, h] of the screen containing (x, y),
+// excluding the dock and menu bar.
+func ScreenVisibleFrame(xCoord, yCoord float64) (float64, float64, float64, float64, error) {
+	frame := C.MimiGetScreenVisibleFrameForPoint(C.double(xCoord), C.double(yCoord))
+	if frame == nil {
+		return 0, 0, 0, 0, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to get screen visible frame",
+		)
+	}
+
+	defer C.free(unsafe.Pointer(frame)) //nolint:nlreturn
+
+	frameArr := (*[4]C.double)(unsafe.Pointer(frame))
+
+	return float64(
+			frameArr[0],
+		), float64(
+			frameArr[1],
+		), float64(
+			frameArr[2],
+		), float64(
+			frameArr[3],
+		), nil
+}
+
+// TiledWindowMarginsEnabled reports whether the system tiled window margins setting is enabled.
+func TiledWindowMarginsEnabled() bool {
+	return bool(C.MimiTiledWindowMarginsEnabled())
+}
+
+// TiledWindowMarginSize returns the tiled window margin size in points.
+func TiledWindowMarginSize() float64 {
+	return float64(C.MimiTiledWindowMarginSize())
+}
+
 // MissionControlActive reports whether Mission Control is currently open.
 func MissionControlActive() bool {
 	return bool(C.MimiIsMissionControlActive())

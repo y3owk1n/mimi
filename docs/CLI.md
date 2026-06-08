@@ -16,10 +16,10 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 
 ## Global Flags
 
-| Flag            | Shorthand | Default | Description           |
-| --------------- | --------- | ------- | --------------------- |
-| `--config, -c`  |           | auto    | Path to config file   |
-| `--verbose, -v` |           | `false` | Verbose output        |
+| Flag            | Shorthand | Default | Description            |
+| --------------- | --------- | ------- | ---------------------- |
+| `--config, -c`  |           | auto    | Path to config file    |
+| `--verbose, -v` |           | `false` | Verbose output         |
 | `--version`     |           |         | Print version and exit |
 
 ---
@@ -37,6 +37,9 @@ mimi action space prev
 mimi action move_window_to_space 2
 mimi action move_window_to_space next
 mimi action move_window_to_space prev
+mimi action resize_window left-half
+mimi action resize_window center --width-percent 80 --height-percent 90
+mimi action resize_window --width 1024 --height 768 --anchor cc
 ```
 
 ### `mimi action focus_window`
@@ -54,6 +57,82 @@ Focus a Mission Control space by its 1-based index, or cycle to the next/previou
 ### `mimi action move_window_to_space <number|next|prev>`
 
 Move the frontmost window to a space by its 1-based index, or cycle to the next/previous space with wrapping. Uses private SkyLight APIs; does not require disabling SIP.
+
+### `mimi action resize_window [preset] [flags]`
+
+Resize and reposition the frontmost window using presets or custom flags. Respects the macOS tiled window margins setting (`com.apple.WindowManager.EnableTiledWindowMargins`), applying full margins on screen-facing edges and half margins on internal (split) edges.
+
+**Presets** provide quick tiling layouts:
+
+| Preset         | Effect                               |
+| -------------- | ------------------------------------ |
+| `left-half`    | Fill the left half of the screen     |
+| `right-half`   | Fill the right half of the screen    |
+| `top-half`     | Fill the top half of the screen      |
+| `bottom-half`  | Fill the bottom half of the screen   |
+| `top-left`     | Fill the top-left quadrant           |
+| `top-right`    | Fill the top-right quadrant          |
+| `bottom-left`  | Fill the bottom-left quadrant        |
+| `bottom-right` | Fill the bottom-right quadrant       |
+| `center`       | Center window at 60% × 80% of screen |
+| `fill`         | Fill entire screen                   |
+
+**Custom sizing flags:**
+
+| Flag                     | Description                            |
+| ------------------------ | -------------------------------------- |
+| `--width, -w <pixels>`   | Absolute window width in points        |
+| `--height, -h <pixels>`  | Absolute window height in points       |
+| `--width-percent <pct>`  | Width as percentage of screen (0–100)  |
+| `--height-percent <pct>` | Height as percentage of screen (0–100) |
+
+**Positioning flags** (use anchors to align the window):
+
+| Flag           | Description              |
+| -------------- | ------------------------ |
+| `--x <pixels>` | Absolute X position      |
+| `--y <pixels>` | Absolute Y position      |
+| `--anchor, -a` | Anchor point (see below) |
+
+**Anchor system** places the window's anchor point at the computed or specified position. Valid anchors (use 2 letters: vertical + horizontal):
+
+```
+tl  tc  tr       (top-left, top-center, top-right)
+cl  cc  cr       (center-left, center-center, center-right)
+bl  bc  br       (bottom-left, bottom-center, bottom-right)
+```
+
+**Margin control:**
+
+| Flag          | Effect                                          |
+| ------------- | ----------------------------------------------- |
+| `--margin`    | Enable tiled margins (overrides system setting) |
+| `--no-margin` | Disable tiled margins                           |
+
+**Examples:**
+
+```bash
+# Presets
+mimi action resize_window left-half
+mimi action resize_window right-half
+mimi action resize_window top-left
+mimi action resize_window center
+
+# Fixed dimensions, centered
+mimi action resize_window --width 800 --height 600 --anchor cc
+
+# Percentage of screen, top-left
+mimi action resize_window --width-percent 50 --height-percent 75 --anchor tl
+
+# Absolute position, top-left anchor
+mimi action resize_window --width 1024 --height 768 --x 100 --y 50 --anchor tl
+
+# Override margins for a preset
+mimi action resize_window left-half --no-margin
+
+# Mix preset with custom size
+mimi action resize_window center --width-percent 80 --height-percent 90
+```
 
 ---
 

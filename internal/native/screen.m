@@ -65,3 +65,100 @@ static bool detectMissionControlActive(void) {
 }
 
 bool MimiIsMissionControlActive(void) { return detectMissionControlActive(); }
+
+double *MimiGetScreenFrameForPoint(double x, double y) {
+	@autoreleasepool {
+		NSScreen *targetScreen = nil;
+		CGPoint pt = CGPointMake(x, y);
+
+		for (NSScreen *screen in [NSScreen screens]) {
+			if (NSPointInRect(pt, [screen frame])) {
+				targetScreen = screen;
+				break;
+			}
+		}
+
+		if (!targetScreen) {
+			targetScreen = [NSScreen mainScreen];
+		}
+
+		NSRect frame = [targetScreen frame];
+		double *result = (double *)malloc(4 * sizeof(double));
+		if (!result)
+			return NULL;
+
+		result[0] = frame.origin.x;
+		result[1] = frame.origin.y;
+		result[2] = frame.size.width;
+		result[3] = frame.size.height;
+
+		return result;
+	}
+}
+
+double *MimiGetScreenVisibleFrameForPoint(double x, double y) {
+	@autoreleasepool {
+		NSScreen *targetScreen = nil;
+		CGPoint pt = CGPointMake(x, y);
+
+		for (NSScreen *screen in [NSScreen screens]) {
+			if (NSPointInRect(pt, [screen frame])) {
+				targetScreen = screen;
+				break;
+			}
+		}
+
+		if (!targetScreen) {
+			targetScreen = [NSScreen mainScreen];
+		}
+
+		NSRect frame = [targetScreen visibleFrame];
+		double *result = (double *)malloc(4 * sizeof(double));
+		if (!result)
+			return NULL;
+
+		result[0] = frame.origin.x;
+		result[1] = frame.origin.y;
+		result[2] = frame.size.width;
+		result[3] = frame.size.height;
+
+		return result;
+	}
+}
+
+bool MimiTiledWindowMarginsEnabled(void) {
+	@autoreleasepool {
+		// CFPreferences is the most reliable way to read other app's preferences
+		Boolean keyExists = false;
+		Boolean enabled = CFPreferencesGetAppBooleanValue(
+		    CFSTR("EnableTiledWindowMargins"), CFSTR("com.apple.WindowManager"), &keyExists);
+
+		if (keyExists) {
+			return (bool)enabled;
+		}
+
+		// Key does not exist — default to enabled (macOS 14+ behavior)
+		return true;
+	}
+}
+
+double MimiTiledWindowMarginSize(void) {
+	@autoreleasepool {
+		// macOS Sequoia (15+) added a configurable TiledWindowSpacing key.
+		CFPropertyListRef val =
+		    CFPreferencesCopyAppValue(CFSTR("TiledWindowSpacing"), CFSTR("com.apple.WindowManager"));
+		if (val) {
+			if (CFGetTypeID(val) == CFNumberGetTypeID()) {
+				double spacing = 0;
+				if (CFNumberGetValue((CFNumberRef)val, kCFNumberDoubleType, &spacing) && spacing > 0) {
+					CFRelease(val);
+					return spacing;
+				}
+			}
+			CFRelease(val);
+		}
+
+		// Default margin: 8px (macOS standard on both Sonoma and Sequoia)
+		return 8.0;
+	}
+}

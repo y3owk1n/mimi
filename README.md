@@ -42,11 +42,11 @@ If you like native Spaces and want to stay close to stock macOS — or you are t
 
 ## What you get
 
-| Mode               | When to use it                                                                                 |
-| :----------------- | :--------------------------------------------------------------------------------------------- |
+| Mode               | When to use it                                                                                                                                 |
+| :----------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
 | **CLI actions**    | One-shot commands — bind to hotkeys, scripts, or Alfred/Raycast. Work without the daemon; route over IPC when it is running for lower latency. |
-| **Daemon + hooks** | React to window and space changes with shell commands (`on_window_*`, `on_workspace_changed`). |
-| **Menu bar**       | See the active space number, reload config, or quit — enabled by default when the daemon runs. |
+| **Daemon + hooks** | React to window and space changes with shell commands (`on_window_*`, `on_workspace_changed`).                                                 |
+| **Menu bar**       | See the active space number, reload config, or quit — enabled by default when the daemon runs.                                                 |
 
 ---
 
@@ -72,6 +72,8 @@ mimi action space 2                        # jump to space 2
 mimi action space next                     # cycle to next space
 mimi action move_window_to_space 3         # move frontmost window to space 3
 mimi action move_window_to_space prev      # move window to previous space
+mimi action resize_window left-half        # tile window to left half
+mimi action resize_window center           # center window
 ```
 
 Full command reference → [CLI Guide](docs/CLI.md)
@@ -111,13 +113,14 @@ Auto-start at login → [Installation Guide — launchd](docs/INSTALLATION.md#au
 
 ### Window & space actions
 
-| Action                           | Command                                                     |
-| :------------------------------- | :---------------------------------------------------------- |
-| Cycle window focus               | `mimi action focus_window`                                  |
-| Switch to a space                | `mimi action space <n\|next\|prev>`                          |
-| Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>`          |
+| Action                           | Command                                            |
+| :------------------------------- | :------------------------------------------------- |
+| Cycle window focus               | `mimi action focus_window`                         |
+| Switch to a space                | `mimi action space <n\|next\|prev>`                |
+| Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>` |
+| Resize and reposition window     | `mimi action resize_window <preset\|flags>`        |
 
-Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight for instant relocation without animation.
+Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight for instant relocation without animation. Window resizing supports presets (e.g., `left-half`, `center`, `fill`) and precise controls with custom sizing, positioning, and margin handling.
 
 ### Hooks (daemon)
 

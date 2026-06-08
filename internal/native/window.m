@@ -324,6 +324,83 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 	}
 }
 
+double *MimiGetWindowFrame(void *window) {
+	if (!window)
+		return NULL;
+
+	@autoreleasepool {
+		AXUIElementRef axWindow = (AXUIElementRef)window;
+
+		double *result = (double *)malloc(4 * sizeof(double));
+		if (!result)
+			return NULL;
+
+		result[0] = 0;
+		result[1] = 0;
+		result[2] = 0;
+		result[3] = 0;
+
+		CFTypeRef positionValue = NULL;
+		AXError posError = AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute, &positionValue);
+		if (posError == kAXErrorSuccess && positionValue) {
+			CGPoint point;
+			if (AXValueGetValue((AXValueRef)positionValue, kAXValueCGPointType, &point)) {
+				result[0] = point.x;
+				result[1] = point.y;
+			}
+			CFRelease(positionValue);
+		}
+
+		CFTypeRef sizeValue = NULL;
+		AXError sizeError = AXUIElementCopyAttributeValue(axWindow, kAXSizeAttribute, &sizeValue);
+		if (sizeError == kAXErrorSuccess && sizeValue) {
+			CGSize size;
+			if (AXValueGetValue((AXValueRef)sizeValue, kAXValueCGSizeType, &size)) {
+				result[2] = size.width;
+				result[3] = size.height;
+			}
+			CFRelease(sizeValue);
+		}
+
+		return result;
+	}
+}
+
+int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
+	if (!window)
+		return 0;
+
+	@autoreleasepool {
+		AXUIElementRef axWindow = (AXUIElementRef)window;
+
+		// Set position first to avoid size changes shifting the window
+		CGPoint point = CGPointMake((CGFloat)x, (CGFloat)y);
+		AXValueRef positionValue = AXValueCreate(kAXValueCGPointType, &point);
+		if (!positionValue)
+			return 0;
+
+		AXError posError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
+
+		// Then set size
+		CGSize size = CGSizeMake((CGFloat)w, (CGFloat)h);
+		AXValueRef sizeValue = AXValueCreate(kAXValueCGSizeType, &size);
+		if (!sizeValue) {
+			CFRelease(positionValue);
+			return 0;
+		}
+
+		AXError sizeError = AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute, sizeValue);
+
+		// Re-set position to correct any shifts caused by resize
+		AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
+
+		CFRelease(sizeValue);
+		CFRelease(positionValue);
+
+		return (posError == kAXErrorSuccess && sizeError == kAXErrorSuccess) ? 1 : 0;
+	}
+}
+
 int MimiActivateWindow(void *window) {
 	if (!window)
 		return 0;
