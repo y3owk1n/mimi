@@ -26,6 +26,7 @@ bool MimiIsMissionControlActive(void);
 int MimiCountMissionControlSpaces(void);
 uint64_t MimiMissionControlSpaceID(int index);
 uint32_t MimiSpaceDisplayID(uint64_t sid);
+uint64_t MimiActiveSpaceID(void);
 int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid);
 int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID);
 

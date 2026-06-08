@@ -57,6 +57,31 @@ func Count() int {
 	return int(C.MimiCountMissionControlSpaces())
 }
 
+// ActiveIndex returns the 1-based index of the currently active space.
+func ActiveIndex() (int, error) {
+	count := Count()
+	if count == 0 {
+		return 0, derrors.New(
+			derrors.CodeActionFailed,
+			"failed to enumerate Mission Control spaces",
+		)
+	}
+
+	activeID := uint64(C.MimiActiveSpaceID())
+	if activeID == 0 {
+		return 0, derrors.New(derrors.CodeActionFailed, "failed to resolve active space ID")
+	}
+
+	for i := 1; i <= count; i++ {
+		sid := uint64(C.MimiMissionControlSpaceID(C.int(i)))
+		if sid == activeID {
+			return i, nil
+		}
+	}
+
+	return 0, derrors.New(derrors.CodeActionFailed, "active space not found in space enumeration")
+}
+
 // MoveWindow moves the frontmost window to the space at the given 1-based index.
 func MoveWindow(index int) error {
 	count := int(C.MimiCountMissionControlSpaces())

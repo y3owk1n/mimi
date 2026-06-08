@@ -32,7 +32,11 @@ These commands run directly in the CLI process when the daemon is not running. W
 mimi action focus_window
 mimi action focus_window --backward
 mimi action space 1
+mimi action space next
+mimi action space prev
 mimi action move_window_to_space 2
+mimi action move_window_to_space next
+mimi action move_window_to_space prev
 ```
 
 ### `mimi action focus_window`
@@ -43,13 +47,13 @@ Cycle keyboard focus through all focusable windows on the current space.
 | ------------ | ------------------------------------------------ |
 | `--backward` | Cycle to the previous window instead of the next |
 
-### `mimi action space <number>`
+### `mimi action space <number|next|prev>`
 
-Focus a Mission Control space by its 1-based index. Uses a synthetic dock-swipe gesture (no public macOS API exists for direct space switching).
+Focus a Mission Control space by its 1-based index, or cycle to the next/previous space with wrapping. Uses a synthetic dock-swipe gesture (no public macOS API exists for direct space switching).
 
-### `mimi action move_window_to_space <number>`
+### `mimi action move_window_to_space <number|next|prev>`
 
-Move the frontmost window to a space by its 1-based index. Uses private SkyLight APIs; does not require disabling SIP.
+Move the frontmost window to a space by its 1-based index, or cycle to the next/previous space with wrapping. Uses private SkyLight APIs; does not require disabling SIP.
 
 ---
 

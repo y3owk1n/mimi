@@ -24,7 +24,11 @@ Examples:
   mimi action focus_window
   mimi action focus_window --backward
   mimi action space 1
-  mimi action move_window_to_space 2`,
+  mimi action space next
+  mimi action space prev
+  mimi action move_window_to_space 2
+  mimi action move_window_to_space next
+  mimi action move_window_to_space prev`,
 	RunE: func(_ *cobra.Command, _ []string) error {
 		return derrors.New(
 			derrors.CodeInvalidInput,
@@ -68,13 +72,18 @@ current space are included.`,
 
 func buildSpaceCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "space <number>",
-		Short: "Focus a Mission Control space by 1-based index",
-		Long: `Focus a Mission Control space by its 1-based index.
+		Use:   "space <number|next|prev>",
+		Short: "Focus a Mission Control space by index or cycle next/prev",
+		Long: `Focus a Mission Control space by its 1-based index, or cycle to the next or
+previous space.
 
 Spaces are enumerated in Mission Control ordering across all connected
 displays. Index 1 is the first space (typically the leftmost on the
 primary display), index 2 the second, and so on.
+
+The "next" and "prev" keywords cycle through spaces with wrapping — "next"
+on the last space wraps to space 1, and "prev" on space 1 wraps to the
+last space.
 
 macOS does not provide a public API to activate a space, so mimi
 synthesizes a high-velocity horizontal dock swipe gesture to fast-forward
@@ -83,8 +92,9 @@ destination sits on a different display, the cursor is warped to its
 center first so the gesture is attributed to the correct screen.
 
 Examples:
-  mimi action space 1     Focus the first Mission Control space
-  mimi action space 3     Focus the third`,
+  mimi action space 1        Focus the first Mission Control space
+  mimi action space next     Cycle to the next space (with wrap)
+  mimi action space prev     Cycle to the previous space (with wrap)`,
 		Args: validateActionSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runAction(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
@@ -94,19 +104,25 @@ Examples:
 
 func buildMoveWindowToSpaceCommand() *cobra.Command {
 	return &cobra.Command{
-		Use:   "move_window_to_space <number>",
-		Short: "Move current focused window to a Mission Control space by 1-based index",
-		Long: `Move the currently focused window to a Mission Control space by its 1-based index.
+		Use:   "move_window_to_space <number|next|prev>",
+		Short: "Move current focused window to a Mission Control space by index or cycle next/prev",
+		Long: `Move the currently focused window to a Mission Control space by its 1-based
+index, or cycle to the next or previous space.
 
 Spaces are enumerated in Mission Control ordering across all connected
 displays. Index 1 is the first space, index 2 the second, and so on.
+
+The "next" and "prev" keywords cycle through spaces with wrapping — "next"
+on the last space wraps to space 1, and "prev" on space 1 wraps to the
+last space.
 
 This command uses private APIs (SkyLight) to move the window instantly
 without scripting additions or disabling SIP on macOS.
 
 Examples:
-  mimi action move_window_to_space 2     Move current window to space 2
-  mimi action move_window_to_space 4     Move current window to space 4`,
+  mimi action move_window_to_space 2        Move current window to space 2
+  mimi action move_window_to_space next     Move window to next space (with wrap)
+  mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
 		Args: validateActionMoveWindowToSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
 			return runAction(
@@ -118,10 +134,44 @@ Examples:
 }
 
 func validateActionSpaceArgs(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return derrors.Newf(
+			derrors.CodeInvalidInput,
+			"space requires exactly one positional argument: a 1-based number, \"next\", or \"prev\" (e.g., mimi action space 1, mimi action space next)",
+		)
+	}
+
+	raw := strings.TrimSpace(args[0])
+	if raw == "" {
+		return derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
+	}
+
+	keywords := map[string]bool{"next": true, "prev": true, "previous": true}
+	if keywords[raw] {
+		return nil
+	}
+
 	return validateActionIndexArgs(args, "space")
 }
 
 func validateActionMoveWindowToSpaceArgs(_ *cobra.Command, args []string) error {
+	if len(args) != 1 {
+		return derrors.Newf(
+			derrors.CodeInvalidInput,
+			"move_window_to_space requires exactly one positional argument: a 1-based number, \"next\", or \"prev\" (e.g., mimi action move_window_to_space 1, mimi action move_window_to_space next)",
+		)
+	}
+
+	raw := strings.TrimSpace(args[0])
+	if raw == "" {
+		return derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
+	}
+
+	keywords := map[string]bool{"next": true, "prev": true, "previous": true}
+	if keywords[raw] {
+		return nil
+	}
+
 	return validateActionIndexArgs(args, "move_window_to_space")
 }
 

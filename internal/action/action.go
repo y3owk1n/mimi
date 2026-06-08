@@ -5,6 +5,7 @@ import (
 	"strings"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/space"
 )
 
 // Name identifies a supported action subcommand.
@@ -51,30 +52,59 @@ func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
 	return parsed, nil
 }
 
-func parseIndexArg(args []string, actionName string) (int, error) {
+type spaceArg struct {
+	index     int
+	direction int // +1 for next, -1 for prev; 0 means absolute index
+}
+
+func parseSpaceArg(args []string) (spaceArg, error) {
 	if len(args) != 1 {
-		return 0, derrors.Newf(
+		return spaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s requires exactly one positional argument: the 1-based space number",
-			actionName,
+			"space requires exactly one argument: a 1-based number, \"next\", or \"prev\"",
 		)
 	}
 
 	raw := strings.TrimSpace(args[0])
 	if raw == "" {
-		return 0, derrors.New(derrors.CodeInvalidInput, "space number cannot be empty")
+		return spaceArg{}, derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
+	}
+
+	switch raw {
+	case "next":
+		return spaceArg{direction: 1}, nil
+	case "prev", "previous":
+		return spaceArg{direction: -1}, nil
 	}
 
 	index, parseErr := strconv.Atoi(raw)
 	if parseErr != nil || index < 1 {
-		return 0, derrors.Newf(
+		return spaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"space number must be a positive integer, got %s",
+			"space must be a positive integer, \"next\", or \"prev\", got %q",
 			raw,
 		)
 	}
 
-	return index, nil
+	return spaceArg{index: index}, nil
+}
+
+func (s spaceArg) resolve() (int, error) {
+	if s.direction != 0 {
+		current, err := space.ActiveIndex()
+		if err != nil {
+			return 0, err
+		}
+
+		count := space.Count()
+		if count == 0 {
+			return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
+		}
+
+		return ((current - 1 + s.direction + count) % count) + 1, nil
+	}
+
+	return s.index, nil
 }
 
 // Execute runs a named action with the given arguments.
@@ -88,14 +118,24 @@ func Execute(name string, args []string) error {
 
 		return FocusWindow(parsed.useBackward)
 	case NameSpace:
-		index, err := parseIndexArg(args, string(NameSpace))
+		parsed, err := parseSpaceArg(args)
+		if err != nil {
+			return err
+		}
+
+		index, err := parsed.resolve()
 		if err != nil {
 			return err
 		}
 
 		return FocusSpace(index)
 	case NameMoveWindowToSpace:
-		index, err := parseIndexArg(args, string(NameMoveWindowToSpace))
+		parsed, err := parseSpaceArg(args)
+		if err != nil {
+			return err
+		}
+
+		index, err := parsed.resolve()
 		if err != nil {
 			return err
 		}
