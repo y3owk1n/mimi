@@ -12,7 +12,7 @@
 # When the daemon is running, actions are routed over a Unix socket
 # (~/.local/share/mimi/mimi.sock by default) to avoid process startup cost.
 # Every hook receives these environment variables:
-#   mimi_EVENT        — event kind (e.g. "window_focus", "workspace_changed")
+#   mimi_EVENT        — event kind (e.g. "app_activate", "window_focus", "workspace_changed")
 #   mimi_EVENT_ID     — unique event UUID
 #   mimi_APP_NAME     — app display name
 #   mimi_BUNDLE_ID    — bundle identifier (e.g. "com.apple.Safari")
@@ -60,6 +60,38 @@ show_workspace_number = true
 # =============================================================================
 
 [hooks]
+
+# ── Application Lifecycle ──────────────────────────────────────────────────────
+
+# App comes to foreground.
+# on_app_activate = [
+#     "echo 'activated: $mimi_APP_NAME'"
+# ]
+
+# App loses foreground.
+# on_app_deactivate = [
+#     "echo 'deactivated: $mimi_APP_NAME'"
+# ]
+
+# App process started.
+# on_app_launch = [
+#     "echo 'launched: $mimi_APP_NAME'"
+# ]
+
+# App process terminated.
+# on_app_quit = [
+#     "echo 'quit: $mimi_APP_NAME'"
+# ]
+
+# App hidden (Cmd+H).
+# on_app_hide = [
+#     "echo 'hidden: $mimi_APP_NAME'"
+# ]
+
+# App unhidden.
+# on_app_unhide = [
+#     "echo 'unhidden: $mimi_APP_NAME'"
+# ]
 
 # ── Window Events (requires Accessibility permission) ─────────────────────────
 
