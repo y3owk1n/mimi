@@ -201,6 +201,12 @@ func validate(cfg *Config) error {
 
 func allHookEntries(cfg *Config) map[string][]HookEntry {
 	return map[string][]HookEntry{
+		string(events.AppActivate):       cfg.Hooks.AppActivate,
+		string(events.AppDeactivate):     cfg.Hooks.AppDeactivate,
+		string(events.AppLaunch):         cfg.Hooks.AppLaunch,
+		string(events.AppQuit):           cfg.Hooks.AppQuit,
+		string(events.AppHide):           cfg.Hooks.AppHide,
+		string(events.AppUnhide):         cfg.Hooks.AppUnhide,
 		string(events.WindowFocus):       cfg.Hooks.WindowFocus,
 		string(events.WindowTitleChange): cfg.Hooks.WindowTitleChange,
 		string(events.WindowCreated):     cfg.Hooks.WindowCreated,

@@ -38,7 +38,16 @@ show_workspace_number = true   # show active space number in menu bar
 
 ## Hooks
 
-mimi supports hooks for **window** and **workspace** events only.
+### Application Lifecycle
+
+| Hook | Fires when |
+| ---- | ---------- |
+| `on_app_activate` | App comes to foreground |
+| `on_app_deactivate` | App loses foreground |
+| `on_app_launch` | App process starts |
+| `on_app_quit` | App process terminates |
+| `on_app_hide` | App hidden (⌘H) |
+| `on_app_unhide` | Hidden app shown again |
 
 ### Window events (requires Accessibility)
 
@@ -84,15 +93,15 @@ Every hook receives:
 
 | Variable | Description |
 | -------- | ----------- |
-| `mimi_EVENT` | Event kind (e.g. `window_focus`, `workspace_changed`) |
+| `mimi_EVENT` | Event kind (e.g. `app_activate`, `window_focus`, `workspace_changed`) |
 | `mimi_EVENT_ID` | Unique event UUID |
 | `mimi_APP_NAME` | App display name |
 | `mimi_BUNDLE_ID` | Bundle identifier |
 | `mimi_PID` | Process ID |
-| `mimi_WINDOW_TITLE` | Window title (window events) |
+| `mimi_WINDOW_TITLE` | Window title (window events only) |
 | `mimi_TIMESTAMP` | RFC3339 timestamp |
-| `mimi_WINDOWS_COUNT` | Window count (workspace events) |
-| `mimi_INFO` | JSON workspace info (workspace events) |
+| `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
+| `mimi_INFO` | JSON workspace info (workspace events only) |
 
 Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands.
 
@@ -102,6 +111,10 @@ Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands.
 
 ```toml
 [hooks]
+on_app_activate = [
+  { run = "echo 'active: $mimi_APP_NAME'", async = true }
+]
+
 on_window_focus = [
   { run = "echo focus >> ~/window.log", app = "Code", async = true }
 ]

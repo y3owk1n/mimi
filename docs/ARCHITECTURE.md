@@ -4,7 +4,7 @@ mimi is a macOS window and space utility with three execution paths:
 
 1. **CLI actions (direct)** — immediate one-shot commands (`mimi action …`)
 2. **CLI actions (via daemon IPC)** — same commands routed over a Unix socket when the daemon is running
-3. **Hook daemon** — background process that fires shell hooks on window/space events
+3. **Hook daemon** — background process that fires shell hooks on app, window, and space events
 
 Both paths use native macOS APIs via CGO. No SIP disable is required.
 
@@ -44,13 +44,9 @@ NSWorkspace + AX observers (workspace.m, axobserver.m)
 
 ### Observers
 
-Only window and workspace observers are active:
-
-- **App lifecycle** (internal) — installs per-app AX observers when window hooks are configured
+- **App lifecycle** — subscribes to `NSWorkspace` app notifications (activate, deactivate, launch, quit, hide, unhide) for both app hooks and AX observer management
 - **AX window events** — focus, title change, create, close, resize (debounced)
 - **Workspace polling** — detects Mission Control space changes when `on_workspace_changed` hooks are configured
-
-System observers (power, USB, network, clipboard, audio, etc.) have been removed.
 
 ### Event Bus
 
@@ -88,7 +84,7 @@ internal/
 - All `mimi action` commands
 - Window hooks (`on_window_*`)
 
-Workspace hooks (`on_workspace_changed`) do not require Accessibility.
+App lifecycle hooks (`on_app_*`) and workspace hooks (`on_workspace_changed`) do not require Accessibility.
 
 ---
 
