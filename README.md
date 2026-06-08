@@ -66,10 +66,12 @@ Other options → [Installation Guide](docs/INSTALLATION.md)
 Grant **Accessibility** to `mimi` in **System Settings → Privacy & Security → Accessibility**, then:
 
 ```bash
-mimi action focus_window              # cycle focus on the active space
-mimi action focus_window --backward   # cycle backward
-mimi action space 2                   # jump to space 2
-mimi action move_window_to_space 3    # move frontmost window to space 3
+mimi action focus_window                   # cycle focus on the active space
+mimi action focus_window --backward        # cycle backward
+mimi action space 2                        # jump to space 2
+mimi action space next                     # cycle to next space
+mimi action move_window_to_space 3         # move frontmost window to space 3
+mimi action move_window_to_space prev      # move window to previous space
 ```
 
 Full command reference → [CLI Guide](docs/CLI.md)
@@ -109,11 +111,11 @@ Auto-start at login → [Installation Guide — launchd](docs/INSTALLATION.md#au
 
 ### Window & space actions
 
-| Action                           | Command                                |
-| :------------------------------- | :------------------------------------- |
-| Cycle window focus               | `mimi action focus_window`             |
-| Switch to a space (1-based)      | `mimi action space <n>`                |
-| Move frontmost window to a space | `mimi action move_window_to_space <n>` |
+| Action                           | Command                                                     |
+| :------------------------------- | :---------------------------------------------------------- |
+| Cycle window focus               | `mimi action focus_window`                                  |
+| Switch to a space                | `mimi action space <n\|next\|prev>`                          |
+| Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>`          |
 
 Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight for instant relocation without animation.
 
@@ -121,6 +123,12 @@ Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight f
 
 | Event                      | Hook                     | Accessibility required |
 | :------------------------- | :----------------------- | :--------------------- |
+| App activated              | `on_app_activate`        | Yes                    |
+| App deactivated            | `on_app_deactivate`      | Yes                    |
+| App launched               | `on_app_launch`          | No                     |
+| App quit                   | `on_app_quit`            | No                     |
+| App hidden                 | `on_app_hide`            | Yes                    |
+| App unhidden               | `on_app_unhide`          | Yes                    |
 | Window focused             | `on_window_focus`        | Yes                    |
 | Window title changed       | `on_window_title_change` | Yes                    |
 | Window opened              | `on_window_created`      | Yes                    |
@@ -145,8 +153,14 @@ When `[systray] enabled = true` (the default), the daemon shows a menu bar icon 
 | `mimi status`              | Daemon state and permission checks |
 | `mimi config init`         | Create default config              |
 | `mimi config validate`     | Validate config                    |
+| `mimi config dump`         | Print resolved config as JSON      |
 | `mimi config reload`       | Reload running daemon (SIGHUP)     |
 | `mimi services install`    | Install launchd agent              |
+| `mimi services uninstall`  | Unload and remove launchd agent    |
+| `mimi services start`      | Start the system service           |
+| `mimi services stop`       | Stop the system service            |
+| `mimi services restart`    | Restart the system service         |
+| `mimi services status`     | Check whether service is running   |
 
 → [CLI Guide](docs/CLI.md)
 
