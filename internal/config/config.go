@@ -32,8 +32,14 @@ type SystrayConfig struct {
 	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
 }
 
-// HooksConfig holds window and workspace hook entries.
+// HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {
+	AppActivate       []HookEntry `json:"onAppActivate"       toml:"on_app_activate"`
+	AppDeactivate     []HookEntry `json:"onAppDeactivate"     toml:"on_app_deactivate"`
+	AppLaunch         []HookEntry `json:"onAppLaunch"         toml:"on_app_launch"`
+	AppQuit           []HookEntry `json:"onAppQuit"           toml:"on_app_quit"`
+	AppHide           []HookEntry `json:"onAppHide"           toml:"on_app_hide"`
+	AppUnhide         []HookEntry `json:"onAppUnhide"         toml:"on_app_unhide"`
 	WindowFocus       []HookEntry `json:"onWindowFocus"       toml:"on_window_focus"`
 	WindowTitleChange []HookEntry `json:"onWindowTitleChange" toml:"on_window_title_change"`
 	WindowCreated     []HookEntry `json:"onWindowCreated"     toml:"on_window_created"`
@@ -53,6 +59,12 @@ type HookEntry struct {
 }
 
 type rawHooksConfig struct {
+	AppActivate       []any `json:"onAppActivate"       toml:"on_app_activate"`
+	AppDeactivate     []any `json:"onAppDeactivate"     toml:"on_app_deactivate"`
+	AppLaunch         []any `json:"onAppLaunch"         toml:"on_app_launch"`
+	AppQuit           []any `json:"onAppQuit"           toml:"on_app_quit"`
+	AppHide           []any `json:"onAppHide"           toml:"on_app_hide"`
+	AppUnhide         []any `json:"onAppUnhide"         toml:"on_app_unhide"`
 	WindowFocus       []any `json:"onWindowFocus"       toml:"on_window_focus"`
 	WindowTitleChange []any `json:"onWindowTitleChange" toml:"on_window_title_change"`
 	WindowCreated     []any `json:"onWindowCreated"     toml:"on_window_created"`
@@ -115,6 +127,12 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 		return entries
 	}
 
+	hooksCfg.AppActivate = decodeField("on_app_activate", raw.AppActivate)
+	hooksCfg.AppDeactivate = decodeField("on_app_deactivate", raw.AppDeactivate)
+	hooksCfg.AppLaunch = decodeField("on_app_launch", raw.AppLaunch)
+	hooksCfg.AppQuit = decodeField("on_app_quit", raw.AppQuit)
+	hooksCfg.AppHide = decodeField("on_app_hide", raw.AppHide)
+	hooksCfg.AppUnhide = decodeField("on_app_unhide", raw.AppUnhide)
 	hooksCfg.WindowFocus = decodeField("on_window_focus", raw.WindowFocus)
 	hooksCfg.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
 	hooksCfg.WindowCreated = decodeField("on_window_created", raw.WindowCreated)

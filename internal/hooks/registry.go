@@ -69,6 +69,12 @@ func (h *Hook) Matches(evt events.Event) (bool, string) {
 func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 	hookMap := make(map[events.EventKind][]Hook)
 	entries := map[events.EventKind][]config.HookEntry{
+		events.AppActivate:       cfg.Hooks.AppActivate,
+		events.AppDeactivate:     cfg.Hooks.AppDeactivate,
+		events.AppLaunch:         cfg.Hooks.AppLaunch,
+		events.AppQuit:           cfg.Hooks.AppQuit,
+		events.AppHide:           cfg.Hooks.AppHide,
+		events.AppUnhide:         cfg.Hooks.AppUnhide,
 		events.WindowFocus:       cfg.Hooks.WindowFocus,
 		events.WindowTitleChange: cfg.Hooks.WindowTitleChange,
 		events.WindowCreated:     cfg.Hooks.WindowCreated,

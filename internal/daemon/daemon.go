@@ -330,13 +330,22 @@ func hasWindowEvents(cfg *config.Config) bool {
 		len(cfg.Hooks.WindowResize) > 0
 }
 
+func hasAppEvents(cfg *config.Config) bool {
+	return len(cfg.Hooks.AppActivate) > 0 ||
+		len(cfg.Hooks.AppDeactivate) > 0 ||
+		len(cfg.Hooks.AppLaunch) > 0 ||
+		len(cfg.Hooks.AppQuit) > 0 ||
+		len(cfg.Hooks.AppHide) > 0 ||
+		len(cfg.Hooks.AppUnhide) > 0
+}
+
 func hasWorkspaceEvents(cfg *config.Config) bool {
 	return len(cfg.Hooks.WorkspaceChanged) > 0
 }
 
 func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 	return native.ObserverConfig{
-		AppLifecycle: hasWindowEvents(cfg),
+		AppLifecycle: hasWindowEvents(cfg) || hasAppEvents(cfg),
 		Workspace:    hasWorkspaceEvents(cfg),
 	}
 }

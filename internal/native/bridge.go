@@ -161,10 +161,16 @@ func kindFromInt(kindInt int) events.EventKind {
 	switch kindInt {
 	case int(C.MIMI_KIND_APP_ACTIVATE):
 		return events.AppActivate
+	case int(C.MIMI_KIND_APP_DEACTIVATE):
+		return events.AppDeactivate
 	case int(C.MIMI_KIND_APP_LAUNCH):
 		return events.AppLaunch
 	case int(C.MIMI_KIND_APP_QUIT):
 		return events.AppQuit
+	case int(C.MIMI_KIND_APP_HIDE):
+		return events.AppHide
+	case int(C.MIMI_KIND_APP_UNHIDE):
+		return events.AppUnhide
 	case int(C.MIMI_KIND_WINDOW_FOCUS):
 		return events.WindowFocus
 	case int(C.MIMI_KIND_WINDOW_TITLE_CHANGE):

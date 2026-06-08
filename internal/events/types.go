@@ -7,6 +7,19 @@ type EventKind string
 
 // Hookable event kinds — exposed to users via config and hooks.
 const (
+	// AppActivate fires when an app becomes the frontmost.
+	AppActivate EventKind = "app_activate"
+	// AppDeactivate fires when an app loses focus.
+	AppDeactivate EventKind = "app_deactivate"
+	// AppLaunch fires when a new app process starts.
+	AppLaunch EventKind = "app_launch"
+	// AppQuit fires when an app process terminates.
+	AppQuit EventKind = "app_quit"
+	// AppHide fires when an app is hidden (⌘H).
+	AppHide EventKind = "app_hide"
+	// AppUnhide fires when a hidden app is shown again.
+	AppUnhide EventKind = "app_unhide"
+
 	// WindowFocus fires when the focused window changes.
 	WindowFocus EventKind = "window_focus"
 	// WindowTitleChange fires when the active window title changes.
@@ -24,16 +37,14 @@ const (
 	WorkspaceChanged EventKind = "workspace_changed"
 )
 
-// Internal event kinds used by observers for AX lifecycle management.
-// These are not hookable and do not appear in AllKinds.
-const (
-	AppActivate EventKind = "app_activate"
-	AppLaunch   EventKind = "app_launch"
-	AppQuit     EventKind = "app_quit"
-)
-
 // AllKinds lists every hookable event kind.
 var AllKinds = []EventKind{
+	AppActivate,
+	AppDeactivate,
+	AppLaunch,
+	AppQuit,
+	AppHide,
+	AppUnhide,
 	WindowFocus,
 	WindowTitleChange,
 	WindowCreated,
