@@ -92,7 +92,28 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 				if (response == NSAlertFirstButtonReturn) {
 					MimiRequestAccessibilityPermissions();
 				} else if (response == NSAlertSecondButtonReturn) {
-					return 1;
+					if (MimiCheckAccessibilityPermissions() == 1) {
+						return 1;
+					}
+
+					NSAlert *restartAlert = [[NSAlert alloc] init];
+					restartAlert.messageText = @"Mimi Restart Required";
+					restartAlert.informativeText =
+					    @"macOS requires restarting Mimi for Accessibility permissions to take effect.\n\n"
+					     "Mimi will now quit. Please relaunch the application.";
+					restartAlert.alertStyle = NSAlertStyleInformational;
+					[restartAlert addButtonWithTitle:@"Quit Mimi"];
+
+					[[restartAlert window] setLevel:NSFloatingWindowLevel];
+					[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+					[[restartAlert window] center];
+					[[restartAlert window] makeKeyAndOrderFront:nil];
+					[NSApp activateIgnoringOtherApps:YES];
+
+					[restartAlert runModal];
+					[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+
+					return 3;
 				} else if (response == NSAlertThirdButtonReturn) {
 					return 2;
 				}
