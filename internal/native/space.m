@@ -132,60 +132,6 @@ static void mimiSetActiveMenuBarDisplay(uint32_t did) {
 	CFRelease(uuid);
 }
 
-#pragma mark - Mission Control Index Resolution
-
-/// Find the 1-based Mission Control indices of two space IDs in a single
-/// pass over SLSCopyManagedDisplaySpaces. Returns false if either sid is
-/// not found in the current Mission Control ordering.
-static bool mimiResolveMCIndices(uint64_t curSid, uint64_t newSid, int *outCurIndex, int *outNewIndex) {
-	*outCurIndex = 0;
-	*outNewIndex = 0;
-
-	@autoreleasepool {
-		CFArrayRef displaySpaces = SLSCopyManagedDisplaySpaces(SLSMainConnectionID());
-		if (!displaySpaces) {
-			return false;
-		}
-
-		int counter = 1;
-
-		CFIndex displayCount = CFArrayGetCount(displaySpaces);
-		for (CFIndex i = 0; i < displayCount; i++) {
-			CFDictionaryRef displayRef = (CFDictionaryRef)CFArrayGetValueAtIndex(displaySpaces, i);
-			CFArrayRef spacesRef = (CFArrayRef)CFDictionaryGetValue(displayRef, CFSTR("Spaces"));
-			if (!spacesRef) {
-				continue;
-			}
-
-			CFIndex spacesCount = CFArrayGetCount(spacesRef);
-			for (CFIndex j = 0; j < spacesCount; j++) {
-				CFDictionaryRef spaceRef = (CFDictionaryRef)CFArrayGetValueAtIndex(spacesRef, j);
-				CFNumberRef sidRef = (CFNumberRef)CFDictionaryGetValue(spaceRef, CFSTR("id64"));
-				if (!sidRef) {
-					continue;
-				}
-
-				uint64_t sid = 0;
-				CFNumberGetValue(sidRef, CFNumberGetType(sidRef), &sid);
-
-				if (sid == curSid) {
-					*outCurIndex = counter;
-				}
-
-				if (sid == newSid) {
-					*outNewIndex = counter;
-				}
-
-				counter++;
-			}
-		}
-
-		CFRelease(displaySpaces);
-
-		return (*outCurIndex > 0) && (*outNewIndex > 0);
-	}
-}
-
 #pragma mark - Public Space API
 
 /// Get the total number of Mission Control spaces across all displays
@@ -296,6 +242,56 @@ static const int kMimiCGEventGesturePhase = 132;           // kCGEventGesturePha
 static const int kMimiCGSGesturePhaseBegan = 1;            // kCGSGesturePhaseBegan
 static const int kMimiCGSGesturePhaseEnded = 4;            // kCGSGesturePhaseEnded
 
+/// Return the 1-based local index of a space within its display's space
+/// ordering. Returns 0 if the space is not found on the given display.
+static int mimiLocalSpaceIndex(uint64_t sid, uint32_t did) {
+	CFStringRef uuid = mimiDisplayUUID(did);
+	if (!uuid) {
+		return 0;
+	}
+
+	CFArrayRef displaySpaces = SLSCopyManagedDisplaySpaces(SLSMainConnectionID());
+	if (!displaySpaces) {
+		CFRelease(uuid);
+		return 0;
+	}
+
+	int localIndex = 0;
+	CFIndex displayCount = CFArrayGetCount(displaySpaces);
+	for (CFIndex i = 0; i < displayCount; i++) {
+		CFDictionaryRef displayRef = (CFDictionaryRef)CFArrayGetValueAtIndex(displaySpaces, i);
+		CFStringRef displayUUID = (CFStringRef)CFDictionaryGetValue(displayRef, CFSTR("Display Identifier"));
+		if (!displayUUID || CFStringCompare(displayUUID, uuid, 0) != kCFCompareEqualTo) {
+			continue;
+		}
+
+		CFArrayRef spacesRef = (CFArrayRef)CFDictionaryGetValue(displayRef, CFSTR("Spaces"));
+		if (!spacesRef) {
+			break;
+		}
+
+		CFIndex spacesCount = CFArrayGetCount(spacesRef);
+		for (CFIndex j = 0; j < spacesCount; j++) {
+			localIndex++;
+			CFDictionaryRef spaceRef = (CFDictionaryRef)CFArrayGetValueAtIndex(spacesRef, j);
+			CFNumberRef sidRef = (CFNumberRef)CFDictionaryGetValue(spaceRef, CFSTR("id64"));
+			if (sidRef) {
+				uint64_t curSid = 0;
+				CFNumberGetValue(sidRef, CFNumberGetType(sidRef), &curSid);
+				if (curSid == sid) {
+					CFRelease(displaySpaces);
+					CFRelease(uuid);
+					return localIndex;
+				}
+			}
+		}
+	}
+
+	CFRelease(displaySpaces);
+	CFRelease(uuid);
+	return 0;
+}
+
 /// Focus a space using a synthetic high-velocity horizontal dock swipe
 /// gesture to skip the standard Mission Control swipe animation — macOS
 /// exposes no public API to activate a space directly.
@@ -310,18 +306,25 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 	mimiEnsureApplication();
 
 	uint32_t curDid = mimiCursorDisplayID();
-	uint64_t curSid = mimiDisplaySpaceID(curDid);
 	CGPoint point = mimiDisplayCenter(new_did);
 	bool focusDisplay = curDid != new_did;
 
 	if (focusDisplay) {
 		CGWarpMouseCursorPosition(point);
+		// Give the system a moment to process the warp before querying the
+		// current space on the target display.
+		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
 	}
 
-	int curIndex = 0;
-	int newIndex = 0;
-	if (!mimiResolveMCIndices(curSid, new_sid, &curIndex, &newIndex)) {
-		// Could not resolve Mission Control indices (e.g. transient state).
+	// After any warp, resolve the swipe count using per-display local space
+	// indices. Swipe gestures navigate spaces on the active display only, so
+	// the global Mission Control index distance is wrong when crossing displays.
+	uint64_t fromSid = mimiDisplaySpaceID(new_did);
+	int fromIdx = mimiLocalSpaceIndex(fromSid, new_did);
+	int toIdx = mimiLocalSpaceIndex(new_sid, new_did);
+
+	if (fromIdx == 0 || toIdx == 0) {
+		// Could not resolve local indices (e.g. transient state).
 		// Best-effort fallback: ensure the right display is active so the OS
 		// picks the closest matching space on that display.
 		mimiSetActiveMenuBarDisplay(new_did);
@@ -330,11 +333,10 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 		return 1;
 	}
 
-	int count = abs(newIndex - curIndex);
+	int count = abs(toIdx - fromIdx);
 	if (count == 0) {
-		// Already on the same Mission Control index. Make sure the right
-		// display is active in case the destination space sits on a
-		// different display at the same index.
+		// Already on the correct local space on the target display. Make sure
+		// the menu bar is on the right display when crossing displays.
 		if (focusDisplay) {
 			mimiSetActiveMenuBarDisplay(new_did);
 			if (mimiDisplaySpaceID(new_did) != new_sid) {
@@ -353,7 +355,7 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 		return 0;
 	}
 
-	double sign = (newIndex - curIndex) > 0 ? 1.0 : -1.0;
+	double sign = (toIdx - fromIdx) > 0 ? 1.0 : -1.0;
 
 	CGEventSetIntegerValueField(event, kMimiCGSEventTypeField, kMimiCGSEventDockControl);
 	CGEventSetIntegerValueField(event, kMimiCGEventGestureHIDType, kMimiIOHIDEventTypeDockSwipe);
