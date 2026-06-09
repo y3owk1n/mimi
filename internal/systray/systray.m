@@ -21,6 +21,7 @@ extern void systray_on_exit(void);
 #pragma mark - Workspace Title Observer
 
 static id gWorkspaceObserver = nil;
+static id gActiveDisplayObserver = nil;
 static int gLastWorkspaceTitle = INT_MIN;
 
 static int activeWorkspaceNumberFromSkyLight(void) {
@@ -34,8 +35,9 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 		return -1;
 	}
 
+	// Function pointer types for private SkyLight APIs.
 	typedef int (*SLSMainConnectionIDFunc)(void);
-	typedef uint64_t (*SLSGetActiveSpaceFunc)(int);
+	typedef CFStringRef (*SLSCopyActiveMenuBarDisplayIdentifierFunc)(int);
 	typedef CFArrayRef (*SLSCopyManagedDisplaySpacesFunc)(int);
 
 	SLSMainConnectionIDFunc SLSMainConnectionID = (SLSMainConnectionIDFunc)dlsym(skyLight, "SLSMainConnectionID");
@@ -43,32 +45,51 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 		SLSMainConnectionID = (SLSMainConnectionIDFunc)dlsym(skyLight, "CGSMainConnectionID");
 	}
 
-	SLSGetActiveSpaceFunc SLSGetActiveSpace = (SLSGetActiveSpaceFunc)dlsym(skyLight, "SLSGetActiveSpace");
-	if (!SLSGetActiveSpace) {
-		SLSGetActiveSpace = (SLSGetActiveSpaceFunc)dlsym(skyLight, "CGSGetActiveSpace");
+	SLSCopyActiveMenuBarDisplayIdentifierFunc SLSCopyActiveMenuBarDisplayIdentifier =
+	    (SLSCopyActiveMenuBarDisplayIdentifierFunc)dlsym(skyLight, "SLSCopyActiveMenuBarDisplayIdentifier");
+	if (!SLSCopyActiveMenuBarDisplayIdentifier) {
+		SLSCopyActiveMenuBarDisplayIdentifier =
+		    (SLSCopyActiveMenuBarDisplayIdentifierFunc)dlsym(skyLight, "CGSCopyActiveMenuBarDisplayIdentifier");
 	}
 
 	SLSCopyManagedDisplaySpacesFunc SLSCopyManagedDisplaySpaces =
 	    (SLSCopyManagedDisplaySpacesFunc)dlsym(skyLight, "SLSCopyManagedDisplaySpaces");
 
-	if (!SLSMainConnectionID || !SLSGetActiveSpace || !SLSCopyManagedDisplaySpaces) {
+	if (!SLSMainConnectionID || !SLSCopyActiveMenuBarDisplayIdentifier || !SLSCopyManagedDisplaySpaces) {
 		return -1;
 	}
 
 	int conn = SLSMainConnectionID();
-	uint64_t active = SLSGetActiveSpace(conn);
-	if (active == 0) {
+
+	// Determine which display currently has the menu bar / keyboard focus.
+	// This is the display the user is actively interacting with. The returned
+	// value is a UUID string matching the "Display Identifier" key in the
+	// managed display spaces data.
+	CFStringRef activeDisplayUUID = SLSCopyActiveMenuBarDisplayIdentifier(conn);
+	if (!activeDisplayUUID) {
 		return -1;
 	}
 
+	// Fetch the managed display spaces — array of per-display dictionaries.
 	CFArrayRef managed = SLSCopyManagedDisplaySpaces(conn);
 	if (!managed) {
+		CFRelease(activeDisplayUUID);
 		return -1;
 	}
 
 	int counter = 0;
+	__block int foundIndex = -1;
+	__block bool foundActive = false;
+
 	NSArray *displays = (__bridge NSArray *)managed;
 	for (NSDictionary *display in displays) {
+		NSString *displayID = display[@"Display Identifier"];
+		BOOL isActive = displayID != nil &&
+		                CFStringCompare((__bridge CFStringRef)displayID, activeDisplayUUID, 0) == kCFCompareEqualTo;
+
+		NSDictionary *currentSpace = display[@"Current Space"];
+		NSNumber *currentSpaceID = currentSpace[@"ManagedSpaceID"] ?: currentSpace[@"id64"];
+
 		NSArray *spaces = display[@"Spaces"];
 		if (![spaces isKindOfClass:[NSArray class]]) {
 			continue;
@@ -76,6 +97,7 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 
 		for (id spaceDict in spaces) {
 			if (![spaceDict isKindOfClass:[NSDictionary class]]) {
+				counter++;
 				continue;
 			}
 
@@ -88,17 +110,24 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 				continue;
 			}
 
-			if ((uint64_t)[sid unsignedLongLongValue] == active) {
-				CFRelease(managed);
-				return counter;
+			if (isActive && currentSpaceID != nil &&
+			    [sid unsignedLongLongValue] == [currentSpaceID unsignedLongLongValue]) {
+				foundIndex = counter;
+				foundActive = true;
 			}
 
 			counter++;
 		}
+
+		if (foundActive) {
+			break;
+		}
 	}
 
 	CFRelease(managed);
-	return -1;
+	CFRelease(activeDisplayUUID);
+
+	return foundIndex;
 }
 
 #pragma mark - Static State
@@ -361,21 +390,36 @@ void MimiStartWorkspaceTitleObserver(void) {
 
 		scheduleWorkspaceTitleRefresh();
 
-		gWorkspaceObserver = [[[NSWorkspace sharedWorkspace] notificationCenter]
-		    addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification
-		                object:nil
-		                 queue:[NSOperationQueue mainQueue]
-		            usingBlock:^(__unused NSNotification *note) {
-			            scheduleWorkspaceTitleRefresh();
-		            }];
+		NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+
+		gWorkspaceObserver = [nc addObserverForName:NSWorkspaceActiveSpaceDidChangeNotification
+		                                     object:nil
+		                                      queue:[NSOperationQueue mainQueue]
+		                                 usingBlock:^(__unused NSNotification *note) {
+			                                 scheduleWorkspaceTitleRefresh();
+		                                 }];
+
+		gActiveDisplayObserver = [nc addObserverForName:@"NSWorkspaceActiveDisplayDidChangeNotification"
+		                                         object:nil
+		                                          queue:[NSOperationQueue mainQueue]
+		                                     usingBlock:^(__unused NSNotification *note) {
+			                                     scheduleWorkspaceTitleRefresh();
+		                                     }];
 	});
 }
 
 void MimiStopWorkspaceTitleObserver(void) {
 	runOnMainThread(^{
+		NSNotificationCenter *nc = [[NSWorkspace sharedWorkspace] notificationCenter];
+
 		if (gWorkspaceObserver) {
-			[[[NSWorkspace sharedWorkspace] notificationCenter] removeObserver:gWorkspaceObserver];
+			[nc removeObserver:gWorkspaceObserver];
 			gWorkspaceObserver = nil;
+		}
+
+		if (gActiveDisplayObserver) {
+			[nc removeObserver:gActiveDisplayObserver];
+			gActiveDisplayObserver = nil;
 		}
 
 		gLastWorkspaceTitle = INT_MIN;
