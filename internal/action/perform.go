@@ -136,22 +136,24 @@ func ResizeWindow(args parsedResizeWindowArgs) error {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get window frame")
 	}
 
-	// Get screen frames to get the screen height for coordinate conversion
-	//nolint:dogsled // We need screenH but not the other frame values from full screen frame
-	_, _, _, screenH, err := window.ScreenFrame(curX, curY)
-	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get screen frame")
-	}
-
+	// Get the visible frame of the screen containing the window (in NSScreen y-up coords)
 	screenX, screenY, screenWidth, screenHeight, err := window.ScreenVisibleFrame(curX, curY)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get screen frame")
 	}
 
-	// AX uses y-down (top-left origin). NSScreen uses y-up (bottom-left origin).
-	// Convert visible frame from y-up to y-down:
-	//   y-down top-left = (screenX, screenH - screenY - screenHeight), same w,h
-	syd := screenH - screenY - screenHeight
+	// Get the primary screen height for AX ↔ NSScreen coordinate conversion.
+	// AX uses y-down (top-left origin at the primary screen's top). NSScreen uses
+	// y-up (bottom-left origin at the primary screen's bottom). The primary screen's
+	// height is the constant that relates the two systems.
+	primaryH, err := window.PrimaryScreenHeight()
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get primary screen height")
+	}
+
+	// Convert the visible frame's top edge from NSScreen y-up to AX y-down:
+	//   y-down top = primaryScreenHeight - visibleFrameY - visibleFrameHeight
+	syd := primaryH - screenY - screenHeight
 
 	// Determine if margins should be applied
 	useMargins := window.TiledWindowMarginsEnabled()
