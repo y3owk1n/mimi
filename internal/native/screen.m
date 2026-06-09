@@ -68,9 +68,14 @@ bool MimiIsMissionControlActive(void) { return detectMissionControlActive(); }
 
 double *MimiGetScreenFrameForPoint(double x, double y) {
 	@autoreleasepool {
-		NSScreen *targetScreen = nil;
-		CGPoint pt = CGPointMake(x, y);
+		NSScreen *primary = [NSScreen mainScreen];
+		CGFloat primaryHeight = [primary frame].size.height;
 
+		// Input (x, y) is in AX coordinates (y-down, origin at top-left of primary).
+		// Convert to NSScreen coordinates (y-up, origin at bottom-left of primary).
+		CGPoint pt = CGPointMake(x, primaryHeight - y);
+
+		NSScreen *targetScreen = nil;
 		for (NSScreen *screen in [NSScreen screens]) {
 			if (NSPointInRect(pt, [screen frame])) {
 				targetScreen = screen;
@@ -79,7 +84,7 @@ double *MimiGetScreenFrameForPoint(double x, double y) {
 		}
 
 		if (!targetScreen) {
-			targetScreen = [NSScreen mainScreen];
+			targetScreen = primary;
 		}
 
 		NSRect frame = [targetScreen frame];
@@ -98,9 +103,14 @@ double *MimiGetScreenFrameForPoint(double x, double y) {
 
 double *MimiGetScreenVisibleFrameForPoint(double x, double y) {
 	@autoreleasepool {
-		NSScreen *targetScreen = nil;
-		CGPoint pt = CGPointMake(x, y);
+		NSScreen *primary = [NSScreen mainScreen];
+		CGFloat primaryHeight = [primary frame].size.height;
 
+		// Input (x, y) is in AX coordinates (y-down, origin at top-left of primary).
+		// Convert to NSScreen coordinates (y-up, origin at bottom-left of primary).
+		CGPoint pt = CGPointMake(x, primaryHeight - y);
+
+		NSScreen *targetScreen = nil;
 		for (NSScreen *screen in [NSScreen screens]) {
 			if (NSPointInRect(pt, [screen frame])) {
 				targetScreen = screen;
@@ -109,7 +119,7 @@ double *MimiGetScreenVisibleFrameForPoint(double x, double y) {
 		}
 
 		if (!targetScreen) {
-			targetScreen = [NSScreen mainScreen];
+			targetScreen = primary;
 		}
 
 		NSRect frame = [targetScreen visibleFrame];

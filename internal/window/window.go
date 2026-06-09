@@ -169,6 +169,17 @@ func (e *Element) SetFrame(posX, posY, width, height float64) error {
 	return nil
 }
 
+// PrimaryScreenHeight returns the height of the primary display (the one with the menu bar).
+// This is needed to convert between AX (y-down) and NSScreen (y-up) coordinate systems.
+func PrimaryScreenHeight() (float64, error) {
+	_, _, _, h, err := ScreenFrame(0, 0) //nolint:dogsled
+	if err != nil {
+		return 0, err
+	}
+
+	return h, nil
+}
+
 // ScreenFrame returns the full frame [x, y, w, h] of the screen containing (x, y).
 func ScreenFrame(xCoord, yCoord float64) (float64, float64, float64, float64, error) {
 	frame := C.MimiGetScreenFrameForPoint(C.double(xCoord), C.double(yCoord))
