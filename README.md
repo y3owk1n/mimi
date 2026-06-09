@@ -27,11 +27,12 @@ Tools like [yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https:/
 
 **mimi is none of that.** It is not a tiling window manager. It is not a window manager. It does not replace Mission Control, Stage Manager, or the native window chrome. It is a thin enhancement on top of what macOS already gives you:
 
-- Jump to a space by number from the CLI or a hotkey
+- Jump to a space instantly by number
 - Move the frontmost window to another space instantly
 - Cycle focus among windows on the current space
-- Optionally run shell hooks when windows or spaces change
-- A small menu bar companion when the daemon is running
+- Resize and reposition windows instantly
+- Optionally run shell hooks when apps, windows or spaces change
+- A small menu bar companion with realtime workspace indicator when the daemon is running
 
 If you like native Spaces and want to stay close to stock macOS — or you are trying to **reduce your reliance on a TWM** rather than add another one — mimi is built for that workflow. Think of it as glue: keyboard shortcuts, scripts, and automation around Apple's own space model, not a replacement for it.
 
@@ -66,14 +67,16 @@ Other options → [Installation Guide](docs/INSTALLATION.md)
 Grant **Accessibility** to `mimi` in **System Settings → Privacy & Security → Accessibility**, then:
 
 ```bash
-mimi action focus_window                   # cycle focus on the active space
-mimi action focus_window --backward        # cycle backward
-mimi action space 2                        # jump to space 2
-mimi action space next                     # cycle to next space
-mimi action move_window_to_space 3         # move frontmost window to space 3
-mimi action move_window_to_space prev      # move window to previous space
-mimi action resize_window left-half        # tile window to left half
-mimi action resize_window center           # center window
+mimi action focus_window                                                # cycle focus on the active space
+mimi action focus_window --backward                                     # cycle backward
+mimi action space 2                                                     # jump to space 2
+mimi action space next                                                  # cycle to next space
+mimi action move_window_to_space 3                                      # move frontmost window to space 3
+mimi action move_window_to_space prev                                   # move window to previous space
+mimi action resize_window left-half                                     # tile window to left half
+mimi action resize_window center                                        # center window
+mimi action resize_window center --width-percent 80 --height-percent 90 # center window at 80% × 90%
+mimi action resize_window --width 1024 --height 768 --anchor br         # resize window to 1024x768 anchored to bottom right
 ```
 
 Full command reference → [CLI Guide](docs/CLI.md)
