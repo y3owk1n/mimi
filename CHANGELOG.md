@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.7.0](https://github.com/y3owk1n/mimi/compare/v0.6.0...v0.7.0) (2026-06-09)
+
+
+### Features
+
+* **cli:** add `resize_window` action ([#36](https://github.com/y3owk1n/mimi/issues/36)) ([4358ffd](https://github.com/y3owk1n/mimi/commit/4358ffd9812dee698ec3d3698a07cd51748b1cc9))
+
+
+### Bug Fixes
+
+* ensure correct swipe count for space switch in multi display setup ([#40](https://github.com/y3owk1n/mimi/issues/40)) ([dba9acb](https://github.com/y3owk1n/mimi/commit/dba9acb12e14cc019a624c1a407d372d1a8172a8))
+* proper `resize_window` coordinate conversion ([#39](https://github.com/y3owk1n/mimi/issues/39)) ([7bc84eb](https://github.com/y3owk1n/mimi/commit/7bc84eb0b307b5ddbe4cf24492f3c5691d9a6594))
+* update menubar space number when switching between displays ([#41](https://github.com/y3owk1n/mimi/issues/41)) ([ec88968](https://github.com/y3owk1n/mimi/commit/ec88968c91d2ad5f326148153bb71ff4d1cd1ed9))
+
 ## [0.6.0](https://github.com/y3owk1n/mimi/compare/v0.5.0...v0.6.0) (2026-06-08)
 
 
