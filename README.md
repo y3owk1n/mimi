@@ -17,6 +17,8 @@
 
 No SIP disable. No scripting additions. Public Accessibility APIs where possible; private SkyLight for instant window-to-space moves.
 
+https://github.com/user-attachments/assets/1b21b596-1578-4344-96d3-eaea8a5ab9c0
+
 ---
 
 ## Why mimi
