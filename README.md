@@ -2,92 +2,107 @@
 
 # mimi
 
-**A macOS window and space utility — fast actions, shell hooks, and a menu bar companion.**
+**macOS windows and spaces. From the terminal.**
 
 [![Go Version](https://img.shields.io/github/go-mod/go-version/y3owk1n/mimi?style=flat-square&logo=go)](https://github.com/y3owk1n/mimi)
 [![License](https://img.shields.io/github/license/y3owk1n/mimi?style=flat-square)](LICENSE)
-
-[Why mimi](#why-mimi) · [Quick Start](#quick-start) · [Installation](#installation) · [Documentation](#documentation) · [Contributing](CONTRIBUTING.md)
+[![Early Development](https://img.shields.io/badge/status-early%20dev-orange?style=flat-square)](#)
 
 </div>
 
 ---
 
-**mimi** helps you move around macOS with less friction — switch Mission Control spaces, move windows between desktops, cycle focus on the active space, and optionally react to those changes with shell hooks when the daemon is running.
-
-No SIP disable. No scripting additions. Public Accessibility APIs where possible; private SkyLight for instant window-to-space moves.
-
 https://github.com/user-attachments/assets/1b21b596-1578-4344-96d3-eaea8a5ab9c0
 
 ---
 
-## Why mimi
+You already know your way around a terminal. Why are you still reaching for the trackpad just to move a window?
 
-This project started from a simple goal: **use macOS Spaces the way Apple intended**, without bolting on a tiling window manager.
+**mimi** gives you one-shot commands to jump spaces, move windows, cycle focus, and resize — bind them to hotkeys, drop them in dotfiles, wire them to shell hooks. No SIP disable. No tiling paradigm to learn. Just commands that do what they say.
 
-Tools like [yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https://github.com/nikitabobko/AeroSpace) are excellent if you want a full window-management layer — tiling layouts, custom rules, and deep control over every frame. But they come with trade-offs: another long-running dependency, more configuration surface, and often SIP changes or a more invasive setup.
+```bash
+mimi action space 2                      # jump to space 2
+mimi action move_window_to_space next    # throw window forward
+mimi action resize_window left-half      # tile left
+mimi action focus_window                 # cycle focus
+```
 
-**mimi is none of that.** It is not a tiling window manager. It is not a window manager. It does not replace Mission Control, Stage Manager, or the native window chrome. It is a thin enhancement on top of what macOS already gives you:
-
-- Jump to a space instantly by number
-- Move the frontmost window to another space instantly
-- Cycle focus among windows on the current space
-- Resize and reposition windows instantly
-- Optionally run shell hooks when apps, windows or spaces change
-- A small menu bar companion with realtime workspace indicator when the daemon is running
-
-If you like native Spaces and want to stay close to stock macOS — or you are trying to **reduce your reliance on a TWM** rather than add another one — mimi is built for that workflow. Think of it as glue: keyboard shortcuts, scripts, and automation around Apple's own space model, not a replacement for it.
-
-> [!CAUTION]
-> **Early development.** Config format, CLI, and behaviour may change between releases.
+> **Early development** — config format, CLI, and behavior may change between releases.
 
 ---
 
-## What you get
-
-| Mode               | When to use it                                                                                                                                 |
-| :----------------- | :--------------------------------------------------------------------------------------------------------------------------------------------- |
-| **CLI actions**    | One-shot commands — bind to hotkeys, scripts, or Alfred/Raycast. Work without the daemon; route over IPC when it is running for lower latency. |
-| **Daemon + hooks** | React to window and space changes with shell commands (`on_window_*`, `on_workspace_changed`).                                                 |
-| **Menu bar**       | See the active space number, reload config, or quit — enabled by default when the daemon runs.                                                 |
-
----
-
-## Quick Start
-
-### 1. Install
+## Install
 
 ```bash
 brew tap y3owk1n/tap
 brew install --cask y3owk1n/tap/mimi
 ```
 
-Other options → [Installation Guide](docs/INSTALLATION.md)
+Grant **Accessibility** in **System Settings → Privacy & Security → Accessibility**, then start using it immediately. No daemon required.
 
-### 2. Run actions immediately
+Other options (Nix flake, build from source) → [Installation Guide](docs/INSTALLATION.md)
 
-Grant **Accessibility** to `mimi` in **System Settings → Privacy & Security → Accessibility**, then:
+---
+
+## What mimi does
+
+| You want to…                     | Command                                                                   |
+| :------------------------------- | :------------------------------------------------------------------------ |
+| Jump to a specific space         | `mimi action space <n>`                                                   |
+| Jump to next / previous space    | `mimi action space next` / `prev`                                         |
+| Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>`                        |
+| Cycle focus between windows      | `mimi action focus_window`                                                |
+| Cycle focus backward             | `mimi action focus_window --backward`                                     |
+| Tile window to a preset          | `mimi action resize_window <left-half\|right-half\|center\|fill>`         |
+| Center at specific size          | `mimi action resize_window center --width-percent 80 --height-percent 90` |
+| Resize to exact pixels           | `mimi action resize_window --width 1024 --height 768`                     |
+| Resize anchored to a corner      | `mimi action resize_window --width 1024 --height 768 --anchor br`         |
+
+Full reference → [CLI Guide](docs/CLI.md)
+
+---
+
+## Bind to hotkeys
+
+Every action is a plain shell command. Drop it into whatever hotkey tool you already use.
+
+**[skhd](https://github.com/koekeishiya/skhd)** — the natural pairing if you're in the yabai ecosystem:
 
 ```bash
-mimi action focus_window                                                # cycle focus on the active space
-mimi action focus_window --backward                                     # cycle backward
-mimi action space 2                                                     # jump to space 2
-mimi action space next                                                  # cycle to next space
-mimi action move_window_to_space 3                                      # move frontmost window to space 3
-mimi action move_window_to_space prev                                   # move window to previous space
-mimi action resize_window left-half                                     # tile window to left half
-mimi action resize_window center                                        # center window
-mimi action resize_window center --width-percent 80 --height-percent 90 # center window at 80% × 90%
-mimi action resize_window --width 1024 --height 768 --anchor br         # resize window to 1024x768 anchored to bottom right
+# ~/.skhdrc
+alt - 2         : mimi action space 2
+alt - n         : mimi action space next
+alt - p         : mimi action space prev
+shift + alt - l : mimi action resize_window right-half
+shift + alt - h : mimi action resize_window left-half
+shift + alt - m : mimi action move_window_to_space next
+shift + alt - f : mimi action focus_window
 ```
 
-Full command reference → [CLI Guide](docs/CLI.md)
+**[Raycast](https://www.raycast.com/)** — create a Script Command pointing to any `mimi action …` line.
 
-### 3. Optional — run the daemon with hooks
+**[Alfred](https://www.alfredapp.com/)** — wire up a Shell Script workflow step, same idea.
+
+**Karabiner, Hammerspoon, BetterTouchTool** — if it can run a shell command on a keypress, mimi works with it.
+
+---
+
+## Fits where you are
+
+mimi doesn't tile your layout, enforce window rules, or replace Mission Control. It's not trying to.
+
+[yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https://github.com/nikitabobko/AeroSpace) are excellent — and a significant commitment. If you've tried them and found it was more than you needed, or if you just want to stay on native macOS Spaces and drive them faster, mimi is for you.
+
+---
+
+## Optional: daemon + hooks
+
+Start the daemon and mimi can react to what's happening on screen — fire a shell command whenever a window focuses, a space changes, or an app launches.
 
 ```bash
-mimi config init
+mimi config init   # creates ~/.config/mimi/config.toml
 mimi start
+mimi status        # verify everything's running
 ```
 
 Edit `~/.config/mimi/config.toml`:
@@ -95,136 +110,76 @@ Edit `~/.config/mimi/config.toml`:
 ```toml
 [systray]
 enabled = true
-show_workspace_number = true
+show_workspace_number = true   # current space number in your menu bar
 
 [hooks]
-on_window_focus = ['echo "Focused: $mimi_APP_NAME — $mimi_WINDOW_TITLE"']
-on_workspace_changed = ['echo "Space changed"']
+on_window_focus      = ['echo "$mimi_APP_NAME — $mimi_WINDOW_TITLE"']
+on_workspace_changed = ['~/.config/sketchybar/plugins/space.sh']
+on_app_launch        = ['osascript -e "display notification \"$mimi_APP_NAME launched\""']
 ```
 
-Check status anytime:
+The `[systray]` block shows the active space number in your menu bar while the daemon runs — no extra setup.
+
+### Available hooks
+
+| Event                  | Hook key                                 | Needs Accessibility |
+| :--------------------- | :--------------------------------------- | :------------------ |
+| App activated          | `on_app_activate`                        | Yes                 |
+| App deactivated        | `on_app_deactivate`                      | Yes                 |
+| App launched           | `on_app_launch`                          | No                  |
+| App quit               | `on_app_quit`                            | No                  |
+| App hidden / unhidden  | `on_app_hide` / `on_app_unhide`          | Yes                 |
+| Window focused         | `on_window_focus`                        | Yes                 |
+| Window title changed   | `on_window_title_change`                 | Yes                 |
+| Window opened / closed | `on_window_created` / `on_window_closed` | Yes                 |
+| Window resized         | `on_window_resize`                       | Yes                 |
+| Active space changed   | `on_workspace_changed`                   | No                  |
+
+Hooks support app/title filters, async execution, and per-hook timeouts.
+Full details → [Configuration Guide](docs/CONFIGURATION.md)
+
+### Daemon commands
 
 ```bash
-mimi status
+mimi start                  # start the hook daemon
+mimi stop                   # stop it
+mimi status                 # check daemon state and permissions
+mimi config validate        # validate config before reloading
+mimi config reload          # hot-reload config (no restart needed)
+mimi services install       # auto-start at login via launchd
+mimi services uninstall     # remove the launchd agent
 ```
 
-Hook options, filters, and `mimi_*` env vars → [Configuration Guide](docs/CONFIGURATION.md)
-
-Auto-start at login → [Installation Guide — launchd](docs/INSTALLATION.md#auto-start-launchd)
-
----
-
-## Features
-
-### Window & space actions
-
-| Action                           | Command                                            |
-| :------------------------------- | :------------------------------------------------- |
-| Cycle window focus               | `mimi action focus_window`                         |
-| Switch to a space                | `mimi action space <n\|next\|prev>`                |
-| Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>` |
-| Resize and reposition window     | `mimi action resize_window <preset\|flags>`        |
-
-Space switching uses a synthetic dock-swipe gesture. Window moves use SkyLight for instant relocation without animation. Window resizing supports presets (e.g., `left-half`, `center`, `fill`) and precise controls with custom sizing, positioning, and margin handling.
-
-### Hooks (daemon)
-
-| Event                      | Hook                     | Accessibility required |
-| :------------------------- | :----------------------- | :--------------------- |
-| App activated              | `on_app_activate`        | Yes                    |
-| App deactivated            | `on_app_deactivate`      | Yes                    |
-| App launched               | `on_app_launch`          | No                     |
-| App quit                   | `on_app_quit`            | No                     |
-| App hidden                 | `on_app_hide`            | Yes                    |
-| App unhidden               | `on_app_unhide`          | Yes                    |
-| Window focused             | `on_window_focus`        | Yes                    |
-| Window title changed       | `on_window_title_change` | Yes                    |
-| Window opened              | `on_window_created`      | Yes                    |
-| Window closed              | `on_window_closed`       | Yes                    |
-| Window resized (debounced) | `on_window_resize`       | Yes                    |
-| Active space changed       | `on_workspace_changed`   | No                     |
-
-Hooks support app/title filters, async execution, and per-hook timeouts. See [Configuration Guide](docs/CONFIGURATION.md).
-
-### Menu bar
-
-When `[systray] enabled = true` (the default), the daemon shows a menu bar icon with the current space number, config reload, and quit. Disable it in config if you prefer a headless daemon.
-
----
-
-## Commands at a glance
-
-| Command                    | Description                        |
-| :------------------------- | :--------------------------------- |
-| `mimi action …`            | Immediate window/space actions     |
-| `mimi start` / `mimi stop` | Start or stop the hook daemon      |
-| `mimi status`              | Daemon state and permission checks |
-| `mimi config init`         | Create default config              |
-| `mimi config validate`     | Validate config                    |
-| `mimi config dump`         | Print resolved config as JSON      |
-| `mimi config reload`       | Reload running daemon (SIGHUP)     |
-| `mimi services install`    | Install launchd agent              |
-| `mimi services uninstall`  | Unload and remove launchd agent    |
-| `mimi services start`      | Start the system service           |
-| `mimi services stop`       | Stop the system service            |
-| `mimi services restart`    | Restart the system service         |
-| `mimi services status`     | Check whether service is running   |
-
-→ [CLI Guide](docs/CLI.md)
-
----
-
-## Installation
-
-| Method          | Command / link                            |
-| :-------------- | :---------------------------------------- |
-| **Homebrew**    | `brew install --cask y3owk1n/tap/mimi`    |
-| **Nix flake**   | `inputs.mimi.url = "github:y3owk1n/mimi"` |
-| **From source** | `git clone … && just build`               |
-
-Details, Nix modules, permissions, and launchd setup → [Installation Guide](docs/INSTALLATION.md)
-
----
-
-## Documentation
-
-| Guide                                      | Contents                                          |
-| :----------------------------------------- | :------------------------------------------------ |
-| [Installation](docs/INSTALLATION.md)       | Homebrew, Nix, source build, permissions, launchd |
-| [CLI](docs/CLI.md)                         | All commands, flags, and examples                 |
-| [Configuration](docs/CONFIGURATION.md)     | Hooks, systray, settings, env vars                |
-| [Architecture](docs/ARCHITECTURE.md)       | How actions, daemon, and native code fit together |
-| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes                           |
-| [Development](docs/DEVELOPMENT.md)         | Build, test, and project layout                   |
-| [Contributing](CONTRIBUTING.md)            | How to send PRs and report bugs                   |
-| [Security](SECURITY.md)                    | Reporting vulnerabilities                         |
-
-Developer references: [Go conventions](docs/go/CONVENTIONS.md) · [Objective-C guidelines](docs/go/OBJECTIVE_C.md) · [Coding standards](docs/CODING_STANDARDS.md)
-
----
-
-## Permissions
-
-| Capability                           | Accessibility required |
-| :----------------------------------- | :--------------------- |
-| `mimi action …`                      | Yes                    |
-| Window hooks (`on_window_*`)         | Yes                    |
-| Space hooks (`on_workspace_changed`) | No                     |
-| Menu bar / daemon lifecycle          | No                     |
+Auto-start setup → [Installation Guide — launchd](docs/INSTALLATION.md#auto-start-launchd)
 
 ---
 
 ## How it works
 
-```
-CLI actions     →  action  →  native (AX + SkyLight)
+Space switching uses a synthetic dock-swipe gesture — the same path Mission Control uses, no hacks. Window-to-space moves use the private SkyLight API for instant, animation-free relocation. Everything else goes through public Accessibility APIs.
 
-Hook daemon     →  observe →  event bus  →  hooks  →  your shell
-                      ↓
-                  systray (optional menu bar)
+```
+CLI actions  →  action handler  →  AX API + SkyLight
+
+daemon  →  observe events  →  event bus  →  your shell hooks
+                                    ↓
+                             menu bar (optional)
 ```
 
 → [Architecture Guide](docs/ARCHITECTURE.md)
+
+---
+
+## Documentation
+
+| Guide                                      | What's in it                                |
+| :----------------------------------------- | :------------------------------------------ |
+| [Installation](docs/INSTALLATION.md)       | Homebrew, Nix, source, permissions, launchd |
+| [CLI](docs/CLI.md)                         | Every command and flag                      |
+| [Configuration](docs/CONFIGURATION.md)     | Hooks, env vars, systray, all settings      |
+| [Architecture](docs/ARCHITECTURE.md)       | How the pieces fit                          |
+| [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes                     |
+| [Contributing](CONTRIBUTING.md)            | PRs and bug reports                         |
 
 ---
 
@@ -234,7 +189,7 @@ Hook daemon     →  observe →  event bus  →  hooks  →  your shell
 just build && just lint && just test
 ```
 
-See [Development Guide](docs/DEVELOPMENT.md) and [Contributing](CONTRIBUTING.md).
+→ [Development Guide](docs/DEVELOPMENT.md)
 
 ---
 
@@ -243,7 +198,14 @@ See [Development Guide](docs/DEVELOPMENT.md) and [Contributing](CONTRIBUTING.md)
 MIT — see [LICENSE](LICENSE).
 
 <div align="center">
+<br/>
 
-**Made with ❤️ by [y3owk1n](https://github.com/y3owk1n)**
+**Try it. Two commands and you're running.**
 
+```bash
+brew install --cask y3owk1n/tap/mimi && mimi action space next
+```
+
+<br/>
+Made with ❤️ by <a href="https://github.com/y3owk1n">y3owk1n</a>
 </div>
