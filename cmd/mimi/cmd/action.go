@@ -48,20 +48,46 @@ var (
 )
 
 func buildFocusWindowCommand() *cobra.Command {
-	var backward bool
+	var (
+		backward   bool
+		focusUp    bool
+		focusDown  bool
+		focusLeft  bool
+		focusRight bool
+	)
 
 	cmd := &cobra.Command{
 		Use:   "focus_window",
-		Short: "Cycle focus through windows on the active space",
-		Long: `Cycle keyboard focus through all focusable windows on the current space.
+		Short: "Cycle or navigate focus through windows on the active space",
+		Long: `Cycle keyboard focus through all focusable windows on the current space,
+or move focus spatially with direction flags.
 
-Cycles forward through windows (or backward with --backward), wrapping at the
-end. Only windows that are focusable (not minimized, not hidden) and on the
+Cycles forward (or backward with --backward), wrapping at the end. Use
+--up, --down, --left, or --right to move focus to the nearest window
+in that direction based on screen position.
+
+Only windows that are focusable (not minimized, not hidden) and on the
 current space are included.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
 			args := []string{}
 			if backward {
 				args = append(args, "--backward")
+			}
+
+			if focusUp {
+				args = append(args, "--up")
+			}
+
+			if focusDown {
+				args = append(args, "--down")
+			}
+
+			if focusLeft {
+				args = append(args, "--left")
+			}
+
+			if focusRight {
+				args = append(args, "--right")
 			}
 
 			return runAction(string(action.NameFocusWindow), args)
@@ -70,6 +96,14 @@ current space are included.`,
 
 	cmd.Flags().
 		BoolVar(&backward, "backward", false, "Cycle to the previous window instead of the next one")
+	cmd.Flags().
+		BoolVar(&focusUp, "up", false, "Move focus to the nearest window above")
+	cmd.Flags().
+		BoolVar(&focusDown, "down", false, "Move focus to the nearest window below")
+	cmd.Flags().
+		BoolVar(&focusLeft, "left", false, "Move focus to the nearest window on the left")
+	cmd.Flags().
+		BoolVar(&focusRight, "right", false, "Move focus to the nearest window on the right")
 
 	return cmd
 }

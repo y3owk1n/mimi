@@ -31,6 +31,7 @@ func IsKnownName(name string) bool {
 
 type parsedFocusWindowArgs struct {
 	useBackward bool
+	direction   string // "up", "down", "left", "right", or ""
 }
 
 func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
@@ -40,6 +41,15 @@ func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
 		switch arg {
 		case "--backward":
 			parsed.useBackward = true
+		case "--up", "--down", "--left", "--right":
+			if parsed.direction != "" {
+				return parsed, derrors.New(
+					derrors.CodeInvalidInput,
+					"only one direction flag allowed (--up, --down, --left, --right)",
+				)
+			}
+
+			parsed.direction = arg[2:]
 		default:
 			if strings.HasPrefix(arg, "--") {
 				return parsed, derrors.New(
@@ -48,6 +58,13 @@ func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
 				)
 			}
 		}
+	}
+
+	if parsed.direction != "" && parsed.useBackward {
+		return parsed, derrors.New(
+			derrors.CodeInvalidInput,
+			"--backward cannot be combined with a direction flag",
+		)
 	}
 
 	return parsed, nil
@@ -335,7 +352,7 @@ func Execute(name string, args []string) error {
 			return err
 		}
 
-		return FocusWindow(parsed.useBackward)
+		return FocusWindow(parsed.useBackward, parsed.direction)
 	case NameSpace:
 		parsed, err := parseSpaceArg(args)
 		if err != nil {

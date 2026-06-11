@@ -31,6 +31,10 @@ These commands run directly in the CLI process when the daemon is not running. W
 ```bash
 mimi action focus_window
 mimi action focus_window --backward
+mimi action focus_window --left
+mimi action focus_window --right
+mimi action focus_window --up
+mimi action focus_window --down
 mimi action space 1
 mimi action space next
 mimi action space prev
@@ -44,11 +48,15 @@ mimi action resize_window --width 1024 --height 768 --anchor cc
 
 ### `mimi action focus_window`
 
-Cycle keyboard focus through all focusable windows on the current space.
+Cycle keyboard focus through all focusable windows on the current space, or move focus spatially with direction flags.
 
-| Flag         | Description                                      |
-| ------------ | ------------------------------------------------ |
-| `--backward` | Cycle to the previous window instead of the next |
+| Flag         | Description                                                      |
+| ------------ | ---------------------------------------------------------------- |
+| `--backward` | Cycle to the previous window instead of the next                 |
+| `--up`       | Move focus to the nearest window above the current one           |
+| `--down`     | Move focus to the nearest window below the current one           |
+| `--left`     | Move focus to the nearest window to the left of the current one  |
+| `--right`    | Move focus to the nearest window to the right of the current one |
 
 ### `mimi action space <number|next|prev>`
 

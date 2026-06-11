@@ -53,6 +53,10 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>`                        |
 | Cycle focus between windows      | `mimi action focus_window`                                                |
 | Cycle focus backward             | `mimi action focus_window --backward`                                     |
+| Focus window to the left         | `mimi action focus_window --left`                                         |
+| Focus window to the right        | `mimi action focus_window --right`                                        |
+| Focus window above               | `mimi action focus_window --up`                                           |
+| Focus window below               | `mimi action focus_window --down`                                         |
 | Tile window to a preset          | `mimi action resize_window <left-half\|right-half\|center\|fill>`         |
 | Center at specific size          | `mimi action resize_window center --width-percent 80 --height-percent 90` |
 | Resize to exact pixels           | `mimi action resize_window --width 1024 --height 768`                     |
