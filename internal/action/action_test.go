@@ -286,3 +286,66 @@ func TestExecute_FocusWindowInvalidFlag(t *testing.T) {
 		t.Fatalf("expected CodeInvalidInput, got %v", err)
 	}
 }
+
+func TestExecute_FocusWindowDirectionFlags(t *testing.T) {
+	t.Parallel()
+
+	dirs := []string{"--up", "--down", "--left", "--right"}
+
+	for _, dir := range dirs {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.Execute("focus_window", []string{dir})
+
+			if derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf(
+					"Execute(focus_window %s) got unexpected CodeInvalidInput: %v",
+					dir,
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestExecute_FocusWindowBackwardAndDirectionMutuallyExclusive(t *testing.T) {
+	t.Parallel()
+
+	dirs := []string{"--up", "--down", "--left", "--right"}
+
+	for _, dir := range dirs {
+		t.Run(dir, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.Execute("focus_window", []string{"--backward", dir})
+			if err == nil {
+				t.Fatalf(
+					"Execute(focus_window --backward %s) expected error for mutually exclusive flags",
+					dir,
+				)
+			}
+
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf(
+					"Execute(focus_window --backward %s) expected CodeInvalidInput, got %v",
+					dir,
+					err,
+				)
+			}
+		})
+	}
+}
+
+func TestExecute_FocusWindowOnlyOneDirectionAllowed(t *testing.T) {
+	t.Parallel()
+
+	err := action.Execute("focus_window", []string{"--up", "--down"})
+	if err == nil {
+		t.Fatal("Execute(focus_window --up --down) expected error for multiple direction flags")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+}

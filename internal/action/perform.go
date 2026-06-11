@@ -1,6 +1,8 @@
 package action
 
 import (
+	"math"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/permissions"
 	"github.com/y3owk1n/mimi/internal/space"
@@ -18,7 +20,10 @@ func ensureAccessibility() error {
 }
 
 // FocusWindow cycles keyboard focus through focusable windows on the active space.
-func FocusWindow(backward bool) error {
+// When direction is set ("up", "down", "left", "right"), it moves focus spatially
+// to the nearest window in that direction. Otherwise it cycles forward or backward
+// through the sorted window list.
+func FocusWindow(backward bool, direction string) error {
 	err := ensureAccessibility()
 	if err != nil {
 		return err
@@ -53,6 +58,10 @@ func FocusWindow(backward bool) error {
 		frontmost.Release()
 	}
 
+	if direction != "" {
+		return focusDirectional(windows, currentIndex, direction)
+	}
+
 	var targetIndex int
 	if backward {
 		targetIndex = currentIndex - 1
@@ -72,6 +81,119 @@ func FocusWindow(backward bool) error {
 	}
 
 	return nil
+}
+
+type winInfo struct {
+	el                       *window.Element
+	cx, cy                   float64
+	left, top, right, bottom float64
+}
+
+func focusDirectional(windows []*window.Element, currentIndex int, direction string) error {
+	infos := make([]winInfo, 0, len(windows))
+	currentInfoIndex := -1
+
+	for idx, win := range windows {
+		posX, posY, winW, winH, err := win.GetFrame()
+		if err != nil {
+			continue
+		}
+
+		if idx == currentIndex {
+			currentInfoIndex = len(infos)
+		}
+
+		infos = append(infos, winInfo{
+			el:     win,
+			cx:     posX + winW/2,
+			cy:     posY + winH/2,
+			left:   posX,
+			top:    posY,
+			right:  posX + winW,
+			bottom: posY + winH,
+		})
+	}
+
+	if currentInfoIndex < 0 {
+		return derrors.New(
+			derrors.CodeActionFailed,
+			"current window not found; cannot determine spatial navigation target",
+		)
+	}
+
+	cur := infos[currentInfoIndex]
+
+	var best *winInfo
+
+	bestScore := math.MaxFloat64
+
+	for idx, cand := range infos {
+		if idx == currentInfoIndex {
+			continue
+		}
+
+		deltaX := cand.cx - cur.cx
+		deltaY := cand.cy - cur.cy
+
+		var (
+			priDist, secDist float64
+			overlap          bool
+		)
+
+		switch direction {
+		case "left":
+			if deltaX >= 0 {
+				continue
+			}
+
+			priDist = -deltaX
+			secDist = math.Abs(deltaY)
+			overlap = cur.top < cand.bottom && cur.bottom > cand.top
+		case "right":
+			if deltaX <= 0 {
+				continue
+			}
+
+			priDist = deltaX
+			secDist = math.Abs(deltaY)
+			overlap = cur.top < cand.bottom && cur.bottom > cand.top
+		case "up":
+			if deltaY >= 0 {
+				continue
+			}
+
+			priDist = -deltaY
+			secDist = math.Abs(deltaX)
+			overlap = cur.left < cand.right && cur.right > cand.left
+		case "down":
+			if deltaY <= 0 {
+				continue
+			}
+
+			priDist = deltaY
+			secDist = math.Abs(deltaX)
+			overlap = cur.left < cand.right && cur.right > cand.left
+		}
+
+		score := priDist
+		if !overlap {
+			score += secDist
+		}
+
+		if best == nil || score < bestScore {
+			best = &infos[idx]
+			bestScore = score
+		}
+	}
+
+	if best == nil {
+		return derrors.New(
+			derrors.CodeActionFailed,
+			"no window found in that direction",
+		)
+	}
+
+	return best.el.Activate()
 }
 
 // FocusSpace focuses the Mission Control space at the given 1-based index.
