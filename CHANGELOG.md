@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.8.0](https://github.com/y3owk1n/mimi/compare/v0.7.0...v0.8.0) (2026-06-11)
+
+
+### Features
+
+* **action:** add directional to `focus_window` ([#42](https://github.com/y3owk1n/mimi/issues/42)) ([c46f0d6](https://github.com/y3owk1n/mimi/commit/c46f0d69682314bf787c50afd44688a5b0dd8a7c))
+
 ## [0.7.0](https://github.com/y3owk1n/mimi/compare/v0.6.0...v0.7.0) (2026-06-09)
 
 
