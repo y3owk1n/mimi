@@ -197,6 +197,20 @@ just build && just lint && just test
 
 ---
 
+## From the same workshop
+
+mimi's window management and space-switching code was part of **[neru](https://github.com/y3owk1n/neru)** — a broader tool for navigating your entire screen without touching the mouse.
+
+Where mimi is focused on moving and resizing windows, neru covers the rest: labels on every clickable element, recursive grid navigation, vim-style scrolling — the kind of thing Vimium does in a browser, but system-wide.
+
+If you find yourself still reaching for the mouse _inside_ apps, neru is the natural next step.
+
+```bash
+brew install --cask y3owk1n/tap/neru
+```
+
+---
+
 ## License
 
 MIT — see [LICENSE](LICENSE).
