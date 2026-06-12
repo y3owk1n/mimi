@@ -6,6 +6,22 @@
 }:
 let
   cfg = config.services.mimi;
+  defaultPath = lib.concatStringsSep ":" (
+    [
+      "${config.home.homeDirectory}/.nix-profile/bin"
+      "/etc/profiles/per-user/${config.home.username}/bin"
+      "/run/current-system/sw/bin"
+      "/nix/var/nix/profiles/default/bin"
+      "/usr/local/bin"
+      "/usr/bin"
+      "/bin"
+    ]
+    ++ lib.optionals pkgs.stdenv.isDarwin [ "/opt/homebrew/bin" ]
+  );
+  effectiveEnv = {
+    PATH = defaultPath;
+  }
+  // cfg.extraEnvironment;
 in
 {
   options = {
@@ -16,7 +32,7 @@ in
 
       config = lib.mkOption {
         type = lib.types.lines;
-        default = builtins.readFile ./configs/default-config.toml;
+        default = builtins.readFile ../configs/default-config.toml;
         description = ''
           Configuration for {file} `mimi/config.toml`.
         '';
@@ -59,6 +75,27 @@ in
           description = "Whether the launchd service should be kept alive.";
         };
       };
+
+      extraEnvironment = lib.mkOption {
+        type = lib.types.attrsOf lib.types.str;
+        default = { };
+        example = {
+          PATH = "/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin";
+        };
+        description = ''
+          Additional environment variables to set in the launchd (macOS) or systemd (Linux) service.
+          These are merged with defaults such as a {env}`PATH`
+          that includes common Nix binary directories and the user's Nix profile.
+          Setting {env}`PATH` here will override the default entirely.
+
+          To extend the default PATH with additional directories:
+          ```nix
+          services.mimi.extraEnvironment = {
+            PATH = "/Users/me/.cargo/bin:/Users/me/.nix-profile/bin:/etc/profiles/per-user/me/bin:/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/usr/local/bin:/usr/bin:/bin";
+          };
+          ```
+        '';
+      };
     };
   };
 
@@ -79,9 +116,7 @@ in
           "--config"
           "${config.xdg.configHome}/mimi/config.toml"
         ];
-        EnvironmentVariables = {
-          PATH = "${config.home.profileDirectory}/bin:/usr/local/bin:/usr/bin:/bin:/usr/sbin:/sbin";
-        };
+        EnvironmentVariables = effectiveEnv;
         RunAtLoad = true;
         KeepAlive = cfg.launchd.keepAlive;
         StandardOutPath = "/tmp/mimi.log";
