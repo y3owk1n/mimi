@@ -8,10 +8,16 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
-// Hook wraps a HookEntry with its compiled title regex.
+// Hook wraps a HookEntry with its compiled title regex and any precomputed
+// filter regexes so that per-event matching is allocation-free.
 type Hook struct {
 	Entry       config.HookEntry
 	titleRegexp *regexp.Regexp
+	// appRegexp is the compiled glob from Entry.App, or nil when not set.
+	appRegexp *regexp.Regexp
+	// bundleRegexp is the compiled glob from Entry.BundleID, or nil when
+	// not set. Glob is used for symmetry with Entry.App.
+	bundleRegexp *regexp.Regexp
 }
 
 // Registry maps event kinds to their registered hooks.
@@ -49,13 +55,11 @@ func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 
 // Matches checks whether a hook's filters (app, bundle_id, title) match an event.
 func (h *Hook) Matches(evt events.Event) (bool, string) {
-	if h.Entry.App != "" {
-		if !globMatch(h.Entry.App, evt.AppName) {
-			return false, "app filter mismatch"
-		}
+	if h.appRegexp != nil && !h.appRegexp.MatchString(evt.AppName) {
+		return false, "app filter mismatch"
 	}
 
-	if h.Entry.BundleID != "" && h.Entry.BundleID != evt.BundleID {
+	if h.bundleRegexp != nil && !h.bundleRegexp.MatchString(evt.BundleID) {
 		return false, "bundle_id filter mismatch"
 	}
 
@@ -85,15 +89,33 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 
 	for kind, hookEntries := range entries {
 		var hooks []Hook
-		for _, e := range hookEntries {
-			hook := Hook{Entry: e}
-			if e.Title != "" {
-				re, err := regexp.Compile(e.Title)
+		for _, entry := range hookEntries {
+			hook := Hook{Entry: entry}
+			if entry.Title != "" {
+				re, err := regexp.Compile(entry.Title)
 				if err != nil {
 					return nil, err
 				}
 
 				hook.titleRegexp = re
+			}
+
+			if entry.App != "" {
+				re, err := compileGlob(entry.App)
+				if err != nil {
+					return nil, err
+				}
+
+				hook.appRegexp = re
+			}
+
+			if entry.BundleID != "" {
+				re, err := compileGlob(entry.BundleID)
+				if err != nil {
+					return nil, err
+				}
+
+				hook.bundleRegexp = re
 			}
 
 			hooks = append(hooks, hook)
@@ -107,16 +129,19 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 	return hookMap, nil
 }
 
-func globMatch(pattern, str string) bool {
+// compileGlob converts a glob-style pattern (with `*` wildcards) to an
+// anchored *regexp.Regexp. Returns nil and a nil error for empty input or
+// the catch-all "*", so callers can use a single `if re != nil` check.
+func compileGlob(pattern string) (*regexp.Regexp, error) {
 	if pattern == "" || pattern == "*" {
-		return true
+		return nil, nil //nolint:nilnil // intentional: signals "no filter"
 	}
 
-	re := regexp.QuoteMeta(pattern)
-	re = stringsReplaceAll(re, "\\*", ".*")
-	matched, _ := regexp.MatchString("^"+re+"$", str)
+	quoted := regexp.QuoteMeta(pattern)
+	// QuoteMeta escapes `*` to `\*`; convert it back to the regex wildcard.
+	body := stringsReplaceAll(quoted, "\\*", ".*")
 
-	return matched
+	return regexp.Compile("^" + body + "$")
 }
 
 func stringsReplaceAll(str, old, replacement string) string {
