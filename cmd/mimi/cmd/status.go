@@ -6,6 +6,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
@@ -42,6 +43,13 @@ var statusCmd = &cobra.Command{
 			cmd.Printf("ipc: socket available at %s\n", paths.ExpandHome(socketPath))
 		} else {
 			cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
+		}
+
+		if dropped := native.EventDropCount(); dropped > 0 {
+			cmd.Printf(
+				"events dropped: %d (channel backpressure; check hook latency and log throttling)\n",
+				dropped,
+			)
 		}
 
 		return nil
