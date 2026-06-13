@@ -11,6 +11,7 @@
 		"nixd@2.9.0",
 		"golangci-lint@2.11.3",
 		"golangci-lint-langserver@0.0.12",
-		"just-lsp@0.3.4"
+		"just-lsp@0.3.4",
+		"clang-tools@21.1.8"
 	]
 }
