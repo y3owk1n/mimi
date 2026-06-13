@@ -16,14 +16,15 @@ type Config struct {
 
 // SettingsConfig holds the [settings] section of the config.
 type SettingsConfig struct {
-	LogFile         string `json:"logFile"         toml:"log_file"`
-	LogLevel        string `json:"logLevel"        toml:"log_level"`
-	LogFormat       string `json:"logFormat"       toml:"log_format"`
-	HookTimeoutSecs int    `json:"hookTimeoutSecs" toml:"hook_timeout_secs"`
-	HookShell       string `json:"hookShell"       toml:"hook_shell"`
-	MaxHookWorkers  int    `json:"maxHookWorkers"  toml:"max_hook_workers"`
-	PIDFile         string `json:"pidFile"         toml:"pid_file"`
-	SocketFile      string `json:"socketFile"      toml:"socket_file"`
+	LogFile          string `json:"logFile"          toml:"log_file"`
+	LogLevel         string `json:"logLevel"         toml:"log_level"`
+	LogFormat        string `json:"logFormat"        toml:"log_format"`
+	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  toml:"hook_timeout_secs"`
+	HookShell        string `json:"hookShell"        toml:"hook_shell"`
+	MaxHookWorkers   int    `json:"maxHookWorkers"   toml:"max_hook_workers"`
+	PIDFile          string `json:"pidFile"          toml:"pid_file"`
+	SocketFile       string `json:"socketFile"       toml:"socket_file"`
+	ResizeDebounceMS int    `json:"resizeDebounceMs" toml:"resize_debounce_ms"`
 }
 
 // SystrayConfig holds the [systray] section of the config.

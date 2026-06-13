@@ -7,6 +7,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"syscall"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -117,7 +118,7 @@ func runCore(
 	go executor.Run(ctx, hookSub)
 	go logging.WriteEventLog(ctx, logSub, cfg.Settings.LogFile, logger)
 
-	onChange := newReloadHandler(reg, executor, axTracker, logger)
+	onChange := newReloadHandler(reg, executor, axTracker, router, logger)
 
 	watcher := config.NewWatcher(configPath, onChange, logger)
 	go func() { _ = watcher.Run(ctx) }()
@@ -136,6 +137,7 @@ func runCore(
 		reg,
 		executor,
 		axTracker,
+		router,
 		logger,
 		configPath,
 		bus,
@@ -186,7 +188,12 @@ func setupEventPipeline(
 
 	bus := events.NewBus()
 	axTracker := observe.NewAXTracker(axEnabled)
-	router := observe.NewRouter(bus, axTracker, logger)
+	router := observe.NewRouterWithDebounce(
+		bus,
+		axTracker,
+		logger,
+		time.Duration(cfg.Settings.ResizeDebounceMS)*time.Millisecond,
+	)
 
 	reg := hooks.NewRegistry()
 
@@ -229,6 +236,7 @@ func newReloadHandler(
 	reg *hooks.Registry,
 	executor *hooks.Executor,
 	axTracker *observe.AXTracker,
+	router *observe.Router,
 	logger *zap.SugaredLogger,
 ) func(*config.Config) {
 	return func(newCfg *config.Config) {
@@ -245,6 +253,7 @@ func newReloadHandler(
 
 		executor.UpdateSettings(&newCfg.Settings)
 		native.UpdateObservers(getObserverConfig(newCfg))
+		router.SetDebounceWindow(time.Duration(newCfg.Settings.ResizeDebounceMS) * time.Millisecond)
 
 		perm := permissions.Check()
 		axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))
@@ -258,6 +267,7 @@ func runSignalLoop(
 	reg *hooks.Registry,
 	executor *hooks.Executor,
 	axTracker *observe.AXTracker,
+	router *observe.Router,
 	logger *zap.SugaredLogger,
 	configPath string,
 	bus *events.Bus,
@@ -278,7 +288,7 @@ func runSignalLoop(
 			return
 		case sig := <-sigCh:
 			if sig == syscall.SIGHUP {
-				reloadConfig(configPath, reg, executor, axTracker, logger)
+				reloadConfig(configPath, reg, executor, axTracker, router, logger)
 
 				continue
 			}
@@ -296,6 +306,7 @@ func reloadConfig(
 	reg *hooks.Registry,
 	executor *hooks.Executor,
 	axTracker *observe.AXTracker,
+	router *observe.Router,
 	logger *zap.SugaredLogger,
 ) {
 	newCfg, err := config.Load(configPath)
@@ -308,6 +319,7 @@ func reloadConfig(
 	_ = reg.Reload(newCfg)
 	executor.UpdateSettings(&newCfg.Settings)
 	native.UpdateObservers(getObserverConfig(newCfg))
+	router.SetDebounceWindow(time.Duration(newCfg.Settings.ResizeDebounceMS) * time.Millisecond)
 
 	perm := permissions.Check()
 	axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))

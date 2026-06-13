@@ -165,6 +165,10 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		settings.SocketFile = DefaultSocketPath
 	}
 
+	if settings.ResizeDebounceMS == 0 {
+		settings.ResizeDebounceMS = 250
+	}
+
 	if !systrayEnabledSet {
 		cfg.Systray.Enabled = true
 	}
@@ -178,6 +182,10 @@ func validate(cfg *Config) error {
 
 	if cfg.Settings.MaxHookWorkers < 1 {
 		errs = append(errs, "settings.max_hook_workers must be >= 1")
+	}
+
+	if cfg.Settings.ResizeDebounceMS < 0 {
+		errs = append(errs, "settings.resize_debounce_ms must be >= 0")
 	}
 
 	for kind, entries := range allHookEntries(cfg) {

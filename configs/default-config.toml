@@ -32,6 +32,10 @@ hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
 socket_file = "~/.local/share/mimi/mimi.sock"
+# Resize debounce window in milliseconds. The on_window_resize hook fires
+# after this much quiet time following the last AX window-resized event.
+# Lower = more responsive, higher = fewer spurious fires during drag.
+resize_debounce_ms = 250
 
 [systray]
 enabled = true

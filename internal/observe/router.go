@@ -13,7 +13,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/native"
 )
 
-const resizeDebounceDuration = 250 * time.Millisecond
+const defaultResizeDebounceDuration = 250 * time.Millisecond
 
 // Router receives native events and publishes hookable events to the bus.
 type Router struct {
@@ -21,9 +21,10 @@ type Router struct {
 	ax     *AXTracker
 	logger *zap.SugaredLogger
 
-	mu      sync.Mutex
-	timers  map[string]*resizeState
-	stopped bool
+	mu             sync.Mutex
+	timers         map[string]*resizeState
+	stopped        bool
+	debounceWindow time.Duration
 }
 
 type resizeState struct {
@@ -31,14 +32,45 @@ type resizeState struct {
 	evt   events.Event
 }
 
-// NewRouter creates an event router for the hook daemon.
-func NewRouter(bus *events.Bus, ax *AXTracker, logger *zap.SugaredLogger) *Router {
-	return &Router{
-		bus:    bus,
-		ax:     ax,
-		logger: logger,
-		timers: make(map[string]*resizeState),
+// NewRouter creates an event router for the hook daemon with the default
+// resize debounce window (250ms).
+func NewRouter(bus *events.Bus, tracker *AXTracker, logger *zap.SugaredLogger) *Router {
+	return NewRouterWithDebounce(bus, tracker, logger, defaultResizeDebounceDuration)
+}
+
+// NewRouterWithDebounce creates an event router with a caller-specified
+// resize debounce window. A zero duration is replaced with the default.
+func NewRouterWithDebounce(
+	bus *events.Bus,
+	tracker *AXTracker,
+	logger *zap.SugaredLogger,
+	debounceWindow time.Duration,
+) *Router {
+	if debounceWindow <= 0 {
+		debounceWindow = defaultResizeDebounceDuration
 	}
+
+	return &Router{
+		bus:            bus,
+		ax:             tracker,
+		logger:         logger,
+		timers:         make(map[string]*resizeState),
+		debounceWindow: debounceWindow,
+	}
+}
+
+// SetDebounceWindow updates the debounce window used for resize events. A
+// zero or negative value resets to the default. Existing in-flight timers
+// are not affected; the new window applies to events arriving after this
+// call.
+func (r *Router) SetDebounceWindow(window time.Duration) {
+	if window <= 0 {
+		window = defaultResizeDebounceDuration
+	}
+
+	r.mu.Lock()
+	r.debounceWindow = window
+	r.mu.Unlock()
 }
 
 // Run consumes native events until the context is canceled.
@@ -109,7 +141,7 @@ func (r *Router) debounceResize(evt events.Event) {
 	if rState, ok := r.timers[key]; ok {
 		if rState.timer.Stop() {
 			rState.evt = evt
-			rState.timer.Reset(resizeDebounceDuration)
+			rState.timer.Reset(r.debounceWindow)
 
 			return
 		}
@@ -125,7 +157,7 @@ func (r *Router) debounceResize(evt events.Event) {
 
 func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 	rState := &resizeState{evt: evt}
-	rState.timer = time.AfterFunc(resizeDebounceDuration, func() {
+	rState.timer = time.AfterFunc(r.debounceWindow, func() {
 		r.mu.Lock()
 
 		current, exists := r.timers[key]

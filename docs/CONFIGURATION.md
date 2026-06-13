@@ -22,6 +22,7 @@ hook_timeout_secs = 10
 hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
+resize_debounce_ms = 250                     # on_window_resize debounce window
 ```
 
 ---
