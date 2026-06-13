@@ -53,6 +53,19 @@ func (r *Registry) HooksFor(kind events.EventKind) []Hook {
 	return r.m[kind]
 }
 
+// KindFilter returns a predicate that reports whether the registry has at
+// least one hook registered for a given event kind. It is intended for use
+// with events.Bus.SubscribeWithFilter so the bus can drop events that the
+// executor would otherwise ignore.
+func (r *Registry) KindFilter() events.KindFilter {
+	return func(kind events.EventKind) bool {
+		r.mu.RLock()
+		defer r.mu.RUnlock()
+
+		return len(r.m[kind]) > 0
+	}
+}
+
 // Matches checks whether a hook's filters (app, bundle_id, title) match an event.
 func (h *Hook) Matches(evt events.Event) (bool, string) {
 	if h.appRegexp != nil && !h.appRegexp.MatchString(evt.AppName) {

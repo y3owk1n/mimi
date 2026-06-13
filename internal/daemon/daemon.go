@@ -198,8 +198,27 @@ func setupEventPipeline(
 
 	executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
 
-	logSub := bus.Subscribe(logSubBufSize)
-	hookSub := bus.Subscribe(hookSubBufSize)
+	// Subscribe the executor with a kind filter so the bus can drop events
+	// for which no hooks are registered, avoiding a channel send on the
+	// hot path of high-frequency events.
+	hookSub := bus.SubscribeWithFilter(hookSubBufSize, reg.KindFilter())
+
+	// The event log is opt-in via [settings].log_file; when present, write
+	// every event so the user can replay what happened. When disabled, the
+	// always-false filter prevents the bus from sending into a channel
+	// nobody reads, eliminating a source of silent drops.
+	logPath := cfg.Settings.LogFile
+
+	var logSub events.Subscriber
+
+	if logPath != "" {
+		logSub = bus.Subscribe(logSubBufSize)
+	} else {
+		logSub = bus.SubscribeWithFilter(
+			hookSubBufSize,
+			func(_ events.EventKind) bool { return false },
+		)
+	}
 
 	ctx, cancel := context.WithCancel(context.Background())
 
