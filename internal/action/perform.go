@@ -29,7 +29,7 @@ func FocusWindow(backward bool, direction string) error {
 		return err
 	}
 
-	windows, err := window.AllFocusableOnActiveSpace()
+	windows, focusedIndex, err := window.AllFocusableOnActiveSpaceWithFocused()
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
 	}
@@ -43,33 +43,30 @@ func FocusWindow(backward bool, direction string) error {
 
 	defer window.ReleaseAll(windows)
 
-	frontmost := window.Frontmost()
-
-	currentIndex := -1
-	if frontmost != nil {
-		for i, w := range windows {
-			if w.Equal(frontmost) {
-				currentIndex = i
-
-				break
-			}
+	if direction != "" {
+		if focusedIndex < 0 {
+			return derrors.New(
+				derrors.CodeActionFailed,
+				"current window not found; cannot determine spatial navigation target",
+			)
 		}
 
-		frontmost.Release()
-	}
-
-	if direction != "" {
-		return focusDirectional(windows, currentIndex, direction)
+		return focusDirectional(windows, focusedIndex, direction)
 	}
 
 	var targetIndex int
-	if backward {
-		targetIndex = currentIndex - 1
+	switch {
+	case focusedIndex < 0:
+		// No focused window found in the list (e.g. the frontmost app
+		// has no focusable AX window). Default to the first window.
+		targetIndex = 0
+	case backward:
+		targetIndex = focusedIndex - 1
 		if targetIndex < 0 {
 			targetIndex = len(windows) - 1
 		}
-	} else {
-		targetIndex = currentIndex + 1
+	default:
+		targetIndex = focusedIndex + 1
 		if targetIndex >= len(windows) {
 			targetIndex = 0
 		}

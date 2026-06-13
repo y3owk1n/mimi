@@ -21,14 +21,25 @@ type Element struct {
 
 // AllFocusableOnActiveSpace returns focusable windows on the active space.
 func AllFocusableOnActiveSpace() ([]*Element, error) {
+	wins, _, err := AllFocusableOnActiveSpaceWithFocused()
+
+	return wins, err
+}
+
+// AllFocusableOnActiveSpaceWithFocused returns focusable windows on the active
+// space along with the 0-based index of the currently focused window, or -1
+// if no window is focused (or the focused window is not focusable). This
+// avoids N additional CGO trips to find the current index after enumeration.
+func AllFocusableOnActiveSpaceWithFocused() ([]*Element, int, error) {
 	var count C.int
-	windows := C.MimiGetAllFocusableWindowsOnActiveSpace(&count)
+	var focused C.int
+	windows := C.MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(&count, &focused)
 	if windows == nil || count == 0 {
 		if windows != nil {
 			C.free(unsafe.Pointer(windows))
 		}
 
-		return []*Element{}, nil
+		return []*Element{}, int(focused), nil
 	}
 	defer C.free(unsafe.Pointer(windows)) //nolint:nlreturn
 
@@ -40,7 +51,7 @@ func AllFocusableOnActiveSpace() ([]*Element, error) {
 		result[index] = &Element{ref: windowSlice[index]}
 	}
 
-	return result, nil
+	return result, int(focused), nil
 }
 
 // Frontmost returns the frontmost window.

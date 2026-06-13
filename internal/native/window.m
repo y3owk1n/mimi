@@ -147,12 +147,18 @@ static CGPoint getWindowPosition(AXUIElementRef window) {
 	return CGPointZero;
 }
 
-void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
-	if (!count)
+// Internal helper: returns CFArrayRef of focusable windows on the active
+// space. On success, sets *outCount to the number of windows and (if
+// requested) *outFocusedIndex to the 0-based index of the focused window, or
+// -1 if no window is focused / none matches.
+static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *outFocusedIndex) {
+	if (!outCount)
 		return NULL;
 
 	@autoreleasepool {
-		*count = 0;
+		*outCount = 0;
+		if (outFocusedIndex)
+			*outFocusedIndex = -1;
 
 		NSSet<NSNumber *> *visiblePIDs = mimiVisibleRegularAppPIDs();
 		NSArray *runningApps = [[NSWorkspace sharedWorkspace].runningApplications
@@ -167,6 +173,26 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 		CFMutableArrayRef windowsCollector = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
 		if (!windowsCollector)
 			return NULL;
+
+		// Track the focused window in app-element form so we can match it
+		// against the collected list in a single pass after enumeration.
+		// Uses CFEqual (via MimiAreElementsEqual) for matching since
+		// AXUIElementRef equality is based on the underlying CFType, not
+		// pointer identity.
+		AXUIElementRef focusedWindow = NULL;
+		AXUIElementRef focusedApp = (AXUIElementRef)MimiGetFocusedApplication();
+		if (focusedApp) {
+			CFTypeRef focusedVal = NULL;
+			if (AXUIElementCopyAttributeValue(focusedApp, kAXFocusedWindowAttribute, &focusedVal) ==
+				    kAXErrorSuccess &&
+			    focusedVal) {
+				if (CFGetTypeID(focusedVal) == AXUIElementGetTypeID()) {
+					focusedWindow = (AXUIElementRef)CFRetain(focusedVal);
+				}
+				CFRelease(focusedVal);
+			}
+			CFRelease(focusedApp);
+		}
 
 		for (NSRunningApplication *app in runningApps) {
 			if (app.activationPolicy != NSApplicationActivationPolicyRegular)
@@ -257,12 +283,47 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 			CFRelease(appElement);
 		}
 
-		CFIndex total = CFArrayGetCount(windowsCollector);
-		if (total == 0) {
+		// After enumeration, find the focused window's position in the
+		// collected list via CFEqual (matches the Go-side equality check
+		// used by window.Element.Equal).
+		if (outFocusedIndex && focusedWindow) {
+			CFIndex total = CFArrayGetCount(windowsCollector);
+			for (CFIndex i = 0; i < total; i++) {
+				AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(windowsCollector, i);
+				if (CFEqual(w, focusedWindow)) {
+					*outFocusedIndex = (int)i;
+					break;
+				}
+			}
+			CFRelease(focusedWindow);
+		}
+
+		*outCount = (int)CFArrayGetCount(windowsCollector);
+		if (*outCount == 0) {
 			CFRelease(windowsCollector);
 			return NULL;
 		}
 
+		return windowsCollector;
+	}
+}
+
+void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
+	return MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(count, NULL);
+}
+
+void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focusedIndex) {
+	if (!count)
+		return NULL;
+	if (focusedIndex)
+		*focusedIndex = -1;
+
+	@autoreleasepool {
+		CFArrayRef windowsCollector = mimiCollectFocusableWindowsOnActiveSpace(count, focusedIndex);
+		if (!windowsCollector)
+			return NULL;
+
+		CFIndex total = *count;
 		NSMutableDictionary<NSValue *, NSValue *> *positions = [NSMutableDictionary dictionaryWithCapacity:total];
 		NSMutableDictionary<NSValue *, NSNumber *> *pids = [NSMutableDictionary dictionaryWithCapacity:total];
 		for (CFIndex i = 0; i < total; i++) {
@@ -313,13 +374,32 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count) {
 			return NULL;
 		}
 
+		// Sort focusedIndex to match the new sorted order, since the
+		// focused window's index in the returned array is what callers
+		// will use to identify "the current window."
+		int sortedFocusedIndex = -1;
+		if (focusedIndex && *focusedIndex >= 0) {
+			AXUIElementRef focusedWin =
+			    (AXUIElementRef)CFArrayGetValueAtIndex(windowsCollector, (CFIndex)*focusedIndex);
+			for (CFIndex i = 0; i < total; i++) {
+				AXUIElementRef w = (__bridge AXUIElementRef)sortedWindows[i];
+				if (CFEqual(w, focusedWin)) {
+					sortedFocusedIndex = (int)i;
+					break;
+				}
+			}
+		}
+
 		for (CFIndex i = 0; i < total; i++) {
 			result[i] = (void *)(__bridge AXUIElementRef)sortedWindows[i];
 			CFRetain(result[i]);
 		}
 
 		CFRelease(windowsCollector);
-		*count = (int)total;
+
+		if (focusedIndex)
+			*focusedIndex = sortedFocusedIndex;
+
 		return result;
 	}
 }

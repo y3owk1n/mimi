@@ -14,6 +14,7 @@ int MimiAreElementsEqual(void *element1, void *element2);
 #pragma mark - Window Functions
 
 void **MimiGetAllFocusableWindowsOnActiveSpace(int *count);
+void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focusedIndex);
 void *MimiGetFrontmostWindow(void);
 int MimiActivateWindow(void *window);
 
