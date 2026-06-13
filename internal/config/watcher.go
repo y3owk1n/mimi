@@ -42,14 +42,33 @@ func (w *Watcher) Run(ctx context.Context) error {
 		}
 	}
 
+	// Use a single resettable timer for debouncing instead of spawning a
+	// new goroutine via time.AfterFunc on every fsnotify event. Saves
+	// goroutine churn during rapid editor saves.
 	var debounce *time.Timer
+
+	stopDebounce := func() {
+		if debounce != nil {
+			debounce.Stop()
+		}
+	}
+	defer stopDebounce()
+
+	reload := func() {
+		cfg, err := Load(w.path)
+		if err != nil {
+			w.logger.Warnw("config reload failed", "err", err)
+
+			return
+		}
+
+		w.logger.Info("config reloaded")
+		w.onChange(cfg)
+	}
+
 	for {
 		select {
 		case <-ctx.Done():
-			if debounce != nil {
-				debounce.Stop()
-			}
-
 			return nil
 		case ev, ok := <-fileWatcher.Events:
 			if !ok {
@@ -58,20 +77,16 @@ func (w *Watcher) Run(ctx context.Context) error {
 
 			if ev.Has(fsnotify.Write) || ev.Has(fsnotify.Create) {
 				if debounce != nil {
-					debounce.Stop()
-				}
-
-				debounce = time.AfterFunc(debounceDelay, func() {
-					cfg, err := Load(w.path)
-					if err != nil {
-						w.logger.Warnw("config reload failed", "err", err)
-
-						return
+					// Reset extends the window; if it has already
+					// fired or stopped, create a fresh timer.
+					if debounce.Stop() {
+						debounce.Reset(debounceDelay)
+					} else {
+						debounce = time.AfterFunc(debounceDelay, reload)
 					}
-
-					w.logger.Info("config reloaded")
-					w.onChange(cfg)
-				})
+				} else {
+					debounce = time.AfterFunc(debounceDelay, reload)
+				}
 			}
 		case err, ok := <-fileWatcher.Errors:
 			if !ok {
