@@ -7,6 +7,7 @@
 
 #import "constants.h"
 #import "mimi.h"
+#import "mimi_log.h"
 
 #import <ApplicationServices/ApplicationServices.h>
 #import <Cocoa/Cocoa.h>
@@ -473,6 +474,7 @@ int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID) {
 	CGWindowID windowId = 0;
 	AXError err = _AXUIElementGetWindow((AXUIElementRef)windowElement, &windowId);
 	if (err != kAXErrorSuccess || windowId == 0) {
+		MIMI_LOG("_AXUIElementGetWindow failed with error %d (windowId=%u)", (int)err, (unsigned)windowId);
 		return 0;
 	}
 
@@ -518,6 +520,10 @@ int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID) {
 		CGError cgErr = SLSMoveWindowsToManagedSpace(SLSMainConnectionID(), windowList, spaceID);
 		if (cgErr == kCGErrorSuccess) {
 			success = 1;
+		} else {
+			MIMI_LOG(
+			    "SLSMoveWindowsToManagedSpace failed with error %d (windowId=%u, spaceID=%llu)", (int)cgErr,
+			    (unsigned)windowId, (unsigned long long)spaceID);
 		}
 	}
 

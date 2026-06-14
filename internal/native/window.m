@@ -4,6 +4,7 @@
 //
 
 #import "mimi.h"
+#import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
@@ -462,7 +463,7 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 
 		AXError posError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
 		if (posError != kAXErrorSuccess) {
-			NSLog(@"Mimi: AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
+			MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
 		}
 
 		// Then set size
@@ -475,15 +476,14 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 
 		AXError sizeError = AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute, sizeValue);
 		if (sizeError != kAXErrorSuccess) {
-			NSLog(@"Mimi: AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)sizeError);
+			MIMI_LOG("AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)sizeError);
 		}
 
 		// Re-set position to correct any shifts caused by resize
 		AXError posResetError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
 		if (posResetError != kAXErrorSuccess) {
-			NSLog(
-			    @"Mimi: AXUIElementSetAttributeValue(kAXPositionAttribute) reset failed with error %d",
-			    (int)posResetError);
+			MIMI_LOG(
+			    "AXUIElementSetAttributeValue(kAXPositionAttribute) reset failed with error %d", (int)posResetError);
 		}
 
 		CFRelease(sizeValue);
@@ -510,10 +510,20 @@ int MimiActivateWindow(void *window) {
 
 		[app activateWithOptions:0];
 
-		AXUIElementSetAttributeValue(axWindow, kAXMainAttribute, kCFBooleanTrue);
-		AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute, kCFBooleanTrue);
+		AXError mainErr = AXUIElementSetAttributeValue(axWindow, kAXMainAttribute, kCFBooleanTrue);
+		if (mainErr != kAXErrorSuccess) {
+			MIMI_LOG("AXUIElementSetAttributeValue(kAXMainAttribute) failed with error %d (pid=%d)", (int)mainErr, pid);
+		}
+		AXError focusErr = AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute, kCFBooleanTrue);
+		if (focusErr != kAXErrorSuccess) {
+			MIMI_LOG(
+			    "AXUIElementSetAttributeValue(kAXFocusedAttribute) failed with error %d (pid=%d)", (int)focusErr, pid);
+		}
 
 		AXError raiseError = AXUIElementPerformAction(axWindow, kAXRaiseAction);
+		if (raiseError != kAXErrorSuccess) {
+			MIMI_LOG("AXUIElementPerformAction(kAXRaiseAction) failed with error %d (pid=%d)", (int)raiseError, pid);
+		}
 
 		return (raiseError == kAXErrorSuccess) ? 1 : 0;
 	}

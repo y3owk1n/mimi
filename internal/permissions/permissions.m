@@ -1,5 +1,7 @@
 #import "permissions.h"
 
+#import "../native/mimi_log.h"
+
 #import <ApplicationServices/ApplicationServices.h>
 #import <Cocoa/Cocoa.h>
 
@@ -30,13 +32,13 @@ static int MimiResetAccessibilityPermissionDecision(void) {
 
 		int status = [task terminationStatus];
 		if (status != 0) {
-			NSLog(
-			    @"Mimi: tccutil reset Accessibility %@ exited with status %d; system permission dialog may not appear",
+			MIMI_LOG(
+			    "tccutil reset Accessibility %@ exited with status %d; system permission dialog may not appear",
 			    bundleID, status);
 			return 0;
 		}
 	} @catch (NSException *exception) {
-		NSLog(@"Mimi: failed to reset Accessibility permission decision: %@", exception);
+		MIMI_LOG("failed to reset Accessibility permission decision: %@", exception);
 		return 0;
 	}
 
@@ -51,7 +53,7 @@ int MimiCheckAccessibilityPermissions(void) {
 int MimiRequestAccessibilityPermissions(void) {
 	@autoreleasepool {
 		if (!MimiResetAccessibilityPermissionDecision()) {
-			NSLog(@"Mimi: continuing with Accessibility permission request after reset failure");
+			MIMI_LOG("continuing with Accessibility permission request after reset failure");
 		}
 
 		NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt : @YES};

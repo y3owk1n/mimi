@@ -7,6 +7,8 @@
 
 #import "systray.h"
 
+#import "../native/mimi_log.h"
+
 #import <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <dlfcn.h>
@@ -32,6 +34,7 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	});
 
 	if (!skyLight) {
+		MIMI_LOG("dlopen of SkyLight.framework failed: %s", dlerror());
 		return -1;
 	}
 
@@ -56,6 +59,11 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	    (SLSCopyManagedDisplaySpacesFunc)dlsym(skyLight, "SLSCopyManagedDisplaySpaces");
 
 	if (!SLSMainConnectionID || !SLSCopyActiveMenuBarDisplayIdentifier || !SLSCopyManagedDisplaySpaces) {
+		MIMI_LOG(
+		    "dlsym failed: missing required SkyLight symbols (SLSMainConnectionID=%p, "
+		    "SLSCopyActiveMenuBarDisplayIdentifier=%p, SLSCopyManagedDisplaySpaces=%p)",
+		    (void *)SLSMainConnectionID, (void *)SLSCopyActiveMenuBarDisplayIdentifier,
+		    (void *)SLSCopyManagedDisplaySpaces);
 		return -1;
 	}
 

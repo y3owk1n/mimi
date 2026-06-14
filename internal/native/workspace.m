@@ -2,6 +2,7 @@
 
 #include "_cgo_export.h"
 #import "eventkinds.h"
+#import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
@@ -25,8 +26,10 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 - (NSArray *)currentWindowList {
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
 	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
-	if (!windowList)
+	if (!windowList) {
+		MIMI_LOG("CGWindowListCopyWindowInfo returned NULL");
 		return nil;
+	}
 
 	return CFBridgingRelease(windowList);
 }

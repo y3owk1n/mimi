@@ -2,6 +2,7 @@
 
 #include "_cgo_export.h"
 #import "eventkinds.h"
+#import "mimi_log.h"
 #import "workspace.h"
 
 #import <ApplicationServices/ApplicationServices.h>
@@ -267,6 +268,7 @@ static void axInstallBlock(int pid) {
 	AXObserverRef observer = NULL;
 	AXError err = AXObserverCreate(pid, axCallback, &observer);
 	if (err != kAXErrorSuccess) {
+		MIMI_LOG("AXObserverCreate failed for pid=%d with error %d", pid, (int)err);
 		CFRelease(appElement);
 
 		return;
@@ -280,9 +282,9 @@ static void axInstallBlock(int pid) {
 	for (size_t i = 0; i < notifCount; i++) {
 		AXError addErr = AXObserverAddNotification(observer, appElement, notifications[i], (void *)(intptr_t)pid);
 		if (addErr != kAXErrorSuccess) {
-			NSLog(
-			    @"Mimi: AXObserverAddNotification failed for %@ with error %d (pid=%d)",
-			    (__bridge NSString *)notifications[i], (int)addErr, pid);
+			MIMI_LOG(
+			    "AXObserverAddNotification failed for %@ with error %d (pid=%d)", (__bridge NSString *)notifications[i],
+			    (int)addErr, pid);
 		}
 	}
 
