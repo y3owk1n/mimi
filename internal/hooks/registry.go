@@ -2,6 +2,7 @@ package hooks
 
 import (
 	"regexp"
+	"strings"
 	"sync"
 
 	"github.com/y3owk1n/mimi/internal/config"
@@ -152,22 +153,7 @@ func compileGlob(pattern string) (*regexp.Regexp, error) {
 
 	quoted := regexp.QuoteMeta(pattern)
 	// QuoteMeta escapes `*` to `\*`; convert it back to the regex wildcard.
-	body := stringsReplaceAll(quoted, "\\*", ".*")
+	body := strings.ReplaceAll(quoted, `\*`, ".*")
 
 	return regexp.Compile("^" + body + "$")
-}
-
-func stringsReplaceAll(str, old, replacement string) string {
-	var result []byte
-	for idx := 0; idx < len(str); {
-		if str[idx] == old[0] && idx+len(old) <= len(str) && str[idx:idx+len(old)] == old {
-			result = append(result, []byte(replacement)...)
-			idx += len(old)
-		} else {
-			result = append(result, str[idx])
-			idx++
-		}
-	}
-
-	return string(result)
 }
