@@ -461,6 +461,9 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 			return 0;
 
 		AXError posError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
+		if (posError != kAXErrorSuccess) {
+			NSLog(@"Mimi: AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
+		}
 
 		// Then set size
 		CGSize size = CGSizeMake((CGFloat)w, (CGFloat)h);
@@ -471,9 +474,17 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 		}
 
 		AXError sizeError = AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute, sizeValue);
+		if (sizeError != kAXErrorSuccess) {
+			NSLog(@"Mimi: AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)sizeError);
+		}
 
 		// Re-set position to correct any shifts caused by resize
-		AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
+		AXError posResetError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
+		if (posResetError != kAXErrorSuccess) {
+			NSLog(
+			    @"Mimi: AXUIElementSetAttributeValue(kAXPositionAttribute) reset failed with error %d",
+			    (int)posResetError);
+		}
 
 		CFRelease(sizeValue);
 		CFRelease(positionValue);
