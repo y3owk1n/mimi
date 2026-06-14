@@ -1,6 +1,7 @@
 package hooks
 
 import (
+	"bytes"
 	"context"
 	"errors"
 	"fmt"
@@ -17,6 +18,39 @@ import (
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
 )
+
+// maxHookOutputBytes caps the combined stdout+stderr capture for a single
+// hook invocation. cmd.CombinedOutput() would otherwise allocate a buffer
+// sized to whatever the child writes, which is unbounded for a misbehaving
+// or chatty hook.
+const maxHookOutputBytes = 64 * 1024
+
+// hookOutputBuffer is a bytes.Buffer-backed writer that silently drops
+// writes past maxHookOutputBytes so a misbehaving hook can't make the
+// daemon allocate arbitrarily large buffers.
+type hookOutputBuffer struct {
+	buf   bytes.Buffer
+	limit int
+}
+
+func (h *hookOutputBuffer) Write(
+	data []byte,
+) (int, error) {
+	remaining := h.limit - h.buf.Len()
+	if remaining <= 0 {
+		return len(data), nil
+	}
+
+	if len(data) > remaining {
+		data = data[:remaining]
+	}
+
+	return h.buf.Write(data)
+}
+
+func (h *hookOutputBuffer) Bytes() []byte {
+	return h.buf.Bytes()
+}
 
 // Executor receives events, matches hooks, and runs shell commands.
 type Executor struct {
@@ -139,7 +173,11 @@ func (ex *Executor) run(hook Hook, evt events.Event) {
 	cmd.Env = append(cmd.Env, eventVars...)
 
 	start := time.Now()
-	out, err := cmd.CombinedOutput()
+	outBuf := &hookOutputBuffer{limit: maxHookOutputBytes}
+	cmd.Stdout = outBuf
+	cmd.Stderr = outBuf
+	err := cmd.Run()
+	out := outBuf.Bytes()
 	elapsed := time.Since(start)
 
 	if err != nil {
