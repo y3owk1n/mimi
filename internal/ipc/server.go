@@ -29,9 +29,10 @@ type Server struct {
 	path string
 	ln   net.Listener
 
-	actionCh     chan actionJob
-	once         sync.Once
-	shutdownOnce sync.Once
+	actionCh       chan actionJob
+	enqueueTimeout time.Duration
+	once           sync.Once
+	shutdownOnce   sync.Once
 }
 
 type actionJob struct {
@@ -43,8 +44,9 @@ type actionJob struct {
 // NewServer creates a Unix socket server at path.
 func NewServer(path string) *Server {
 	return &Server{
-		path:     paths.ExpandHome(path),
-		actionCh: make(chan actionJob),
+		path:           paths.ExpandHome(path),
+		actionCh:       make(chan actionJob),
+		enqueueTimeout: actionEnqueueTimeout,
 	}
 }
 
@@ -136,7 +138,7 @@ func (s *Server) handleConn(conn net.Conn) {
 	done := make(chan error, 1)
 	select {
 	case s.actionCh <- actionJob{name: req.Action, args: req.Args, done: done}:
-	case <-time.After(actionEnqueueTimeout):
+	case <-time.After(s.enqueueTimeout):
 		_ = writeResponse(conn, responseFromError(derrors.New(
 			derrors.CodeIPCFailed,
 			"timed out enqueueing action",
