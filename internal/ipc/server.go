@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"context"
 	"errors"
+	"fmt"
 	"net"
 	"os"
 	"path/filepath"
@@ -107,7 +108,15 @@ func (s *Server) startActionWorker() {
 		runtime.LockOSThread()
 
 		for job := range s.actionCh {
-			job.done <- action.Execute(job.name, job.args)
+			func() {
+				defer func() {
+					if r := recover(); r != nil {
+						job.done <- fmt.Errorf("action worker panic: %v", r) //nolint:err113 // panic value is runtime-only
+					}
+				}()
+
+				job.done <- action.Execute(job.name, job.args)
+			}()
 		}
 	}()
 }
