@@ -9,12 +9,19 @@ import (
 	"runtime"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/systray"
 )
+
+// actionEnqueueTimeout caps how long handleConn will block waiting for the
+// action worker to accept a job. Without this, a stuck action worker (or a
+// misbehaving client connection) can block indefinitely and prevent shutdown
+// or starve other clients.
+const actionEnqueueTimeout = 5 * time.Second
 
 // Server accepts action requests over a Unix domain socket.
 type Server struct {
@@ -108,7 +115,16 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	done := make(chan error, 1)
-	s.actionCh <- actionJob{name: req.Action, args: req.Args, done: done}
+	select {
+	case s.actionCh <- actionJob{name: req.Action, args: req.Args, done: done}:
+	case <-time.After(actionEnqueueTimeout):
+		_ = writeResponse(conn, responseFromError(derrors.New(
+			derrors.CodeIPCFailed,
+			"timed out enqueueing action",
+		)))
+
+		return
+	}
 
 	err = <-done
 	if err == nil &&
