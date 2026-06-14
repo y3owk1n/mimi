@@ -497,7 +497,7 @@ int MimiActivateWindow(void *window) {
 		if (!app)
 			return 0;
 
-		[app activateWithOptions:NSApplicationActivateIgnoringOtherApps];
+		[app activateWithOptions:0];
 
 		AXUIElementSetAttributeValue(axWindow, kAXMainAttribute, kCFBooleanTrue);
 		AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute, kCFBooleanTrue);
