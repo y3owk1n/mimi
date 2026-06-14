@@ -25,6 +25,12 @@ type Executor struct {
 	logger   *zap.SugaredLogger
 	sem      chan struct{}
 	cfgMu    sync.RWMutex
+
+	// baseEnv is the process environment captured at construction time and
+	// reused as the base for every hook invocation. os.Environ() allocates
+	// a new []string on every call, which is wasted work since the daemon's
+	// environment is effectively constant for its lifetime.
+	baseEnv []string
 }
 
 // NewExecutor creates an executor with the given registry and settings.
@@ -34,6 +40,7 @@ func NewExecutor(reg *Registry, cfg *config.SettingsConfig, logger *zap.SugaredL
 		cfg:      cfg,
 		logger:   logger,
 		sem:      make(chan struct{}, cfg.MaxHookWorkers),
+		baseEnv:  os.Environ(),
 	}
 }
 
@@ -126,7 +133,10 @@ func (ex *Executor) run(hook Hook, evt events.Event) {
 	runCmd := replaceEventVars(hook.Entry.Run, evt)
 	cmd := exec.CommandContext(ctx, shell, "-c", runCmd)
 
-	cmd.Env = append(os.Environ(), eventEnv(evt)...)
+	eventVars := eventEnv(evt)
+	cmd.Env = make([]string, 0, len(ex.baseEnv)+len(eventVars))
+	cmd.Env = append(cmd.Env, ex.baseEnv...)
+	cmd.Env = append(cmd.Env, eventVars...)
 
 	start := time.Now()
 	out, err := cmd.CombinedOutput()
