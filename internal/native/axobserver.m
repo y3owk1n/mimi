@@ -279,7 +279,11 @@ static void axInstallBlock(int pid) {
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {
 		AXError addErr = AXObserverAddNotification(observer, appElement, notifications[i], (void *)(intptr_t)pid);
-		(void)addErr;
+		if (addErr != kAXErrorSuccess) {
+			NSLog(
+			    @"Mimi: AXObserverAddNotification failed for %@ with error %d (pid=%d)",
+			    (__bridge NSString *)notifications[i], (int)addErr, pid);
+		}
 	}
 
 	CFRunLoopRef rl = GetRunLoop();
