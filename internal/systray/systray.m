@@ -175,10 +175,6 @@ static BOOL _exitCalled = NO;
 
 AppDelegate *appDelegate;
 
-void MimiRegisterSystray(void) {
-	// Placeholder if needed for init
-}
-
 void internalNativeLoop(void) {
 	@autoreleasepool {
 		[NSApplication sharedApplication];

@@ -3,7 +3,6 @@
 
 #include <stdbool.h>
 
-void MimiRegisterSystray(void);
 void MimiNativeLoop(void);
 void MimiNativeLoopHeadless(void);
 void MimiQuit(void);
