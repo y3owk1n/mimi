@@ -31,8 +31,12 @@ type Server struct {
 
 	actionCh       chan actionJob
 	enqueueTimeout time.Duration
-	once           sync.Once
-	shutdownOnce   sync.Once
+	// execute is the per-job action runner; defaults to action.Execute and
+	// is exposed as a field so tests can inject panicking/failing runners
+	// to exercise the worker recovery and shutdown paths.
+	execute      func(name string, args []string) error
+	once         sync.Once
+	shutdownOnce sync.Once
 }
 
 type actionJob struct {
@@ -47,6 +51,7 @@ func NewServer(path string) *Server {
 		path:           paths.ExpandHome(path),
 		actionCh:       make(chan actionJob),
 		enqueueTimeout: actionEnqueueTimeout,
+		execute:        action.Execute,
 	}
 }
 
@@ -117,7 +122,7 @@ func (s *Server) startActionWorker() {
 					}
 				}()
 
-				job.done <- action.Execute(job.name, job.args)
+				job.done <- s.execute(job.name, job.args)
 			}()
 		}
 	}()
