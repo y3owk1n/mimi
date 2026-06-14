@@ -3,11 +3,11 @@ package ipc
 import (
 	"bufio"
 	"context"
+	"errors"
 	"net"
 	"os"
 	"path/filepath"
 	"runtime"
-	"strings"
 	"sync"
 	"time"
 
@@ -80,7 +80,7 @@ func (s *Server) Run(ctx context.Context) error {
 			case <-ctx.Done():
 				return nil
 			default:
-				if errorsIsUseClosed(acceptErr) {
+				if errors.Is(acceptErr, net.ErrClosed) {
 					return nil
 				}
 
@@ -133,12 +133,4 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	_ = writeResponse(conn, responseFromError(err))
-}
-
-func errorsIsUseClosed(err error) bool {
-	if err == nil {
-		return false
-	}
-
-	return strings.Contains(err.Error(), "use of closed network connection")
 }
