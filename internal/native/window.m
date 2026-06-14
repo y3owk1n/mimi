@@ -294,6 +294,8 @@ static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *o
 					break;
 				}
 			}
+		}
+		if (focusedWindow) {
 			CFRelease(focusedWindow);
 		}
 
