@@ -59,4 +59,5 @@ func TestServerClientRoundTrip(t *testing.T) {
 
 	cancel()
 	<-errCh
+	server.Shutdown()
 }

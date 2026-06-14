@@ -28,8 +28,9 @@ type Server struct {
 	path string
 	ln   net.Listener
 
-	actionCh chan actionJob
-	once     sync.Once
+	actionCh     chan actionJob
+	once         sync.Once
+	shutdownOnce sync.Once
 }
 
 type actionJob struct {
@@ -90,6 +91,15 @@ func (s *Server) Run(ctx context.Context) error {
 
 		go s.handleConn(conn)
 	}
+}
+
+// Shutdown closes the action channel so the worker goroutine started by Run
+// exits cleanly. Safe to call multiple times. Should be called after Run
+// returns (typically via defer) to release the worker.
+func (s *Server) Shutdown() {
+	s.shutdownOnce.Do(func() {
+		close(s.actionCh)
+	})
 }
 
 func (s *Server) startActionWorker() {

@@ -124,6 +124,8 @@ func runCore(
 	go func() { _ = watcher.Run(ctx) }()
 
 	ipcServer := ipc.NewServer(cfg.Settings.SocketFile)
+	defer ipcServer.Shutdown()
+
 	go func() {
 		err := ipcServer.Run(ctx)
 		if err != nil && ctx.Err() == nil {
