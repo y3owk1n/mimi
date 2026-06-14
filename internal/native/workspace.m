@@ -11,8 +11,6 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 @interface WorkspaceObserver : NSObject
 @property(nonatomic, strong) NSDictionary *notifToKind;
-@property(nonatomic, strong) NSTimer *spacePollTimer;
-@property(nonatomic, strong) NSSet *lastWindowIDs;
 - (void)updateObserversWithAppLifecycle:(BOOL)appLifecycle
                             systemState:(BOOL)systemState
                                  volume:(BOOL)volume
@@ -20,27 +18,9 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
                              appearance:(BOOL)appearance;
 - (int)kindForNotificationName:(NSString *)name;
 - (NSArray *)currentWindowList;
-- (NSSet *)currentWindowIDs;
-- (void)checkSpaceChange:(NSTimer *)timer;
 @end
 
 @implementation WorkspaceObserver
-
-- (NSSet *)currentWindowIDs {
-	CFArrayRef windowList = CGWindowListCopyWindowInfo(
-	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
-	if (!windowList)
-		return [NSSet set];
-
-	NSMutableSet *ids = [NSMutableSet setWithCapacity:CFArrayGetCount(windowList)];
-	for (NSDictionary *info in (__bridge NSArray *)windowList) {
-		NSNumber *winID = info[(__bridge NSString *)kCGWindowNumber];
-		if (winID)
-			[ids addObject:winID];
-	}
-	CFRelease(windowList);
-	return ids;
-}
 
 - (NSArray *)currentWindowList {
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
@@ -108,11 +88,6 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	[wsnc removeObserver:self];
 	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
-	if (self.spacePollTimer) {
-		[self.spacePollTimer invalidate];
-		self.spacePollTimer = nil;
-	}
-
 	NSMutableDictionary *tempNotifToKind = [NSMutableDictionary dictionary];
 
 	if (appLifecycle) {
@@ -138,6 +113,13 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	}
 
 	if (workspace) {
+		// NSWorkspaceActiveSpaceDidChangeNotification is the deterministic
+		// source for active Space/Desktop changes. A previous
+		// implementation also polled CGWindowListCopyWindowInfo every 2s
+		// and diffed the result, but that fired on any ephemeral change
+		// to the on-screen window set (focus switches, window re-creates
+		// inside Safari/Electron apps, etc.) and produced a stream of
+		// spurious workspace_changed events.
 		tempNotifToKind[NSWorkspaceActiveSpaceDidChangeNotification] = @(MIMI_KIND_WORKSPACE_CHANGED);
 	}
 
@@ -154,25 +136,6 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		            name:@"AppleInterfaceThemeChangedNotification"
 		          object:nil];
 	}
-
-	if (workspace) {
-		self.lastWindowIDs = [self currentWindowIDs];
-		self.spacePollTimer = [NSTimer scheduledTimerWithTimeInterval:2.0
-		                                                       target:self
-		                                                     selector:@selector(checkSpaceChange:)
-		                                                     userInfo:nil
-		                                                      repeats:YES];
-	}
-}
-
-- (void)checkSpaceChange:(NSTimer *)timer {
-	NSSet *currentIDs = [self currentWindowIDs];
-	if ([currentIDs isEqualToSet:self.lastWindowIDs]) {
-		return;
-	}
-	self.lastWindowIDs = currentIDs;
-	NSString *infoJSON = [self windowInfoJSON];
-	goWorkspaceChangeEvent(MIMI_KIND_WORKSPACE_CHANGED, (int)[currentIDs count], (char *)[infoJSON UTF8String]);
 }
 
 - (void)appearanceChanged:(NSNotification *)note {
@@ -181,16 +144,18 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 - (int)kindForNotificationName:(NSString *)name {
 	NSNumber *kind = self.notifToKind[name];
+
 	return kind ? [kind intValue] : -1;
 }
 
 - (void)handleNotification:(NSNotification *)note {
 	int kind = [self kindForNotificationName:note.name];
 	if (kind == MIMI_KIND_WORKSPACE_CHANGED) {
-		NSSet *windows = [self currentWindowIDs];
-		self.lastWindowIDs = windows;
+		NSArray *windows = [self currentWindowList];
+		int windowCount = windows ? (int)[windows count] : 0;
 		NSString *infoJSON = [self windowInfoJSON];
-		goWorkspaceChangeEvent(kind, (int)[windows count], (char *)[infoJSON UTF8String]);
+		goWorkspaceChangeEvent(kind, windowCount, (char *)[infoJSON UTF8String]);
+
 		return;
 	}
 
@@ -260,6 +225,7 @@ void WorkspaceObserverUpdate(int appLifecycle, int systemState, int volume, int 
 			                                 workspace:workspace != 0
 			                                appearance:appearance != 0];
 		}
+
 		return;
 	}
 
@@ -285,22 +251,19 @@ void WorkspaceObserverStop(void) {
 
 	if (CFRunLoopGetCurrent() == rl) {
 		if (gObserver) {
-			[gObserver.spacePollTimer invalidate];
-			gObserver.spacePollTimer = nil;
 			NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
 			[wsnc removeObserver:gObserver];
 			[[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];
 			gObserver = nil;
 		}
 		CFRunLoopStop(rl);
+
 		return;
 	}
 
 	dispatch_semaphore_t sem = dispatch_semaphore_create(0);
 	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
 		if (gObserver) {
-			[gObserver.spacePollTimer invalidate];
-			gObserver.spacePollTimer = nil;
 			NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
 			[wsnc removeObserver:gObserver];
 			[[NSDistributedNotificationCenter defaultCenter] removeObserver:gObserver];

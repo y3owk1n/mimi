@@ -183,8 +183,7 @@ static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *o
 		AXUIElementRef focusedApp = (AXUIElementRef)MimiGetFocusedApplication();
 		if (focusedApp) {
 			CFTypeRef focusedVal = NULL;
-			if (AXUIElementCopyAttributeValue(focusedApp, kAXFocusedWindowAttribute, &focusedVal) ==
-				    kAXErrorSuccess &&
+			if (AXUIElementCopyAttributeValue(focusedApp, kAXFocusedWindowAttribute, &focusedVal) == kAXErrorSuccess &&
 			    focusedVal) {
 				if (CFGetTypeID(focusedVal) == AXUIElementGetTypeID()) {
 					focusedWindow = (AXUIElementRef)CFRetain(focusedVal);
