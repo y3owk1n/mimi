@@ -78,8 +78,8 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	}
 
 	int counter = 0;
-	__block int foundIndex = -1;
-	__block bool foundActive = false;
+	int foundIndex = -1;
+	bool foundActive = false;
 
 	NSArray *displays = (__bridge NSArray *)managed;
 	for (NSDictionary *display in displays) {
