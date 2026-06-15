@@ -1,5 +1,44 @@
 # Changelog
 
+## [0.9.0](https://github.com/y3owk1n/mimi/compare/v0.8.0...v0.9.0) (2026-06-14)
+
+
+### Features
+
+* **daemon:** make resize debounce duration configurable ([1409c14](https://github.com/y3owk1n/mimi/commit/1409c14f0bb1d3aefe7b135d00c418564b6de6b8))
+* **status:** surface native event drop counter ([12dfca3](https://github.com/y3owk1n/mimi/commit/12dfca30557d9b58d06f615ed7874f106f091ac6))
+
+
+### Bug Fixes
+
+* **axobserver:** filter window create/destroy events to real top-level windows ([16679af](https://github.com/y3owk1n/mimi/commit/16679afd705abd0294a6bd24a7bb2665c5036bb1))
+* **axobserver:** log AXObserverAddNotification errors via NSLog ([0612285](https://github.com/y3owk1n/mimi/commit/0612285c00d4b01afd53bda5ea5be430db50debe))
+* **ipc:** bound actionCh send with timeout to prevent DoS ([7357630](https://github.com/y3owk1n/mimi/commit/7357630bf98e2c8bb47c34b5b34b314b150ebad7))
+* **ipc:** close actionCh on shutdown to release action worker ([4daad38](https://github.com/y3owk1n/mimi/commit/4daad38e8a85a7ecfaa9e6e551fef0493f8ea898))
+* **ipc:** recover from action worker panic so clients don't hang ([887c3d1](https://github.com/y3owk1n/mimi/commit/887c3d18c7367b70ca5c81af01074f9ab0b16855))
+* **ipc:** use errors.Is(err, net.ErrClosed) instead of string match ([fe7231f](https://github.com/y3owk1n/mimi/commit/fe7231ff366d283a21eacdbe031444063964af31))
+* **native:** log AXUIElementSetAttributeValue failures in MimiSetWindowFrame ([778795e](https://github.com/y3owk1n/mimi/commit/778795e3996b4bdda09149bc77ed0784c7d9b11c))
+* **native:** release focusedWindow unconditionally in window collector ([04b6187](https://github.com/y3owk1n/mimi/commit/04b6187f4309615ca8e0e1abd5901a5c1c656bd5))
+* **native:** use [NSRunningApplication activateWithOptions:0] in window focus ([4b33193](https://github.com/y3owk1n/mimi/commit/4b33193308b56c651afd2176f95fd4cf3fa5e23c))
+* **nix:** ensure default config path is correct ([d8d7af2](https://github.com/y3owk1n/mimi/commit/d8d7af2d6a518a56a1ba9ec3a4a89f8c88bd5440))
+* **workspace:** only fire workspace_changed from NSWorkspaceActiveSpaceDidChangeNotification ([ea8791d](https://github.com/y3owk1n/mimi/commit/ea8791d33f03588bbfd5cd06a289e494a5e887ac))
+
+
+### Performance Improvements
+
+* **bus:** skip sends for events with no matching hooks ([9b3cdaf](https://github.com/y3owk1n/mimi/commit/9b3cdafef49c10c6e3fffe6135278ba879c36bad))
+* **config:** use resettable timer in config watcher ([c8e1b19](https://github.com/y3owk1n/mimi/commit/c8e1b196e6a92f085c86d93e2a98664787f420d7))
+* **focus:** return focused window index from native enumeration ([00749fd](https://github.com/y3owk1n/mimi/commit/00749fd481b756f044f1298064a422f3b15b15e3))
+* **hooks:** avoid per-event env map in variable substitution ([76d6f5d](https://github.com/y3owk1n/mimi/commit/76d6f5d50afbb096e17ca95e96dafbb587993528))
+* **hooks:** cap hook output capture at 64 KiB ([e435af5](https://github.com/y3owk1n/mimi/commit/e435af537246c9ff11e2ef5abd105691e52a7521))
+* **hooks:** precompile app/bundle glob regexes ([2539b0d](https://github.com/y3owk1n/mimi/commit/2539b0d3c7c265a0b87f4fedcc276234e7cd7651))
+* **hooks:** precompute os.Environ() once in executor ([224fa86](https://github.com/y3owk1n/mimi/commit/224fa86b482a89f51eede91582ec3e98cf3a5cfe))
+
+
+### Documentation
+
+* nicer installation guide ([6e08830](https://github.com/y3owk1n/mimi/commit/6e08830b265627999387976a652047c1eb5b5fa7))
+
 ## [0.8.0](https://github.com/y3owk1n/mimi/compare/v0.7.0...v0.8.0) (2026-06-11)
 
 
