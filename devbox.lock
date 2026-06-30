@@ -389,51 +389,51 @@
         }
       }
     },
-    "just-lsp@0.3.4": {
-      "last_modified": "2026-03-07T23:46:50Z",
-      "resolved": "github:NixOS/nixpkgs/0e6cdd5be64608ef630c2e41f8d51d484468492f#just-lsp",
+    "just-lsp@0.4.7": {
+      "last_modified": "2026-06-22T09:00:13Z",
+      "resolved": "github:NixOS/nixpkgs/b3c092d3c36d91e2f61f3dfb39a159f180a56659#just-lsp",
       "source": "devbox-search",
-      "version": "0.3.4",
+      "version": "0.4.7",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/yz2k3spkar4hfdha93skw06wanb9yanw-just-lsp-0.3.4",
+              "path": "/nix/store/wnqx8j7k47lnlkxx7c6inc7y02cmi92p-just-lsp-0.4.7",
               "default": true
             }
           ],
-          "store_path": "/nix/store/yz2k3spkar4hfdha93skw06wanb9yanw-just-lsp-0.3.4"
+          "store_path": "/nix/store/wnqx8j7k47lnlkxx7c6inc7y02cmi92p-just-lsp-0.4.7"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/nm97ab7sa4x8w2wda1dp24yckhfzjvlw-just-lsp-0.3.4",
+              "path": "/nix/store/rjklh847fjgibg5zzz5j1y37p5i50b18-just-lsp-0.4.7",
               "default": true
             }
           ],
-          "store_path": "/nix/store/nm97ab7sa4x8w2wda1dp24yckhfzjvlw-just-lsp-0.3.4"
+          "store_path": "/nix/store/rjklh847fjgibg5zzz5j1y37p5i50b18-just-lsp-0.4.7"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/cwqsbczi43prg793nh0j9df63d1a4ik4-just-lsp-0.3.4",
+              "path": "/nix/store/r0fbp3w17gcibq0h6mvddrrw50c6d0wl-just-lsp-0.4.7",
               "default": true
             }
           ],
-          "store_path": "/nix/store/cwqsbczi43prg793nh0j9df63d1a4ik4-just-lsp-0.3.4"
+          "store_path": "/nix/store/r0fbp3w17gcibq0h6mvddrrw50c6d0wl-just-lsp-0.4.7"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/grn40p7szssr3apzkcxch2ldd0gin1sw-just-lsp-0.3.4",
+              "path": "/nix/store/9m0pvs7q7l7c6ic4h566df7147bi44x2-just-lsp-0.4.7",
               "default": true
             }
           ],
-          "store_path": "/nix/store/grn40p7szssr3apzkcxch2ldd0gin1sw-just-lsp-0.3.4"
+          "store_path": "/nix/store/9m0pvs7q7l7c6ic4h566df7147bi44x2-just-lsp-0.4.7"
         }
       }
     },
