@@ -3,7 +3,7 @@
 	"packages": [
 		"gotools@0.44.0",
 		"gofumpt@0.10.0",
-		"golines@0.13.0",
+		"golines@0.15.0",
 		"nixfmt@1.2.0",
 		"gopls@0.21.1",
 		"just@1.46.0",
