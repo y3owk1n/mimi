@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.9.1](https://github.com/y3owk1n/mimi/compare/v0.9.0...v0.9.1) (2026-06-30)
+
+
+### Bug Fixes
+
+* fix lint, fmt and test after bump deps ([#45](https://github.com/y3owk1n/mimi/issues/45)) ([8add429](https://github.com/y3owk1n/mimi/commit/8add429e154d1c016ebadb2c751b99b401e955e4))
+
 ## [0.9.0](https://github.com/y3owk1n/mimi/compare/v0.8.0...v0.9.0) (2026-06-14)
 
 
