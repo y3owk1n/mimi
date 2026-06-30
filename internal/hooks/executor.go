@@ -42,7 +42,9 @@ func (h *hookOutputBuffer) Write(
 	}
 
 	if len(data) > remaining {
-		data = data[:remaining]
+		h.buf.Write(data[:remaining])
+
+		return len(data), nil
 	}
 
 	return h.buf.Write(data)
