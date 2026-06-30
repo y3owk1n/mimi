@@ -33,7 +33,7 @@ jobs:
 
             - uses: extractions/setup-just@v4
               with:
-                  just-version: "1.46.0"
+                  just-version: "1.53.0"
 
             - name: Build mimi darwin arm64 artifact
               run: just release-ci-darwin arm64 ${{ inputs.version_override }}
@@ -90,7 +90,7 @@ jobs:
 
             - uses: extractions/setup-just@v4
               with:
-                  just-version: "1.46.0"
+                  just-version: "1.53.0"
 
             - name: Build mimi darwin amd64 artifact
               run: just release-ci-darwin amd64 ${{ inputs.version_override }}
