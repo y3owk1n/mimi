@@ -19,6 +19,8 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+const defaultShell = "/bin/sh"
+
 func TestHookOutputBufferWritesWithinLimit(t *testing.T) {
 	t.Parallel()
 
@@ -112,7 +114,7 @@ func TestHookOutputBufferIntegration(t *testing.T) {
 
 	// Find a shell that's available on the test host. sh is the only
 	// hard requirement since executor.go defaults to it.
-	shell := "/bin/sh"
+	shell := defaultShell
 
 	path, lookErr := exec.LookPath("sh")
 	if lookErr == nil {
@@ -245,7 +247,7 @@ func TestExecutorMergesBaseAndEventEnv(t *testing.T) {
 	}
 
 	cfg := &config.SettingsConfig{
-		HookShell:       "/bin/sh",
+		HookShell:       defaultShell,
 		HookTimeoutSecs: 5,
 		MaxHookWorkers:  1,
 	}

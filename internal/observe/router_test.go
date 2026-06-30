@@ -10,6 +10,13 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+const (
+	testAppName     = "TestApp"
+	testAppShort    = "App"
+	testWindowTitle = "Win"
+	testBundleID    = "com.test.app"
+)
+
 func newTestRouter(t *testing.T) (*Router, <-chan events.Event) {
 	t.Helper()
 
@@ -27,8 +34,8 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 
 	evt := events.Event{
 		Kind:        events.WindowResizing,
-		AppName:     "TestApp",
-		BundleID:    "com.test.app",
+		AppName:     testAppName,
+		BundleID:    testBundleID,
 		PID:         42,
 		WindowTitle: "Test Window",
 		At:          time.Now(),
@@ -42,7 +49,7 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 			t.Errorf("expected WindowResize, got %s", _evt.Kind)
 		}
 
-		if _evt.AppName != "TestApp" {
+		if _evt.AppName != testAppName {
 			t.Errorf("expected AppName TestApp, got %s", _evt.AppName)
 		}
 
@@ -68,8 +75,8 @@ func TestDebounceResize_MultipleEventsCoalesce(t *testing.T) {
 	for index := range 5 {
 		evt := events.Event{
 			Kind:        events.WindowResizing,
-			AppName:     "TestApp",
-			BundleID:    "com.test.app",
+			AppName:     testAppName,
+			BundleID:    testBundleID,
 			PID:         42,
 			WindowTitle: "Test Window",
 			At:          time.Now(),
@@ -125,7 +132,7 @@ func TestDebounceResize_CancelTimersForPID(t *testing.T) {
 	router, sub := newTestRouter(t)
 
 	router.debounceResize(events.Event{
-		Kind: events.WindowResizing, PID: 99, WindowTitle: "Win", AppName: "App",
+		Kind: events.WindowResizing, PID: 99, WindowTitle: testWindowTitle, AppName: testAppShort,
 	})
 
 	router.cancelTimersForPID(99)
@@ -150,7 +157,10 @@ func TestDebounceResize_StopAllTimers(t *testing.T) {
 
 	for i := range 3 {
 		router.debounceResize(events.Event{
-			Kind: events.WindowResizing, PID: i + 1, WindowTitle: "Win", AppName: "App",
+			Kind:        events.WindowResizing,
+			PID:         i + 1,
+			WindowTitle: testWindowTitle,
+			AppName:     testAppShort,
 		})
 	}
 
@@ -182,7 +192,7 @@ func TestDebounceResize_NoPublishAfterStop(t *testing.T) {
 	router.stopAllTimers()
 
 	router.debounceResize(events.Event{
-		Kind: events.WindowResizing, PID: 1, WindowTitle: "Win", AppName: "App",
+		Kind: events.WindowResizing, PID: 1, WindowTitle: testWindowTitle, AppName: testAppShort,
 	})
 
 	select {

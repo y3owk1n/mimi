@@ -7,6 +7,8 @@ import (
 	"github.com/y3owk1n/mimi/internal/config"
 )
 
+const hookRunEcho = "echo"
+
 func TestHasWindowEvents(t *testing.T) {
 	tests := []struct {
 		name     string
@@ -22,7 +24,7 @@ func TestHasWindowEvents(t *testing.T) {
 			name: "window focus only",
 			cfg: &config.Config{
 				Hooks: config.HooksConfig{
-					WindowFocus: []config.HookEntry{{Run: "echo"}},
+					WindowFocus: []config.HookEntry{{Run: hookRunEcho}},
 				},
 			},
 			expected: true,
@@ -31,7 +33,7 @@ func TestHasWindowEvents(t *testing.T) {
 			name: "workspace only",
 			cfg: &config.Config{
 				Hooks: config.HooksConfig{
-					WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
+					WorkspaceChanged: []config.HookEntry{{Run: hookRunEcho}},
 				},
 			},
 			expected: false,
@@ -51,8 +53,8 @@ func TestHasWindowEvents(t *testing.T) {
 func TestGetObserverConfig(t *testing.T) {
 	cfg := &config.Config{
 		Hooks: config.HooksConfig{
-			WindowFocus:      []config.HookEntry{{Run: "echo"}},
-			WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
+			WindowFocus:      []config.HookEntry{{Run: hookRunEcho}},
+			WorkspaceChanged: []config.HookEntry{{Run: hookRunEcho}},
 		},
 	}
 
@@ -73,7 +75,7 @@ func TestGetObserverConfig(t *testing.T) {
 
 	workspaceOnlyObs := getObserverConfig(&config.Config{
 		Hooks: config.HooksConfig{
-			WorkspaceChanged: []config.HookEntry{{Run: "echo"}},
+			WorkspaceChanged: []config.HookEntry{{Run: hookRunEcho}},
 		},
 	})
 	if workspaceOnlyObs.AppLifecycle {

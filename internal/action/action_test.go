@@ -7,6 +7,27 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
+const (
+	nextKeyword     = "next"
+	prevKeyword     = "prev"
+	previousKeyword = "previous"
+
+	presetLeftHalf    = "left-half"
+	presetRightHalf   = "right-half"
+	presetTopHalf     = "top-half"
+	presetBottomHalf  = "bottom-half"
+	presetTopLeft     = "top-left"
+	presetTopRight    = "top-right"
+	presetBottomLeft  = "bottom-left"
+	presetBottomRight = "bottom-right"
+	presetCenter      = "center"
+	presetFill        = "fill"
+
+	flagWidth = "--width"
+	flagUp    = "--up"
+	flagDown  = "--down"
+)
+
 func TestIsKnownName(t *testing.T) {
 	t.Parallel()
 
@@ -83,9 +104,9 @@ func TestExecute_SpaceNextPrev(t *testing.T) {
 		name string
 		arg  string
 	}{
-		{name: "next", arg: "next"},
-		{name: "prev", arg: "prev"},
-		{name: "previous", arg: "previous"},
+		{name: nextKeyword, arg: nextKeyword},
+		{name: prevKeyword, arg: prevKeyword},
+		{name: previousKeyword, arg: previousKeyword},
 	}
 
 	for _, testCase := range cases {
@@ -112,9 +133,9 @@ func TestExecute_MoveWindowToSpaceNextPrev(t *testing.T) {
 		name string
 		arg  string
 	}{
-		{name: "next", arg: "next"},
-		{name: "prev", arg: "prev"},
-		{name: "previous", arg: "previous"},
+		{name: nextKeyword, arg: nextKeyword},
+		{name: prevKeyword, arg: prevKeyword},
+		{name: previousKeyword, arg: previousKeyword},
 	}
 
 	for _, testCase := range cases {
@@ -142,16 +163,16 @@ func TestIsResizePreset(t *testing.T) {
 		input string
 		want  bool
 	}{
-		{name: "left-half", input: "left-half", want: true},
-		{name: "right-half", input: "right-half", want: true},
-		{name: "top-half", input: "top-half", want: true},
-		{name: "bottom-half", input: "bottom-half", want: true},
-		{name: "top-left", input: "top-left", want: true},
-		{name: "top-right", input: "top-right", want: true},
-		{name: "bottom-left", input: "bottom-left", want: true},
-		{name: "bottom-right", input: "bottom-right", want: true},
-		{name: "center", input: "center", want: true},
-		{name: "fill", input: "fill", want: true},
+		{name: presetLeftHalf, input: presetLeftHalf, want: true},
+		{name: presetRightHalf, input: presetRightHalf, want: true},
+		{name: presetTopHalf, input: presetTopHalf, want: true},
+		{name: presetBottomHalf, input: presetBottomHalf, want: true},
+		{name: presetTopLeft, input: presetTopLeft, want: true},
+		{name: presetTopRight, input: presetTopRight, want: true},
+		{name: presetBottomLeft, input: presetBottomLeft, want: true},
+		{name: presetBottomRight, input: presetBottomRight, want: true},
+		{name: presetCenter, input: presetCenter, want: true},
+		{name: presetFill, input: presetFill, want: true},
 		{name: "unknown", input: "left-third", want: false},
 	}
 
@@ -170,9 +191,9 @@ func TestExecute_ResizeWindowPresets(t *testing.T) {
 	t.Parallel()
 
 	presets := []string{
-		"left-half", "right-half", "top-half", "bottom-half",
-		"top-left", "top-right", "bottom-left", "bottom-right",
-		"center", "fill",
+		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
+		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
+		presetCenter, presetFill,
 	}
 
 	for _, preset := range presets {
@@ -208,7 +229,7 @@ func TestExecute_ResizeWindowInvalidAnchor(t *testing.T) {
 func TestExecute_ResizeWindowInvalidWidth(t *testing.T) {
 	t.Parallel()
 
-	err := action.Execute("resize_window", []string{"--width", "-100"})
+	err := action.Execute("resize_window", []string{flagWidth, "-100"})
 	if err == nil {
 		t.Fatal("Execute(resize_window --width -100) expected error")
 	}
@@ -237,7 +258,7 @@ func TestExecute_ResizeWindowWithFlags(t *testing.T) {
 	// This should parse correctly (no CodeInvalidInput) even though execution
 	// will fail because there's no window open in the test environment.
 	err := action.Execute("resize_window", []string{
-		"--width", "800",
+		flagWidth, "800",
 		"--height", "600",
 		"--anchor", "cc",
 	})
@@ -251,8 +272,8 @@ func TestExecute_ResizeWindowPresetWithOverride(t *testing.T) {
 	t.Parallel()
 
 	err := action.Execute("resize_window", []string{
-		"left-half",
-		"--width", "500",
+		presetLeftHalf,
+		flagWidth, "500",
 	})
 
 	if derrors.IsCode(err, derrors.CodeInvalidInput) {
@@ -263,12 +284,12 @@ func TestExecute_ResizeWindowPresetWithOverride(t *testing.T) {
 func TestExecute_ResizeWindowMarginFlags(t *testing.T) {
 	t.Parallel()
 
-	err := action.Execute("resize_window", []string{"left-half", "--margin"})
+	err := action.Execute("resize_window", []string{presetLeftHalf, "--margin"})
 	if derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("Execute with --margin got unexpected CodeInvalidInput: %v", err)
 	}
 
-	err = action.Execute("resize_window", []string{"left-half", "--no-margin"})
+	err = action.Execute("resize_window", []string{presetLeftHalf, "--no-margin"})
 	if derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("Execute with --no-margin got unexpected CodeInvalidInput: %v", err)
 	}
@@ -290,7 +311,7 @@ func TestExecute_FocusWindowInvalidFlag(t *testing.T) {
 func TestExecute_FocusWindowDirectionFlags(t *testing.T) {
 	t.Parallel()
 
-	dirs := []string{"--up", "--down", "--left", "--right"}
+	dirs := []string{flagUp, flagDown, "--left", "--right"}
 
 	for _, dir := range dirs {
 		t.Run(dir, func(t *testing.T) {
@@ -312,7 +333,7 @@ func TestExecute_FocusWindowDirectionFlags(t *testing.T) {
 func TestExecute_FocusWindowBackwardAndDirectionMutuallyExclusive(t *testing.T) {
 	t.Parallel()
 
-	dirs := []string{"--up", "--down", "--left", "--right"}
+	dirs := []string{flagUp, flagDown, "--left", "--right"}
 
 	for _, dir := range dirs {
 		t.Run(dir, func(t *testing.T) {
