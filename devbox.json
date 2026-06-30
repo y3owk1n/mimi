@@ -8,7 +8,7 @@
 		"gopls@0.22.0",
 		"just@1.53.0",
 		"go@1.26.3",
-		"nixd@2.9.0",
+		"nixd@2.9.1",
 		"golangci-lint@2.11.3",
 		"golangci-lint-langserver@0.0.12",
 		"just-lsp@0.3.4",

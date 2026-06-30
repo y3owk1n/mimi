@@ -521,51 +521,51 @@
         }
       }
     },
-    "nixd@2.9.0": {
-      "last_modified": "2026-05-05T02:04:20Z",
-      "resolved": "github:NixOS/nixpkgs/bc57abace07689cfd34203aa5fb4027514895987#nixd",
+    "nixd@2.9.1": {
+      "last_modified": "2026-06-02T02:01:59Z",
+      "resolved": "github:NixOS/nixpkgs/ffa10e26ae11d676b2db836259889f1f571cb14f#nixd",
       "source": "devbox-search",
-      "version": "2.9.0",
+      "version": "2.9.1",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/rair2m6xril11q78skr9i9i6a31s06r2-nixd-2.9.0",
+              "path": "/nix/store/0jspxd2bvd0xm309xb9minabshr8kl7q-nixd-2.9.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/rair2m6xril11q78skr9i9i6a31s06r2-nixd-2.9.0"
+          "store_path": "/nix/store/0jspxd2bvd0xm309xb9minabshr8kl7q-nixd-2.9.1"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/440x9r06xaw2f5pch562n3hpi97pv2z6-nixd-2.9.0",
+              "path": "/nix/store/mc57s93ywrb8dvrrpiawxi1nhzacqn2k-nixd-2.9.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/440x9r06xaw2f5pch562n3hpi97pv2z6-nixd-2.9.0"
+          "store_path": "/nix/store/mc57s93ywrb8dvrrpiawxi1nhzacqn2k-nixd-2.9.1"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/mpjnldnxa8afxpc1sry29f4b7c3z8ljg-nixd-2.9.0",
+              "path": "/nix/store/4fb0slmyqnby3v0m6xysb9fh58pkiay7-nixd-2.9.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/mpjnldnxa8afxpc1sry29f4b7c3z8ljg-nixd-2.9.0"
+          "store_path": "/nix/store/4fb0slmyqnby3v0m6xysb9fh58pkiay7-nixd-2.9.1"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/cdzdgirz7m8finvpn08b4nlikcpyxnl8-nixd-2.9.0",
+              "path": "/nix/store/5zwl72j3iqx0k355y7rlx2w271rdyva5-nixd-2.9.1",
               "default": true
             }
           ],
-          "store_path": "/nix/store/cdzdgirz7m8finvpn08b4nlikcpyxnl8-nixd-2.9.0"
+          "store_path": "/nix/store/5zwl72j3iqx0k355y7rlx2w271rdyva5-nixd-2.9.1"
         }
       }
     },
