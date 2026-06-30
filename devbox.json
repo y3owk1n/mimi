@@ -2,7 +2,7 @@
 	"$schema": "https://raw.githubusercontent.com/jetify-com/devbox/0.17.3/.schema/devbox.schema.json",
 	"packages": [
 		"gotools@0.44.0",
-		"gofumpt@0.9.2",
+		"gofumpt@0.10.0",
 		"golines@0.13.0",
 		"nixfmt@1.2.0",
 		"gopls@0.21.1",

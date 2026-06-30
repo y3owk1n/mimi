@@ -101,51 +101,51 @@
         }
       }
     },
-    "gofumpt@0.9.2": {
-      "last_modified": "2026-04-23T13:07:47Z",
-      "resolved": "github:NixOS/nixpkgs/01fbdeef22b76df85ea168fbfe1bfd9e63681b30#gofumpt",
+    "gofumpt@0.10.0": {
+      "last_modified": "2026-05-21T08:15:18Z",
+      "resolved": "github:NixOS/nixpkgs/4a29d733e8a7d5b824c3d8c958a946a9867b3eb2#gofumpt",
       "source": "devbox-search",
-      "version": "0.9.2",
+      "version": "0.10.0",
       "systems": {
         "aarch64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/l14qdk8zwwclcahj8kmaxz83zi2pq4ni-gofumpt-0.9.2",
+              "path": "/nix/store/raz7042xfsm8xgd684b976hvxsm5nkqp-gofumpt-0.10.0",
               "default": true
             }
           ],
-          "store_path": "/nix/store/l14qdk8zwwclcahj8kmaxz83zi2pq4ni-gofumpt-0.9.2"
+          "store_path": "/nix/store/raz7042xfsm8xgd684b976hvxsm5nkqp-gofumpt-0.10.0"
         },
         "aarch64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/jppnyvxi8pfizbva3ppwq1cl01nrq3j5-gofumpt-0.9.2",
+              "path": "/nix/store/53rm8y0dwzni0r39s6ygfg6j3awdbb1c-gofumpt-0.10.0",
               "default": true
             }
           ],
-          "store_path": "/nix/store/jppnyvxi8pfizbva3ppwq1cl01nrq3j5-gofumpt-0.9.2"
+          "store_path": "/nix/store/53rm8y0dwzni0r39s6ygfg6j3awdbb1c-gofumpt-0.10.0"
         },
         "x86_64-darwin": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/nmf9y2ccrkfsnnzi2wsnsxfhr70di636-gofumpt-0.9.2",
+              "path": "/nix/store/6qj778s90lkg22n1k950yw69vk8gv4d5-gofumpt-0.10.0",
               "default": true
             }
           ],
-          "store_path": "/nix/store/nmf9y2ccrkfsnnzi2wsnsxfhr70di636-gofumpt-0.9.2"
+          "store_path": "/nix/store/6qj778s90lkg22n1k950yw69vk8gv4d5-gofumpt-0.10.0"
         },
         "x86_64-linux": {
           "outputs": [
             {
               "name": "out",
-              "path": "/nix/store/39ya38gz7afyf95smllag97vmq7l9k2q-gofumpt-0.9.2",
+              "path": "/nix/store/cgj526ypsfb6wgjgd6d26611l8srnbxv-gofumpt-0.10.0",
               "default": true
             }
           ],
-          "store_path": "/nix/store/39ya38gz7afyf95smllag97vmq7l9k2q-gofumpt-0.9.2"
+          "store_path": "/nix/store/cgj526ypsfb6wgjgd6d26611l8srnbxv-gofumpt-0.10.0"
         }
       }
     },
