@@ -12,6 +12,7 @@
   writableTmpDirAsHomeHook,
   nix-update-script,
   unzip,
+  apple-sdk_15,
 }:
 if useZip then
   let
@@ -134,12 +135,16 @@ else
       "-X github.com/y3owk1n/mimi/cmd/mimi/cmd.GitCommit=${commitHash}"
     ];
 
+    subPackages = [ "cmd/mimi" ];
+
     nativeBuildInputs = [
       installShellFiles
       writableTmpDirAsHomeHook
     ];
 
-    subPackages = [ "cmd/mimi" ];
+    buildInputs = [
+      apple-sdk_15
+    ];
 
     # Allow Go to use any available toolchain
     preBuild = ''
