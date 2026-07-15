@@ -171,6 +171,7 @@ else
       cp $out/bin/mimi $out/Applications/Mimi.app/Contents/MacOS/mimi
 
       # cp ${finalAttrs.src}/resources/icon.icns $out/Applications/Mimi.app/Contents/Resources/icon.icns
+      cp ${finalAttrs.src}/resources/Mimi.entitlements $out/Applications/Mimi.app/Contents/Resources/Mimi.entitlements
 
       SRC_PLIST=${finalAttrs.src}/resources/Info.plist.template
 

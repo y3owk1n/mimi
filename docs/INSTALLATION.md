@@ -118,6 +118,37 @@ The module automatically:
 - Configures the agent to run at login with `KeepAlive` and `RunAtLoad = true`
 - Installs shell completions for bash, fish, and zsh
 
+> [!NOTE]
+> **Codesign for source builds (`mimi-source`):** The Go linker signs the binary
+> automatically, but this linker signature lacks hardened runtime entitlements.
+> To embed our `Mimi.entitlements` with `--options runtime`, use Apple's `codesign`
+> (available outside the build sandbox). The entitlements file is bundled at
+> `Contents/Resources/Mimi.entitlements`.
+>
+> This is not needed for the default `pkgs.mimi` (zip) package, which is pre-signed.
+>
+> #### nix-darwin
+>
+> ```nix
+> { config, lib, ... }:
+>
+> let
+>   appPath = "/Applications/Nix Apps/Mimi.app";
+>   entitlements = "${appPath}/Contents/Resources/Mimi.entitlements";
+> in {
+>   system.activationScripts.postActivation.text = ''
+>     if [ -e "${appPath}" ]; then
+>       echo "Codesigning Mimi.app..."
+>       /usr/bin/codesign --force --sign - \
+>         --entitlements "${entitlements}" \
+>         --options runtime \
+>         --timestamp=none \
+>         "${appPath}"
+>     fi
+>   '';
+> }
+> ```
+
 ### Option 2: home-manager Module (User-Level)
 
 Use the home-manager module for user-specific installation on macOS or Linux:
@@ -182,6 +213,38 @@ The module automatically:
 - Creates `~/.config/mimi/config.toml` (or uses your `configFile`)
 - **macOS:** Creates a launchd user agent (if `launchd.enable` is `true`) with `KeepAlive`, `RunAtLoad = true`, and the configured environment
 - Installs shell completions for bash, fish, and zsh
+
+> [!NOTE]
+> **Codesign for source builds (`mimi-source`):** The Go linker signs the binary
+> automatically, but this linker signature lacks hardened runtime entitlements.
+> To embed our `Mimi.entitlements` with `--options runtime`, use Apple's `codesign`
+> (available outside the build sandbox). The entitlements file is bundled at
+> `Contents/Resources/Mimi.entitlements`.
+>
+> This is not needed for the default `pkgs.mimi` (zip) package, which is pre-signed.
+>
+> #### Home Manager
+>
+> ```nix
+> { config, lib, ... }:
+>
+> let
+>   username = config.home.username or "changeme";
+>   appPath = "/Users/${username}/Applications/Home Manager Apps/Mimi.app";
+>   entitlements = "${appPath}/Contents/Resources/Mimi.entitlements";
+> in {
+>   home.activation.signMimi = lib.hm.dag.entryAfter [ "copyApps" ] ''
+>     if [ -e "${appPath}" ]; then
+>       echo "Codesigning Mimi.app..."
+>       /usr/bin/codesign --force --sign - \
+>         --entitlements "${entitlements}" \
+>         --options runtime \
+>         --timestamp=none \
+>         "${appPath}"
+>     fi
+>   '';
+> }
+> ```
 
 ### Option 3: Using as an Overlay Only
 
