@@ -42,5 +42,7 @@ uint32_t MimiSpaceDisplayID(uint64_t sid);
 uint64_t MimiActiveSpaceID(void);
 int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid);
 int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID);
+uint32_t MimiCursorDisplayID(void);
+void MimiActivateDisplay(uint32_t did);
 
 #endif  // ACCESSIBILITY_H

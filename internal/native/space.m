@@ -455,6 +455,16 @@ static void *mimi_macho_find_symbol(const char *target_image, const char *target
 	return NULL;
 }
 
+#pragma mark - Public Display Helpers
+
+/// Return the display ID that currently contains the cursor.
+uint32_t MimiCursorDisplayID(void) { return mimiCursorDisplayID(); }
+
+/// Activate a display by setting it as the active menu bar display.
+/// This keeps WindowServer's event routing state coherent when windows
+/// are moved across displays.
+void MimiActivateDisplay(uint32_t did) { mimiSetActiveMenuBarDisplay(did); }
+
 #pragma mark - Window-to-Space Movement
 
 // Private SkyLight API — undocumented, unsupported, may break on any

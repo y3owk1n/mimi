@@ -121,5 +121,10 @@ func MoveWindow(index int) error {
 		return derrors.New(derrors.CodeActionFailed, "failed to move window to space")
 	}
 
+	targetDid := uint32(C.MimiSpaceDisplayID(C.uint64_t(sid)))
+	if targetDid != 0 && targetDid != uint32(C.MimiCursorDisplayID()) {
+		C.MimiActivateDisplay(C.uint32_t(targetDid))
+	}
+
 	return nil
 }
