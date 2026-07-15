@@ -51,10 +51,11 @@ bundle: release
     cp -r bin/mimi build/Mimi.app/Contents/MacOS/mimi
 
     # cp resources/icon.icns build/Mimi.app/Contents/Resources/icon.icns
+    cp resources/Mimi.entitlements build/Mimi.app/Contents/Resources/Mimi.entitlements
 
     sed "s/VERSION/{{ VERSION }}/g" resources/Info.plist.template > build/Mimi.app/Contents/Info.plist
 
-    codesign --force --deep --sign - build/Mimi.app
+    codesign --force --deep --sign - --entitlements resources/Mimi.entitlements --options runtime build/Mimi.app
 
     @echo "✓ Bundle complete: build/Mimi.app"
 
