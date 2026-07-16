@@ -338,15 +338,23 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 	if (count == 0) {
 		// Already on the correct local space on the target display. Make sure
 		// the menu bar is on the right display when crossing displays.
+		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
+
 		if (focusDisplay) {
 			mimiSetActiveMenuBarDisplay(new_did);
 			if (mimiDisplaySpaceID(new_did) != new_sid) {
-				CGPostMouseEvent(point, false, 1, true);
-				CGPostMouseEvent(point, false, 1, false);
+				CGEventRef clickDown = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, point, 0);
+				if (clickDown) {
+					CGEventPost(kCGHIDEventTap, clickDown);
+					CFRelease(clickDown);
+				}
+				CGEventRef clickUp = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, point, 0);
+				if (clickUp) {
+					CGEventPost(kCGHIDEventTap, clickUp);
+					CFRelease(clickUp);
+				}
 			}
 		}
-
-		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
 
 		return 1;
 	}
@@ -369,19 +377,28 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 		CGEventPost(kCGSessionEventTap, event);
 		CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, kMimiCGSGesturePhaseEnded);
 		CGEventPost(kCGSessionEventTap, event);
+		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
 	}
 
 	CFRelease(event);
 
+	mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay * (CFTimeInterval)count + kMimiSpaceGestureProcessingDelay);
+
 	if (focusDisplay) {
 		mimiSetActiveMenuBarDisplay(new_did);
 		if (mimiDisplaySpaceID(new_did) != new_sid) {
-			CGPostMouseEvent(point, false, 1, true);
-			CGPostMouseEvent(point, false, 1, false);
+			CGEventRef clickDown = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, point, 0);
+			if (clickDown) {
+				CGEventPost(kCGHIDEventTap, clickDown);
+				CFRelease(clickDown);
+			}
+			CGEventRef clickUp = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, point, 0);
+			if (clickUp) {
+				CGEventPost(kCGHIDEventTap, clickUp);
+				CFRelease(clickUp);
+			}
 		}
 	}
-
-	mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay * (CFTimeInterval)count + kMimiSpaceGestureProcessingDelay);
 
 	return 1;
 
