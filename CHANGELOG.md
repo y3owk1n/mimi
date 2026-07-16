@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.9.2](https://github.com/y3owk1n/mimi/compare/v0.9.1...v0.9.2) (2026-07-16)
+
+
+### Bug Fixes
+
+* **action,space:** activate destination display after cross-display window move ([#51](https://github.com/y3owk1n/mimi/issues/51)) ([5026856](https://github.com/y3owk1n/mimi/commit/50268569167ed642fc7be5c3f286c1bc314e8c8d))
+* **action,space:** add inter-swipe delays and more fixes ([#54](https://github.com/y3owk1n/mimi/issues/54)) ([4a8a7c9](https://github.com/y3owk1n/mimi/commit/4a8a7c92cd7074303e2a7ba02d227ab0ad5991ee))
+
 ## [0.9.1](https://github.com/y3owk1n/mimi/compare/v0.9.0...v0.9.1) (2026-06-30)
 
 
