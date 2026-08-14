@@ -5,8 +5,12 @@ import (
 	"strings"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/geometry"
 	"github.com/y3owk1n/mimi/internal/space"
 )
+
+// percentageWhole is the largest percentage a size flag accepts.
+const percentageWhole = 100.0
 
 // Name identifies a supported action subcommand.
 type Name string
@@ -125,63 +129,34 @@ func (s spaceArg) resolve() (int, error) {
 	return s.index, nil
 }
 
-// parsedResizeWindowArgs holds parsed flags for the resize_window action.
-type parsedResizeWindowArgs struct {
-	preset    string
-	width     int
-	height    int
-	widthPct  float64
-	heightPct float64
-	x         int
-	y         int
-	anchor    string
-	hasX      bool
-	hasY      bool
-	useMargin *bool // nil = system default
-}
-
-// validAnchors for window positioning.
-var validAnchors = map[string]bool{
-	"tl": true, "tc": true, "tr": true,
-	"cl": true, "cc": true, "cr": true,
-	"bl": true, "bc": true, "br": true,
-}
-
-// resizePresets maps preset names to dimension percentages and anchor.
-var resizePresets = map[string]struct {
-	widthPct  float64
-	heightPct float64
-	anchor    string
-}{
-	"left-half":    {50, 100, "tl"},
-	"right-half":   {50, 100, "tr"},
-	"top-half":     {100, 50, "tl"},
-	"bottom-half":  {100, 50, "bl"},
-	"top-left":     {50, 50, "tl"},
-	"top-right":    {50, 50, "tr"},
-	"bottom-left":  {50, 50, "bl"},
-	"bottom-right": {50, 50, "br"},
-	"center":       {60, 80, "cc"},
-	"fill":         {100, 100, "tl"},
-}
-
 // IsResizePreset reports whether s is a known resize window preset.
 func IsResizePreset(s string) bool {
-	_, ok := resizePresets[s]
-
-	return ok
+	return geometry.IsPreset(s)
 }
 
-func parseResizeWindowArgs(rawArgs []string) (parsedResizeWindowArgs, error) {
-	var parsed parsedResizeWindowArgs
-
-	parsed.anchor = "cc"
+// ParseResizeRequest turns resize_window's command line into the geometry
+// request it describes.
+//
+// The optional fields are pointers because their absence is a real input to
+// the geometry — an anchor nobody gave is what lets a preset supply one, and a
+// margin preference nobody expressed is what defers to the system setting.
+//
+// A zero --width or --width-percent keeps the window's current size rather
+// than collapsing it, which is the convention the CLI has always followed.
+func ParseResizeRequest(rawArgs []string) (geometry.Request, error) {
+	var (
+		req                         geometry.Request
+		width, height               float64
+		widthPercent, heightPercent float64
+		posX, posY                  float64
+		hasPosX, hasPosY            bool
+	)
 
 	args := rawArgs
 
 	// Check for preset as first positional arg
 	if len(args) > 0 && IsResizePreset(args[0]) {
-		parsed.preset = args[0]
+		req.Preset = args[0]
 		args = args[1:]
 	}
 
@@ -192,155 +167,163 @@ func parseResizeWindowArgs(rawArgs []string) (parsedResizeWindowArgs, error) {
 		switch arg {
 		case "--width", "-w":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(derrors.CodeInvalidInput, "--width requires a value")
+				return req, derrors.New(derrors.CodeInvalidInput, "--width requires a value")
 			}
 
-			width, err := strconv.Atoi(args[argIndex+1])
-			if err != nil || width < 0 {
-				return parsed, derrors.Newf(
+			points, err := strconv.Atoi(args[argIndex+1])
+			if err != nil || points < 0 {
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid width: %q",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.width = width
+			width = float64(points)
 			argIndex++
 		case "--height", "-h":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(derrors.CodeInvalidInput, "--height requires a value")
+				return req, derrors.New(derrors.CodeInvalidInput, "--height requires a value")
 			}
 
-			height, err := strconv.Atoi(args[argIndex+1])
-			if err != nil || height < 0 {
-				return parsed, derrors.Newf(
+			points, err := strconv.Atoi(args[argIndex+1])
+			if err != nil || points < 0 {
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid height: %q",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.height = height
+			height = float64(points)
 			argIndex++
 		case "--width-percent":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(
+				return req, derrors.New(
 					derrors.CodeInvalidInput,
 					"--width-percent requires a value",
 				)
 			}
 
-			widthPercent, err := strconv.ParseFloat(args[argIndex+1], 64)
-			if err != nil || widthPercent < 0 || widthPercent > 100 {
-				return parsed, derrors.Newf(
+			share, err := strconv.ParseFloat(args[argIndex+1], 64)
+			if err != nil || share < 0 || share > percentageWhole {
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid width-percent: %q (0-100)",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.widthPct = widthPercent
+			widthPercent = share
 			argIndex++
 		case "--height-percent":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(
+				return req, derrors.New(
 					derrors.CodeInvalidInput,
 					"--height-percent requires a value",
 				)
 			}
 
-			heightPercent, err := strconv.ParseFloat(args[argIndex+1], 64)
-			if err != nil || heightPercent < 0 || heightPercent > 100 {
-				return parsed, derrors.Newf(
+			share, err := strconv.ParseFloat(args[argIndex+1], 64)
+			if err != nil || share < 0 || share > percentageWhole {
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid height-percent: %q (0-100)",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.heightPct = heightPercent
+			heightPercent = share
 			argIndex++
 		case "--x":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(derrors.CodeInvalidInput, "--x requires a value")
+				return req, derrors.New(derrors.CodeInvalidInput, "--x requires a value")
 			}
 
-			xCoord, err := strconv.Atoi(args[argIndex+1])
+			coord, err := strconv.Atoi(args[argIndex+1])
 			if err != nil {
-				return parsed, derrors.Newf(
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid x: %q",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.x = xCoord
-			parsed.hasX = true
+			posX, hasPosX = float64(coord), true
 			argIndex++
 		case "--y":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(derrors.CodeInvalidInput, "--y requires a value")
+				return req, derrors.New(derrors.CodeInvalidInput, "--y requires a value")
 			}
 
-			yCoord, err := strconv.Atoi(args[argIndex+1])
+			coord, err := strconv.Atoi(args[argIndex+1])
 			if err != nil {
-				return parsed, derrors.Newf(
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid y: %q",
 					args[argIndex+1],
 				)
 			}
 
-			parsed.y = yCoord
-			parsed.hasY = true
+			posY, hasPosY = float64(coord), true
 			argIndex++
 		case "--anchor", "-a":
 			if argIndex+1 >= len(args) {
-				return parsed, derrors.New(derrors.CodeInvalidInput, "--anchor requires a value")
+				return req, derrors.New(derrors.CodeInvalidInput, "--anchor requires a value")
 			}
 
-			anchorVal := args[argIndex+1]
-			if !validAnchors[anchorVal] {
-				return parsed, derrors.Newf(
+			anchor, ok := geometry.ParseAnchor(args[argIndex+1])
+			if !ok {
+				return req, derrors.Newf(
 					derrors.CodeInvalidInput,
 					"invalid anchor: %q (use tl, tc, tr, cl, cc, cr, bl, bc, br)",
-					anchorVal,
+					args[argIndex+1],
 				)
 			}
 
-			parsed.anchor = anchorVal
+			req.Anchor = &anchor
 			argIndex++
 		case "--margin":
-			val := true
-			parsed.useMargin = &val
+			useMargins := true
+			req.UseMargins = &useMargins
 		case "--no-margin":
-			val := false
-			parsed.useMargin = &val
+			useMargins := false
+			req.UseMargins = &useMargins
 		default:
 			if strings.HasPrefix(arg, "--") {
-				return parsed, derrors.Newf(derrors.CodeInvalidInput, "unknown flag: %s", arg)
+				return req, derrors.Newf(derrors.CodeInvalidInput, "unknown flag: %s", arg)
 			}
 
-			return parsed, derrors.Newf(derrors.CodeInvalidInput, "unexpected argument: %s", arg)
+			return req, derrors.Newf(derrors.CodeInvalidInput, "unexpected argument: %s", arg)
 		}
 	}
 
-	// If preset given, apply its values as defaults (can be overridden by explicit flags)
-	if parsed.preset != "" {
-		preset, ok := resizePresets[parsed.preset]
-		if ok {
-			parsed.anchor = preset.anchor
-			if parsed.widthPct == 0 && parsed.width == 0 {
-				parsed.widthPct = preset.widthPct
-			}
+	req.Width = dimensionOf(width, widthPercent)
+	req.Height = dimensionOf(height, heightPercent)
 
-			if parsed.heightPct == 0 && parsed.height == 0 {
-				parsed.heightPct = preset.heightPct
-			}
-		}
+	if hasPosX {
+		req.X = &posX
 	}
 
-	return parsed, nil
+	if hasPosY {
+		req.Y = &posY
+	}
+
+	return req, nil
+}
+
+// dimensionOf folds one axis's two size flags into the dimension they
+// describe. An absolute size wins over a percentage, and a zero of either
+// means the flag was never given, so the window keeps the size it has.
+func dimensionOf(points, percent float64) geometry.Dimension {
+	switch {
+	case points > 0:
+		return geometry.Absolute(points)
+	case percent > 0:
+		return geometry.Percent(percent)
+	default:
+		return geometry.Keep()
+	}
 }
 
 // Execute runs a named action with the given arguments.
@@ -378,12 +361,12 @@ func Execute(name string, args []string) error {
 
 		return MoveWindowToSpace(index)
 	case NameResizeWindow:
-		parsed, err := parseResizeWindowArgs(args)
+		req, err := ParseResizeRequest(args)
 		if err != nil {
 			return err
 		}
 
-		return ResizeWindow(parsed)
+		return ResizeWindow(req)
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,

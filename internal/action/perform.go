@@ -8,12 +8,6 @@ import (
 	"github.com/y3owk1n/mimi/internal/window"
 )
 
-const (
-	percentage100  = 100.0
-	divisionFactor = 2.0
-	marginDivisor  = 2
-)
-
 func ensureAccessibility() error {
 	return permissions.FriendlyError(permissions.Check())
 }
@@ -180,8 +174,11 @@ func MoveWindowToSpace(index int) error {
 	return nil
 }
 
-// ResizeWindow resizes and repositions the frontmost window according to the given args.
-func ResizeWindow(args parsedResizeWindowArgs) error {
+// ResizeWindow resizes and repositions the frontmost window to satisfy req.
+//
+// It reads the window and its screen from macOS, hands both to the pure
+// geometry, and writes back the frame it returns.
+func ResizeWindow(req geometry.Request) error {
 	err := ensureAccessibility()
 	if err != nil {
 		return err
@@ -198,116 +195,48 @@ func ResizeWindow(args parsedResizeWindowArgs) error {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get window frame")
 	}
 
-	// Get the visible frame of the screen containing the window (in NSScreen y-up coords)
-	screenX, screenY, screenWidth, screenHeight, err := window.ScreenVisibleFrame(curX, curY)
+	current := geometry.Rect{X: curX, Y: curY, W: curW, H: curH}
+
+	screen, err := screenAt(current)
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get screen frame")
+		return err
 	}
 
-	// Get the primary screen height for AX ↔ NSScreen coordinate conversion.
-	// AX uses y-down (top-left origin at the primary screen's top). NSScreen uses
-	// y-up (bottom-left origin at the primary screen's bottom). The primary screen's
-	// height is the constant that relates the two systems.
+	target := geometry.Resize(current, screen, req)
+
+	return win.SetFrame(target.X, target.Y, target.W, target.H)
+}
+
+// screenAt reads everything the geometry has to know about the display the
+// given window is on.
+func screenAt(current geometry.Rect) (geometry.Screen, error) {
+	// The visible frame of the screen containing the window, in NSScreen y-up
+	// coordinates.
+	visX, visY, visW, visH, err := window.ScreenVisibleFrame(current.X, current.Y)
+	if err != nil {
+		return geometry.Screen{}, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to get screen frame",
+		)
+	}
+
+	// The primary screen's height, which is the constant relating the y-up
+	// screen coordinates to the y-down window ones. Resize applies the
+	// conversion itself.
 	primaryH, err := window.PrimaryScreenHeight()
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get primary screen height")
+		return geometry.Screen{}, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to get primary screen height",
+		)
 	}
 
-	// Convert the visible frame's top edge from NSScreen y-up to AX y-down:
-	//   y-down top = primaryScreenHeight - visibleFrameY - visibleFrameHeight
-	syd := primaryH - screenY - screenHeight
-
-	// Determine if margins should be applied
-	useMargins := window.TiledWindowMarginsEnabled()
-	if args.useMargin != nil {
-		useMargins = *args.useMargin
-	}
-
-	// Compute target dimensions from screen visible frame (in y-down)
-	newW := curW
-	switch {
-	case args.width > 0:
-		newW = float64(args.width)
-	case args.widthPct > 0:
-		newW = screenWidth * args.widthPct / percentage100
-	}
-
-	newH := curH
-	switch {
-	case args.height > 0:
-		newH = float64(args.height)
-	case args.heightPct > 0:
-		newH = screenHeight * args.heightPct / percentage100
-	}
-
-	// Compute target position from anchor (relative to visible frame in y-down)
-	vert := args.anchor[0]  // 't', 'c', 'b'
-	horiz := args.anchor[1] // 'l', 'c', 'r'
-
-	var targetX, targetY float64
-
-	if args.hasX {
-		targetX = float64(args.x)
-	} else {
-		switch horiz {
-		case 'l':
-			targetX = screenX
-		case 'c':
-			targetX = screenX + (screenWidth-newW)/divisionFactor
-		case 'r':
-			targetX = screenX + screenWidth - newW
-		}
-	}
-
-	if args.hasY {
-		targetY = float64(args.y)
-	} else {
-		switch vert {
-		case 't':
-			targetY = syd
-		case 'c':
-			targetY = syd + (screenHeight-newH)/divisionFactor
-		case 'b':
-			targetY = syd + screenHeight - newH
-		}
-	}
-
-	// Apply margins: full margin on edges that abut the visible frame boundary,
-	// half margin on internal edges (split between windows). This matches macOS
-	// behavior where the gap between two tiled windows is margin (not 2*margin).
-	if useMargins {
-		marginSize := window.TiledWindowMarginSize()
-
-		leftExt := targetX == screenX
-		rightExt := targetX+newW == screenX+screenWidth
-		topExt := targetY == syd
-		botExt := targetY+newH == syd+screenHeight
-
-		leftMargin := marginSize
-		if !leftExt {
-			leftMargin = marginSize / marginDivisor
-		}
-
-		rightMargin := marginSize
-		if !rightExt {
-			rightMargin = marginSize / marginDivisor
-		}
-
-		topMargin := marginSize
-		if !topExt {
-			topMargin = marginSize / marginDivisor
-		}
-
-		bottomMargin := marginSize
-		if !botExt {
-			bottomMargin = marginSize / marginDivisor
-		}
-
-		targetX += leftMargin
-		newW -= leftMargin + rightMargin
-		targetY += topMargin
-		newH -= topMargin + bottomMargin
-	}
-
-	return win.SetFrame(targetX, targetY, newW, newH)
+	return geometry.Screen{
+		Visible:        geometry.Rect{X: visX, Y: visY, W: visW, H: visH},
+		PrimaryHeight:  primaryH,
+		MarginsEnabled: window.TiledWindowMarginsEnabled(),
+		MarginSize:     window.TiledWindowMarginSize(),
+	}, nil
 }

@@ -23,9 +23,13 @@ const (
 	presetCenter      = "center"
 	presetFill        = "fill"
 
-	flagWidth = "--width"
-	flagUp    = "--up"
-	flagDown  = "--down"
+	flagWidth         = "--width"
+	flagHeight        = "--height"
+	flagWidthPercent  = "--width-percent"
+	flagHeightPercent = "--height-percent"
+	flagAnchor        = "--anchor"
+	flagUp            = "--up"
+	flagDown          = "--down"
 )
 
 func TestIsKnownName(t *testing.T) {
@@ -216,7 +220,7 @@ func TestExecute_ResizeWindowPresets(t *testing.T) {
 func TestExecute_ResizeWindowInvalidAnchor(t *testing.T) {
 	t.Parallel()
 
-	err := action.Execute("resize_window", []string{"--anchor", "xx"})
+	err := action.Execute("resize_window", []string{flagAnchor, "xx"})
 	if err == nil {
 		t.Fatal("Execute(resize_window --anchor xx) expected error")
 	}
@@ -242,7 +246,7 @@ func TestExecute_ResizeWindowInvalidWidth(t *testing.T) {
 func TestExecute_ResizeWindowInvalidWidthPercent(t *testing.T) {
 	t.Parallel()
 
-	err := action.Execute("resize_window", []string{"--width-percent", "150"})
+	err := action.Execute("resize_window", []string{flagWidthPercent, "150"})
 	if err == nil {
 		t.Fatal("Execute(resize_window --width-percent 150) expected error")
 	}
@@ -259,8 +263,8 @@ func TestExecute_ResizeWindowWithFlags(t *testing.T) {
 	// will fail because there's no window open in the test environment.
 	err := action.Execute("resize_window", []string{
 		flagWidth, "800",
-		"--height", "600",
-		"--anchor", "cc",
+		flagHeight, "600",
+		flagAnchor, "cc",
 	})
 
 	if derrors.IsCode(err, derrors.CodeInvalidInput) {
