@@ -6,6 +6,7 @@ import (
 	"fmt"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
 // FileName is the name of the recording file inside this package's directory.
@@ -31,6 +32,17 @@ func (r Rect) String() string {
 	return fmt.Sprintf("%g,%g %gx%g", r.X, r.Y, r.W, r.H)
 }
 
+// Geometry returns the rectangle as the geometry module's, which holds the
+// same four fields.
+//
+// The recording keeps a type of its own so that the names the frames are
+// stored under stay a property of this file format rather than of the pure
+// module, and so that re-recording is never needed to change one. This is the
+// single place the two are converted.
+func (r Rect) Geometry() geometry.Rect {
+	return geometry.Rect(r)
+}
+
 // Display is everything the action layer had to ask macOS about the screen when
 // the recording was made. A recording is only replayable against a display that
 // reports the same values, which is why the whole set is stored.
@@ -44,6 +56,17 @@ type Display struct {
 	MarginsEnabled bool `json:"marginsEnabled"`
 	// MarginSize is the system tiled-window margin, in points.
 	MarginSize float64 `json:"marginSize"`
+}
+
+// Screen returns the display as the geometry module's screen — the same set of
+// values, which is what the recording stores it for.
+func (d Display) Screen() geometry.Screen {
+	return geometry.Screen{
+		Visible:        d.Visible.Geometry(),
+		PrimaryHeight:  d.PrimaryHeight,
+		MarginsEnabled: d.MarginsEnabled,
+		MarginSize:     d.MarginSize,
+	}
 }
 
 // ResizeCase is one recorded resize_window invocation: the flags, the frame the
