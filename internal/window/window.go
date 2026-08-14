@@ -122,6 +122,25 @@ func (e *Element) Equal(other *Element) bool {
 	return result == 1
 }
 
+// PID returns the process ID of the application that owns the window. It is how
+// a caller tells one application's windows from another's — the integration
+// baseline uses it to confirm it only ever drives windows it opened itself.
+func (e *Element) PID() (int, error) {
+	if e.ref == nil {
+		return 0, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot get window pid: element reference is nil",
+		)
+	}
+
+	pid := int(C.MimiGetWindowPID(e.ref)) //nolint:nlreturn // cgo call expansion
+	if pid <= 0 {
+		return 0, derrors.New(derrors.CodeAccessibilityFailed, "failed to get window pid")
+	}
+
+	return pid, nil
+}
+
 // GetFrame returns the window's position and size [x, y, w, h] in screen coordinates.
 func (e *Element) GetFrame() (float64, float64, float64, float64, error) {
 	if e.ref == nil {

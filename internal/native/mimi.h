@@ -17,6 +17,8 @@ void **MimiGetAllFocusableWindowsOnActiveSpace(int *count);
 void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focusedIndex);
 void *MimiGetFrontmostWindow(void);
 int MimiActivateWindow(void *window);
+/// Return the process identifier of the application owning the window, or 0.
+int MimiGetWindowPID(void *window);
 
 #pragma mark - Screen Functions
 
