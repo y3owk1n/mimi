@@ -49,6 +49,7 @@ mimi/
 │   ├── daemon/         # Daemon lifecycle
 │   ├── errors/         # Structured error types
 │   ├── events/         # Event types + pub-sub bus
+│   ├── geometry/       # Pure window geometry (no dependencies)
 │   ├── hooks/          # Hook registry + executor
 │   ├── logging/        # Structured logging
 │   ├── native/         # Objective-C + CGO bridge
