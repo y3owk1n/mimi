@@ -214,7 +214,9 @@ Custom flags allow precise control using an anchor system:
   EnableTiledWindowMargins) is respected by default. Margins are
   applied intelligently: full margin on screen-facing edges, half
   margin on internal (split) edges so adjacent windows share a
-  single gap. Use --margin or --no-margin to override.
+  single gap. A window too small to give up its margins is sized
+  exactly as asked for instead, with no margins on either axis.
+  Use --margin or --no-margin to override.
 
 Examples:
   mimi action resize_window left-half

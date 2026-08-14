@@ -463,29 +463,85 @@ func TestResize_PresetAnchorIsADefault(t *testing.T) {
 	}
 }
 
-// TestResize_MarginsCanDriveADimensionNonPositive_KnownBug pins issue #65:
-// margins are subtracted with no lower bound, so a window narrower than the
-// margins it takes ends up with a zero or negative size, which is then handed
-// to the Accessibility API as-is.
+// TestResize_SkipsMarginsThatWouldLeaveNoWindow covers issue #65: a window
+// narrower or shorter than the margins its edges take is placed unmargined,
+// at the size that was asked for, rather than being handed a zero or negative
+// dimension. Margins are cosmetic, and clamping the dimension instead would
+// leave a window that is valid but useless.
 //
-// #65 skips margins entirely in this case, and inverts this test.
-func TestResize_MarginsCanDriveADimensionNonPositive_KnownBug(t *testing.T) {
+// The threshold is the last point at which something is left: a dimension
+// takes its margins while what remains of it stays above zero, and gives them
+// all up as soon as it does not. Each axis is checked either side of that
+// line, and each drops the margins on both axes.
+func TestResize_SkipsMarginsThatWouldLeaveNoWindow(t *testing.T) {
 	t.Parallel()
 
-	// A large configured margin: 16pt on each internal edge.
+	// A large configured margin. None of these windows abuts the visible
+	// frame, so every edge takes half of it — 16 points an edge, 32 across
+	// either axis.
 	wide := singleDisplay
 	wide.MarginsEnabled = true
 	wide.MarginSize = 32
 
-	got := geometry.Resize(startFrame, wide, geometry.Request{
-		Width:  geometry.Absolute(20),
-		Height: geometry.Absolute(20),
-	})
+	tests := []struct {
+		name string
+		req  geometry.Request
+		want geometry.Rect
+	}{
+		{
+			name: "both axes too small to take their margins",
+			req: geometry.Request{
+				Width:  geometry.Absolute(20),
+				Height: geometry.Absolute(20),
+			},
+			// Centered, at the 20x20 asked for rather than at -12x-12.
+			want: geometry.Rect{X: 950, Y: 545, W: 20, H: 20},
+		},
+		{
+			name: "a width exactly equal to its margins keeps all of it",
+			req: geometry.Request{
+				Width:  geometry.Absolute(32),
+				Height: geometry.Absolute(600),
+			},
+			// Nothing would be left of the width, so the height that could
+			// have taken its own margins keeps them too.
+			want: geometry.Rect{X: 944, Y: 255, W: 32, H: 600},
+		},
+		{
+			name: "a width one point wider takes them",
+			req: geometry.Request{
+				Width:  geometry.Absolute(33),
+				Height: geometry.Absolute(600),
+			},
+			want: geometry.Rect{X: 959.5, Y: 271, W: 1, H: 568},
+		},
+		{
+			name: "a height exactly equal to its margins keeps all of it",
+			req: geometry.Request{
+				Width:  geometry.Absolute(600),
+				Height: geometry.Absolute(32),
+			},
+			want: geometry.Rect{X: 660, Y: 539, W: 600, H: 32},
+		},
+		{
+			name: "a height one point taller takes them",
+			req: geometry.Request{
+				Width:  geometry.Absolute(600),
+				Height: geometry.Absolute(33),
+			},
+			want: geometry.Rect{X: 676, Y: 554.5, W: 568, H: 1},
+		},
+	}
 
-	// 20 points of window less 32 points of margin, on both axes.
-	want := geometry.Rect{X: 966, Y: 561, W: -12, H: -12}
-	if got != want {
-		t.Errorf("Resize(--width 20 --height 20 --margin) = %v, want %v", got, want)
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := geometry.Resize(startFrame, wide, testCase.req)
+			if got != testCase.want {
+				t.Errorf("Resize(%s --margin) = %v, want %v", testCase.name, got, testCase.want)
+			}
+		})
 	}
 }
 

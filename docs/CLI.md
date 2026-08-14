@@ -68,7 +68,7 @@ Move the frontmost window to a space by its 1-based index, or cycle to the next/
 
 ### `mimi action resize_window [preset] [flags]`
 
-Resize and reposition the frontmost window using presets or custom flags. Respects the macOS tiled window margins setting (`com.apple.WindowManager.EnableTiledWindowMargins`), applying full margins on screen-facing edges and half margins on internal (split) edges.
+Resize and reposition the frontmost window using presets or custom flags. Respects the macOS tiled window margins setting (`com.apple.WindowManager.EnableTiledWindowMargins`), applying full margins on screen-facing edges and half margins on internal (split) edges. Margins are skipped entirely when they would leave the window no width or height, so a window smaller than its margins is sized as you asked for it.
 
 **Presets** provide quick tiling layouts:
 

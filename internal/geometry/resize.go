@@ -167,20 +167,34 @@ func Resize(cur Rect, scr Screen, req Request) Rect {
 // that abuts the visible frame's boundary, half a margin on each internal one,
 // so that the gap between two tiled windows is one margin rather than two.
 //
-// Two known defects live here, both preserved from the code this replaced. An
-// edge abuts only on exact float equality, so a window a fraction of a point
-// off the boundary is treated as internal (issue #66); and nothing stops the
-// margins from driving a width or height to zero or below (issue #65).
+// Margins are a refinement rather than part of what was asked for, so they are
+// all or nothing: a frame too small to give up what its edges want keeps the
+// size it was asked for, unmargined. Clamping the dimension instead would
+// leave a window that is valid but useless. The threshold is strict and either
+// axis falling short drops the margins on both — a dimension takes its margins
+// only while what is left of it stays above zero, so a width exactly equal to
+// the margins it would give up keeps all of it.
+//
+// One known defect lives here, preserved from the code this replaced: an edge
+// abuts only on exact float equality, so a window a fraction of a point off
+// the boundary is treated as internal (issue #66).
 func inset(frame, bounds Rect, size float64) Rect {
 	left := marginOn(frame.X == bounds.X, size)
 	right := marginOn(frame.Right() == bounds.Right(), size)
 	top := marginOn(frame.Y == bounds.Y, size)
 	bottom := marginOn(frame.Bottom() == bounds.Bottom(), size)
 
+	horizontal := left + right
+	vertical := top + bottom
+
+	if frame.W-horizontal <= 0 || frame.H-vertical <= 0 {
+		return frame
+	}
+
 	frame.X += left
-	frame.W -= left + right
+	frame.W -= horizontal
 	frame.Y += top
-	frame.H -= top + bottom
+	frame.H -= vertical
 
 	return frame
 }
