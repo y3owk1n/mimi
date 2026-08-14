@@ -1,6 +1,7 @@
 package geometry_test
 
 import (
+	"fmt"
 	"math"
 	"testing"
 
@@ -545,55 +546,42 @@ func TestResize_SkipsMarginsThatWouldLeaveNoWindow(t *testing.T) {
 	}
 }
 
-// TestResize_EdgeDetectionUsesExactFloatEquality_KnownBug pins issue #66:
-// whether an edge takes a full margin or half of one is decided by comparing
-// computed floats for exact equality, so an edge that is flush by construction
-// can still be read as internal.
+// TestResize_EdgeAdjacencyFollowsTheAnchorNotTheArithmetic covers issue #66: an
+// edge that is flush against the visible frame by construction takes a full
+// margin whichever anchor put it there, rather than only when the arithmetic
+// happens to land on the boundary exactly.
 //
 // The display here is a 1512x982 primary with a second display directly above
 // it, which is what makes the arithmetic inexact: the flip puts the upper
-// display's top at -1080, and 10% of 982 is 98.2, so the bottom edge computed
-// as y+h misses the visible frame's lower boundary by a few ulps.
+// display's top at -1080, and 10% of 982 is 98.2, so a bottom edge computed as
+// y+h misses the visible frame's lower boundary by a few ulps. Under the old
+// rule the top-anchored window took its full 8pt margin and the bottom-anchored
+// one, flush against the same kind of boundary, took half of one.
 //
-// That scenario is deliberate. #66's own repro — `fill` against a centered
-// 100%x100% request — does not actually diverge on a display whose metrics are
-// whole points: a 100% dimension comes back exactly, and centering a window as
-// wide as the frame lands exactly on its edge. Only a fractional dimension
-// separates the two rules, which is why this test reaches for one.
-//
-// #66 derives the edge flags from the anchor instead, and inverts this test.
-func TestResize_EdgeDetectionUsesExactFloatEquality_KnownBug(t *testing.T) {
+// That scenario is deliberate. #66's own first repro — `fill` against a
+// centered 100%x100% request — does not actually diverge on a display whose
+// metrics are whole points: a 100% dimension comes back exactly, and centering
+// a window as wide as the frame lands exactly on its edge. Only a fractional
+// dimension separates the two rules, which is why this test reaches for one.
+func TestResize_EdgeAdjacencyFollowsTheAnchorNotTheArithmetic(t *testing.T) {
 	t.Parallel()
 
-	above := geometry.Screen{
-		Visible:        geometry.Rect{X: 0, Y: 1080, W: 1512, H: 982},
-		PrimaryHeight:  982,
-		MarginsEnabled: true,
-		MarginSize:     8,
-	}
-
 	// Both windows are one tenth of the visible frame tall and flush against
-	// one of its horizontal boundaries, so both should take a full 8pt margin
-	// there and half of one on the opposite, internal edge.
+	// one of its horizontal boundaries, so both take a full 8pt margin there
+	// and half of one on the opposite, internal edge.
 	const requested = 98.2
 
 	tests := []struct {
 		name   string
 		anchor geometry.Anchor
-		want   float64
 	}{
 		{
-			// The top edge is assigned from the visible frame, so it compares
-			// equal and takes its full margin.
-			name:   "an edge assigned from the visible frame is recognized",
+			name:   "an edge assigned from the visible frame is flush",
 			anchor: geometry.TopLeft,
-			want:   8 + 4,
 		},
 		{
-			// The bottom edge is computed, so it does not.
-			name:   "an edge arrived at by arithmetic is not",
+			name:   "an edge arrived at by arithmetic is flush too",
 			anchor: geometry.BottomLeft,
-			want:   4 + 4,
 		},
 	}
 
@@ -601,19 +589,273 @@ func TestResize_EdgeDetectionUsesExactFloatEquality_KnownBug(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got := geometry.Resize(startFrame, above, geometry.Request{
+			got := geometry.Resize(startFrame, displayAbove, geometry.Request{
 				Height: geometry.Percent(10),
 				Anchor: &testCase.anchor,
 			})
 
-			if taken := requested - got.H; math.Abs(taken-testCase.want) > tolerance {
-				t.Errorf(
-					"Resize(--height-percent 10 --anchor %s --margin) gave up %v points of height to margins, want %v",
-					testCase.anchor,
-					taken,
-					testCase.want,
-				)
-			}
+			assertMargin(
+				t,
+				fmt.Sprintf("--height-percent 10 --anchor %s --margin", testCase.anchor),
+				"height",
+				requested-got.H,
+				pinnedMargin,
+			)
+		})
+	}
+}
+
+// displayAbove is a 1512x982 primary with a second display directly above it,
+// with the system tiled-window margins on. Every dimension a percentage takes
+// of its visible frame is fractional, and the flip puts the frame's top at a
+// whole -1080, so the positions the anchors compute are inexact.
+var displayAbove = geometry.Screen{
+	Visible:        geometry.Rect{X: 0, Y: 1080, W: 1512, H: 982},
+	PrimaryHeight:  982,
+	MarginsEnabled: true,
+	MarginSize:     8,
+}
+
+// What an 8pt margin takes across one axis of a window: a full margin on the
+// end that lies against the visible frame's boundary plus half of one on the
+// internal end, half of one on each of two internal ends, or a full margin on
+// each end of a window that reaches the boundary on both.
+const (
+	pinnedMargin   = 8 + 4
+	internalMargin = 4 + 4
+	spanningMargin = 8 + 8
+)
+
+// assertMargin fails when a window gave up something other than want points of
+// one dimension to its margins.
+func assertMargin(t *testing.T, request, axis string, taken, want float64) {
+	t.Helper()
+
+	if math.Abs(taken-want) > tolerance {
+		t.Errorf(
+			"Resize(%s) gave up %v points of %s to margins, want %v",
+			request,
+			taken,
+			axis,
+			want,
+		)
+	}
+}
+
+// TestResize_MarginsAreTheSameAtWholeAndFractionalSizes covers issue #66 across
+// all nine anchors: which edges take a full margin follows from the anchor
+// alone, so the same anchor gives up the same margin whether the size it was
+// asked for lands on whole points or not.
+//
+// None of these windows spans either axis, so each anchor takes a full 8pt
+// margin on the two boundaries it pins itself against and half of one on the
+// two internal edges — 12 points across an axis it pins, 8 across one it
+// centers on.
+func TestResize_MarginsAreTheSameAtWholeAndFractionalSizes(t *testing.T) {
+	t.Parallel()
+
+	// The recorded display with the system margins switched on. 45% of 1920 and
+	// 20% of 1050 are whole points; the same shares of displayAbove's 1512x982
+	// frame are not, and neither is any position an anchor computes from them.
+	whole := singleDisplay
+	whole.MarginsEnabled = true
+
+	const (
+		widthShare  = 45.0
+		heightShare = 20.0
+	)
+
+	anchors := []struct {
+		anchor     geometry.Anchor
+		horizontal float64
+		vertical   float64
+	}{
+		{anchor: geometry.TopLeft, horizontal: pinnedMargin, vertical: pinnedMargin},
+		{anchor: geometry.TopCenter, horizontal: internalMargin, vertical: pinnedMargin},
+		{anchor: geometry.TopRight, horizontal: pinnedMargin, vertical: pinnedMargin},
+		{anchor: geometry.CenterLeft, horizontal: pinnedMargin, vertical: internalMargin},
+		{anchor: geometry.Center, horizontal: internalMargin, vertical: internalMargin},
+		{anchor: geometry.CenterRight, horizontal: pinnedMargin, vertical: internalMargin},
+		{anchor: geometry.BottomLeft, horizontal: pinnedMargin, vertical: pinnedMargin},
+		{anchor: geometry.BottomCenter, horizontal: internalMargin, vertical: pinnedMargin},
+		{anchor: geometry.BottomRight, horizontal: pinnedMargin, vertical: pinnedMargin},
+	}
+
+	displays := []struct {
+		name string
+		scr  geometry.Screen
+	}{
+		{name: "whole", scr: whole},
+		{name: "fractional", scr: displayAbove},
+	}
+
+	for _, display := range displays {
+		for _, testCase := range anchors {
+			t.Run(display.name+"/"+testCase.anchor.String(), func(t *testing.T) {
+				t.Parallel()
+
+				anchor := testCase.anchor
+				req := geometry.Request{
+					Width:  geometry.Percent(widthShare),
+					Height: geometry.Percent(heightShare),
+					Anchor: &anchor,
+				}
+
+				requestedW := display.scr.Visible.W * widthShare / 100
+				requestedH := display.scr.Visible.H * heightShare / 100
+
+				got := geometry.Resize(startFrame, display.scr, req)
+				request := fmt.Sprintf("--anchor %s --margin", testCase.anchor)
+
+				assertMargin(t, request, "width", requestedW-got.W, testCase.horizontal)
+				assertMargin(t, request, "height", requestedH-got.H, testCase.vertical)
+			})
+		}
+	}
+}
+
+// TestResize_AWindowAsLargeAsTheFrameIsFlushOnBothEdges covers the other half
+// of the anchored rule from issue #66: the edge an anchor does not pin is flush
+// too once the window is as long as the visible frame, so a window filling the
+// frame takes a full margin on all four edges rather than only on the two its
+// anchor pins.
+//
+// The length is compared to the frame's within the same half point an explicit
+// position is, so a window a fraction short of the frame — which the arithmetic
+// can leave one — still counts as filling it, and a window a whole point short
+// does not.
+func TestResize_AWindowAsLargeAsTheFrameIsFlushOnBothEdges(t *testing.T) {
+	t.Parallel()
+
+	// 1512 wide, on a display whose window-coordinate origin the flip puts at a
+	// negative y. Every case fills the frame's height, and varies its width.
+	frame := displayAbove.Visible
+
+	tests := []struct {
+		name       string
+		width      geometry.Dimension
+		requested  float64
+		horizontal float64
+	}{
+		{
+			name:       "a window filling the frame",
+			width:      geometry.Percent(100),
+			requested:  frame.W,
+			horizontal: spanningMargin,
+		},
+		{
+			name:       "a window a quarter point short of it",
+			width:      geometry.Absolute(frame.W - 0.25),
+			requested:  frame.W - 0.25,
+			horizontal: spanningMargin,
+		},
+		{
+			name:       "a window a whole point short of it",
+			width:      geometry.Absolute(frame.W - 1),
+			requested:  frame.W - 1,
+			horizontal: pinnedMargin,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			anchor := geometry.TopLeft
+			got := geometry.Resize(startFrame, displayAbove, geometry.Request{
+				Width:  testCase.width,
+				Height: geometry.Percent(100),
+				Anchor: &anchor,
+			})
+
+			const request = "--height-percent 100 --anchor tl --margin"
+
+			assertMargin(t, request, "width", testCase.requested-got.W, testCase.horizontal)
+			assertMargin(t, request, "height", frame.H-got.H, spanningMargin)
+		})
+	}
+}
+
+// TestResize_ExplicitPositionMeasuresItsEdges covers the other half of issue
+// #66: an explicit --x or --y is the one placement whose edges have to be
+// measured, because the coordinate is the user's own and follows from no
+// anchor. The comparison allows half a point, which is below what macOS can
+// store a frame at, and nothing beyond it.
+func TestResize_ExplicitPositionMeasuresItsEdges(t *testing.T) {
+	t.Parallel()
+
+	withMargins := singleDisplay
+	withMargins.MarginsEnabled = true
+
+	// The visible frame in window coordinates: 1080 - 0 - 1050 puts its top at
+	// y = 30, and its left edge at x = 0.
+	const (
+		boundsX = 0.0
+		boundsY = 30.0
+	)
+
+	// A bottom anchor, for the axes no explicit coordinate is given for: its
+	// window is flush at the bottom and internal at the top, either way round.
+	bottomLeft := geometry.BottomLeft
+
+	tests := []struct {
+		name       string
+		posX       *float64
+		posY       *float64
+		horizontal float64
+		vertical   float64
+	}{
+		{
+			name:       "an origin on the boundary is flush",
+			posX:       new(boundsX),
+			posY:       new(boundsY),
+			horizontal: pinnedMargin,
+			vertical:   pinnedMargin,
+		},
+		{
+			name:       "an origin within half a point of it still is",
+			posX:       new(boundsX + 0.25),
+			posY:       new(boundsY - 0.25),
+			horizontal: pinnedMargin,
+			vertical:   pinnedMargin,
+		},
+		{
+			name:       "a whole point off the boundary is internal",
+			posX:       new(boundsX + 1),
+			posY:       new(boundsY + 1),
+			horizontal: internalMargin,
+			vertical:   internalMargin,
+		},
+		{
+			name:       "an explicit x leaves the vertical edges to the anchor",
+			posX:       new(boundsX + 1),
+			horizontal: internalMargin,
+			vertical:   pinnedMargin,
+		},
+		{
+			name:       "an explicit y leaves the horizontal edges to the anchor",
+			posY:       new(boundsY + 1),
+			horizontal: pinnedMargin,
+			vertical:   internalMargin,
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := geometry.Resize(startFrame, withMargins, geometry.Request{
+				X:      testCase.posX,
+				Y:      testCase.posY,
+				Width:  geometry.Absolute(800),
+				Height: geometry.Absolute(600),
+				Anchor: &bottomLeft,
+			})
+
+			const request = "--x/--y --anchor bl --margin"
+
+			assertMargin(t, request, "width", 800-got.W, testCase.horizontal)
+			assertMargin(t, request, "height", 600-got.H, testCase.vertical)
 		})
 	}
 }

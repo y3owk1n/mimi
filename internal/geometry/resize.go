@@ -1,5 +1,7 @@
 package geometry
 
+import "math"
+
 // percentageWhole is the denominator a percentage dimension is taken over.
 const percentageWhole = 100.0
 
@@ -157,15 +159,87 @@ func Resize(cur Rect, scr Screen, req Request) Rect {
 	}
 
 	if useMargins {
-		frame = inset(frame, bounds, scr.MarginSize)
+		frame = inset(frame, scr.MarginSize, flushEdges(req, anchor, frame, bounds))
 	}
 
 	return frame
 }
 
+// adjacency is how far apart two points may lie and still count as the same
+// one: the slack an explicitly positioned edge is measured against the visible
+// frame's boundary with, and a requested length against the frame's own. macOS
+// stores window frames in whole points, so half of one is below anything a
+// display can show.
+const adjacency = 0.5
+
+// ends records, for one axis, whether each end of a frame lies against the
+// visible frame's boundary rather than against whatever is tiled alongside it.
+// Low is the end at the smaller coordinate — left or top — and high the other.
+type ends struct {
+	low  bool
+	high bool
+}
+
+// edges records the same for both axes of a frame.
+type edges struct {
+	horizontal ends
+	vertical   ends
+}
+
+// flushEdges reports which of the placed frame's edges lie against the visible
+// frame's boundary.
+//
+// An anchored window's edges follow from the anchor and the size that was
+// asked for: the side the anchor pins is flush by construction, and the
+// opposite side only once the window is as long as the frame. Deriving them
+// keeps the answer out of reach of the rounding that computing an edge as
+// origin + size or through a division introduces — a bottom-anchored window is
+// flush at the bottom whether or not y+h lands exactly on the boundary
+// (issue #66).
+//
+// An explicit --x or --y is the one placement that has to be measured, because
+// the coordinate is the user's own and follows from nothing. Each axis is
+// decided on its own, so an explicit --x still leaves the vertical edges to the
+// anchor.
+func flushEdges(req Request, anchor Anchor, frame, bounds Rect) edges {
+	found := edges{}
+
+	if req.X != nil {
+		found.horizontal = ends{
+			low:  adjacent(frame.X, bounds.X),
+			high: adjacent(frame.Right(), bounds.Right()),
+		}
+	} else {
+		// A window as long as the visible frame lies against the boundary at
+		// both ends of the axis rather than at only the one its anchor pins. A
+		// window longer than the frame does not: its far edge is off screen,
+		// and takes the same margin there as it always has.
+		found.horizontal = anchor.flushX(adjacent(frame.W, bounds.W))
+	}
+
+	if req.Y != nil {
+		found.vertical = ends{
+			low:  adjacent(frame.Y, bounds.Y),
+			high: adjacent(frame.Bottom(), bounds.Bottom()),
+		}
+	} else {
+		found.vertical = anchor.flushY(adjacent(frame.H, bounds.H))
+	}
+
+	return found
+}
+
+// adjacent reports whether two coordinates name the same point, or two lengths
+// the same length, to within the half point below which nothing is observable.
+func adjacent(first, second float64) bool {
+	return math.Abs(first-second) <= adjacency
+}
+
 // inset applies the tiled-window margin to a frame: a full margin on each edge
-// that abuts the visible frame's boundary, half a margin on each internal one,
-// so that the gap between two tiled windows is one margin rather than two.
+// that lies against the visible frame's boundary, half a margin on each
+// internal one, so that the gap between two tiled windows is one margin rather
+// than two. Which edges those are is flushEdges' answer, not a measurement of
+// the frame.
 //
 // Margins are a refinement rather than part of what was asked for, so they are
 // all or nothing: a frame too small to give up what its edges want keeps the
@@ -174,15 +248,11 @@ func Resize(cur Rect, scr Screen, req Request) Rect {
 // axis falling short drops the margins on both — a dimension takes its margins
 // only while what is left of it stays above zero, so a width exactly equal to
 // the margins it would give up keeps all of it.
-//
-// One known defect lives here, preserved from the code this replaced: an edge
-// abuts only on exact float equality, so a window a fraction of a point off
-// the boundary is treated as internal (issue #66).
-func inset(frame, bounds Rect, size float64) Rect {
-	left := marginOn(frame.X == bounds.X, size)
-	right := marginOn(frame.Right() == bounds.Right(), size)
-	top := marginOn(frame.Y == bounds.Y, size)
-	bottom := marginOn(frame.Bottom() == bounds.Bottom(), size)
+func inset(frame Rect, size float64, flush edges) Rect {
+	left := marginOn(flush.horizontal.low, size)
+	right := marginOn(flush.horizontal.high, size)
+	top := marginOn(flush.vertical.low, size)
+	bottom := marginOn(flush.vertical.high, size)
 
 	horizontal := left + right
 	vertical := top + bottom
@@ -200,10 +270,10 @@ func inset(frame, bounds Rect, size float64) Rect {
 }
 
 // marginOn returns the margin one edge takes: the whole of it when the edge
-// abuts the visible frame's boundary, half of it when the edge is internal and
-// the gap is shared with whatever is tiled alongside.
-func marginOn(abuts bool, size float64) float64 {
-	if abuts {
+// lies against the visible frame's boundary, half of it when the edge is
+// internal and the gap is shared with whatever is tiled alongside.
+func marginOn(flush bool, size float64) float64 {
+	if flush {
 		return size
 	}
 
@@ -324,6 +394,39 @@ func (a Anchor) originY(bounds Rect, height float64) float64 {
 		return bounds.Y + bounds.H - height
 	default:
 		return bounds.Y
+	}
+}
+
+// flushX reports which of a window's left and right edges lie against the
+// visible frame's boundary once this anchor has placed it. The side the anchor
+// pins is flush by construction; the opposite one is flush only once the window
+// is as wide as the frame, and a centered window is flush on both edges or on
+// neither.
+func (a Anchor) flushX(spansWidth bool) ends {
+	switch a {
+	case TopRight, CenterRight, BottomRight:
+		return ends{low: spansWidth, high: true}
+	case TopCenter, Center, BottomCenter:
+		return ends{low: spansWidth, high: spansWidth}
+	case TopLeft, CenterLeft, BottomLeft:
+		return ends{low: true, high: spansWidth}
+	default:
+		return ends{low: true, high: spansWidth}
+	}
+}
+
+// flushY reports the same for a window's top and bottom edges, on the terms
+// flushX describes.
+func (a Anchor) flushY(spansHeight bool) ends {
+	switch a {
+	case BottomLeft, BottomCenter, BottomRight:
+		return ends{low: spansHeight, high: true}
+	case CenterLeft, Center, CenterRight:
+		return ends{low: spansHeight, high: spansHeight}
+	case TopLeft, TopCenter, TopRight:
+		return ends{low: true, high: spansHeight}
+	default:
+		return ends{low: true, high: spansHeight}
 	}
 }
 
