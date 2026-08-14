@@ -32,25 +32,20 @@ const (
 	quitTimeout   = 10 * time.Second
 )
 
-// launchHelper starts a fresh helper instance holding windowCount documents,
-// registers a cleanup that terminates exactly the processes it started, and
-// returns their process IDs.
-//
-// It has to run before the first window enumeration. NSWorkspace only refreshes
-// its running-application list from the run loop, which a test binary never
-// spins, so an application launched after that list is first read stays
-// invisible to the action layer for the rest of the process.
-func launchHelper(t *testing.T) map[int]bool {
+// launchHelper starts a fresh helper instance holding the given number of
+// documents — one per window the caller needs — registers a cleanup that
+// terminates exactly the processes it started, and returns their process IDs.
+func launchHelper(t *testing.T, documents int) map[int]bool {
 	t.Helper()
 
 	dir := t.TempDir()
 
 	const openFlags = 3
 
-	args := make([]string, 0, openFlags+windowCount)
+	args := make([]string, 0, openFlags+documents)
 	args = append(args, "-n", "-a", helperApp)
 
-	for index := range windowCount {
+	for index := range documents {
 		path := filepath.Join(dir, fmt.Sprintf("mimi-baseline-%d.txt", index))
 
 		err := os.WriteFile(path, []byte("mimi window baseline\n"), 0o600)

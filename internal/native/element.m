@@ -22,6 +22,11 @@ void *MimiGetFocusedApplication(void) {
 			}
 		}
 
+		// Last resort only. NSWorkspace answers this out of state it refreshes
+		// from the main thread's run loop, which neither the CLI nor an
+		// action-serving daemon thread pumps, so it can name an application
+		// that is no longer frontmost. The system-wide Accessibility query
+		// above is the one that is always current.
 		NSRunningApplication *front = [NSWorkspace sharedWorkspace].frontmostApplication;
 		if (!front)
 			return NULL;
