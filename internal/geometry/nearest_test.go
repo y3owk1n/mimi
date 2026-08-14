@@ -6,6 +6,14 @@ import (
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
+// The four direction names ParseDirection accepts.
+const (
+	directionUp    = "up"
+	directionDown  = "down"
+	directionLeft  = "left"
+	directionRight = "right"
+)
+
 func TestNearest_BreaksTiesOnTopThenLeftThenIndex(t *testing.T) {
 	current := &geometry.Rect{X: 0, Y: 0, W: 100, H: 100}
 
@@ -72,25 +80,25 @@ func TestNearest_PrefersAnOverlappingWindowOverACloserOffsetOne(t *testing.T) {
 		aligned *geometry.Rect
 	}{
 		{
-			name:    "up",
+			name:    directionUp,
 			dir:     geometry.Up,
 			offset:  &geometry.Rect{X: 300, Y: -10, W: 100, H: 100},
 			aligned: &geometry.Rect{X: 0, Y: -200, W: 100, H: 100},
 		},
 		{
-			name:    "down",
+			name:    directionDown,
 			dir:     geometry.Down,
 			offset:  &geometry.Rect{X: 300, Y: 110, W: 100, H: 100},
 			aligned: &geometry.Rect{X: 0, Y: 200, W: 100, H: 100},
 		},
 		{
-			name:    "left",
+			name:    directionLeft,
 			dir:     geometry.Left,
 			offset:  &geometry.Rect{X: -10, Y: 300, W: 100, H: 100},
 			aligned: &geometry.Rect{X: -200, Y: 0, W: 100, H: 100},
 		},
 		{
-			name:    "right",
+			name:    directionRight,
 			dir:     geometry.Right,
 			offset:  &geometry.Rect{X: 110, Y: 300, W: 100, H: 100},
 			aligned: &geometry.Rect{X: 200, Y: 0, W: 100, H: 100},
@@ -135,10 +143,10 @@ func TestNearest_PicksTheNeighborInTheRequestedDirection(t *testing.T) {
 		dir  geometry.Direction
 		want int
 	}{
-		{"up", geometry.Up, 1},
-		{"down", geometry.Down, 7},
-		{"left", geometry.Left, 3},
-		{"right", geometry.Right, 5},
+		{directionUp, geometry.Up, 1},
+		{directionDown, geometry.Down, 7},
+		{directionLeft, geometry.Left, 3},
+		{directionRight, geometry.Right, 5},
 	}
 
 	for _, tt := range tests {
@@ -206,6 +214,51 @@ func TestNearest_ReportsNotFoundWhenTheCurrentFrameIsUnusable(t *testing.T) {
 			got, ok := geometry.Nearest(tt.frames, tt.current, geometry.Right)
 			if ok {
 				t.Errorf("Nearest() = %d, true; want not found", got)
+			}
+		})
+	}
+}
+
+func TestParseDirection_MapsEveryName(t *testing.T) {
+	tests := []struct {
+		name string
+		want geometry.Direction
+	}{
+		{directionUp, geometry.Up},
+		{directionDown, geometry.Down},
+		{directionLeft, geometry.Left},
+		{directionRight, geometry.Right},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := geometry.ParseDirection(tt.name)
+			if !ok || got != tt.want {
+				t.Errorf("ParseDirection(%q) = %d, %v; want %d, true", tt.name, got, ok, tt.want)
+			}
+		})
+	}
+}
+
+func TestParseDirection_ReportsUnknownNames(t *testing.T) {
+	tests := []struct {
+		name  string
+		input string
+	}{
+		{"no direction at all", ""},
+		{"upper case", "UP"},
+		{"title case", "Up"},
+		{"trailing space", "up "},
+		{"a direction that does not exist", "north"},
+		{"an abbreviation", "u"},
+		{"two names run together", "updown"},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got, ok := geometry.ParseDirection(tt.input)
+			if ok {
+				t.Errorf("ParseDirection(%q) = %d, true; want not recognized", tt.input, got)
 			}
 		})
 	}

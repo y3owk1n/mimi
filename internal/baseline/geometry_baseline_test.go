@@ -83,7 +83,7 @@ func TestNearest_ReproducesTheRecordedFocusTargets(t *testing.T) {
 
 	for _, focus := range recording.Focus {
 		t.Run(focus.Direction, func(t *testing.T) {
-			dir, ok := directionOf(focus.Direction)
+			dir, ok := geometry.ParseDirection(focus.Direction)
 			if !ok {
 				t.Fatalf("the recording holds an unknown direction %q", focus.Direction)
 			}
@@ -116,21 +116,5 @@ func TestNearest_ReproducesTheRecordedFocusTargets(t *testing.T) {
 				)
 			}
 		})
-	}
-}
-
-// directionOf maps a recorded direction name onto the geometry direction.
-func directionOf(name string) (geometry.Direction, bool) {
-	switch name {
-	case "up":
-		return geometry.Up, true
-	case "down":
-		return geometry.Down, true
-	case "left":
-		return geometry.Left, true
-	case "right":
-		return geometry.Right, true
-	default:
-		return 0, false
 	}
 }
