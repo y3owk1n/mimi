@@ -103,11 +103,13 @@ Two properties matter when changing it:
   permission (CI), a locked screen, or a display other than the one the
   recording was captured on.
 
-The recorder must launch its helper application before the first window
-enumeration. `NSWorkspace` refreshes its running-application list from the run
-loop, which a test binary never spins, so an application launched after that
-list is first read stays invisible to the action layer for the rest of the
-process.
+The recorder used to have to launch its helper application before the first
+window enumeration, because the enumeration read its application list from
+`NSWorkspace`, which only refreshes from the run loop a test binary never
+spins. That constraint is gone — the enumeration derives its applications from
+the window list instead — and
+`TestEnumeration_SeesAnApplicationLaunchedAfterTheFirstEnumeration` is what
+keeps it gone.
 
 Re-record after changing a case, or to capture the baseline on your own display:
 

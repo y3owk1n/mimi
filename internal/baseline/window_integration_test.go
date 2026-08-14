@@ -145,9 +145,7 @@ func TestWindowBaseline_ResizeAndFocus(t *testing.T) {
 		)
 	}
 
-	// The helper has to start before the first window enumeration; see
-	// launchHelper. Everything above this line only reads screens and files.
-	fixture := newHarness(t, live, launchHelper(t))
+	fixture := newHarness(t, live, launchHelper(t, windowCount))
 
 	var resizeCount, focusCount int
 

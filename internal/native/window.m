@@ -9,11 +9,14 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
 
-static NSSet<NSNumber *> *mimiVisibleRegularAppPIDs(void) {
+/// Process identifiers of every process owning an on-screen, layer-0 window,
+/// in ascending order. This is the source of the applications to enumerate, so
+/// it is deliberately fetched fresh on every call.
+static NSArray<NSNumber *> *mimiOnScreenWindowOwnerPIDs(void) {
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
 	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
 	if (!windowList)
-		return [NSSet set];
+		return @[];
 
 	NSMutableSet<NSNumber *> *pids = [NSMutableSet set];
 	CFIndex count = CFArrayGetCount(windowList);
@@ -42,7 +45,7 @@ static NSSet<NSNumber *> *mimiVisibleRegularAppPIDs(void) {
 	}
 
 	CFRelease(windowList);
-	return [pids copy];
+	return [pids.allObjects sortedArrayUsingSelector:@selector(compare:)];
 }
 
 void *MimiGetFrontmostWindow(void) {
@@ -52,6 +55,11 @@ void *MimiGetFrontmostWindow(void) {
 		bool shouldReleaseAppRef = false;
 
 		if (!appRef) {
+			// Last resort only. NSWorkspace answers this out of state it
+			// refreshes from the main thread's run loop, which neither the CLI
+			// nor an action-serving daemon thread pumps, so it can name an
+			// application that is no longer frontmost. The Accessibility path
+			// above is the one that is always current.
 			NSRunningApplication *front = [NSWorkspace sharedWorkspace].frontmostApplication;
 			if (!front)
 				return NULL;
@@ -161,16 +169,23 @@ static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *o
 		if (outFocusedIndex)
 			*outFocusedIndex = -1;
 
-		NSSet<NSNumber *> *visiblePIDs = mimiVisibleRegularAppPIDs();
-		NSArray *runningApps = [[NSWorkspace sharedWorkspace].runningApplications
-		    sortedArrayUsingComparator:^NSComparisonResult(NSRunningApplication *obj1, NSRunningApplication *obj2) {
-			    if (obj1.processIdentifier < obj2.processIdentifier) {
-				    return NSOrderedAscending;
-			    } else if (obj1.processIdentifier > obj2.processIdentifier) {
-				    return NSOrderedDescending;
-			    }
-			    return NSOrderedSame;
-		    }];
+		// The applications to walk are derived from the window list, not from
+		// -[NSWorkspace runningApplications]. That array is only refreshed
+		// while the *main* thread's run loop runs, and nothing here can
+		// guarantee that: the CLI never pumps it, and the daemon pumps it on
+		// its own observer thread while actions are served from another. In a
+		// process that does not pump it, the array stays frozen at its first
+		// read and every application launched afterwards is invisible for the
+		// life of the process. CGWindowListCopyWindowInfo carries no such
+		// dependency and was already being fetched here anyway.
+		//
+		// The per-pid NSRunningApplication lookup below is answered live
+		// rather than from that array, which is what lets the activation
+		// policy and hidden filters stay exactly as they were. Dropping them
+		// and taking the window list alone would widen enumeration to
+		// processes that own a layer-0 window without being applications —
+		// border drawers and overlays, which have no AX window list to walk.
+		NSArray<NSNumber *> *ownerPIDs = mimiOnScreenWindowOwnerPIDs();
 		CFMutableArrayRef windowsCollector = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
 		if (!windowsCollector)
 			return NULL;
@@ -194,14 +209,15 @@ static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *o
 			CFRelease(focusedApp);
 		}
 
-		for (NSRunningApplication *app in runningApps) {
+		for (NSNumber *ownerPID in ownerPIDs) {
+			pid_t pid = (pid_t)ownerPID.intValue;
+
+			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+			if (!app)
+				continue;
 			if (app.activationPolicy != NSApplicationActivationPolicyRegular)
 				continue;
 			if (app.hidden)
-				continue;
-
-			pid_t pid = app.processIdentifier;
-			if (![visiblePIDs containsObject:@(pid)])
 				continue;
 
 			AXUIElementRef appElement = AXUIElementCreateApplication(pid);
