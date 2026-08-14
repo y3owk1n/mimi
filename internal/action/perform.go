@@ -37,7 +37,7 @@ func FocusWindow(backward bool, direction string) error {
 	defer window.ReleaseAll(windows)
 
 	if direction != "" {
-		dir, ok := directionFromFlag(direction)
+		dir, ok := geometry.ParseDirection(direction)
 		if !ok {
 			return derrors.Newf(
 				derrors.CodeInvalidInput,
@@ -73,23 +73,6 @@ func FocusWindow(backward bool, direction string) error {
 	}
 
 	return nil
-}
-
-// directionFromFlag maps a focus_window direction flag onto the geometry
-// direction it navigates in.
-func directionFromFlag(flag string) (geometry.Direction, bool) {
-	switch flag {
-	case "up":
-		return geometry.Up, true
-	case "down":
-		return geometry.Down, true
-	case "left":
-		return geometry.Left, true
-	case "right":
-		return geometry.Right, true
-	default:
-		return 0, false
-	}
 }
 
 // focusDirectional moves focus to the window nearest windows[currentIndex] in

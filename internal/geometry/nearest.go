@@ -14,6 +14,27 @@ const (
 	Right
 )
 
+// directionsByName maps each direction name onto its direction. It is keyed by
+// name rather than by direction — unlike anchorNames, which a String method
+// also reads the other way round.
+var directionsByName = map[string]Direction{
+	"up":    Up,
+	"down":  Down,
+	"left":  Left,
+	"right": Right,
+}
+
+// ParseDirection maps a direction name onto its direction, and reports whether
+// the name is one of the four.
+//
+// An unknown name reports false alongside the zero direction, which is itself
+// a valid one — following Nearest, callers have to read the boolean.
+func ParseDirection(name string) (Direction, bool) {
+	dir, ok := directionsByName[name]
+
+	return dir, ok
+}
+
 // Nearest returns the index of the window nearest to frames[current] in the
 // given direction, and whether one was found.
 //
