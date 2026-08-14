@@ -406,6 +406,17 @@ void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focus
 	}
 }
 
+int MimiGetWindowPID(void *window) {
+	if (!window)
+		return 0;
+
+	pid_t pid = 0;
+	if (AXUIElementGetPid((AXUIElementRef)window, &pid) != kAXErrorSuccess)
+		return 0;
+
+	return (int)pid;
+}
+
 double *MimiGetWindowFrame(void *window) {
 	if (!window)
 		return NULL;

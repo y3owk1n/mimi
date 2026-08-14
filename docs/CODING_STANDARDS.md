@@ -44,6 +44,7 @@ mimi/
 ├── cmd/
 │   └── mimi/           # Application entry points
 ├── internal/
+│   ├── baseline/       # Recorded macOS window behavior (test oracle)
 │   ├── config/         # Configuration management
 │   ├── daemon/         # Daemon lifecycle
 │   ├── errors/         # Structured error types
