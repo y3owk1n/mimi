@@ -60,30 +60,42 @@ bundle: release
     @echo "✓ Bundle complete: build/Mimi.app"
 
 # Run tests
+#
+# A build tag adds files to a build, it never narrows the build to them, so the
+# `integration` build already contains every unit test. `test` therefore runs
+# the tagged pass alone: one pass, both tiers, each test exactly once. This
+# holds only while nothing carries a negated constraint — a `//go:build
+# !integration` file would drop out of that pass and stop being run at all.
+#
+# Only the running of the tier is skipped without an Accessibility grant. The
+# tagged files still compile here and are still vetted by `just vet`.
 
-# Run all tests (unit + integration)
-test: test-unit test-integration
-    @echo "Running all tests..."
+# Run every test once (unit tier + integration tier)
+test: test-integration
+    @echo "✓ All tests complete"
 
-# Run unit tests
+# Run the unit tier alone — no Accessibility grant needed
 test-unit:
     @echo "Running unit tests..."
     go test -v ./...
 
+# Run every test with the integration tier enabled
 test-integration:
-    @echo "Running integration tests..."
+    @echo "Running tests with the integration tier enabled..."
     go test -tags=integration -v ./...
 
-test-race: test-race-unit test-race-integration
-    @echo "Running tests with race detection..."
+# Run every test once under the race detector (unit tier + integration tier)
+test-race: test-race-integration
+    @echo "✓ All race-detected tests complete"
 
+# Run the unit tier alone under the race detector
 test-race-unit:
     @echo "Running unit tests with race detection..."
     go test -race -v ./...
 
-# Run integration tests with race detection
+# Run every test with the integration tier enabled, under the race detector
 test-race-integration:
-    @echo "Running integration tests with race detection..."
+    @echo "Running tests with the integration tier enabled, with race detection..."
     go test -tags=integration -race -v ./...
 
 test-all: test test-race
@@ -143,10 +155,15 @@ lint:
     echo "Skipping Objective-C linting due to header issues"
     @echo "✓ Lint complete"
 
+# Two passes: the tagged build is the only one that sees `//go:build
+# integration` files at all, and the untagged build is the one everything
+# else — `just build`, `just test-unit`, every editor — compiles under.
+
 # Vet
 vet:
     @echo "Vetting code..."
     go vet ./...
+    go vet -tags=integration ./...
     @echo "✓ Vet complete"
 
 # Download dependencies
