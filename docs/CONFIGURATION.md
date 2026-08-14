@@ -17,13 +17,19 @@ mimi config reload     # reload running daemon (SIGHUP)
 [settings]
 log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only
 log_level = "info"                           # debug | info | warn | error
-log_format = "text"                          # text | json
+log_format = "text"                          # text | json — console output only
 hook_timeout_secs = 10
 hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
 resize_debounce_ms = 250                     # on_window_resize debounce window
 ```
+
+`log_format` selects the **console** encoder only: `text` is the human-readable
+line (colorized when the console is a terminal), `json` is one JSON object per
+line with no color. The `log_file` log is always JSON, whatever `log_format`
+says, so anything already piping that file through `jq` keeps working. An
+unrecognized value logs a warning and falls back to `text`.
 
 ---
 

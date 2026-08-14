@@ -26,6 +26,8 @@
 # log_file = "~/.local/share/mimi/mimi.log"
 
 log_level = "info"
+# Console log format: "text" (human-readable) or "json". The log file above is
+# always JSON, whatever this is set to.
 log_format = "text"
 hook_timeout_secs = 10
 hook_shell = "/bin/sh"
