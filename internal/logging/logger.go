@@ -23,40 +23,32 @@ const (
 	logMaxAgeDays = 28
 )
 
+// Recognized values of the settings.log_format setting. It selects the console
+// encoder only; the log file is always JSON.
+const (
+	formatText = "text"
+	formatJSON = "json"
+)
+
 // New creates a zap sugared logger with console and optional file output.
 func New(cfg *config.Config) *zap.SugaredLogger {
+	consoleWriter := os.Stdout
+
+	return newLogger(cfg, zapcore.AddSync(consoleWriter), term.IsTerminal(int(consoleWriter.Fd())))
+}
+
+// newLogger builds the logger against an explicit console sink, so tests can
+// choose both the sink and whether it counts as a terminal.
+func newLogger(
+	cfg *config.Config,
+	consoleWriter zapcore.WriteSyncer,
+	isTerminal bool,
+) *zap.SugaredLogger {
 	level := parseLevel(cfg.Settings.LogLevel)
+	format, knownFormat := parseFormat(cfg.Settings.LogFormat)
 
-	consoleWriter := zapcore.WriteSyncer(os.Stdout)
-
-	isTerminal := false
-
-	if f, ok := consoleWriter.(*os.File); ok {
-		isTerminal = term.IsTerminal(int(f.Fd()))
-	}
-
-	// Configure encoder
-	consoleEncoderConfig := zap.NewDevelopmentEncoderConfig()
-
-	consoleEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	if isTerminal {
-		consoleEncoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	} else {
-		consoleEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	}
-
-	fileEncoderConfig := zap.NewProductionEncoderConfig()
-
-	fileEncoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-	fileEncoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-
-	// Create console encoder (human-readable)
-	consoleEncoder := zapcore.NewConsoleEncoder(consoleEncoderConfig)
-
-	// Create cores slice
 	cores := []zapcore.Core{
-		zapcore.NewCore(consoleEncoder, zapcore.AddSync(consoleWriter), level),
+		zapcore.NewCore(consoleEncoder(format, isTerminal), consoleWriter, level),
 	}
 
 	if cfg.Settings.LogFile != "" {
@@ -67,16 +59,72 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 			MaxAge:     logMaxAgeDays,
 		}
 
-		// Create file encoder (JSON for machine parsing)
-		fileEncoder := zapcore.NewJSONEncoder(fileEncoderConfig)
+		// The file log is JSON for machine parsing, whatever log_format says.
+		fileEncoder := zapcore.NewJSONEncoder(jsonEncoderConfig())
 
-		// Add file core
 		cores = append(cores, zapcore.NewCore(fileEncoder, zapcore.AddSync(logWriter), level))
 	}
 
 	core := zapcore.NewTee(cores...)
 
-	return zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
+	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
+
+	if !knownFormat {
+		// The value itself stays out of the log; it is the user's config text.
+		logger.Warnw(
+			"unrecognized settings.log_format, using text",
+			"valid",
+			formatText+"|"+formatJSON,
+		)
+	}
+
+	return logger
+}
+
+// parseFormat maps a configured log_format onto the console format it selects,
+// reporting whether the value was recognized. An empty value is the unset
+// default, and anything unrecognized falls back to text.
+func parseFormat(format string) (string, bool) {
+	switch {
+	case format == "", strings.EqualFold(format, formatText):
+		return formatText, true
+	case strings.EqualFold(format, formatJSON):
+		return formatJSON, true
+	default:
+		return formatText, false
+	}
+}
+
+// consoleEncoder builds the console encoder for a parsed log format:
+// human-readable for text, JSON for json. Only the human-readable encoder
+// colorizes its level, and only when the console is a terminal.
+func consoleEncoder(format string, isTerminal bool) zapcore.Encoder {
+	if format == formatJSON {
+		return zapcore.NewJSONEncoder(jsonEncoderConfig())
+	}
+
+	encoderConfig := zap.NewDevelopmentEncoderConfig()
+
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+
+	if isTerminal {
+		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
+	} else {
+		encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+	}
+
+	return zapcore.NewConsoleEncoder(encoderConfig)
+}
+
+// jsonEncoderConfig is the machine-parseable encoder configuration, shared by
+// the log file and by the console when log_format is "json".
+func jsonEncoderConfig() zapcore.EncoderConfig {
+	encoderConfig := zap.NewProductionEncoderConfig()
+
+	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
+	encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
+
+	return encoderConfig
 }
 
 // WriteEventLog subscribes to the event bus and writes JSON events to a log file.
