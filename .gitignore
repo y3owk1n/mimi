@@ -40,3 +40,12 @@ config.toml
 !configs/default-config.toml
 
 .direnv/
+
+# Agent-guide local overrides (see AGENTS.md)
+AGENTS.local.md
+CLAUDE.local.md
+
+# Agent worktrees: whole checkouts of this repository parked inside it. The rest
+# of .claude/ stays tracked — settings.json, the format hook and the skills
+# symlink are shared contracts.
+.claude/worktrees/

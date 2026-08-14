@@ -1,0 +1,26 @@
+---
+description: mimi cross-agent contract pointers and hard rules
+alwaysApply: true
+---
+
+# mimi agent rules
+
+- `AGENTS.md` at the repo root is the full project contract — architecture,
+  commands, conventions. Read it before structural changes.
+- macOS only. All Objective-C and CGO stays in `internal/native/`,
+  `internal/systray/`, and `internal/permissions/`; no other package opens CGO.
+- Errors cross package boundaries as `derrors` values with a code
+  (`derrors.New` / `derrors.Wrapf`), never a bare `errors.New`.
+- Logging is `*zap.SugaredLogger`, `nil`-tolerant via `zap.NewNop()`. Never log
+  window titles, hook command bodies, or config contents; log counts,
+  durations, IDs, booleans.
+- Space switching and window-to-space moves use private SkyLight APIs and
+  synthetic dock swipes. They are timing-sensitive — changing delays or
+  ordering is a user-visible change even when the Go surface is untouched.
+- `mimi action` falls back to direct execution when the daemon socket is
+  unavailable. Keep both paths behaving the same.
+- Pre-commit gate: `just fmt && just lint && just test && just build`. CI also
+  runs `just fmt-check` (Objective-C formatting) and `just test-all`.
+- Conventional commits; the repo squash-merges with the PR title as the commit
+  subject, so the title is what Release Please ships. Never mark a breaking
+  change (`!` or `BREAKING CHANGE:`) — raise it in the PR body instead.
