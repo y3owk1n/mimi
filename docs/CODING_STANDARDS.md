@@ -52,11 +52,10 @@ mimi/
 │   ├── geometry/       # Pure window geometry (no dependencies)
 │   ├── hooks/          # Hook registry + executor
 │   ├── logging/        # Structured logging
-│   ├── native/         # Objective-C + CGO bridge
+│   ├── native/         # Objective-C + CGO bridge: AX window wrappers,
+│   │                   # Mission Control operations, observers
 │   ├── observe/        # Go-side event routing
 │   ├── action/         # CLI action dispatch
-│   ├── window/         # AX window wrappers
-│   ├── space/          # Mission Control operations
 │   └── permissions/    # Accessibility permission checks
 ├── configs/            # Embedded default config
 ├── docs/               # Documentation

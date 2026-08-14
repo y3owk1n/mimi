@@ -9,7 +9,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/baseline"
-	"github.com/y3owk1n/mimi/internal/window"
+	"github.com/y3owk1n/mimi/internal/native"
 )
 
 // focusDirections is every direction focus_window navigates in.
@@ -91,7 +91,7 @@ func (h *harness) runFocusCases(
 
 // runFocus drives one focus_window direction, skipping rather than running when
 // a window the recorder did not create could be the one that gets focused.
-func (h *harness) runFocus(t *testing.T, center *window.Element, dir string) baseline.FocusCase {
+func (h *harness) runFocus(t *testing.T, center *native.Element, dir string) baseline.FocusCase {
 	t.Helper()
 
 	bringToFront(t, center)
@@ -147,7 +147,7 @@ func (h *harness) runFocus(t *testing.T, center *window.Element, dir string) bas
 // arrangeGrid parks the recorder's own windows in a 3x3 grid oriented for the
 // given direction and returns the window in the middle, which the direction
 // navigates away from.
-func (h *harness) arrangeGrid(t *testing.T, dir string) *window.Element {
+func (h *harness) arrangeGrid(t *testing.T, dir string) *native.Element {
 	t.Helper()
 
 	stepX, stepY := gridSteps(dir)
@@ -229,7 +229,7 @@ func (h *harness) snapshotSpace(t *testing.T) spaceSnapshot {
 	t.Helper()
 
 	all, focusedIndex := enumerateFocused(t)
-	defer window.ReleaseAll(all)
+	defer native.ReleaseAll(all)
 
 	snap := spaceSnapshot{focused: -1}
 

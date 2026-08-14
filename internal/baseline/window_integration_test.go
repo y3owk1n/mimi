@@ -27,8 +27,8 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/baseline"
+	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/permissions"
-	"github.com/y3owk1n/mimi/internal/window"
 )
 
 // recordEnv re-records the baseline instead of asserting against it.
@@ -187,12 +187,12 @@ func TestWindowBaseline_ResizeAndFocus(t *testing.T) {
 func liveDisplay(t *testing.T) baseline.Display {
 	t.Helper()
 
-	visX, visY, visW, visH, err := window.ScreenVisibleFrame(0, 0)
+	visX, visY, visW, visH, err := native.ScreenVisibleFrame(0, 0)
 	if err != nil {
 		t.Skipf("cannot read the screen's visible frame: %v", err)
 	}
 
-	primaryH, err := window.PrimaryScreenHeight()
+	primaryH, err := native.PrimaryScreenHeight()
 	if err != nil {
 		t.Skipf("cannot read the primary screen height: %v", err)
 	}
@@ -200,8 +200,8 @@ func liveDisplay(t *testing.T) baseline.Display {
 	return baseline.Display{
 		Visible:        baseline.Rect{X: visX, Y: visY, W: visW, H: visH},
 		PrimaryHeight:  primaryH,
-		MarginsEnabled: window.TiledWindowMarginsEnabled(),
-		MarginSize:     window.TiledWindowMarginSize(),
+		MarginsEnabled: native.TiledWindowMarginsEnabled(),
+		MarginSize:     native.TiledWindowMarginSize(),
 	}
 }
 

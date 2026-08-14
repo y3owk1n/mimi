@@ -6,7 +6,7 @@ import (
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
-	"github.com/y3owk1n/mimi/internal/space"
+	"github.com/y3owk1n/mimi/internal/native"
 )
 
 // percentageWhole is the largest percentage a size flag accepts.
@@ -113,12 +113,12 @@ func parseSpaceArg(args []string) (spaceArg, error) {
 
 func (s spaceArg) resolve() (int, error) {
 	if s.direction != 0 {
-		current, err := space.ActiveIndex()
+		current, err := native.ActiveSpaceIndex()
 		if err != nil {
 			return 0, err
 		}
 
-		count := space.Count()
+		count := native.SpaceCount()
 		if count == 0 {
 			return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
 		}

@@ -16,8 +16,7 @@ Both paths use native macOS APIs via CGO. No SIP disable is required.
 mimi action <subcommand>
   → internal/action
   → internal/geometry (pure window geometry, no macOS)
-  → internal/window / internal/space
-  → internal/native (Objective-C + SkyLight)
+  → internal/native (Objective-C + SkyLight, and the CGO window/space wrappers)
 ```
 
 | Action | API |
@@ -65,9 +64,8 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 cmd/mimi/           CLI entry point and commands
 internal/
   action/           Action dispatch (focus_window, space, move_window_to_space)
-  window/           Go wrappers for AX window APIs
-  space/            Mission Control space operations
-  native/           All Objective-C + CGO (actions and observers)
+  native/           All Objective-C + CGO: AX window wrappers, Mission Control
+                    space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing
   hooks/            Hook registry and executor
   config/           TOML config loading
