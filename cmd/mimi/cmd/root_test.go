@@ -39,12 +39,17 @@ func isolateConfigHome(t *testing.T) string {
 func writeConfig(t *testing.T, path, logFile string) {
 	t.Helper()
 
+	writeConfigFile(t, path, fmt.Sprintf("[settings]\nlog_file = %q\n", logFile))
+}
+
+// writeConfigFile writes body to path, creating the directories above it.
+func writeConfigFile(t *testing.T, path, body string) {
+	t.Helper()
+
 	err := os.MkdirAll(filepath.Dir(path), testDirPerm)
 	if err != nil {
 		t.Fatalf("creating config directory: %v", err)
 	}
-
-	body := fmt.Sprintf("[settings]\nlog_file = %q\n", logFile)
 
 	err = os.WriteFile(path, []byte(body), testFilePerm)
 	if err != nil {
