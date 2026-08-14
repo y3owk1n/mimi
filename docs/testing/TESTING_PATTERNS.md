@@ -19,6 +19,11 @@ func TestService_Method_EdgeCase(t *testing.T)
 | Unit        | `just test-unit`        | Business logic, algorithms, config validation with mocks                        |
 | Integration | `just test-integration` | Real macOS APIs, file system (tagged `//go:build integration`)                   |
 
+A build tag adds files to a build, it never narrows the build to them, so the
+`integration` build already contains the unit tier: `just test-integration`
+enables the integration tier on top of the unit tests rather than running the
+tagged tests alone.
+
 ## When to Use Each Type
 
 | Scenario           | Test Type   | Example                            |
@@ -116,6 +121,13 @@ than against a reading of the old code.
 
 ## Test Commands
 
-- `just test-unit` — Runs unit tests
-- `just test-integration` — Runs integration tests (`-tags=integration`)
+- `just test` — Runs every test exactly once: the one tagged pass, since it
+  already covers both tiers
+- `just test-unit` — Runs the unit tier alone, no Accessibility grant needed
+- `just test-integration` — Runs every test with the integration tier enabled
+  (`-tags=integration`)
 - `just test-race` — Runs all tests with race detection
+
+`just vet` vets both builds — untagged and `-tags=integration` — so a mistake in
+a `*_integration_test.go` file is caught even on a machine that cannot run the
+tier.

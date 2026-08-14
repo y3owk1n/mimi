@@ -18,9 +18,9 @@ Space switching and window-to-space moves ride undocumented private APIs and syn
 just build          # build bin/mimi
 just fmt            # format Go (golangci-lint) + Objective-C (clang-format)
 just lint           # golangci-lint run
-just vet            # go vet ./...
-just test           # unit + integration
-just test-unit      # unit only
+just vet            # go vet, untagged and integration builds
+just test           # unit + integration, one pass, each test once
+just test-unit      # unit tier only
 just bundle         # build build/Mimi.app
 just genman         # generate man pages
 ```
