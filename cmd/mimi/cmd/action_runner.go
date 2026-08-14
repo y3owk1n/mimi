@@ -6,8 +6,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
-func runAction(name string, args []string) error {
-	socketPath := ipc.ResolveSocketPath(configPath)
+// runAction sends an action to the daemon, falling back to executing it
+// directly when no daemon is listening.
+func (s *cliState) runAction(name string, args []string) error {
+	socketPath := ipc.ResolveSocketPath(s.configPath)
 
 	err := ipc.TryExecute(socketPath, name, args)
 	if err == nil {

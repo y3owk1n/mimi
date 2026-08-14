@@ -1,22 +1,17 @@
 package cmd
 
 import (
-	"github.com/spf13/cobra"
-
 	"github.com/y3owk1n/mimi/internal/config"
 )
 
-func resolveConfigPath() {
-	configPath = config.ResolvePath(configPath)
+// cliState holds the state one command tree shares between its commands — the
+// config path the persistent --config flag writes into, resolved to a real
+// path before any command runs.
+type cliState struct {
+	configPath string
 }
 
-func addConfigPreRun(cmd *cobra.Command) {
-	existing := cmd.PreRun
-	cmd.PreRun = func(c *cobra.Command, args []string) {
-		resolveConfigPath()
-
-		if existing != nil {
-			existing(c, args)
-		}
-	}
+// resolveConfigPath replaces an empty --config with the default config path.
+func (s *cliState) resolveConfigPath() {
+	s.configPath = config.ResolvePath(s.configPath)
 }

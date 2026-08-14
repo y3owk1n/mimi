@@ -10,36 +10,34 @@ import (
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
-var startCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start the mimi hook daemon for window and space events",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		if !config.Exists(configPath) {
-			choice := permissions.ShowConfigOnboardingAlert(configPath)
-			if choice == permissions.ConfigOnboardingQuit {
-				return nil
+func newStartCmd(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "start",
+		Short: "Start the mimi hook daemon for window and space events",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !config.Exists(state.configPath) {
+				choice := permissions.ShowConfigOnboardingAlert(state.configPath)
+				if choice == permissions.ConfigOnboardingQuit {
+					return nil
+				}
+
+				err := config.WriteDefault(state.configPath)
+				if err != nil {
+					return err
+				}
+
+				cmd.Printf("Default config written to %s\n", state.configPath)
 			}
 
-			err := config.WriteDefault(configPath)
+			cfg, err := config.Load(state.configPath)
 			if err != nil {
-				return err
+				return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading config")
 			}
 
-			cmd.Printf("Default config written to %s\n", configPath)
-		}
+			logger := logging.New(cfg)
+			logger.Infow("mimi starting", "version", Version, "config", state.configPath)
 
-		cfg, err := config.Load(configPath)
-		if err != nil {
-			return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading config")
-		}
-
-		logger := logging.New(cfg)
-		logger.Infow("mimi starting", "version", Version, "config", configPath)
-
-		return daemon.Run(cfg, logger, configPath, Version)
-	},
-}
-
-func init() {
-	addConfigPreRun(startCmd)
+			return daemon.Run(cfg, logger, state.configPath, Version)
+		},
+	}
 }

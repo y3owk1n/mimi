@@ -12,33 +12,36 @@ import (
 	"github.com/y3owk1n/mimi/internal/paths"
 )
 
-var stopCmd = &cobra.Command{
-	Use:   "stop",
-	Short: "Stop the running mimi daemon",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		pidPath, _ := resolveRuntimePaths()
+func newStopCmd(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the running mimi daemon",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			pidPath, _ := state.runtimePaths()
 
-		pid, err := readPID(pidPath)
-		if err != nil {
-			cmd.Println("mimi: not running (no PID file)")
+			pid, err := readPID(pidPath)
+			if err != nil {
+				cmd.Println("mimi: not running (no PID file)")
+
+				//nolint:nilerr // no PID file means the daemon is not running, which is not a failure.
+				return nil
+			}
+
+			proc, err := os.FindProcess(pid)
+			if err != nil {
+				return derrors.Wrapf(err, derrors.CodeInternal, "process %d not found", pid)
+			}
+
+			err = proc.Signal(syscall.SIGTERM)
+			if err != nil {
+				return derrors.Wrapf(err, derrors.CodeInternal, "signaling process %d", pid)
+			}
+
+			cmd.Printf("Sent SIGTERM to mimi (pid %d)\n", pid)
 
 			return nil
-		}
-
-		proc, err := os.FindProcess(pid)
-		if err != nil {
-			return derrors.Wrapf(err, derrors.CodeInternal, "process %d not found", pid)
-		}
-
-		err = proc.Signal(syscall.SIGTERM)
-		if err != nil {
-			return derrors.Wrapf(err, derrors.CodeInternal, "signaling process %d", pid)
-		}
-
-		cmd.Printf("Sent SIGTERM to mimi (pid %d)\n", pid)
-
-		return nil
-	},
+		},
+	}
 }
 
 func readPID(path string) (int, error) {
