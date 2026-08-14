@@ -442,14 +442,13 @@ func TestResize_PlacesWindowsOnSecondaryDisplays(t *testing.T) {
 	}
 }
 
-// TestResize_PresetOverridesExplicitAnchor_KnownBug pins issue #64: a preset
-// supplies its width and height only where the request left them unset, but
-// takes the anchor unconditionally, so an explicit --anchor is silently
-// dropped. The expected frame here is the one macOS produced for
-// `resize_window left-half --anchor br --no-margin` in the recorded baseline.
-//
-// #64 inverts this test.
-func TestResize_PresetOverridesExplicitAnchor_KnownBug(t *testing.T) {
+// TestResize_PresetAnchorIsADefault covers issue #64: a preset supplies its
+// anchor on the same terms as its width and height — only where the request
+// left one unset — so an explicit --anchor places the window the preset sized.
+// The expected frame here is the one macOS produced for
+// `resize_window left-half --anchor br --no-margin` in the re-recorded
+// baseline.
+func TestResize_PresetAnchorIsADefault(t *testing.T) {
 	t.Parallel()
 
 	got := geometry.Resize(startFrame, singleDisplay, geometry.Request{
@@ -457,8 +456,8 @@ func TestResize_PresetOverridesExplicitAnchor_KnownBug(t *testing.T) {
 		Anchor: new(geometry.BottomRight),
 	})
 
-	// left-half's own top-left anchor, not the bottom-right that was asked for.
-	want := geometry.Rect{X: 0, Y: 30, W: 960, H: 1050}
+	// The bottom-right that was asked for, at left-half's own 50% x 100%.
+	want := geometry.Rect{X: 960, Y: 30, W: 960, H: 1050}
 	if got != want {
 		t.Errorf("Resize(left-half --anchor br) = %v, want %v", got, want)
 	}

@@ -197,20 +197,23 @@ func marginOn(abuts bool, size float64) float64 {
 }
 
 // expandPreset fills in what the request's named preset asks for: its
-// percentages wherever the request keeps the current size, and its anchor. An
-// unknown name — including the empty one — leaves the request untouched.
+// percentages wherever the request keeps the current size, and its anchor
+// wherever the request left one unset. An unknown name — including the empty
+// one — leaves the request untouched.
 //
-// The preset's anchor is applied unconditionally, so a preset silently
-// overrides an anchor the user gave explicitly. That is what the CLI does
-// today; see issue #64.
+// Nothing the preset supplies overrides a value the request already carries,
+// so an explicit --width, --height or --anchor always wins over the preset's
+// own.
 func expandPreset(req Request) Request {
 	named, ok := presets[req.Preset]
 	if !ok {
 		return req
 	}
 
-	anchor := named.anchor
-	req.Anchor = &anchor
+	if req.Anchor == nil {
+		anchor := named.anchor
+		req.Anchor = &anchor
+	}
 
 	if req.Width.kind == keepKind {
 		req.Width = Percent(named.widthPercent)
