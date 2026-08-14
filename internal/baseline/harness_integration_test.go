@@ -7,7 +7,7 @@ import (
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/baseline"
-	"github.com/y3owk1n/mimi/internal/window"
+	"github.com/y3owk1n/mimi/internal/native"
 )
 
 // How long macOS is given to agree with what the recorder asked for.
@@ -23,7 +23,7 @@ const (
 // owns is one the recorder opened and no window it does not own can be reached.
 type harness struct {
 	pids    map[int]bool
-	windows []*window.Element
+	windows []*native.Element
 	visible baseline.Rect
 	top     float64
 }
@@ -40,14 +40,14 @@ func newHarness(t *testing.T, display baseline.Display, pids map[int]bool) *harn
 	}
 
 	fixture.windows = fixture.waitForWindows(t)
-	t.Cleanup(func() { window.ReleaseAll(fixture.windows) })
+	t.Cleanup(func() { native.ReleaseAll(fixture.windows) })
 
 	return fixture
 }
 
 // waitForWindows waits until the helper's windows show up in the active space's
 // window list, and returns exactly those.
-func (h *harness) waitForWindows(t *testing.T) []*window.Element {
+func (h *harness) waitForWindows(t *testing.T) []*native.Element {
 	t.Helper()
 
 	deadline := time.Now().Add(launchTimeout)
@@ -56,8 +56,8 @@ func (h *harness) waitForWindows(t *testing.T) []*window.Element {
 		all, _ := enumerateFocused(t)
 
 		var (
-			mine   []*window.Element
-			others []*window.Element
+			mine   []*native.Element
+			others []*native.Element
 		)
 
 		for _, candidate := range all {
@@ -70,13 +70,13 @@ func (h *harness) waitForWindows(t *testing.T) []*window.Element {
 			others = append(others, candidate)
 		}
 
-		window.ReleaseAll(others)
+		native.ReleaseAll(others)
 
 		if len(mine) == windowCount {
 			return mine
 		}
 
-		window.ReleaseAll(mine)
+		native.ReleaseAll(mine)
 
 		if time.Now().After(deadline) {
 			t.Skipf(
@@ -92,7 +92,7 @@ func (h *harness) waitForWindows(t *testing.T) []*window.Element {
 
 // owns reports whether the window belongs to the helper instance the recorder
 // started. A window whose process cannot be read is never treated as owned.
-func (h *harness) owns(candidate *window.Element) bool {
+func (h *harness) owns(candidate *native.Element) bool {
 	pid, err := candidate.PID()
 	if err != nil {
 		return false
@@ -103,10 +103,10 @@ func (h *harness) owns(candidate *window.Element) bool {
 
 // enumerateFocused returns the focusable windows on the active space along with
 // the index of the focused one.
-func enumerateFocused(t *testing.T) ([]*window.Element, int) {
+func enumerateFocused(t *testing.T) ([]*native.Element, int) {
 	t.Helper()
 
-	windows, focused, err := window.AllFocusableOnActiveSpaceWithFocused()
+	windows, focused, err := native.AllFocusableOnActiveSpaceWithFocused()
 	if err != nil {
 		t.Fatalf("failed to enumerate windows on the active space: %v", err)
 	}
@@ -115,7 +115,7 @@ func enumerateFocused(t *testing.T) ([]*window.Element, int) {
 }
 
 // indexOfElement returns the position of target within set, or -1.
-func indexOfElement(set []*window.Element, target *window.Element) int {
+func indexOfElement(set []*native.Element, target *native.Element) int {
 	for index, element := range set {
 		if element.Equal(target) {
 			return index
@@ -128,7 +128,7 @@ func indexOfElement(set []*window.Element, target *window.Element) int {
 // bringToFront activates one of the recorder's own windows and confirms macOS
 // agrees before any action runs, so an action that operates on "the frontmost
 // window" can only ever reach a window this test created.
-func bringToFront(t *testing.T, target *window.Element) {
+func bringToFront(t *testing.T, target *native.Element) {
 	t.Helper()
 
 	deadline := time.Now().Add(focusTimeout)
@@ -162,8 +162,8 @@ func bringToFront(t *testing.T, target *window.Element) {
 
 // isFrontmost reports whether macOS considers the given window the frontmost
 // one, which is the window every "frontmost window" action resolves to.
-func isFrontmost(target *window.Element) bool {
-	front := window.Frontmost()
+func isFrontmost(target *native.Element) bool {
+	front := native.FrontmostWindow()
 	if front == nil {
 		return false
 	}
@@ -175,7 +175,7 @@ func isFrontmost(target *window.Element) bool {
 
 // placeWindow moves one of the recorder's windows and returns the frame macOS
 // settled on, which may differ from the request when the app clamps it.
-func placeWindow(t *testing.T, target *window.Element, frame baseline.Rect) baseline.Rect {
+func placeWindow(t *testing.T, target *native.Element, frame baseline.Rect) baseline.Rect {
 	t.Helper()
 
 	err := target.SetFrame(frame.X, frame.Y, frame.W, frame.H)
@@ -188,7 +188,7 @@ func placeWindow(t *testing.T, target *window.Element, frame baseline.Rect) base
 
 // settledFrame reads a window frame until two consecutive reads agree, so a
 // recording never captures a frame mid-flight.
-func settledFrame(t *testing.T, target *window.Element) baseline.Rect {
+func settledFrame(t *testing.T, target *native.Element) baseline.Rect {
 	t.Helper()
 
 	var (

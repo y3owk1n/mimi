@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/permissions"
-	"github.com/y3owk1n/mimi/internal/window"
 )
 
 func TestEnumeration_SeesAnApplicationLaunchedAfterTheFirstEnumeration(t *testing.T) {
@@ -30,12 +30,12 @@ func TestEnumeration_SeesAnApplicationLaunchedAfterTheFirstEnumeration(t *testin
 	// Read the window list once, so that anything cached behind it is cached
 	// before the helper exists. Without this the test would only be meaningful
 	// when it happens to run first in the binary.
-	windows, err := window.AllFocusableOnActiveSpace()
+	windows, err := native.AllFocusableOnActiveSpace()
 	if err != nil {
 		t.Fatalf("could not enumerate the windows on the active space: %v", err)
 	}
 
-	window.ReleaseAll(windows)
+	native.ReleaseAll(windows)
 
 	pids := launchHelper(t, 1)
 
@@ -65,7 +65,7 @@ func waitForHelperToBeFrontmost(t *testing.T, pids map[int]bool) bool {
 	t.Helper()
 
 	return waitFor(focusTimeout, func() bool {
-		front := window.Frontmost()
+		front := native.FrontmostWindow()
 		if front == nil {
 			return false
 		}
@@ -84,11 +84,11 @@ func waitForHelperInEnumeration(t *testing.T, pids map[int]bool) bool {
 	t.Helper()
 
 	return waitFor(settleTimeout, func() bool {
-		windows, err := window.AllFocusableOnActiveSpace()
+		windows, err := native.AllFocusableOnActiveSpace()
 		if err != nil {
 			t.Fatalf("could not enumerate the windows on the active space: %v", err)
 		}
-		defer window.ReleaseAll(windows)
+		defer native.ReleaseAll(windows)
 
 		for _, element := range windows {
 			pid, pidErr := element.PID()

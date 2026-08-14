@@ -20,9 +20,8 @@ just build
 cmd/mimi/              CLI binary
 internal/
   action/              mimi action dispatch
-  window/              AX window wrappers
-  space/               Mission Control operations
-  native/              All Obj-C + CGO (actions and observers)
+  native/              All Obj-C + CGO: AX window wrappers, Mission Control
+                       operations, observers
   observe/             Hook daemon event routing
   hooks/               Hook registry and executor
   config/              TOML config

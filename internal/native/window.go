@@ -1,8 +1,7 @@
-package window
+package native
 
 /*
-#cgo CFLAGS: -x objective-c
-#include "../native/mimi.h"
+#include "mimi.h"
 #include <stdlib.h>
 */
 import "C"
@@ -11,7 +10,6 @@ import (
 	"unsafe"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
-	_ "github.com/y3owk1n/mimi/internal/native"
 )
 
 // Element represents a UI element in the macOS accessibility hierarchy.
@@ -54,8 +52,8 @@ func AllFocusableOnActiveSpaceWithFocused() ([]*Element, int, error) {
 	return result, int(focused), nil
 }
 
-// Frontmost returns the frontmost window.
-func Frontmost() *Element {
+// FrontmostWindow returns the frontmost window.
+func FrontmostWindow() *Element {
 	ref := C.MimiGetFrontmostWindow()
 	if ref == nil {
 		return nil

@@ -1,18 +1,16 @@
-package space
+package native
 
 /*
-#cgo CFLAGS: -x objective-c
-#include "../native/mimi.h"
+#include "mimi.h"
 */
 import "C"
 
 import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
-	_ "github.com/y3owk1n/mimi/internal/native"
 )
 
-// Focus focuses the Mission Control space at the given 1-based index.
-func Focus(index int) error {
+// FocusSpace focuses the Mission Control space at the given 1-based index.
+func FocusSpace(index int) error {
 	count := int(C.MimiCountMissionControlSpaces())
 	if count == 0 {
 		return derrors.New(derrors.CodeActionFailed, "failed to enumerate Mission Control spaces")
@@ -52,14 +50,14 @@ func Focus(index int) error {
 	return nil
 }
 
-// Count returns the total number of Mission Control spaces.
-func Count() int {
+// SpaceCount returns the total number of Mission Control spaces.
+func SpaceCount() int {
 	return int(C.MimiCountMissionControlSpaces())
 }
 
-// ActiveIndex returns the 1-based index of the currently active space.
-func ActiveIndex() (int, error) {
-	count := Count()
+// ActiveSpaceIndex returns the 1-based index of the currently active space.
+func ActiveSpaceIndex() (int, error) {
+	count := SpaceCount()
 	if count == 0 {
 		return 0, derrors.New(
 			derrors.CodeActionFailed,
@@ -82,8 +80,8 @@ func ActiveIndex() (int, error) {
 	return 0, derrors.New(derrors.CodeActionFailed, "active space not found in space enumeration")
 }
 
-// MoveWindow moves the frontmost window to the space at the given 1-based index.
-func MoveWindow(index int) error {
+// MoveWindowToSpace moves the frontmost window to the space at the given 1-based index.
+func MoveWindowToSpace(index int) error {
 	count := int(C.MimiCountMissionControlSpaces())
 	if count == 0 {
 		return derrors.New(derrors.CodeActionFailed, "failed to enumerate Mission Control spaces")

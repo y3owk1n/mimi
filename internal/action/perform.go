@@ -3,9 +3,8 @@ package action
 import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
+	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/permissions"
-	"github.com/y3owk1n/mimi/internal/space"
-	"github.com/y3owk1n/mimi/internal/window"
 )
 
 func ensureAccessibility() error {
@@ -22,7 +21,7 @@ func FocusWindow(backward bool, direction string) error {
 		return err
 	}
 
-	windows, focusedIndex, err := window.AllFocusableOnActiveSpaceWithFocused()
+	windows, focusedIndex, err := native.AllFocusableOnActiveSpaceWithFocused()
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
 	}
@@ -34,7 +33,7 @@ func FocusWindow(backward bool, direction string) error {
 		)
 	}
 
-	defer window.ReleaseAll(windows)
+	defer native.ReleaseAll(windows)
 
 	if direction != "" {
 		dir, ok := geometry.ParseDirection(direction)
@@ -78,7 +77,7 @@ func FocusWindow(backward bool, direction string) error {
 // focusDirectional moves focus to the window nearest windows[currentIndex] in
 // the given direction. currentIndex may be -1 when no window is focused.
 func focusDirectional(
-	windows []*window.Element,
+	windows []*native.Element,
 	currentIndex int,
 	dir geometry.Direction,
 ) error {
@@ -120,14 +119,14 @@ func FocusSpace(index int) error {
 		return err
 	}
 
-	if window.MissionControlActive() {
+	if native.MissionControlActive() {
 		return derrors.New(
 			derrors.CodeActionFailed,
 			"cannot switch spaces while Mission Control is active",
 		)
 	}
 
-	err = space.Focus(index)
+	err = native.FocusSpace(index)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to focus space")
 	}
@@ -142,14 +141,14 @@ func MoveWindowToSpace(index int) error {
 		return err
 	}
 
-	if window.MissionControlActive() {
+	if native.MissionControlActive() {
 		return derrors.New(
 			derrors.CodeActionFailed,
 			"cannot move window while Mission Control is active",
 		)
 	}
 
-	err = space.MoveWindow(index)
+	err = native.MoveWindowToSpace(index)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
 	}
@@ -167,7 +166,7 @@ func ResizeWindow(req geometry.Request) error {
 		return err
 	}
 
-	win := window.Frontmost()
+	win := native.FrontmostWindow()
 	if win == nil {
 		return derrors.New(derrors.CodeActionFailed, "no active window found")
 	}
@@ -195,7 +194,7 @@ func ResizeWindow(req geometry.Request) error {
 func screenAt(current geometry.Rect) (geometry.Screen, error) {
 	// The visible frame of the screen containing the window, in NSScreen y-up
 	// coordinates.
-	visX, visY, visW, visH, err := window.ScreenVisibleFrame(current.X, current.Y)
+	visX, visY, visW, visH, err := native.ScreenVisibleFrame(current.X, current.Y)
 	if err != nil {
 		return geometry.Screen{}, derrors.Wrapf(
 			err,
@@ -207,7 +206,7 @@ func screenAt(current geometry.Rect) (geometry.Screen, error) {
 	// The primary screen's height, which is the constant relating the y-up
 	// screen coordinates to the y-down window ones. Resize applies the
 	// conversion itself.
-	primaryH, err := window.PrimaryScreenHeight()
+	primaryH, err := native.PrimaryScreenHeight()
 	if err != nil {
 		return geometry.Screen{}, derrors.Wrapf(
 			err,
@@ -219,7 +218,7 @@ func screenAt(current geometry.Rect) (geometry.Screen, error) {
 	return geometry.Screen{
 		Visible:        geometry.Rect{X: visX, Y: visY, W: visW, H: visH},
 		PrimaryHeight:  primaryH,
-		MarginsEnabled: window.TiledWindowMarginsEnabled(),
-		MarginSize:     window.TiledWindowMarginSize(),
+		MarginsEnabled: native.TiledWindowMarginsEnabled(),
+		MarginSize:     native.TiledWindowMarginSize(),
 	}, nil
 }
