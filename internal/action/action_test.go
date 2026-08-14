@@ -30,6 +30,8 @@ const (
 	flagAnchor        = "--anchor"
 	flagUp            = "--up"
 	flagDown          = "--down"
+	flagLeft          = "--left"
+	flagRight         = "--right"
 )
 
 func TestIsKnownName(t *testing.T) {
@@ -315,7 +317,7 @@ func TestExecute_FocusWindowInvalidFlag(t *testing.T) {
 func TestExecute_FocusWindowDirectionFlags(t *testing.T) {
 	t.Parallel()
 
-	dirs := []string{flagUp, flagDown, "--left", "--right"}
+	dirs := []string{flagUp, flagDown, flagLeft, flagRight}
 
 	for _, dir := range dirs {
 		t.Run(dir, func(t *testing.T) {
@@ -337,7 +339,7 @@ func TestExecute_FocusWindowDirectionFlags(t *testing.T) {
 func TestExecute_FocusWindowBackwardAndDirectionMutuallyExclusive(t *testing.T) {
 	t.Parallel()
 
-	dirs := []string{flagUp, flagDown, "--left", "--right"}
+	dirs := []string{flagUp, flagDown, flagLeft, flagRight}
 
 	for _, dir := range dirs {
 		t.Run(dir, func(t *testing.T) {

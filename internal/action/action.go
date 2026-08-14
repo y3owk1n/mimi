@@ -6,7 +6,6 @@ import (
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
-	"github.com/y3owk1n/mimi/internal/native"
 )
 
 // percentageWhole is the largest percentage a size flag accepts.
@@ -111,22 +110,40 @@ func parseSpaceArg(args []string) (spaceArg, error) {
 	return spaceArg{index: index}, nil
 }
 
-func (s spaceArg) resolve() (int, error) {
-	if s.direction != 0 {
-		current, err := native.ActiveSpaceIndex()
-		if err != nil {
-			return 0, err
-		}
-
-		count := native.SpaceCount()
-		if count == 0 {
-			return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
-		}
-
-		return ((current - 1 + s.direction + count) % count) + 1, nil
+// resolveSpaceArg parses the one argument the space actions take and turns it
+// into the 1-based space number it names.
+//
+// Only "next" and "prev" need the desktop: they are relative to whichever space
+// is in front, and they wrap around at both ends.
+func (e *Executor) resolveSpaceArg(args []string) (int, error) {
+	parsed, err := parseSpaceArg(args)
+	if err != nil {
+		return 0, err
 	}
 
-	return s.index, nil
+	if parsed.direction == 0 {
+		return parsed.index, nil
+	}
+
+	// Reading where the desktop is before acting on it is still driving it, so
+	// the permission comes first here too — the action this feeds checks it
+	// again, and a revoked permission has to be the error either way round.
+	err = e.desktop.EnsureAccessible()
+	if err != nil {
+		return 0, err
+	}
+
+	current, err := e.desktop.ActiveSpaceIndex()
+	if err != nil {
+		return 0, err
+	}
+
+	count := e.desktop.SpaceCount()
+	if count == 0 {
+		return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
+	}
+
+	return ((current - 1 + parsed.direction + count) % count) + 1, nil
 }
 
 // IsResizePreset reports whether s is a known resize window preset.
@@ -326,8 +343,14 @@ func dimensionOf(points, percent float64) geometry.Dimension {
 	}
 }
 
-// Execute runs a named action with the given arguments.
+// Execute runs a named action with the given arguments against the desktop
+// mimi is running on.
 func Execute(name string, args []string) error {
+	return defaultExecutor.Execute(name, args)
+}
+
+// Execute runs a named action with the given arguments.
+func (e *Executor) Execute(name string, args []string) error {
 	switch Name(name) {
 	case NameFocusWindow:
 		parsed, err := parseFocusWindowArgs(args)
@@ -335,38 +358,28 @@ func Execute(name string, args []string) error {
 			return err
 		}
 
-		return FocusWindow(parsed.useBackward, parsed.direction)
+		return e.FocusWindow(parsed.useBackward, parsed.direction)
 	case NameSpace:
-		parsed, err := parseSpaceArg(args)
+		index, err := e.resolveSpaceArg(args)
 		if err != nil {
 			return err
 		}
 
-		index, err := parsed.resolve()
-		if err != nil {
-			return err
-		}
-
-		return FocusSpace(index)
+		return e.FocusSpace(index)
 	case NameMoveWindowToSpace:
-		parsed, err := parseSpaceArg(args)
+		index, err := e.resolveSpaceArg(args)
 		if err != nil {
 			return err
 		}
 
-		index, err := parsed.resolve()
-		if err != nil {
-			return err
-		}
-
-		return MoveWindowToSpace(index)
+		return e.MoveWindowToSpace(index)
 	case NameResizeWindow:
 		req, err := ParseResizeRequest(args)
 		if err != nil {
 			return err
 		}
 
-		return ResizeWindow(req)
+		return e.ResizeWindow(req)
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,

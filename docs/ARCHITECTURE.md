@@ -14,10 +14,39 @@ Both paths use native macOS APIs via CGO. No SIP disable is required.
 
 ```
 mimi action <subcommand>
-  → internal/action
-  → internal/geometry (pure window geometry, no macOS)
-  → internal/native (Objective-C + SkyLight, and the CGO window/space wrappers)
+  → internal/action        (argument parsing and the branch logic of each action)
+  → action.Desktop         (the seam: one interface, values only)
+  → internal/geometry      (pure window geometry, no macOS)
+  → internal/native        (Objective-C + SkyLight, and the CGO window/space wrappers)
 ```
+
+### The Desktop seam
+
+`internal/action` never reaches macOS directly. Every action runs on an
+`action.Executor`, which holds one `action.Desktop` — the interface describing
+everything an action needs from the machine: the accessibility permission, the
+focusable windows on the active space, window frames, screens, and Mission
+Control spaces. The package-level `action.Execute` runs on an Executor bound to
+the real desktop, so `internal/ipc` and `cmd` call it exactly as before.
+
+Two properties keep the seam honest:
+
+- **Only data crosses it.** A window enumerates as an opaque `action.WindowID`
+  plus its PID, and frames cross as `geometry.Rect`. The native adapter (also in
+  `internal/action`, the one file there that imports `internal/native`) owns the
+  `AXUIElement` references behind those ids, and releases each generation when
+  the next lookup replaces it. No action above the seam holds — or releases — a
+  native reference.
+- **Interfaces belong to the consumer.** The interface, its value types and the
+  adapter all live in `internal/action`; `internal/native` stays a pure CGO
+  module that knows nothing about the abstraction above it.
+
+The payoff is that the branch logic — focus cycling and its wrap-around,
+directional focus over windows whose frames cannot be read, the Mission Control
+guards, the space range check and the `next`/`prev` arithmetic — is exercised in
+unit tests against a fake desktop, on any machine, with no Accessibility grant.
+`internal/baseline`'s integration tier still drives `internal/native` directly:
+it is what checks that the real desktop behaves the way the fake pretends to.
 
 | Action | API |
 | ------ | --- |
@@ -63,7 +92,8 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 ```
 cmd/mimi/           CLI entry point and commands
 internal/
-  action/           Action dispatch (focus_window, space, move_window_to_space)
+  action/           Action dispatch (focus_window, space, move_window_to_space,
+                    resize_window), the Desktop seam and its native adapter
   native/           All Objective-C + CGO: AX window wrappers, Mission Control
                     space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing
