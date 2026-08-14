@@ -10,21 +10,10 @@ import (
 )
 
 // FocusSpace focuses the Mission Control space at the given 1-based index.
+//
+// The index is expected to name a space that exists — the range check is the
+// caller's, made once above this package rather than once per entry point.
 func FocusSpace(index int) error {
-	count := int(C.MimiCountMissionControlSpaces())
-	if count == 0 {
-		return derrors.New(derrors.CodeActionFailed, "failed to enumerate Mission Control spaces")
-	}
-
-	if index < 1 || index > count {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"space number %d is out of range; valid range is 1..%d",
-			index,
-			count,
-		)
-	}
-
 	sid := uint64(C.MimiMissionControlSpaceID(C.int(index)))
 	if sid == 0 {
 		return derrors.Newf(
@@ -81,21 +70,9 @@ func ActiveSpaceIndex() (int, error) {
 }
 
 // MoveWindowToSpace moves the frontmost window to the space at the given 1-based index.
+//
+// As with FocusSpace, the index is expected to name a space that exists.
 func MoveWindowToSpace(index int) error {
-	count := int(C.MimiCountMissionControlSpaces())
-	if count == 0 {
-		return derrors.New(derrors.CodeActionFailed, "failed to enumerate Mission Control spaces")
-	}
-
-	if index < 1 || index > count {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"space number %d is out of range; valid range is 1..%d",
-			index,
-			count,
-		)
-	}
-
 	sid := uint64(C.MimiMissionControlSpaceID(C.int(index)))
 	if sid == 0 {
 		return derrors.Newf(
