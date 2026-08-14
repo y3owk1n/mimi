@@ -11,47 +11,49 @@ import (
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
 
-var statusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Show daemon and permission status",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		pidPath, socketPath := resolveRuntimePaths()
+func newStatusCmd(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Show daemon and permission status",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			pidPath, socketPath := state.runtimePaths()
 
-		pid, err := readPID(pidPath)
-		if err != nil {
-			cmd.Println("mimi: not running")
-		} else {
-			proc, findErr := os.FindProcess(pid)
-
-			running := findErr == nil && proc.Signal(syscall.Signal(0)) == nil
-			if running {
-				cmd.Printf("mimi: running (pid %d)\n", pid)
+			pid, err := readPID(pidPath)
+			if err != nil {
+				cmd.Println("mimi: not running")
 			} else {
-				cmd.Println("mimi: not running (stale PID file)")
+				proc, findErr := os.FindProcess(pid)
+
+				running := findErr == nil && proc.Signal(syscall.Signal(0)) == nil
+				if running {
+					cmd.Printf("mimi: running (pid %d)\n", pid)
+				} else {
+					cmd.Println("mimi: not running (stale PID file)")
+				}
 			}
-		}
 
-		perm := permissions.Check()
-		if perm.Accessibility {
-			cmd.Println("accessibility: granted")
-		} else {
-			cmd.Println("accessibility: not granted (required for window hooks and actions)")
-		}
+			perm := permissions.Check()
+			if perm.Accessibility {
+				cmd.Println("accessibility: granted")
+			} else {
+				cmd.Println("accessibility: not granted (required for window hooks and actions)")
+			}
 
-		_, statErr := os.Stat(paths.ExpandHome(socketPath))
-		if statErr == nil {
-			cmd.Printf("ipc: socket available at %s\n", paths.ExpandHome(socketPath))
-		} else {
-			cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
-		}
+			_, statErr := os.Stat(paths.ExpandHome(socketPath))
+			if statErr == nil {
+				cmd.Printf("ipc: socket available at %s\n", paths.ExpandHome(socketPath))
+			} else {
+				cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
+			}
 
-		if dropped := native.EventDropCount(); dropped > 0 {
-			cmd.Printf(
-				"events dropped: %d (channel backpressure; check hook latency and log throttling)\n",
-				dropped,
-			)
-		}
+			if dropped := native.EventDropCount(); dropped > 0 {
+				cmd.Printf(
+					"events dropped: %d (channel backpressure; check hook latency and log throttling)\n",
+					dropped,
+				)
+			}
 
-		return nil
-	},
+			return nil
+		},
+	}
 }

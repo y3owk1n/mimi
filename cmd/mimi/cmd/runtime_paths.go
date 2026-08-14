@@ -4,10 +4,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/config"
 )
 
-func resolveRuntimePaths() (string, string) {
-	resolvedConfig := config.ResolvePath(configPath)
-
-	cfg, err := config.Load(resolvedConfig)
+// runtimePaths returns the PID and socket paths the configured daemon uses,
+// falling back to the defaults when the config cannot be read.
+func (s *cliState) runtimePaths() (string, string) {
+	cfg, err := config.Load(s.configPath)
 	if err == nil {
 		return cfg.Settings.PIDFile, cfg.Settings.SocketFile
 	}

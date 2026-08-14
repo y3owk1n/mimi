@@ -10,11 +10,13 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
-// actionCmd performs immediate window and space utility actions.
-var actionCmd = &cobra.Command{
-	Use:   "action",
-	Short: "Perform window and space utility actions",
-	Long: `Perform immediate window and space utility actions.
+// newActionCmd builds the command tree that performs immediate window and
+// space utility actions.
+func newActionCmd(state *cliState) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "action",
+		Short: "Perform window and space utility actions",
+		Long: `Perform immediate window and space utility actions.
 
 Available subcommands:
   Window control:   focus_window, resize_window
@@ -32,22 +34,23 @@ Examples:
   mimi action resize_window left-half
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
-	RunE: func(_ *cobra.Command, _ []string) error {
-		return derrors.New(
-			derrors.CodeInvalidInput,
-			"action subcommand required (e.g., mimi action focus_window, mimi action space 1)",
-		)
-	},
+		RunE: func(_ *cobra.Command, _ []string) error {
+			return derrors.New(
+				derrors.CodeInvalidInput,
+				"action subcommand required (e.g., mimi action focus_window, mimi action space 1)",
+			)
+		},
+	}
+
+	cmd.AddCommand(buildFocusWindowCommand(state))
+	cmd.AddCommand(buildSpaceCommand(state))
+	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
+	cmd.AddCommand(buildResizeWindowCommand(state))
+
+	return cmd
 }
 
-var (
-	actionFocusWindowCmd       = buildFocusWindowCommand()
-	actionSpaceCmd             = buildSpaceCommand()
-	actionMoveWindowToSpaceCmd = buildMoveWindowToSpaceCommand()
-	actionResizeWindowCmd      = buildResizeWindowCommand()
-)
-
-func buildFocusWindowCommand() *cobra.Command {
+func buildFocusWindowCommand(state *cliState) *cobra.Command {
 	var (
 		backward   bool
 		focusUp    bool
@@ -90,7 +93,7 @@ current space are included.`,
 				args = append(args, "--right")
 			}
 
-			return runAction(string(action.NameFocusWindow), args)
+			return state.runAction(string(action.NameFocusWindow), args)
 		},
 	}
 
@@ -108,7 +111,7 @@ current space are included.`,
 	return cmd
 }
 
-func buildSpaceCommand() *cobra.Command {
+func buildSpaceCommand(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "space <number|next|prev>",
 		Short: "Focus a Mission Control space by index or cycle next/prev",
@@ -135,12 +138,12 @@ Examples:
   mimi action space prev     Cycle to the previous space (with wrap)`,
 		Args: validateActionSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runAction(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
+			return state.runAction(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
 		},
 	}
 }
 
-func buildMoveWindowToSpaceCommand() *cobra.Command {
+func buildMoveWindowToSpaceCommand(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "move_window_to_space <number|next|prev>",
 		Short: "Move current focused window to a Mission Control space by index or cycle next/prev",
@@ -163,7 +166,7 @@ Examples:
   mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
 		Args: validateActionMoveWindowToSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return runAction(
+			return state.runAction(
 				string(action.NameMoveWindowToSpace),
 				[]string{strings.TrimSpace(args[0])},
 			)
@@ -171,7 +174,7 @@ Examples:
 	}
 }
 
-func buildResizeWindowCommand() *cobra.Command {
+func buildResizeWindowCommand(state *cliState) *cobra.Command {
 	var (
 		width     int
 		height    int
@@ -286,7 +289,7 @@ Examples:
 				cmdArgs = append(cmdArgs, "--no-margin")
 			}
 
-			return runAction(string(action.NameResizeWindow), cmdArgs)
+			return state.runAction(string(action.NameResizeWindow), cmdArgs)
 		},
 	}
 
@@ -374,11 +377,4 @@ func validateActionIndexArgs(args []string, actionName string) error {
 	}
 
 	return nil
-}
-
-func init() {
-	actionCmd.AddCommand(actionFocusWindowCmd)
-	actionCmd.AddCommand(actionSpaceCmd)
-	actionCmd.AddCommand(actionMoveWindowToSpaceCmd)
-	actionCmd.AddCommand(actionResizeWindowCmd)
 }

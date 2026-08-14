@@ -13,14 +13,16 @@ import (
 	"github.com/spf13/cobra"
 )
 
-// servicesCmd manages the system service used for automatic startup.
+// newServicesCmd builds the command tree that manages the system service used
+// for automatic startup.
 //
 // macOS: backed by launchd.
 // Other platforms: stubbed and returns CodeNotSupported until implemented.
-var servicesCmd = &cobra.Command{
-	Use:   "services",
-	Short: "Manage the Mimi system service (macOS launchd)",
-	Long: `Manage the Mimi system service for automatic startup on login.
+func newServicesCmd(state *cliState) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "services",
+		Short: "Manage the Mimi system service (macOS launchd)",
+		Long: `Manage the Mimi system service for automatic startup on login.
 
 On macOS, this manages a launchd plist so Mimi starts automatically
 when you log in. Available on macOS only.
@@ -32,107 +34,119 @@ Subcommands:
   stop        Stop the system service
   restart     Restart the system service
   status      Check whether the service is loaded and running`,
+	}
+
+	cmd.AddCommand(newServicesInstallCmd(state))
+	cmd.AddCommand(newServicesUninstallCmd())
+	cmd.AddCommand(newServicesStartCmd())
+	cmd.AddCommand(newServicesStopCmd())
+	cmd.AddCommand(newServicesRestartCmd())
+	cmd.AddCommand(newServicesStatusCmd())
+
+	return cmd
 }
 
-var servicesInstallCmd = &cobra.Command{
-	Use:   "install",
-	Short: "Install and load the system service",
-	Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := installService()
-		if err != nil {
-			return err
-		}
+func newServicesInstallCmd(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "install",
+		Short: "Install and load the system service",
+		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := installService(state.configPath)
+			if err != nil {
+				return err
+			}
 
-		cmd.Println("Service installed and loaded successfully")
+			cmd.Println("Service installed and loaded successfully")
 
-		return nil
-	},
+			return nil
+		},
+	}
 }
 
-var servicesUninstallCmd = &cobra.Command{
-	Use:   "uninstall",
-	Short: "Unload and remove the system service",
-	Long:  "Unload the Mimi launchd service and remove its plist file. Mimi will no longer start automatically on login.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := uninstallService()
-		if err != nil {
-			return err
-		}
+func newServicesUninstallCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "uninstall",
+		Short: "Unload and remove the system service",
+		Long:  "Unload the Mimi launchd service and remove its plist file. Mimi will no longer start automatically on login.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := uninstallService()
+			if err != nil {
+				return err
+			}
 
-		cmd.Println("Service uninstalled successfully")
+			cmd.Println("Service uninstalled successfully")
 
-		return nil
-	},
+			return nil
+		},
+	}
 }
 
-var servicesStartCmd = &cobra.Command{
-	Use:   "start",
-	Short: "Start the system service",
-	Long:  "Start the Mimi launchd service. The daemon will begin running in the background.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := startService()
-		if err != nil {
-			return err
-		}
+func newServicesStartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "start",
+		Short: "Start the system service",
+		Long:  "Start the Mimi launchd service. The daemon will begin running in the background.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := startService()
+			if err != nil {
+				return err
+			}
 
-		cmd.Println("Service started")
+			cmd.Println("Service started")
 
-		return nil
-	},
+			return nil
+		},
+	}
 }
 
-var servicesStopCmd = &cobra.Command{
-	Use:   "stop",
-	Short: "Stop the system service",
-	Long:  "Stop the Mimi launchd service. The daemon process will be terminated.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := stopService()
-		if err != nil {
-			return err
-		}
+func newServicesStopCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "stop",
+		Short: "Stop the system service",
+		Long:  "Stop the Mimi launchd service. The daemon process will be terminated.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := stopService()
+			if err != nil {
+				return err
+			}
 
-		cmd.Println("Service stopped")
+			cmd.Println("Service stopped")
 
-		return nil
-	},
+			return nil
+		},
+	}
 }
 
-var servicesRestartCmd = &cobra.Command{
-	Use:   "restart",
-	Short: "Restart the system service",
-	Long:  "Stop then immediately start the Mimi launchd service. Useful after configuration changes or to recover from an unresponsive state.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		err := restartService()
-		if err != nil {
-			return err
-		}
+func newServicesRestartCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "restart",
+		Short: "Restart the system service",
+		Long:  "Stop then immediately start the Mimi launchd service. Useful after configuration changes or to recover from an unresponsive state.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			err := restartService()
+			if err != nil {
+				return err
+			}
 
-		cmd.Println("Service restarted")
+			cmd.Println("Service restarted")
 
-		return nil
-	},
+			return nil
+		},
+	}
 }
 
-var servicesStatusCmd = &cobra.Command{
-	Use:   "status",
-	Short: "Check the status of the system service",
-	Long:  "Check whether the Mimi launchd service is currently loaded and running. Displays whether the service is active.",
-	RunE: func(cmd *cobra.Command, args []string) error {
-		cmd.Println(statusService())
+func newServicesStatusCmd() *cobra.Command {
+	return &cobra.Command{
+		Use:   "status",
+		Short: "Check the status of the system service",
+		Long:  "Check whether the Mimi launchd service is currently loaded and running. Displays whether the service is active.",
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			cmd.Println(statusService())
 
-		return nil
-	},
-}
-
-func init() {
-	addConfigPreRun(servicesInstallCmd)
-	servicesCmd.AddCommand(servicesInstallCmd)
-	servicesCmd.AddCommand(servicesUninstallCmd)
-	servicesCmd.AddCommand(servicesStartCmd)
-	servicesCmd.AddCommand(servicesStopCmd)
-	servicesCmd.AddCommand(servicesRestartCmd)
-	servicesCmd.AddCommand(servicesStatusCmd)
+			return nil
+		},
+	}
 }
 
 const (
@@ -200,7 +214,7 @@ func isServiceLoaded() bool {
 	return cmd.Run() == nil
 }
 
-func installService() error {
+func installService(configPath string) error {
 	if isServiceLoaded() {
 		return errServiceAlreadyLoaded
 	}
