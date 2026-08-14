@@ -1,9 +1,8 @@
 package action
 
 import (
-	"math"
-
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/geometry"
 	"github.com/y3owk1n/mimi/internal/permissions"
 	"github.com/y3owk1n/mimi/internal/space"
 	"github.com/y3owk1n/mimi/internal/window"
@@ -44,14 +43,16 @@ func FocusWindow(backward bool, direction string) error {
 	defer window.ReleaseAll(windows)
 
 	if direction != "" {
-		if focusedIndex < 0 {
-			return derrors.New(
-				derrors.CodeActionFailed,
-				"current window not found; cannot determine spatial navigation target",
+		dir, ok := directionFromFlag(direction)
+		if !ok {
+			return derrors.Newf(
+				derrors.CodeInvalidInput,
+				"unknown direction %q (use up, down, left, or right)",
+				direction,
 			)
 		}
 
-		return focusDirectional(windows, focusedIndex, direction)
+		return focusDirectional(windows, focusedIndex, dir)
 	}
 
 	var targetIndex int
@@ -80,117 +81,59 @@ func FocusWindow(backward bool, direction string) error {
 	return nil
 }
 
-type winInfo struct {
-	el                       *window.Element
-	cx, cy                   float64
-	left, top, right, bottom float64
+// directionFromFlag maps a focus_window direction flag onto the geometry
+// direction it navigates in.
+func directionFromFlag(flag string) (geometry.Direction, bool) {
+	switch flag {
+	case "up":
+		return geometry.Up, true
+	case "down":
+		return geometry.Down, true
+	case "left":
+		return geometry.Left, true
+	case "right":
+		return geometry.Right, true
+	default:
+		return 0, false
+	}
 }
 
-func focusDirectional(windows []*window.Element, currentIndex int, direction string) error {
-	infos := make([]winInfo, 0, len(windows))
-	currentInfoIndex := -1
+// focusDirectional moves focus to the window nearest windows[currentIndex] in
+// the given direction. currentIndex may be -1 when no window is focused.
+func focusDirectional(
+	windows []*window.Element,
+	currentIndex int,
+	dir geometry.Direction,
+) error {
+	// A window whose frame cannot be read stays nil, which keeps every index
+	// here an index into windows.
+	frames := make([]*geometry.Rect, len(windows))
 
-	for idx, win := range windows {
+	for index, win := range windows {
 		posX, posY, winW, winH, err := win.GetFrame()
 		if err != nil {
 			continue
 		}
 
-		if idx == currentIndex {
-			currentInfoIndex = len(infos)
-		}
-
-		infos = append(infos, winInfo{
-			el:     win,
-			cx:     posX + winW/2,
-			cy:     posY + winH/2,
-			left:   posX,
-			top:    posY,
-			right:  posX + winW,
-			bottom: posY + winH,
-		})
+		frames[index] = &geometry.Rect{X: posX, Y: posY, W: winW, H: winH}
 	}
 
-	if currentInfoIndex < 0 {
+	if currentIndex < 0 || currentIndex >= len(frames) || frames[currentIndex] == nil {
 		return derrors.New(
 			derrors.CodeActionFailed,
 			"current window not found; cannot determine spatial navigation target",
 		)
 	}
 
-	cur := infos[currentInfoIndex]
-
-	var best *winInfo
-
-	bestScore := math.MaxFloat64
-
-	for idx, cand := range infos {
-		if idx == currentInfoIndex {
-			continue
-		}
-
-		deltaX := cand.cx - cur.cx
-		deltaY := cand.cy - cur.cy
-
-		var (
-			priDist, secDist float64
-			overlap          bool
-		)
-
-		switch direction {
-		case "left":
-			if deltaX >= 0 {
-				continue
-			}
-
-			priDist = -deltaX
-			secDist = math.Abs(deltaY)
-			overlap = cur.top < cand.bottom && cur.bottom > cand.top
-		case "right":
-			if deltaX <= 0 {
-				continue
-			}
-
-			priDist = deltaX
-			secDist = math.Abs(deltaY)
-			overlap = cur.top < cand.bottom && cur.bottom > cand.top
-		case "up":
-			if deltaY >= 0 {
-				continue
-			}
-
-			priDist = -deltaY
-			secDist = math.Abs(deltaX)
-			overlap = cur.left < cand.right && cur.right > cand.left
-		case "down":
-			if deltaY <= 0 {
-				continue
-			}
-
-			priDist = deltaY
-			secDist = math.Abs(deltaX)
-			overlap = cur.left < cand.right && cur.right > cand.left
-		}
-
-		score := priDist
-		if !overlap {
-			score += secDist
-		}
-
-		if best == nil || score < bestScore {
-			best = &infos[idx]
-			bestScore = score
-		}
-	}
-
-	if best == nil {
+	target, found := geometry.Nearest(frames, currentIndex, dir)
+	if !found {
 		return derrors.New(
 			derrors.CodeActionFailed,
 			"no window found in that direction",
 		)
 	}
 
-	return best.el.Activate()
+	return windows[target].Activate()
 }
 
 // FocusSpace focuses the Mission Control space at the given 1-based index.

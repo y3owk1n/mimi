@@ -15,6 +15,7 @@ Both paths use native macOS APIs via CGO. No SIP disable is required.
 ```
 mimi action <subcommand>
   → internal/action
+  → internal/geometry (pure window geometry, no macOS)
   → internal/window / internal/space
   → internal/native (Objective-C + SkyLight)
 ```
