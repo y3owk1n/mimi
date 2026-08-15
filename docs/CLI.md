@@ -189,7 +189,9 @@ mimi services install
 
 The generated plist captures the daemon's stdout and stderr beside
 `settings.log_file`, creating that directory if missing, or in `/tmp` when
-`log_file` is unset. See
+`log_file` is unset. It also names those two paths in the service's
+environment, which is how the daemon knows to empty them once at each start —
+nothing rotates them otherwise. See
 [Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
 
 The `PATH` the service runs its hooks with comes from
@@ -253,7 +255,21 @@ The bare `Service loaded` is the fallback, printed whenever neither number is
 available — the daemon has never run, it was killed by a signal rather than
 exiting, or launchd's description of the job could not be read. That
 description is undocumented text, so output mimi cannot parse costs the detail,
-never the answer. See
+never the answer.
+
+Under that line come the captured console streams the installed plist names,
+with how large each has grown:
+
+```
+Service loaded and running (pid 1478)
+Captured stdout: /Users/me/.local/state/mimi/mimi.out.log (2.0 KB)
+Captured stderr: /Users/me/.local/state/mimi/mimi.err.log (not created yet)
+```
+
+A daemon launchd started empties both at startup, so each size is one run's
+console output. `not created yet` is a file launchd has never spawned the
+daemon against, and a stream gets no line at all when there is no plist of
+mimi's to read its path from. See
 [TROUBLESHOOTING.md](TROUBLESHOOTING.md#reading-mimi-services-status).
 
 ---

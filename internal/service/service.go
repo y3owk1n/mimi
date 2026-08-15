@@ -59,6 +59,31 @@ type Status struct {
 	// ever has, when it was killed by a signal rather than exiting, and
 	// whenever launchd's description could not be read.
 	LastExitStatus OptionalInt
+	// CapturedStdout and CapturedStderr are the console streams the installed
+	// plist captures, as that plist names them. Both are zero when there is no
+	// plist of mimi's to read them from — nothing installed, or a plist another
+	// installer wrote.
+	CapturedStdout CapturedLog
+	CapturedStderr CapturedLog
+}
+
+// CapturedLog is one of the daemon's captured console streams: where the
+// installed plist tells launchd to write it, and how much has been written.
+//
+// The size is the fact worth having. Nothing rotates these two files — launchd
+// holds them open and appends — so the daemon empties them once per start, and
+// a size is therefore one run's console output. A large one under a service
+// that keeps exiting is the crash loop this status exists to expose.
+type CapturedLog struct {
+	// Path is where launchd was told to write this stream. Empty when it could
+	// not be read from the installed plist.
+	Path string
+	// Size is how many bytes the file holds. It means nothing unless Present.
+	Size int64
+	// Present reports whether the file is there at all. launchd creates it when
+	// it first spawns the daemon, so an absent one is a service that has never
+	// run — which is not the same answer as a stream that ran and said nothing.
+	Present bool
 }
 
 // InstallOutcome is what an [Service.Install] did. Install is idempotent, so
@@ -228,17 +253,24 @@ func (s *Service) Restart() error {
 }
 
 // Status reports whether the service is currently loaded, and — when it is —
-// the pid it runs under or the status it last exited with.
+// the pid it runs under or the status it last exited with, plus the captured
+// console streams the installed plist names and how large they have grown.
 //
 // Only the loaded answer is guaranteed. Everything past it comes from
 // `launchctl print`, whose output Apple documents nowhere, so anything that
 // goes wrong there degrades to the answer this returned before it asked:
 // loaded, or not. A status command that fails tells a user less than one that
 // says a little less.
+//
+// The captured streams are read whether or not the service is loaded: they are
+// files on disk, and the run that wrote them is over either way — an unloaded
+// service is one of the states in which their contents matter most.
 func (s *Service) Status() Status {
 	ctx := context.Background()
 
 	status := Status{Loaded: s.launcher.list(ctx, Label) == nil}
+	status.CapturedStdout, status.CapturedStderr = installedCapturedLogs()
+
 	if !status.Loaded {
 		return status
 	}

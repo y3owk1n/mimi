@@ -170,6 +170,57 @@ func TestFormatStatus(t *testing.T) {
 			want:   "Service loaded",
 		},
 		{name: "not loaded", status: service.Status{Loaded: false}, want: "Service not loaded"},
+		{
+			// Nothing rotates the captured streams, so the daemon empties them
+			// once per start and a size is one run's console output. Printing
+			// it next to the path is what turns "the stderr says why" into
+			// something a user can act on without going looking first.
+			name: "loaded and running, with both captured streams",
+			status: service.Status{
+				Loaded: true,
+				PID:    service.OptionalInt{Value: 1478, Known: true},
+				CapturedStdout: service.CapturedLog{
+					Path:    "/Users/test/.local/state/mimi/mimi.out.log",
+					Size:    2048,
+					Present: true,
+				},
+				CapturedStderr: service.CapturedLog{
+					Path:    "/Users/test/.local/state/mimi/mimi.err.log",
+					Size:    0,
+					Present: true,
+				},
+			},
+			want: "Service loaded and running (pid 1478)\n" +
+				"Captured stdout: /Users/test/.local/state/mimi/mimi.out.log (2.0 KB)\n" +
+				"Captured stderr: /Users/test/.local/state/mimi/mimi.err.log (0 B)",
+		},
+		{
+			// launchd creates both files when it first spawns the daemon, so a
+			// missing one is a service that has never run — a different thing
+			// from an empty one, and said differently.
+			name: "loaded, with a captured stream that does not exist yet",
+			status: service.Status{
+				Loaded: true,
+				CapturedStdout: service.CapturedLog{
+					Path: "/Users/test/.local/state/mimi/mimi.out.log",
+				},
+			},
+			want: "Service loaded\n" +
+				"Captured stdout: /Users/test/.local/state/mimi/mimi.out.log (not created yet)",
+		},
+		{
+			// The files outlive the service that wrote them, and an unloaded
+			// service is one of the states in which their contents matter most.
+			name: "not loaded, with the plist still naming its captured streams",
+			status: service.Status{
+				CapturedStderr: service.CapturedLog{
+					Path:    "/tmp/mimi.err.log",
+					Size:    1288490189,
+					Present: true,
+				},
+			},
+			want: "Service not loaded\nCaptured stderr: /tmp/mimi.err.log (1.2 GB)",
+		},
 	}
 
 	for _, tt := range tests {

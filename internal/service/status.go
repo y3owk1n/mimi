@@ -1,6 +1,7 @@
 package service
 
 import (
+	"os"
 	"strconv"
 	"strings"
 )
@@ -89,4 +90,72 @@ func parseLeadingInt(value string) OptionalInt {
 	}
 
 	return OptionalInt{Value: parsed, Known: true}
+}
+
+// installedCapturedLogs describes the two console streams the installed plist
+// captures: where it tells launchd to write each, and how large each has grown.
+//
+// The paths come from the plist on disk rather than from settings.log_file,
+// because the plist is what launchd loaded. A log_file changed since the last
+// install has moved the config's answer without moving the service's, and a
+// size reported for a file nothing is writing is worse than no size at all.
+//
+// Every way of not finding them ends the same way: an unreadable plist, one
+// that is not a file mimi could have written — home-manager's is a symlink into
+// the Nix store — and one whose keys this cannot make sense of all leave both
+// paths empty, and the status simply says nothing about them. It is
+// the same bargain the rest of the status makes — degrade the detail, keep the
+// answer.
+func installedCapturedLogs() (CapturedLog, CapturedLog) {
+	installed, err := readInstalledPlist(plistPath())
+	if err != nil {
+		return CapturedLog{}, CapturedLog{}
+	}
+
+	return describeCapturedLog(plistString(installed.content, "StandardOutPath")),
+		describeCapturedLog(plistString(installed.content, "StandardErrorPath"))
+}
+
+// describeCapturedLog sizes one captured stream. A path that is not there is
+// reported as absent rather than as an error: launchd creates the file when it
+// first spawns the daemon, so a missing one is a service that has never run.
+func describeCapturedLog(path string) CapturedLog {
+	if path == "" {
+		return CapturedLog{}
+	}
+
+	info, err := os.Stat(path)
+	if err != nil {
+		return CapturedLog{Path: path}
+	}
+
+	return CapturedLog{Path: path, Size: info.Size(), Present: true}
+}
+
+// plistString reads the value of the first key of this name in a plist mimi
+// rendered, at whatever depth it sits, and answers "" for anything it cannot
+// find that way.
+//
+// It is deliberately the smallest reader that works on this one file's shape,
+// rather than a plist parser: the file it reads is the one renderPlist writes,
+// pinned byte for byte by a golden test. A key whose next element is not a
+// <string> — or that another key gets in front of — reads as absent, so a plist
+// of some other shape costs the detail rather than inventing one.
+func plistString(content, key string) string {
+	_, after, found := strings.Cut(content, "<key>"+key+"</key>")
+	if !found {
+		return ""
+	}
+
+	between, after, found := strings.Cut(after, "<string>")
+	if !found || strings.Contains(between, "<key>") {
+		return ""
+	}
+
+	value, _, found := strings.Cut(after, "</string>")
+	if !found {
+		return ""
+	}
+
+	return value
 }

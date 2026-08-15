@@ -2,6 +2,7 @@ package cmd
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -50,7 +51,7 @@ func newServicesInstallCmd(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Install and load the system service",
-		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe plist is a snapshot of the config taken at install time, so run install again after changing a setting it bakes in — it replaces the plist and reloads the service, and does nothing at all when the plist already matches.\n\nReloading waits for the running service to unload before loading the new plist, for up to five seconds; a service still loaded after that fails the install with its old plist untouched. A load that fails for any other reason leaves the new plist in place, so running install again retries just the load.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.\n\nThe PATH the installed service runs its hooks with comes from settings.service_path; unset, it is /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin. Nothing else reads that setting, so this command is what makes a change to it take effect.",
+		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe plist is a snapshot of the config taken at install time, so run install again after changing a setting it bakes in — it replaces the plist and reloads the service, and does nothing at all when the plist already matches.\n\nReloading waits for the running service to unload before loading the new plist, for up to five seconds; a service still loaded after that fails the install with its old plist untouched. A load that fails for any other reason leaves the new plist in place, so running install again retries just the load.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log. The plist also names both paths in the service's environment, which is what tells the daemon to empty them once at each start; nothing rotates them otherwise, and a service installed before that existed picks it up here.\n\nThe PATH the installed service runs its hooks with comes from settings.service_path; unset, it is /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin. Nothing else reads that setting, so this command is what makes a change to it take effect.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logFile, servicePath := state.plistSettings()
 
@@ -142,7 +143,7 @@ func newServicesStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check the status of the system service",
-		Long:  "Check whether the Mimi launchd service is currently loaded, and whether it is actually running.\n\nThe two are not the same: the installed plist sets KeepAlive, so a daemon that crashes at startup is relaunched every ten seconds and stays loaded the whole time. A running service reports the pid it runs under; a loaded one that is not running reports the status it last exited with — a repeated non-zero status there is a daemon in a crash loop, and the captured stderr beside settings.log_file says why.",
+		Long:  "Check whether the Mimi launchd service is currently loaded, and whether it is actually running.\n\nThe two are not the same: the installed plist sets KeepAlive, so a daemon that crashes at startup is relaunched every ten seconds and stays loaded the whole time. A running service reports the pid it runs under; a loaded one that is not running reports the status it last exited with — a repeated non-zero status there is a daemon in a crash loop, and the captured stderr beside settings.log_file says why.\n\nUnder that line come the captured stdout and stderr the installed plist names, with how large each has grown. A daemon launchd started empties both at startup, so each size is one run's console output.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cmd.Println(formatStatus(defaultService.Status()))
 
@@ -170,17 +171,54 @@ func formatInstallOutcome(outcome service.InstallOutcome) string {
 	}
 }
 
-// formatStatus renders a service.Status as the one line `mimi services status`
+// formatStatus renders a service.Status as the lines `mimi services status`
 // prints.
 //
-// Loaded and running are not the same thing, and that is the point of the
-// line: the installed plist sets KeepAlive, so a daemon that crashes at
-// startup is relaunched every ten seconds forever while staying exactly as
-// loaded as a healthy one. The pid says it is up; the exit status it left
-// behind says it is not. When launchd's description carries neither — it is
-// undocumented text and may change shape — this falls back to the two words
-// the command printed before it ever asked.
+// The first of them is the service itself. Loaded and running are not the same
+// thing, and that is the point of it: the installed plist sets KeepAlive, so a
+// daemon that crashes at startup is relaunched every ten seconds forever while
+// staying exactly as loaded as a healthy one. The pid says it is up; the exit
+// status it left behind says it is not. When launchd's description carries
+// neither — it is undocumented text and may change shape — this falls back to
+// the two words the command printed before it ever asked.
+//
+// Under that line come the captured console streams, one per line, each with
+// how large it has grown. They are the only place a crash before the logger
+// exists surfaces, and their size is the fact the line adds: the daemon empties
+// them once per start, so a size is one run's console output and a big one
+// under a service that keeps exiting is the crash loop this command is run to
+// find. A stream the installed plist did not name — because nothing is
+// installed, or because mimi did not write that plist — gets no line at all,
+// rather than a guess at where its output would have gone.
 func formatStatus(status service.Status) string {
+	lines := []string{loadedLine(status)}
+
+	captured := []struct {
+		stream string
+		log    service.CapturedLog
+	}{
+		{stream: "stdout", log: status.CapturedStdout},
+		{stream: "stderr", log: status.CapturedStderr},
+	}
+	for _, stream := range captured {
+		if stream.log.Path == "" {
+			continue
+		}
+
+		lines = append(lines, fmt.Sprintf(
+			"Captured %s: %s (%s)",
+			stream.stream,
+			stream.log.Path,
+			formatCapturedSize(stream.log),
+		))
+	}
+
+	return strings.Join(lines, "\n")
+}
+
+// loadedLine is the first line of a status: whether the service is loaded, and
+// the one number that says whether it is up.
+func loadedLine(status service.Status) string {
 	if !status.Loaded {
 		return "Service not loaded"
 	}
@@ -196,4 +234,28 @@ func formatStatus(status service.Status) string {
 	default:
 		return "Service loaded"
 	}
+}
+
+// formatCapturedSize renders how large a captured stream has grown, in the
+// units a person reads. A file that is not there is said in words rather than
+// as a zero: launchd creates both when it first spawns the daemon, so an absent
+// one means the service has never run, which a "0 B" would hide.
+func formatCapturedSize(log service.CapturedLog) string {
+	if !log.Present {
+		return "not created yet"
+	}
+
+	const unit = 1024
+
+	if log.Size < unit {
+		return fmt.Sprintf("%d B", log.Size)
+	}
+
+	div, exp := int64(unit), 0
+	for size := log.Size / unit; size >= unit; size /= unit {
+		div *= unit
+		exp++
+	}
+
+	return fmt.Sprintf("%.1f %cB", float64(log.Size)/float64(div), "KMGTPE"[exp])
 }
