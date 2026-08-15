@@ -72,28 +72,21 @@ in that direction based on screen position.
 Only windows that are focusable (not minimized, not hidden) and on the
 current space are included.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			args := []string{}
-			if backward {
-				args = append(args, "--backward")
+			focusArgs, err := action.NewFocusWindowArgs(
+				backward,
+				focusUp,
+				focusDown,
+				focusLeft,
+				focusRight,
+			)
+			if err != nil {
+				return err
 			}
 
-			if focusUp {
-				args = append(args, "--up")
-			}
-
-			if focusDown {
-				args = append(args, "--down")
-			}
-
-			if focusLeft {
-				args = append(args, "--left")
-			}
-
-			if focusRight {
-				args = append(args, "--right")
-			}
-
-			return state.runAction(string(action.NameFocusWindow), args)
+			return state.runAction(action.Command{
+				Name:        action.NameFocusWindow,
+				FocusWindow: focusArgs,
+			})
 		},
 	}
 
@@ -138,7 +131,12 @@ Examples:
   mimi action space prev     Cycle to the previous space (with wrap)`,
 		Args: validateActionSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return state.runAction(string(action.NameSpace), []string{strings.TrimSpace(args[0])})
+			spaceArg, err := action.ParseSpaceArg([]string{strings.TrimSpace(args[0])})
+			if err != nil {
+				return err
+			}
+
+			return state.runAction(action.Command{Name: action.NameSpace, Space: spaceArg})
 		},
 	}
 }
@@ -166,27 +164,20 @@ Examples:
   mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
 		Args: validateActionMoveWindowToSpaceArgs,
 		RunE: func(_ *cobra.Command, args []string) error {
-			return state.runAction(
-				string(action.NameMoveWindowToSpace),
-				[]string{strings.TrimSpace(args[0])},
-			)
+			spaceArg, err := action.ParseSpaceArg([]string{strings.TrimSpace(args[0])})
+			if err != nil {
+				return err
+			}
+
+			return state.runAction(action.Command{
+				Name:              action.NameMoveWindowToSpace,
+				MoveWindowToSpace: spaceArg,
+			})
 		},
 	}
 }
 
 func buildResizeWindowCommand(state *cliState) *cobra.Command {
-	var (
-		width     int
-		height    int
-		widthPct  float64
-		heightPct float64
-		xCoord    int
-		yCoord    int
-		anchor    string
-		useMargin bool
-		noMargin  bool
-	)
-
 	cmd := &cobra.Command{
 		Use:   "resize_window [preset]",
 		Short: "Resize and reposition the frontmost window",
@@ -230,13 +221,11 @@ Examples:
   mimi action resize_window center --width-percent 80 --height-percent 90`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
-			cmdArgs := []string{}
+			preset := ""
 
 			if len(args) > 0 {
-				preset := strings.TrimSpace(args[0])
-				if action.IsResizePreset(preset) {
-					cmdArgs = append(cmdArgs, preset)
-				} else {
+				preset = strings.TrimSpace(args[0])
+				if !action.IsResizePreset(preset) {
 					return derrors.Newf(
 						derrors.CodeInvalidInput,
 						"unknown preset %q (valid: left-half, right-half, top-half, bottom-half, top-left, top-right, bottom-left, bottom-right, center, fill)",
@@ -245,69 +234,67 @@ Examples:
 				}
 			}
 
-			if width > 0 {
-				cmdArgs = append(cmdArgs, "--width", strconv.Itoa(width))
-			}
+			resizeArgs := resizeWindowArgsFromFlags(cobraCmd, preset)
 
-			if height > 0 {
-				cmdArgs = append(cmdArgs, "--height", strconv.Itoa(height))
-			}
-
-			if widthPct > 0 {
-				cmdArgs = append(
-					cmdArgs,
-					"--width-percent",
-					strconv.FormatFloat(widthPct, 'f', -1, 64),
-				)
-			}
-
-			if heightPct > 0 {
-				cmdArgs = append(
-					cmdArgs,
-					"--height-percent",
-					strconv.FormatFloat(heightPct, 'f', -1, 64),
-				)
-			}
-
-			if cobraCmd.Flags().Changed("x") {
-				cmdArgs = append(cmdArgs, "--x", strconv.Itoa(xCoord))
-			}
-
-			if cobraCmd.Flags().Changed("y") {
-				cmdArgs = append(cmdArgs, "--y", strconv.Itoa(yCoord))
-			}
-
-			if cobraCmd.Flags().Changed("anchor") {
-				cmdArgs = append(cmdArgs, "--anchor", anchor)
-			}
-
-			if useMargin {
-				cmdArgs = append(cmdArgs, "--margin")
-			}
-
-			if noMargin {
-				cmdArgs = append(cmdArgs, "--no-margin")
-			}
-
-			return state.runAction(string(action.NameResizeWindow), cmdArgs)
+			return state.runAction(action.Command{
+				Name:         action.NameResizeWindow,
+				ResizeWindow: resizeArgs,
+			})
 		},
 	}
 
-	cmd.Flags().IntVarP(&width, "width", "w", 0, "Absolute window width in points")
-	cmd.Flags().IntVar(&height, "height", 0, "Absolute window height in points")
-	cmd.Flags().Float64Var(&widthPct, "width-percent", 0, "Width as percentage of screen (0-100)")
+	cmd.Flags().IntP("width", "w", 0, "Absolute window width in points")
+	cmd.Flags().Int("height", 0, "Absolute window height in points")
+	cmd.Flags().Float64("width-percent", 0, "Width as percentage of screen (0-100)")
+	cmd.Flags().Float64("height-percent", 0, "Height as percentage of screen (0-100)")
+	cmd.Flags().Int("x", 0, "Absolute x position in screen coordinates")
+	cmd.Flags().Int("y", 0, "Absolute y position in screen coordinates")
 	cmd.Flags().
-		Float64Var(&heightPct, "height-percent", 0, "Height as percentage of screen (0-100)")
-	cmd.Flags().IntVar(&xCoord, "x", 0, "Absolute x position in screen coordinates")
-	cmd.Flags().IntVar(&yCoord, "y", 0, "Absolute y position in screen coordinates")
-	cmd.Flags().
-		StringVarP(&anchor, "anchor", "a", "", "Anchor point for positioning (tl, tc, tr, cl, cc, cr, bl, bc, br)")
-	cmd.Flags().
-		BoolVar(&useMargin, "margin", false, "Enable tiled window margins (overrides system setting)")
-	cmd.Flags().
-		BoolVar(&noMargin, "no-margin", false, "Disable tiled window margins (overrides system setting)")
+		StringP("anchor", "a", "", "Anchor point for positioning (tl, tc, tr, cl, cc, cr, bl, bc, br)")
+	cmd.Flags().Bool("margin", false, "Enable tiled window margins (overrides system setting)")
+	cmd.Flags().Bool("no-margin", false, "Disable tiled window margins (overrides system setting)")
 
 	return cmd
+}
+
+// resizeWindowArgsFromFlags reads resize_window's typed payload directly off
+// cobraCmd's flags — the one place these values are read, since nothing
+// keeps a bound variable of its own. It uses Flags().Changed(...) — not a
+// flag's value — to tell whether the caller gave it, the rule --x and --y
+// already followed and --width, --height and their -percent counterparts
+// now match, so an explicit zero is forwarded rather than silently dropped.
+func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.ResizeWindowArgs {
+	flags := cobraCmd.Flags()
+
+	width, _ := flags.GetInt("width")
+	height, _ := flags.GetInt("height")
+	widthPct, _ := flags.GetFloat64("width-percent")
+	heightPct, _ := flags.GetFloat64("height-percent")
+	xCoord, _ := flags.GetInt("x")
+	yCoord, _ := flags.GetInt("y")
+	anchor, _ := flags.GetString("anchor")
+	useMargin, _ := flags.GetBool("margin")
+	noMargin, _ := flags.GetBool("no-margin")
+
+	return action.ResizeWindowArgs{
+		Preset:           preset,
+		Width:            width,
+		WidthSet:         flags.Changed("width"),
+		Height:           height,
+		HeightSet:        flags.Changed("height"),
+		WidthPercent:     widthPct,
+		WidthPercentSet:  flags.Changed("width-percent"),
+		HeightPercent:    heightPct,
+		HeightPercentSet: flags.Changed("height-percent"),
+		X:                xCoord,
+		XSet:             flags.Changed("x"),
+		Y:                yCoord,
+		YSet:             flags.Changed("y"),
+		Anchor:           anchor,
+		AnchorSet:        flags.Changed("anchor"),
+		UseMargin:        useMargin,
+		NoMargin:         noMargin,
+	}
 }
 
 func validateActionSpaceArgs(_ *cobra.Command, args []string) error {

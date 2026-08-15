@@ -32,27 +32,22 @@ func IsKnownName(name string) bool {
 	}
 }
 
-type parsedFocusWindowArgs struct {
-	useBackward bool
-	direction   string // "up", "down", "left", "right", or ""
-}
-
-func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
-	var parsed parsedFocusWindowArgs
+func parseFocusWindowArgs(rawArgs []string) (FocusWindowArgs, error) {
+	var parsed FocusWindowArgs
 
 	for _, arg := range rawArgs {
 		switch arg {
 		case "--backward":
-			parsed.useBackward = true
+			parsed.Backward = true
 		case "--up", "--down", "--left", "--right":
-			if parsed.direction != "" {
+			if parsed.Direction != "" {
 				return parsed, derrors.New(
 					derrors.CodeInvalidInput,
 					"only one direction flag allowed (--up, --down, --left, --right)",
 				)
 			}
 
-			parsed.direction = arg[2:]
+			parsed.Direction = arg[2:]
 		default:
 			if strings.HasPrefix(arg, "--") {
 				return parsed, derrors.New(
@@ -63,24 +58,26 @@ func parseFocusWindowArgs(rawArgs []string) (parsedFocusWindowArgs, error) {
 		}
 	}
 
-	if parsed.direction != "" && parsed.useBackward {
-		return parsed, derrors.New(
-			derrors.CodeInvalidInput,
-			"--backward cannot be combined with a direction flag",
-		)
+	err := validateFocusWindowCombo(parsed.Direction, parsed.Backward)
+	if err != nil {
+		return parsed, err
 	}
 
 	return parsed, nil
 }
 
-type spaceArg struct {
-	index     int
-	direction int // +1 for next, -1 for prev; 0 means absolute index
+// SpaceArg is the parsed form of the one argument space and
+// move_window_to_space take: either an absolute 1-based Index, or a relative
+// Direction (+1 for next, -1 for prev), never both.
+type SpaceArg struct {
+	Index     int
+	Direction int // +1 for next, -1 for prev; 0 means absolute index
 }
 
-func parseSpaceArg(args []string) (spaceArg, error) {
+// ParseSpaceArg parses the one argument the space actions take.
+func ParseSpaceArg(args []string) (SpaceArg, error) {
 	if len(args) != 1 {
-		return spaceArg{}, derrors.Newf(
+		return SpaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
 			"space requires exactly one argument: a 1-based number, \"next\", or \"prev\"",
 		)
@@ -88,47 +85,53 @@ func parseSpaceArg(args []string) (spaceArg, error) {
 
 	raw := strings.TrimSpace(args[0])
 	if raw == "" {
-		return spaceArg{}, derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
+		return SpaceArg{}, derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
 	}
 
 	switch raw {
 	case "next":
-		return spaceArg{direction: 1}, nil
+		return SpaceArg{Direction: 1}, nil
 	case "prev", "previous":
-		return spaceArg{direction: -1}, nil
+		return SpaceArg{Direction: -1}, nil
 	}
 
 	index, parseErr := strconv.Atoi(raw)
 	if parseErr != nil || index < 1 {
-		return spaceArg{}, derrors.Newf(
+		return SpaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
 			"space must be a positive integer, \"next\", or \"prev\", got %q",
 			raw,
 		)
 	}
 
-	return spaceArg{index: index}, nil
+	return SpaceArg{Index: index}, nil
 }
 
 // resolveSpaceArg parses the one argument the space actions take and turns it
 // into the 1-based space number it names.
-//
-// Only "next" and "prev" need the desktop: they are relative to whichever space
-// is in front, and they wrap around at both ends.
 func (e *Executor) resolveSpaceArg(args []string) (int, error) {
-	parsed, err := parseSpaceArg(args)
+	parsed, err := ParseSpaceArg(args)
 	if err != nil {
 		return 0, err
 	}
 
-	if parsed.direction == 0 {
-		return parsed.index, nil
+	return e.resolveSpaceArgTyped(parsed)
+}
+
+// resolveSpaceArgTyped turns an already-parsed SpaceArg into the 1-based
+// space number it names.
+//
+// Only "next" and "prev" need the desktop: they are relative to whichever space
+// is in front, and they wrap around at both ends.
+func (e *Executor) resolveSpaceArgTyped(parsed SpaceArg) (int, error) {
+	if parsed.Direction == 0 {
+		return parsed.Index, nil
 	}
 
 	// Reading where the desktop is before acting on it is still driving it, so
 	// the permission comes first here too — the action this feeds checks it
 	// again, and a revoked permission has to be the error either way round.
-	err = e.desktop.EnsureAccessible()
+	err := e.desktop.EnsureAccessible()
 	if err != nil {
 		return 0, err
 	}
@@ -143,7 +146,7 @@ func (e *Executor) resolveSpaceArg(args []string) (int, error) {
 		return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
 	}
 
-	return ((current - 1 + parsed.direction + count) % count) + 1, nil
+	return ((current - 1 + parsed.Direction + count) % count) + 1, nil
 }
 
 // IsResizePreset reports whether s is a known resize window preset.
@@ -358,7 +361,7 @@ func (e *Executor) Execute(name string, args []string) error {
 			return err
 		}
 
-		return e.FocusWindow(parsed.useBackward, parsed.direction)
+		return e.FocusWindow(parsed.Backward, parsed.Direction)
 	case NameSpace:
 		index, err := e.resolveSpaceArg(args)
 		if err != nil {

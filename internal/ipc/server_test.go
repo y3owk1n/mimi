@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/ipc"
 )
@@ -14,7 +15,9 @@ import (
 func TestTryExecuteDaemonUnavailable(t *testing.T) {
 	t.Parallel()
 
-	err := ipc.TryExecute(filepath.Join(t.TempDir(), "missing.sock"), "space", []string{"1"})
+	cmd := action.Command{Name: action.NameSpace, Space: action.SpaceArg{Index: 1}}
+
+	err := ipc.TryExecute(filepath.Join(t.TempDir(), "missing.sock"), cmd)
 	if err == nil {
 		t.Fatal("expected error for missing socket")
 	}
@@ -48,7 +51,7 @@ func TestServerClientRoundTrip(t *testing.T) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	err := ipc.TryExecute(socketPath, "unknown_action", nil)
+	err := ipc.TryExecute(socketPath, action.Command{Name: "unknown_action"})
 	if err == nil {
 		t.Fatal("expected error for unknown action")
 	}
