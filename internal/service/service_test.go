@@ -23,11 +23,29 @@ const testConfigPath = "/Users/test/.config/mimi/config.toml"
 // the job is loaded again, and it cannot while the old one is loaded.
 const wantReloadCalls = "bootout,bootstrap"
 
+// wantUnloadOnlyCalls is the launchctl sequence of an install that unloaded
+// the old service and then stopped, whatever stopped it: nothing was written,
+// so there was nothing to bootstrap and the old plist is still the one on
+// disk.
+const wantUnloadOnlyCalls = "bootout"
+
 // fakeLauncher is a launcher made of plain values: every call it sees lands
 // in a field a test can assert against, and every call it returns is a field
 // a test can set up in advance.
 type fakeLauncher struct {
 	loaded bool
+
+	// listErr is launchctl not running at all — missing from PATH, or unable
+	// to reach the domain. It is the state a launcher could not express
+	// before: an exit status says whether the job is there, and this says
+	// there is no exit status to read. Set, it outranks loaded, because a
+	// launchctl that never ran cannot have found anything.
+	listErr error
+	// listErrAfterBootout is the same thing arriving mid-install: launchctl
+	// answered the question install opens with, and stops answering once the
+	// bootout has gone in. It is the only way to reach the unload wait with
+	// no answer available to it.
+	listErrAfterBootout error
 
 	// unloadLag is how many launchctl list calls after a successful bootout
 	// still report the job loaded. A real bootout returns once launchd has
@@ -65,9 +83,17 @@ type fakeLauncher struct {
 	printedFor  string
 }
 
-func (f *fakeLauncher) list(_ context.Context, _ string) error {
+func (f *fakeLauncher) list(_ context.Context, _ string) (bool, error) {
+	if f.listErr != nil {
+		return false, f.listErr
+	}
+
+	if f.listErrAfterBootout != nil && f.booted {
+		return false, f.listErrAfterBootout
+	}
+
 	if !f.loaded {
-		return derrors.New(derrors.CodeServiceFailed, "not loaded")
+		return false, nil
 	}
 
 	// A job on its way out is still a loaded job to launchctl: each list
@@ -80,7 +106,7 @@ func (f *fakeLauncher) list(_ context.Context, _ string) error {
 		}
 	}
 
-	return nil
+	return true, nil
 }
 
 func (f *fakeLauncher) printJob(_ context.Context, target string) (string, error) {
@@ -145,6 +171,7 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 	tests := []struct {
 		name        string
 		loaded      bool
+		listErr     error
 		printOutput string
 		printErr    error
 		want        Status
@@ -153,13 +180,16 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 			name:        "loaded and running",
 			loaded:      true,
 			printOutput: "\tstate = running\n\tpid = 1478\n\tlast exit code = (never exited)\n",
-			want:        Status{Loaded: true, PID: OptionalInt{Value: 1478, Known: true}},
+			want:        Status{State: LoadStateLoaded, PID: OptionalInt{Value: 1478, Known: true}},
 		},
 		{
 			name:        "loaded but respawning after a crash",
 			loaded:      true,
 			printOutput: "\tstate = spawn scheduled\n\tlast exit code = 1\n",
-			want:        Status{Loaded: true, LastExitStatus: OptionalInt{Value: 1, Known: true}},
+			want: Status{
+				State:          LoadStateLoaded,
+				LastExitStatus: OptionalInt{Value: 1, Known: true},
+			},
 		},
 		{
 			// launchctl print is undocumented text with no promise behind it,
@@ -168,20 +198,30 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 			name:        "loaded, with output nothing can be read from",
 			loaded:      true,
 			printOutput: "some future launchctl saying something else entirely",
-			want:        Status{Loaded: true},
+			want:        Status{State: LoadStateLoaded},
 		},
 		{
 			name:     "loaded, with launchctl print failing outright",
 			loaded:   true,
 			printErr: derrors.New(derrors.CodeServiceFailed, "no such process"),
-			want:     Status{Loaded: true},
+			want:     Status{State: LoadStateLoaded},
 		},
 		{
 			// Nothing to describe, so nothing is asked.
 			name:        "not loaded",
 			loaded:      false,
 			printOutput: "\tpid = 1478\n",
-			want:        Status{Loaded: false},
+			want:        Status{State: LoadStateNotLoaded},
+		},
+		{
+			// The one thing a status must not do is answer a question it did
+			// not get an answer to. launchctl never ran, so the service is
+			// neither loaded nor not loaded here — it is unknown, and it says
+			// so rather than reporting the shape of a service that is gone.
+			name:        "launchctl could not say",
+			listErr:     errLaunchctlMissing,
+			printOutput: "\tpid = 1478\n",
+			want:        Status{State: LoadStateUnknown},
 		},
 	}
 
@@ -194,6 +234,7 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 
 			fake := &fakeLauncher{
 				loaded:      testCase.loaded,
+				listErr:     testCase.listErr,
 				printOutput: testCase.printOutput,
 				printErr:    testCase.printErr,
 			}
@@ -404,6 +445,11 @@ var (
 // failure arrives in.
 var errBootstrapInProgress = errors.New("operation now in progress")
 
+// errLaunchctlMissing is launchctl failing to run at all, in the shape exec
+// reports it: not a job launchd denies having, but a question that never
+// reached launchd.
+var errLaunchctlMissing = errors.New(`exec: "launchctl": executable file not found in $PATH`)
+
 // TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService pins
 // the difference [Service.Uninstall] draws between the two reasons a bootout
 // fails, which mean opposite things: see its doc comment. Every case expects
@@ -413,9 +459,14 @@ func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *tes
 	tests := []struct {
 		name       string
 		loaded     bool
+		listErr    error
 		bootoutErr error
 		wantErr    bool
-		wantPlist  bool
+		// wantErrSays is a phrase the failure has to carry, for the cases
+		// where why the uninstall failed is as much of the answer as that it
+		// did.
+		wantErrSays string
+		wantPlist   bool
 	}{
 		{
 			name:       "not loaded, so a bootout that fails failed at nothing",
@@ -423,6 +474,29 @@ func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *tes
 			bootoutErr: errBootoutNotFound,
 			wantErr:    false,
 			wantPlist:  false,
+		},
+		{
+			// The tolerance is earned by knowing there was nothing to unload.
+			// Without that, a bootout failure is a service that may well still
+			// be running, and removing its plist would take away the only
+			// thing a later uninstall could act on.
+			name:       "launchctl could not say, and the bootout failed",
+			listErr:    errLaunchctlMissing,
+			bootoutErr: errBootoutRefused,
+			wantErr:    true,
+			// Retrying the unload is the advice a plain unload failure comes
+			// with, and it is the wrong advice against a launchctl that is
+			// itself broken. The failure has to name which of the two it is.
+			wantErrSays: "could not say whether it was loaded",
+			wantPlist:   true,
+		},
+		{
+			// Nothing had to be known: the unload it could not justify
+			// tolerating is the one that failed, and this one succeeded.
+			name:      "launchctl could not say, and the bootout succeeded",
+			listErr:   errLaunchctlMissing,
+			wantErr:   false,
+			wantPlist: false,
 		},
 		{
 			name:       "loaded, and the bootout failed",
@@ -456,7 +530,11 @@ func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *tes
 				t.Fatalf("writing plist: %v", err)
 			}
 
-			fake := &fakeLauncher{loaded: testCase.loaded, bootoutErr: testCase.bootoutErr}
+			fake := &fakeLauncher{
+				loaded:     testCase.loaded,
+				listErr:    testCase.listErr,
+				bootoutErr: testCase.bootoutErr,
+			}
 			svc := newTestService(fake)
 
 			err = svc.Uninstall()
@@ -481,6 +559,11 @@ func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *tes
 
 				if !errors.Is(err, errBootoutRefused) {
 					t.Errorf("Uninstall() = %v, want it to carry the bootout failure", err)
+				}
+
+				if testCase.wantErrSays != "" &&
+					!strings.Contains(err.Error(), testCase.wantErrSays) {
+					t.Errorf("Uninstall() = %v, want it to say %q", err, testCase.wantErrSays)
 				}
 			}
 
@@ -780,6 +863,46 @@ func TestService_Install_GivesAnOlderServiceTheCapturedStreamEnvironment(t *test
 	}
 }
 
+// TestService_Install_FailsWhenLaunchctlCannotBeAsked covers the state install
+// cannot proceed without an answer to. Whether the service is loaded decides
+// both of install's safety checks — whether this label already belongs to
+// another installer, and whether the old job has to be unloaded before launchd
+// will read the new plist — so guessing "not loaded" would bootstrap over a
+// service that may well be up. Install is idempotent, so refusing before it
+// touches anything costs no more than running it again once launchctl works.
+func TestService_Install_FailsWhenLaunchctlCannotBeAsked(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	fake := &fakeLauncher{listErr: errLaunchctlMissing}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"), "")
+	if err == nil {
+		t.Fatal("Install() = nil, want the launchctl failure")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	if !errors.Is(err, errLaunchctlMissing) {
+		t.Errorf("Install() = %v, want it to carry why launchctl could not be asked", err)
+	}
+
+	if len(fake.calls) != 0 {
+		t.Errorf("Install() drove launchctl: %v, want no calls", fake.calls)
+	}
+
+	_, statErr := os.Stat(filepath.Join(dir, "Library", "LaunchAgents", Label+".plist"))
+	if !os.IsNotExist(statErr) {
+		t.Errorf(
+			"Install() wrote a plist without knowing what it was replacing, stat = %v",
+			statErr,
+		)
+	}
+}
+
 // TestService_Install_FailsWhenLoadedByAnotherInstaller pins the refusal that
 // survives idempotence: a loaded service with no plist of mimi's behind it is
 // nix-darwin's or home-manager's, and mimi must not adopt it.
@@ -1034,7 +1157,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	}
 
 	// Nothing was written, so nothing was bootstrapped over the old service.
-	if got := strings.Join(fake.calls, ","); got != "bootout" {
+	if got := strings.Join(fake.calls, ","); got != wantUnloadOnlyCalls {
 		t.Errorf("Install() calls = %v, want [bootout]", fake.calls)
 	}
 
@@ -1158,7 +1281,7 @@ func TestService_Install_FailsWhenThePreviousServiceNeverUnloads(t *testing.T) {
 	// Never bootstrapped over a job launchd still holds, and — as with any
 	// other failure to unload — the old plist is still the one on disk for
 	// the next install to disagree with.
-	if got := strings.Join(fake.calls, ","); got != "bootout" {
+	if got := strings.Join(fake.calls, ","); got != wantUnloadOnlyCalls {
 		t.Errorf("Install() calls = %v, want [bootout]", fake.calls)
 	}
 
@@ -1169,6 +1292,66 @@ func TestService_Install_FailsWhenThePreviousServiceNeverUnloads(t *testing.T) {
 
 	if string(after) != string(stale) {
 		t.Errorf("a timed-out unload replaced the plist:\ngot\n%s\nwant\n%s", after, stale)
+	}
+}
+
+// TestService_Install_FailsWhenTheUnloadCannotBeConfirmed covers the wait
+// itself losing its answer. The wait exists because a bootout is a request
+// rather than a result, so ending it on anything other than launchctl saying
+// the job is gone puts the bootstrap back in the window #160 closed — and a
+// launchctl that cannot run says nothing about the job at all.
+func TestService_Install_FailsWhenTheUnloadCannotBeConfirmed(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
+	if err != nil {
+		t.Fatalf("first Install() = %v, want nil", err)
+	}
+
+	plistPath := filepath.Join(dir, "Library", "LaunchAgents", Label+".plist")
+
+	stale, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading installed plist: %v", err)
+	}
+
+	// launchctl answers the question install opens with, and stops answering
+	// once the bootout has gone in: the daemon may be on its way out or may
+	// be staying exactly where it is, and nothing here can tell.
+	fake.loaded = true
+	fake.listErrAfterBootout = errLaunchctlMissing
+	fake.calls = nil
+
+	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"), "")
+	if err == nil {
+		t.Fatal("Install() = nil, want the unload to fail unconfirmed")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	if !errors.Is(err, errLaunchctlMissing) {
+		t.Errorf("Install() = %v, want it to carry why the unload could not be confirmed", err)
+	}
+
+	// The whole point: no bootstrap over a job that may still be loaded, and
+	// the old plist still on disk for the next install to disagree with.
+	if got := strings.Join(fake.calls, ","); got != wantUnloadOnlyCalls {
+		t.Errorf("Install() calls = %v, want [bootout]", fake.calls)
+	}
+
+	after, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading the plist after the unconfirmed unload: %v", err)
+	}
+
+	if string(after) != string(stale) {
+		t.Errorf("an unconfirmed unload replaced the plist:\ngot\n%s\nwant\n%s", after, stale)
 	}
 }
 

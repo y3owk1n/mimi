@@ -128,15 +128,15 @@ func TestFormatStatus(t *testing.T) {
 		{
 			name: "loaded and running",
 			status: service.Status{
-				Loaded: true,
-				PID:    service.OptionalInt{Value: 1478, Known: true},
+				State: service.LoadStateLoaded,
+				PID:   service.OptionalInt{Value: 1478, Known: true},
 			},
 			want: "Service loaded and running (pid 1478)",
 		},
 		{
 			name: "loaded but respawning after a crash",
 			status: service.Status{
-				Loaded:         true,
+				State:          service.LoadStateLoaded,
 				LastExitStatus: service.OptionalInt{Value: 1, Known: true},
 			},
 			want: "Service loaded but not running (last exit status 1)",
@@ -146,7 +146,7 @@ func TestFormatStatus(t *testing.T) {
 			// back: the number is what separates it from a crash.
 			name: "loaded, exited cleanly",
 			status: service.Status{
-				Loaded:         true,
+				State:          service.LoadStateLoaded,
 				LastExitStatus: service.OptionalInt{Value: 0, Known: true},
 			},
 			want: "Service loaded but not running (last exit status 0)",
@@ -156,7 +156,7 @@ func TestFormatStatus(t *testing.T) {
 			// was restarted. The pid is the fact worth printing.
 			name: "loaded and running, having exited before",
 			status: service.Status{
-				Loaded:         true,
+				State:          service.LoadStateLoaded,
 				PID:            service.OptionalInt{Value: 1478, Known: true},
 				LastExitStatus: service.OptionalInt{Value: 1, Known: true},
 			},
@@ -166,10 +166,38 @@ func TestFormatStatus(t *testing.T) {
 			// launchd's description could not be read, so the command falls
 			// back to everything it has ever said.
 			name:   "loaded, with nothing else known",
-			status: service.Status{Loaded: true},
+			status: service.Status{State: service.LoadStateLoaded},
 			want:   "Service loaded",
 		},
-		{name: "not loaded", status: service.Status{Loaded: false}, want: "Service not loaded"},
+		{
+			name:   "not loaded",
+			status: service.Status{State: service.LoadStateNotLoaded},
+			want:   "Service not loaded",
+		},
+		{
+			// The state that used to print as "Service not loaded": launchctl
+			// could not be run, so nothing here knows whether the service is
+			// up. Saying so names the thing to fix, where the old line sent a
+			// user to reinstall a service that may be running fine.
+			name:   "launchctl could not be asked",
+			status: service.Status{State: service.LoadStateUnknown},
+			want:   "Service state unknown: launchctl could not be run",
+		},
+		{
+			// The captured streams are files on disk, so they are still worth
+			// printing under a load state nobody could read.
+			name: "launchctl could not be asked, with a captured stream",
+			status: service.Status{
+				State: service.LoadStateUnknown,
+				CapturedStderr: service.CapturedLog{
+					Path:    "/tmp/mimi.err.log",
+					Size:    12,
+					Present: true,
+				},
+			},
+			want: "Service state unknown: launchctl could not be run\n" +
+				"Captured stderr: /tmp/mimi.err.log (12 B)",
+		},
 		{
 			// Nothing rotates the captured streams, so the daemon empties them
 			// once per start and a size is one run's console output. Printing
@@ -177,8 +205,8 @@ func TestFormatStatus(t *testing.T) {
 			// something a user can act on without going looking first.
 			name: "loaded and running, with both captured streams",
 			status: service.Status{
-				Loaded: true,
-				PID:    service.OptionalInt{Value: 1478, Known: true},
+				State: service.LoadStateLoaded,
+				PID:   service.OptionalInt{Value: 1478, Known: true},
 				CapturedStdout: service.CapturedLog{
 					Path:    "/Users/test/.local/state/mimi/mimi.out.log",
 					Size:    2048,
@@ -200,7 +228,7 @@ func TestFormatStatus(t *testing.T) {
 			// from an empty one, and said differently.
 			name: "loaded, with a captured stream that does not exist yet",
 			status: service.Status{
-				Loaded: true,
+				State: service.LoadStateLoaded,
 				CapturedStdout: service.CapturedLog{
 					Path: "/Users/test/.local/state/mimi/mimi.out.log",
 				},
@@ -213,6 +241,7 @@ func TestFormatStatus(t *testing.T) {
 			// service is one of the states in which their contents matter most.
 			name: "not loaded, with the plist still naming its captured streams",
 			status: service.Status{
+				State: service.LoadStateNotLoaded,
 				CapturedStderr: service.CapturedLog{
 					Path:    "/tmp/mimi.err.log",
 					Size:    1288490189,
