@@ -371,6 +371,104 @@ func TestRenderPlist_EscapesEveryValueItSubstitutes(t *testing.T) {
 	}
 }
 
+// TestRenderPlist_SubstitutedValueNamedAfterAnotherToken pins that a path which
+// happens to be named after one of the template's *other* tokens reaches the
+// plist literally. Issue #177 demonstrated it with a config path of
+// "/Users/test/MIMI_SERVICE_PATH/config.toml", which rendered as
+// "/Users/test//opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin/config.toml" —
+// the service PATH spliced into the middle of the user's path, so the plist
+// pointed launchd at a file that does not exist.
+//
+// This is not the case TestRenderPlist_Table's "path containing the token-like
+// substring MIMI" covers. There each value carries only its *own* token name,
+// which survives however the substitution is arranged: by the time such a value
+// is in place, whatever would have matched it has already run. The names that
+// break are the ones belonging to a *later* value, and only a substitution that
+// rescans what it has already inserted can break them. Neither test subsumes
+// the other, and the cross-value one is the one that failed before #177.
+//
+// Every case is checked against every token name, including its own, so that
+// the property under test is the whole of it: no substituted value is ever
+// rescanned, whichever token name it happens to contain.
+func TestRenderPlist_SubstitutedValueNamedAfterAnotherToken(t *testing.T) {
+	// Every token renderPlist fills in, spelled out here rather than read from
+	// the template, so a token this test has stopped covering is a token the
+	// code has to have renamed.
+	tokens := []string{
+		"MIMI_BINARY_PATH",
+		"MIMI_CONFIG_PATH",
+		"MIMI_STDOUT_PATH",
+		"MIMI_STDERR_PATH",
+		"MIMI_SERVICE_PATH",
+	}
+
+	tests := []struct {
+		name string
+		// render renders a plist in which the one input this case is about
+		// names dir as a directory component and every other input is ordinary,
+		// and returns it alongside the values that input must produce verbatim.
+		render func(dir string) (plist string, wantValues []string)
+	}{
+		{
+			name: "the binary path",
+			render: func(dir string) (string, []string) {
+				binPath := "/Users/test/" + dir + "/mimi"
+
+				return renderPlist(binPath, testConfigPath, testLogFile, ""), []string{binPath}
+			},
+		},
+		{
+			name: "the config path",
+			render: func(dir string) (string, []string) {
+				configPath := "/Users/test/" + dir + "/config.toml"
+
+				return renderPlist(testBinPath, configPath, testLogFile, ""), []string{configPath}
+			},
+		},
+		{
+			// log_file yields two values, substituted for two different tokens,
+			// so each of them also has to survive the other's name.
+			name: "the captured stream paths derived from log_file",
+			render: func(dir string) (string, []string) {
+				logFile := "/Users/test/" + dir + "/mimi.log"
+
+				return renderPlist(testBinPath, testConfigPath, logFile, ""), []string{
+					"/Users/test/" + dir + "/mimi.out.log",
+					"/Users/test/" + dir + "/mimi.err.log",
+				}
+			},
+		},
+		{
+			name: "the service PATH",
+			render: func(dir string) (string, []string) {
+				servicePath := "/Users/test/" + dir + "/bin:/usr/bin"
+
+				return renderPlist(
+					testBinPath,
+					testConfigPath,
+					testLogFile,
+					servicePath,
+				), []string{servicePath}
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		for _, token := range tokens {
+			t.Run(testCase.name+" named after "+token, func(t *testing.T) {
+				got, wantValues := testCase.render(token)
+
+				for _, wantValue := range wantValues {
+					want := "<string>" + wantValue + "</string>"
+					if !strings.Contains(got, want) {
+						t.Errorf("renderPlist() does not contain %q:\n%s", want, got)
+					}
+				}
+			})
+		}
+	}
+}
+
 // parsePlistStrings decodes a rendered plist with a real XML parser and returns
 // every <string> value it holds. Failing to parse fails the test: that is the
 // whole of what launchd rejects a plist for, and the only check that a value
