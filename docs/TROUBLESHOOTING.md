@@ -126,6 +126,7 @@ relaunched forever and stays loaded the whole time.
 | `Service loaded but not running (last exit status 1)` | launchd is respawning it. A non-zero status that stays put is a crash loop — the captured stderr below says why.             |
 | `Service loaded`                                      | Neither number was available: the daemon has never run, it was killed by a signal rather than exiting, or launchd's description of the job could not be read. That output is undocumented, so an unreadable one costs the detail, never the answer. |
 | `Service not loaded`                                  | No service installed, or it was unloaded.                                                                                   |
+| `Service state unknown: launchctl could not be run`   | `launchctl` could not be run at all: missing from `PATH`, or unable to be spawned. Nothing was learned about the service — it may well be running. `mimi services install` refuses to run at all in this state, and `uninstall` stops forgiving an unload that fails. |
 
 `launchctl print gui/$(id -u)/com.y3owk1n.mimi` is the same description mimi
 reads, in full, when a bare `Service loaded` leaves a question open.

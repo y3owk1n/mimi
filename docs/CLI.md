@@ -214,7 +214,9 @@ actually be gone before handing launchd the new one: `launchctl bootout`
 returns as soon as launchd accepts the request, not once the daemon has
 finished exiting, and a load fired into that window fails. The wait is bounded
 at five seconds, after which the install fails with the old plist untouched —
-stop whatever is holding the service and run it again.
+stop whatever is holding the service and run it again. It ends the same way,
+without waiting out the bound, if `launchctl` stops answering while it waits:
+an unload nothing can confirm is not an unload.
 
 A load that fails for any other reason leaves the new plist on disk, so the
 config change is already made and only the load is missing; that error says so,
@@ -226,6 +228,12 @@ home-manager installs — or a loaded `com.y3owk1n.mimi` with no plist of mimi's
 behind it. Both errors name nix-darwin and home-manager, because the fix is in
 their configuration.
 
+It also refuses when `launchctl` itself cannot be run at all — missing from
+`PATH`, or unable to be spawned. Both of the checks above
+rest on knowing whether the service is loaded, so an install that guessed would
+be loading a plist over a service that may well be up. Nothing is written; fix
+`launchctl` and run it again.
+
 ### `mimi services uninstall`
 
 Remove the launchd agent.
@@ -235,6 +243,12 @@ nothing to unload, and the leftover plist is removed. When a loaded service
 cannot be unloaded, the plist is left in place and the command fails, because a
 service that keeps running until logout with no plist behind it is one nothing
 can uninstall any more. Fix what blocked the unload and run it again.
+
+Forgiving a failed unload takes knowing there was nothing to unload. If
+`launchctl` could not be asked whether the service was loaded, an unload that
+then fails is reported as a failure and the plist is kept — the same as for a
+service known to be loaded. An unload that succeeds is unaffected: it did the
+job either way, and the uninstall finishes.
 
 ### `mimi services start` / `stop` / `restart` / `status`
 
@@ -249,7 +263,13 @@ Service loaded and running (pid 1478)
 Service loaded but not running (last exit status 1)
 Service loaded
 Service not loaded
+Service state unknown: launchctl could not be run
 ```
+
+The last line is not the same as `Service not loaded`: it means `launchctl`
+itself could not be run — missing from `PATH`, or unable to be spawned — so
+nothing here knows whether the service is up. The captured stream lines below it
+are still printed, since those are files on disk.
 
 The bare `Service loaded` is the fallback, printed whenever neither number is
 available — the daemon has never run, it was killed by a signal rather than

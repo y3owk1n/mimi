@@ -9,6 +9,12 @@ import (
 	"github.com/y3owk1n/mimi/internal/service"
 )
 
+// unknownStateLine is what a status prints when launchctl could not be run at
+// all, and so could not be asked whether the service is loaded. It names
+// launchctl because that, and not the service, is what has to be fixed before
+// any of these commands can say anything.
+const unknownStateLine = "Service state unknown: launchctl could not be run"
+
 // defaultService is what the services commands run on: there is one launchd
 // service mimi manages on this machine.
 //
@@ -218,11 +224,31 @@ func formatStatus(status service.Status) string {
 
 // loadedLine is the first line of a status: whether the service is loaded, and
 // the one number that says whether it is up.
+//
+// Whether it is loaded has a third answer, and it gets a line of its own rather
+// than being folded into either of the other two. "Service not loaded" over a
+// service nobody could ask about is the reading this command used to print, and
+// it is the one that sends a user off to reinstall something that may be
+// running perfectly well.
 func loadedLine(status service.Status) string {
-	if !status.Loaded {
+	switch status.State {
+	case service.LoadStateLoaded:
+		return runningLine(status)
+	case service.LoadStateNotLoaded:
 		return "Service not loaded"
+	case service.LoadStateUnknown:
+		return unknownStateLine
+	default:
+		// A state added later with no line of its own. Saying nothing is known
+		// is true of every state this cannot name, and it is the only one of
+		// these lines that is safe over a service whose state was never read.
+		return unknownStateLine
 	}
+}
 
+// runningLine is the loaded half of that first line: launchd holds the job, and
+// the one number available says whether it is actually up.
+func runningLine(status service.Status) string {
 	switch {
 	case status.PID.Known:
 		return fmt.Sprintf("Service loaded and running (pid %d)", status.PID.Value)

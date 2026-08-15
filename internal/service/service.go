@@ -40,17 +40,41 @@ const (
 // the fix is always in their configuration and never in mimi.
 const foreignInstallAdvice = "check for existing installations (e.g., nix-darwin, home-manager) and uninstall them first"
 
+// LoadState is what asking launchd whether the service is loaded produced.
+//
+// It exists because that question has three answers and not two. `launchctl
+// list` exits non-zero both for a job launchd does not hold and for a
+// launchctl that could not run at all, and reading the second as the first is
+// how a service that is still up gets treated as gone.
+type LoadState int
+
+// These count from zero, where [InstallOutcome] counts from one, and the zero
+// value is why: a load state nobody set must not read as the service being
+// gone. Every caller here does something safe with "I do not know" and
+// something destructive with a wrong "no".
+const (
+	// LoadStateUnknown is launchctl never having run: not on PATH, or unable
+	// to be spawned.
+	LoadStateUnknown LoadState = iota
+	// LoadStateLoaded is a job launchd currently holds.
+	LoadStateLoaded
+	// LoadStateNotLoaded is launchctl running and reporting no such job.
+	LoadStateNotLoaded
+)
+
 // Status is what checking the launchd service reports: a typed result a
 // caller can act on, in place of a formatted string only a human can read.
 //
-// Loaded is the only field always answered. The installed plist sets KeepAlive
-// with a ten second ThrottleInterval, so a daemon that crashes at startup is
-// relaunched forever and stays as loaded as a healthy one — the other two
-// fields are what tell them apart, and both are optional because launchd's own
-// description of the job is undocumented text that may not carry them.
+// State is the only field always answered, and even it may be
+// [LoadStateUnknown]. The installed plist sets KeepAlive with a ten second
+// ThrottleInterval, so a daemon that crashes at startup is relaunched forever
+// and stays as loaded as a healthy one — the other two fields are what tell
+// them apart, and both are optional because launchd's own description of the
+// job is undocumented text that may not carry them.
 type Status struct {
-	// Loaded reports whether launchctl currently has the service loaded.
-	Loaded bool
+	// State is what launchctl said when asked whether the service is loaded,
+	// including its having been unable to say.
+	State LoadState
 	// PID is the process id of the running daemon. It is unknown whenever the
 	// service is not loaded, is not currently running, or launchd's
 	// description could not be read.
@@ -138,10 +162,23 @@ func New() *Service {
 // the plist has always carried. It is baked in here and nowhere else, which is
 // what makes it reinstall-only
 // (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+//
+// It refuses outright when launchctl cannot say whether the service is loaded.
+// That answer is what both of its safety checks rest on — whether this label
+// already belongs to another installer, and whether the running job has to be
+// unloaded before launchd will read a new plist — and an install that assumed
+// "not loaded" would bootstrap over a service that may well be up. Refusing
+// costs nothing that a re-run does not recover: it happens before anything is
+// written, and install is idempotent.
 func (s *Service) Install(configPath, logFile, servicePath string) (InstallOutcome, error) {
 	ctx := context.Background()
 
-	loaded := s.launcher.list(ctx, Label) == nil
+	state, err := s.loadState(ctx)
+	if err != nil {
+		return 0, err
+	}
+
+	loaded := state == LoadStateLoaded
 	expandedPlist := plistPath()
 
 	installed, err := readInstalledPlist(expandedPlist)
@@ -197,6 +234,11 @@ func (s *Service) Install(configPath, logFile, servicePath string) (InstallOutco
 // still running, and it keeps running until logout. Removing its plist there
 // would take away the only thing an uninstall can still act on, so the file
 // stays and the failure is returned for the caller to retry.
+//
+// Tolerating that failure takes a positive answer that there was nothing to
+// unload, not merely the absence of one. A launchctl that could not run leaves
+// the same question open as a loaded service does, and the safe reading of an
+// open question here is the one that keeps the plist.
 func (s *Service) Uninstall() error {
 	ctx := context.Background()
 
@@ -209,10 +251,25 @@ func (s *Service) Uninstall() error {
 	// makes this uninstall report a failure the retry will not see again.
 	// Sampling after would be worse: the bootout's own success is what empties
 	// it, so every unload would look like it had nothing to unload.
-	loaded := s.launcher.list(ctx, Label) == nil
+	//
+	// Why it could not be sampled is deliberately not returned: the bootout
+	// that follows may well succeed, and an uninstall that worked has nothing
+	// to report. It changes what a failure says, though — "unloading failed,
+	// try again" is the wrong advice when what is broken is the launchctl
+	// both halves of this run through.
+	state, _ := s.loadState(ctx)
 
 	err = s.launcher.bootout(ctx, domain+"/"+Label)
-	if err != nil && loaded {
+	if err != nil && state == LoadStateUnknown {
+		return derrors.Wrapf(
+			err,
+			derrors.CodeServiceFailed,
+			"unloading service; launchctl could not say whether it was loaded, "+
+				"so the plist is kept and this failure stands",
+		)
+	}
+
+	if err != nil && state == LoadStateLoaded {
 		return derrors.Wrapf(err, derrors.CodeServiceFailed, "unloading service")
 	}
 
@@ -256,11 +313,14 @@ func (s *Service) Restart() error {
 // the pid it runs under or the status it last exited with, plus the captured
 // console streams the installed plist names and how large they have grown.
 //
-// Only the loaded answer is guaranteed. Everything past it comes from
-// `launchctl print`, whose output Apple documents nowhere, so anything that
-// goes wrong there degrades to the answer this returned before it asked:
-// loaded, or not. A status command that fails tells a user less than one that
-// says a little less.
+// Nothing here is guaranteed, and the load state least of all: it is the one
+// thing this always reports, and [LoadStateUnknown] is one of the things it can
+// report. That is the same bargain the rest of the status makes — everything
+// past the load state comes from `launchctl print`, whose output Apple
+// documents nowhere, so anything that goes wrong there degrades to the answer
+// this returned before it asked. A status command that fails tells a user less
+// than one that says a little less, and that holds for a launchctl that could
+// not run too: unknown is a thing to report, not a reason to report nothing.
 //
 // The captured streams are read whether or not the service is loaded: they are
 // files on disk, and the run that wrote them is over either way — an unloaded
@@ -268,10 +328,15 @@ func (s *Service) Restart() error {
 func (s *Service) Status() Status {
 	ctx := context.Background()
 
-	status := Status{Loaded: s.launcher.list(ctx, Label) == nil}
+	// The reason launchctl could not answer is not carried out of here: this
+	// returns no error by design, and [LoadStateUnknown] is already the whole
+	// of what a caller can do about it.
+	state, _ := s.loadState(ctx)
+
+	status := Status{State: state}
 	status.CapturedStdout, status.CapturedStderr = installedCapturedLogs()
 
-	if !status.Loaded {
+	if status.State != LoadStateLoaded {
 		return status
 	}
 
@@ -290,6 +355,37 @@ func (s *Service) Status() Status {
 	status.LastExitStatus = report.lastExitStatus
 
 	return status
+}
+
+// loadState asks launchd whether the service is loaded, and is the only place
+// in this package that asks.
+//
+// Everything that reads it — install, uninstall, status, and the wait between
+// an unload and the load after it — used to take a failed `launchctl list` for
+// a job that is not there. They want different things from the third state, so
+// what they share is this: one call that names it, and no caller left able to
+// miss it.
+//
+// The error is returned alongside because it is the whole of what
+// [LoadStateUnknown] means, and it is non-nil exactly then. A caller that
+// refuses to act without an answer returns it and says why launchctl could not
+// give one; a caller that only needs to know whether it has one reads the
+// state and lets the error go.
+func (s *Service) loadState(ctx context.Context) (LoadState, error) {
+	loaded, err := s.launcher.list(ctx, Label)
+	if err != nil {
+		return LoadStateUnknown, derrors.Wrapf(
+			err,
+			derrors.CodeServiceFailed,
+			"asking launchctl whether the service is loaded",
+		)
+	}
+
+	if loaded {
+		return LoadStateLoaded, nil
+	}
+
+	return LoadStateNotLoaded, nil
 }
 
 // apply makes the installed service be content: it unloads whatever is
@@ -366,16 +462,29 @@ func (s *Service) apply(
 // "Operation now in progress" — a real failure, over a service that was only
 // slow. Waiting here is what turns the common case of a daemon taking a
 // moment back into an install that simply works.
+//
+// Only launchctl saying the job is gone ends the wait. A launchctl that cannot
+// run says nothing about the job, and taking that for the job being gone would
+// hand the bootstrap straight back into the window this exists to close — so
+// it gives up instead, and says why. Waiting out the rest of the bound would
+// only spend the timeout to reach the same place with a vaguer reason: the
+// answer failed to arrive, and it is not the daemon that is slow.
 func (s *Service) waitForUnload(ctx context.Context) error {
 	for attempt := range unloadPollAttempts {
 		if attempt > 0 {
 			s.pause(unloadPollInterval)
 		}
 
-		// Same reading of a failed list as everywhere else here: launchctl
-		// could not find the job, so it is gone.
-		loaded := s.launcher.list(ctx, Label) == nil
-		if !loaded {
+		state, err := s.loadState(ctx)
+		if err != nil {
+			return derrors.Wrapf(
+				err,
+				derrors.CodeServiceFailed,
+				"waiting for the previous service to unload",
+			)
+		}
+
+		if state == LoadStateNotLoaded {
 			return nil
 		}
 	}
