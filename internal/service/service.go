@@ -35,7 +35,11 @@ func New() *Service {
 
 // Install renders the plist for the running binary and configPath, writes it
 // to ~/Library/LaunchAgents, and loads it with launchctl bootstrap.
-func (s *Service) Install(configPath string) error {
+//
+// logFile is settings.log_file as config resolved it, and is only used to
+// place the daemon's captured stdout/stderr alongside it; an empty value is
+// valid and leaves those streams at their /tmp defaults.
+func (s *Service) Install(configPath, logFile string) error {
 	ctx := context.Background()
 
 	if s.launcher.list(ctx, Label) == nil {
@@ -50,7 +54,19 @@ func (s *Service) Install(configPath string) error {
 		return derrors.Wrapf(err, derrors.CodeServiceFailed, "getting binary path")
 	}
 
-	plistContent := renderPlist(binPath, configPath)
+	plistContent := renderPlist(binPath, configPath, logFile)
+
+	// launchd opens StandardOutPath and StandardErrorPath at spawn time and
+	// creates no directories of its own: a missing one silently discards the
+	// console output of the very first run, which is the startup crash these
+	// streams exist to capture. mimi's own file log only creates the
+	// directory later, once the logger is built.
+	captureDir := capturedStreamsFor(logFile).dir()
+
+	err = os.MkdirAll(captureDir, dirPerm)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "creating log directory")
+	}
 
 	expandedDir := paths.ExpandHome(launchAgentsDir)
 
