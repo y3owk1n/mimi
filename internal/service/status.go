@@ -141,6 +141,11 @@ func describeCapturedLog(path string) CapturedLog {
 // pinned byte for byte by a golden test. A key whose next element is not a
 // <string> — or that another key gets in front of — reads as absent, so a plist
 // of some other shape costs the detail rather than inventing one.
+//
+// What it does not skimp on is the escaping, because renderPlist escapes every
+// path it writes: a directory named with XML markup sits in the file as markup,
+// and handing that straight back would name a file that does not exist and
+// report it missing. The value is resolved back to the path it stands for.
 func plistString(content, key string) string {
 	_, after, found := strings.Cut(content, "<key>"+key+"</key>")
 	if !found {
@@ -157,5 +162,5 @@ func plistString(content, key string) string {
 		return ""
 	}
 
-	return value
+	return unescapeXMLText(value)
 }

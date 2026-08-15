@@ -1,6 +1,9 @@
 package service
 
 import (
+	"encoding/xml"
+	"errors"
+	"io"
 	"path/filepath"
 	"strings"
 )
@@ -95,40 +98,114 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 // servicePath is settings.service_path, and is optional: an empty one renders
 // the PATH the plist hardcoded before that setting existed, so a config that
 // never mentions it produces the same bytes as ever.
+//
+// Every value it substitutes goes through escapeXMLText, without exception:
+// each one is a path the user chose, and any of them may legally be named with
+// something that is markup here. Escaping changes nothing about an ordinary
+// path, which is why the golden test still pins the same bytes.
 func renderPlist(binPath, configPath, logFile, servicePath string) string {
 	streams := capturedStreamsFor(logFile)
 
-	content := strings.ReplaceAll(plistTemplate, "MIMI_BINARY_PATH", binPath)
-	content = strings.ReplaceAll(content, "MIMI_CONFIG_PATH", configPath)
-	content = strings.ReplaceAll(content, "MIMI_STDOUT_PATH", streams.stdout)
-	content = strings.ReplaceAll(content, "MIMI_STDERR_PATH", streams.stderr)
+	content := strings.ReplaceAll(plistTemplate, "MIMI_BINARY_PATH", escapeXMLText(binPath))
+	content = strings.ReplaceAll(content, "MIMI_CONFIG_PATH", escapeXMLText(configPath))
+	content = strings.ReplaceAll(content, "MIMI_STDOUT_PATH", escapeXMLText(streams.stdout))
+	content = strings.ReplaceAll(content, "MIMI_STDERR_PATH", escapeXMLText(streams.stderr))
 
-	return strings.ReplaceAll(content, "MIMI_SERVICE_PATH", servicePathFor(servicePath))
+	return strings.ReplaceAll(
+		content,
+		"MIMI_SERVICE_PATH",
+		escapeXMLText(servicePathFor(servicePath)),
+	)
 }
 
-// xmlTextEscaper escapes the characters that end an XML text node, so a value
-// carrying one cannot break out of the <string> it is rendered into. A plist
-// that is not well-formed is one launchd silently refuses at login, which is
-// the failure mode furthest from where it would be noticed.
+// escapeXMLText renders a value as the XML text node it is substituted into, so
+// that a value carrying markup cannot break out of the <string> around it. A
+// plist that is not well-formed is one launchd silently refuses at login, which
+// is the failure mode furthest from where it would be noticed — the install
+// that wrote it has already reported success.
 //
-// It is applied to service_path only, because that is the value this render
-// gained. The binary, config and captured-stream paths have always been
-// substituted raw and still are; a directory named with an XML metacharacter
-// breaks the plist there too, and fixing that is its own change rather than a
-// side effect of adding a setting.
+// It is encoding/xml's own escaper rather than a replacer over "&", "<" and
+// ">", because the set of characters a path must not carry into XML raw is
+// larger than those three and is not obvious from reading the file. A carriage
+// return is the one that matters: it is legal in a macOS path, well-formed in a
+// text node, and rewritten to a newline by every conformant parser — so a raw
+// one would hand launchd a different path than the user configured, silently.
+// escapeXMLText writes it as &#xD;, along with the tab and newline that have
+// the same problem in weaker form.
 //
-//nolint:gochecknoglobals // an immutable replacer, built once
-var xmlTextEscaper = strings.NewReplacer("&", "&amp;", "<", "&lt;", ">", "&gt;")
+// The price is the quote and apostrophe it escapes that a text node does not
+// require escaped, and the U+FFFD it substitutes for a byte sequence that is
+// not valid UTF-8 — which no escaping could have carried into XML anyway. Both
+// cost a path that is written more verbosely, or a path launchd cannot open;
+// neither costs a plist it refuses to read.
+func escapeXMLText(value string) string {
+	var escaped strings.Builder
+
+	// EscapeText fails only when its writer does, and a strings.Builder never
+	// does.
+	_ = xml.EscapeText(&escaped, []byte(value))
+
+	return escaped.String()
+}
+
+// unescapeXMLText resolves the text of a <string> back to the value it stands
+// for, undoing escapeXMLText for the status that reads an installed plist back.
+// It sits beside its inverse and is encoding/xml doing the work, so that the
+// two sides cannot drift: whatever the escaper learns to write, this reads.
+//
+// Anything that is not escaped text comes back exactly as it was read: text
+// this cannot parse, and equally text it can — markup escapeXMLText would never
+// have written parses cleanly, and resolving it would drop the tags and hand
+// back a shorter path that names nothing. That is a plist mimi did not write —
+// home-manager's, or a hand-edited one — and the reader's bargain everywhere
+// else is to degrade the detail rather than invent one, so the text on disk is
+// the better answer.
+func unescapeXMLText(value string) string {
+	var (
+		decoder = xml.NewDecoder(strings.NewReader("<v>" + value + "</v>"))
+		decoded strings.Builder
+		depth   int
+	)
+
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return decoded.String()
+		}
+
+		if err != nil {
+			return value
+		}
+
+		switch typed := token.(type) {
+		case xml.CharData:
+			decoded.Write(typed)
+		case xml.StartElement:
+			// The wrapper this reads the value inside of is the only element
+			// escaped text can hold.
+			depth++
+			if depth > 1 {
+				return value
+			}
+		case xml.EndElement:
+			depth--
+		default:
+			// A comment, processing instruction or directive is not text
+			// either, and dropping it would shorten the value just as quietly.
+			return value
+		}
+	}
+}
 
 // servicePathFor is the PATH value the plist gets for a given
-// settings.service_path: the configured one, escaped for XML, or the default
-// when the setting is unset.
+// settings.service_path: the configured one or, when the setting is unset, the
+// default. Escaping is renderPlist's, applied to every substituted value alike.
 func servicePathFor(servicePath string) string {
 	if servicePath == "" {
 		return defaultServicePath
 	}
 
-	return xmlTextEscaper.Replace(servicePath)
+	return servicePath
 }
 
 // capturedStreams is where launchd writes the daemon's stdout and stderr. The

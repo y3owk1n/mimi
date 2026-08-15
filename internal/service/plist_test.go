@@ -2,6 +2,10 @@
 package service
 
 import (
+	"encoding/xml"
+	"errors"
+	"io"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -14,6 +18,13 @@ const (
 	testLogFile        = "/Users/test/.local/state/mimi/mimi.log"
 	testCapturedStdout = "/Users/test/.local/state/mimi/mimi.out.log"
 )
+
+// testBinPath is the installed binary the tests in this file render against.
+// It is an input rather than an expectation: a case exercising some other
+// value passes this one so that nothing but the value under test is unusual.
+// testConfigPath, its counterpart for the config path, lives in
+// service_test.go.
+const testBinPath = "/usr/local/bin/mimi"
 
 // wantGoldenPlist is the full plist renderPlist must produce for binPath
 // "/usr/local/bin/mimi", configPath "/Users/test/.config/mimi/config.toml" and
@@ -38,8 +49,8 @@ const wantGoldenPlist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE p
 // installed service on the next install, and has to be made deliberately.
 func TestRenderPlist_MatchesTheGoldenOutputByteForByte(t *testing.T) {
 	got := renderPlist(
-		"/usr/local/bin/mimi",
-		"/Users/test/.config/mimi/config.toml",
+		testBinPath,
+		testConfigPath,
 		testLogFile,
 		"",
 	)
@@ -81,8 +92,8 @@ func TestRenderPlist_ServicePath(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			got := renderPlist(
-				"/usr/local/bin/mimi",
-				"/Users/test/.config/mimi/config.toml",
+				testBinPath,
+				testConfigPath,
 				testLogFile,
 				testCase.servicePath,
 			)
@@ -186,8 +197,8 @@ func TestRenderPlist_CapturedStreamPaths(t *testing.T) {
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
 			got := renderPlist(
-				"/usr/local/bin/mimi",
-				"/Users/test/.config/mimi/config.toml",
+				testBinPath,
+				testConfigPath,
 				testCase.logFile,
 				"",
 			)
@@ -238,6 +249,167 @@ func TestRenderPlist_CapturedStreamPaths(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestRenderPlist_EscapesEveryValueItSubstitutes pins that a path carrying an
+// XML metacharacter reaches the plist escaped, whichever of the substituted
+// values carries it. A directory may legally be named with "&", "<" or ">", and
+// a plist that is not well-formed XML is one launchd refuses to load at login —
+// long after the install that wrote it reported success.
+//
+// Each case asserts both halves of that: the exact escaped bytes, so the
+// escaping cannot quietly change, and the value read back out of a real XML
+// parse, so escaping that produced something a parser resolves to a different
+// path would fail here rather than at login.
+func TestRenderPlist_EscapesEveryValueItSubstitutes(t *testing.T) {
+	// The PATH the service-path case configures, named because the case both
+	// passes it in and expects it back out of the parse — the whole point being
+	// that those are the same string.
+	const markupServicePath = "/Users/test/bin & tools/<x>:/usr/bin"
+
+	tests := []struct {
+		name        string
+		binPath     string
+		configPath  string
+		logFile     string
+		servicePath string
+		// wantEscaped are the rendered fragments, spelled out with the
+		// escapes the plist must carry.
+		wantEscaped []string
+		// wantDecoded are the values an XML parser must hand back, spelled
+		// out raw — what launchd ends up executing, opening or exporting.
+		wantDecoded []string
+	}{
+		{
+			name:        "binary path",
+			binPath:     "/Users/test/bin & <tools>/mimi",
+			configPath:  testConfigPath,
+			logFile:     testLogFile,
+			servicePath: "",
+			wantEscaped: []string{"<string>/Users/test/bin &amp; &lt;tools&gt;/mimi</string>"},
+			wantDecoded: []string{"/Users/test/bin & <tools>/mimi"},
+		},
+		{
+			name:        "config path",
+			binPath:     testBinPath,
+			configPath:  "/Users/test/.config/mimi & <x>/config.toml",
+			logFile:     testLogFile,
+			servicePath: "",
+			wantEscaped: []string{
+				"<string>/Users/test/.config/mimi &amp; &lt;x&gt;/config.toml</string>",
+			},
+			wantDecoded: []string{"/Users/test/.config/mimi & <x>/config.toml"},
+		},
+		{
+			// Both captured-stream paths are derived from log_file, and each is
+			// substituted twice: once for launchd to write to, once for the
+			// environment entry the daemon reads it back out of.
+			name:        "captured stream paths derived from log_file",
+			binPath:     testBinPath,
+			configPath:  testConfigPath,
+			logFile:     "/Users/test/logs & <x>/mimi.log",
+			servicePath: "",
+			wantEscaped: []string{
+				"<key>StandardOutPath</key>\n    <string>/Users/test/logs &amp; &lt;x&gt;/mimi.out.log</string>",
+				"<key>StandardErrorPath</key>\n    <string>/Users/test/logs &amp; &lt;x&gt;/mimi.err.log</string>",
+				"<key>MIMI_CAPTURED_STDOUT</key>\n        <string>/Users/test/logs &amp; &lt;x&gt;/mimi.out.log</string>",
+				"<key>MIMI_CAPTURED_STDERR</key>\n        <string>/Users/test/logs &amp; &lt;x&gt;/mimi.err.log</string>",
+			},
+			wantDecoded: []string{
+				"/Users/test/logs & <x>/mimi.out.log",
+				"/Users/test/logs & <x>/mimi.err.log",
+			},
+		},
+		{
+			name:        "service path",
+			binPath:     testBinPath,
+			configPath:  testConfigPath,
+			logFile:     testLogFile,
+			servicePath: markupServicePath,
+			wantEscaped: []string{
+				"<key>PATH</key>\n        <string>/Users/test/bin &amp; tools/&lt;x&gt;:/usr/bin</string>",
+			},
+			wantDecoded: []string{markupServicePath},
+		},
+		{
+			// A carriage return is legal in a macOS path and well-formed in an
+			// XML text node, but every parser rewrites a raw one to a newline —
+			// so launchd would be handed a path the user never configured. It
+			// has to reach the plist as a character reference.
+			name:        "path carrying a carriage return an XML parser would rewrite",
+			binPath:     testBinPath,
+			configPath:  "/Users/test/.config/mi\rmi/config.toml",
+			logFile:     testLogFile,
+			servicePath: "",
+			wantEscaped: []string{"<string>/Users/test/.config/mi&#xD;mi/config.toml</string>"},
+			wantDecoded: []string{"/Users/test/.config/mi\rmi/config.toml"},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := renderPlist(
+				testCase.binPath,
+				testCase.configPath,
+				testCase.logFile,
+				testCase.servicePath,
+			)
+
+			for _, want := range testCase.wantEscaped {
+				if !strings.Contains(got, want) {
+					t.Errorf("renderPlist() does not contain %q:\n%s", want, got)
+				}
+			}
+
+			decoded := parsePlistStrings(t, got)
+			for _, want := range testCase.wantDecoded {
+				if !slices.Contains(decoded, want) {
+					t.Errorf("parsed plist has no <string> %q, only %q", want, decoded)
+				}
+			}
+		})
+	}
+}
+
+// parsePlistStrings decodes a rendered plist with a real XML parser and returns
+// every <string> value it holds. Failing to parse fails the test: that is the
+// whole of what launchd rejects a plist for, and the only check that a value
+// this package escaped by hand is a value a parser agrees with.
+func parsePlistStrings(t *testing.T, content string) []string {
+	t.Helper()
+
+	var (
+		decoder  = xml.NewDecoder(strings.NewReader(content))
+		values   []string
+		inString bool
+	)
+
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			break
+		}
+
+		if err != nil {
+			t.Fatalf("rendered plist is not well-formed XML: %v\n%s", err, content)
+		}
+
+		switch typed := token.(type) {
+		case xml.StartElement:
+			inString = typed.Name.Local == "string"
+			if inString {
+				values = append(values, "")
+			}
+		case xml.CharData:
+			if inString {
+				values[len(values)-1] += string(typed)
+			}
+		case xml.EndElement:
+			inString = false
+		}
+	}
+
+	return values
 }
 
 func TestRenderPlist_Table(t *testing.T) {
