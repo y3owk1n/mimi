@@ -18,6 +18,11 @@ import (
 // that does not vary it uses this one.
 const testConfigPath = "/Users/test/.config/mimi/config.toml"
 
+// wantReloadCalls is the launchctl sequence that replaces the plist of a
+// loaded service: booted out first, because launchd re-reads a plist only when
+// the job is loaded again, and it cannot while the old one is loaded.
+const wantReloadCalls = "bootout,bootstrap"
+
 // fakeLauncher is a launcher made of plain values: every call it sees lands
 // in a field a test can assert against, and every call it returns is a field
 // a test can set up in advance.
@@ -386,7 +391,7 @@ func TestService_Install_WritesThePlistAndBootstraps(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	outcome, err := svc.Install(testConfigPath, logFile)
+	outcome, err := svc.Install(testConfigPath, logFile, "")
 	if err != nil {
 		t.Fatalf("Install() = %v, want nil", err)
 	}
@@ -445,7 +450,7 @@ func TestService_Install_IsANoOpWhenTheLoadedServiceAlreadyMatches(t *testing.T)
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, logFile)
+	_, err := svc.Install(testConfigPath, logFile, "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -455,7 +460,7 @@ func TestService_Install_IsANoOpWhenTheLoadedServiceAlreadyMatches(t *testing.T)
 	fake.loaded = true
 	fake.calls = nil
 
-	outcome, err := svc.Install(testConfigPath, logFile)
+	outcome, err := svc.Install(testConfigPath, logFile, "")
 	if err != nil {
 		t.Fatalf("second Install() = %v, want nil", err)
 	}
@@ -485,7 +490,7 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, oldLogFile)
+	_, err := svc.Install(testConfigPath, oldLogFile, "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -494,7 +499,7 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 	fake.loaded = true
 	fake.calls = nil
 
-	outcome, err := svc.Install(testConfigPath, newLogFile)
+	outcome, err := svc.Install(testConfigPath, newLogFile, "")
 	if err != nil {
 		t.Fatalf("second Install() = %v, want nil", err)
 	}
@@ -505,7 +510,7 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 
 	// Booted out first: bootstrapping over a loaded job is what makes
 	// launchd re-read the plist, and it cannot while the old one is loaded.
-	if got := strings.Join(fake.calls, ","); got != "bootout,bootstrap" {
+	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
 		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
 	}
 
@@ -534,6 +539,53 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 	}
 }
 
+// TestService_Install_ReplacesAStalePlistAfterServicePathChanges is the same
+// staleness for settings.service_path, and the whole reason that setting is
+// reinstall-only: the PATH the daemon runs its hooks with is the one in the
+// plist launchd loaded, so changing the config reaches an installed service
+// only by installing it again.
+func TestService_Install_ReplacesAStalePlistAfterServicePathChanges(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	logFile := filepath.Join(dir, "state", "mimi", "mimi.log")
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, logFile, "")
+	if err != nil {
+		t.Fatalf("first Install() = %v, want nil", err)
+	}
+
+	fake.loaded = true
+	fake.calls = nil
+
+	const wantPath = "/Users/test/.local/bin:/usr/bin:/bin"
+
+	outcome, err := svc.Install(testConfigPath, logFile, wantPath)
+	if err != nil {
+		t.Fatalf("second Install() = %v, want nil", err)
+	}
+
+	if outcome != InstallOutcomeReplaced {
+		t.Errorf("second Install() outcome = %v, want %v", outcome, InstallOutcomeReplaced)
+	}
+
+	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
+		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+	}
+
+	content, err := os.ReadFile(filepath.Join(dir, "Library", "LaunchAgents", Label+".plist"))
+	if err != nil {
+		t.Fatalf("reading installed plist: %v", err)
+	}
+
+	if !strings.Contains(string(content), "<string>"+wantPath+"</string>") {
+		t.Errorf("installed plist does not carry the configured PATH:\n%s", content)
+	}
+}
+
 // TestService_Install_FailsWhenLoadedByAnotherInstaller pins the refusal that
 // survives idempotence: a loaded service with no plist of mimi's behind it is
 // nix-darwin's or home-manager's, and mimi must not adopt it.
@@ -544,7 +596,7 @@ func TestService_Install_FailsWhenLoadedByAnotherInstaller(t *testing.T) {
 	fake := &fakeLauncher{loaded: true}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"), "")
 	if err == nil {
 		t.Fatal("Install() = nil, want an error")
 	}
@@ -595,7 +647,7 @@ func TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err = svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
+	_, err = svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"), "")
 	if err == nil {
 		t.Fatal("Install() = nil, want an error")
 	}
@@ -650,7 +702,7 @@ func TestService_Install_LoadsAPlistLeftBehindByAPreviousInstall(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
+	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("Install() = %v, want nil", err)
 	}
@@ -691,7 +743,7 @@ func TestService_Install_NeverLeavesAPartialPlist(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -717,7 +769,7 @@ func TestService_Install_NeverLeavesAPartialPlist(t *testing.T) {
 
 	fake.loaded = true
 
-	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"))
+	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"), "")
 	if err == nil {
 		t.Fatal("second Install() = nil, want an error")
 	}
@@ -760,7 +812,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -778,7 +830,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 
 	newLogFile := filepath.Join(dir, "new", "mimi.log")
 
-	_, err = svc.Install(testConfigPath, newLogFile)
+	_, err = svc.Install(testConfigPath, newLogFile, "")
 	if err == nil {
 		t.Fatal("Install() = nil, want the unload failure")
 	}
@@ -806,7 +858,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	fake.bootoutErr = nil
 	fake.calls = nil
 
-	outcome, err := svc.Install(testConfigPath, newLogFile)
+	outcome, err := svc.Install(testConfigPath, newLogFile, "")
 	if err != nil {
 		t.Fatalf("retried Install() = %v, want nil", err)
 	}
@@ -829,7 +881,7 @@ func TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping(t
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -840,7 +892,7 @@ func TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping(t
 	fake.unloadLag = 2
 	fake.calls = nil
 
-	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"))
+	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("second Install() = %v, want nil", err)
 	}
@@ -849,7 +901,7 @@ func TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping(t
 		t.Errorf("second Install() outcome = %v, want %v", outcome, InstallOutcomeReplaced)
 	}
 
-	if got := strings.Join(fake.calls, ","); got != "bootout,bootstrap" {
+	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
 		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
 	}
 
@@ -869,7 +921,7 @@ func TestService_Install_FailsWhenThePreviousServiceNeverUnloads(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("first Install() = %v, want nil", err)
 	}
@@ -892,7 +944,7 @@ func TestService_Install_FailsWhenThePreviousServiceNeverUnloads(t *testing.T) {
 	fake.neverUnloads = true
 	fake.calls = nil
 
-	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"))
+	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"), "")
 	if err == nil {
 		t.Fatal("Install() = nil, want the unload to time out")
 	}
@@ -948,7 +1000,7 @@ func TestService_Install_SaysAFailedLoadCanBeRetried(t *testing.T) {
 			fake := &fakeLauncher{}
 			svc := newTestService(fake)
 
-			_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+			_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"), "")
 			if err != nil {
 				t.Fatalf("first Install() = %v, want nil", err)
 			}
@@ -958,7 +1010,7 @@ func TestService_Install_SaysAFailedLoadCanBeRetried(t *testing.T) {
 
 			newLogFile := filepath.Join(dir, "new", "mimi.log")
 
-			_, err = svc.Install(testConfigPath, newLogFile)
+			_, err = svc.Install(testConfigPath, newLogFile, "")
 			if err == nil {
 				t.Fatal("Install() = nil, want the failed load")
 			}
@@ -984,7 +1036,7 @@ func TestService_Install_SaysAFailedLoadCanBeRetried(t *testing.T) {
 			fake.bootstrapErr = nil
 			fake.calls = nil
 
-			_, err = svc.Install(testConfigPath, newLogFile)
+			_, err = svc.Install(testConfigPath, newLogFile, "")
 			if err != nil {
 				t.Fatalf("retried Install() = %v, want nil", err)
 			}
@@ -1008,7 +1060,7 @@ func TestService_Install_DoesNotUseTheSystemTempDirectory(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"), "")
 	if err != nil {
 		t.Fatalf("Install() = %v, want nil (the plist never goes via TMPDIR)", err)
 	}
@@ -1062,7 +1114,7 @@ func TestService_Install_FailsWhenTheCapturedStreamDirectoryCannotBeCreated(t *t
 	fake := &fakeLauncher{}
 	svc := newTestService(fake)
 
-	_, err = svc.Install(testConfigPath, filepath.Join(blocker, "mimi", "mimi.log"))
+	_, err = svc.Install(testConfigPath, filepath.Join(blocker, "mimi", "mimi.log"), "")
 	if err == nil {
 		t.Fatal("Install() = nil, want an error")
 	}

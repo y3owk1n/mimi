@@ -39,6 +39,17 @@ socket_file = "~/.local/share/mimi/mimi.sock"
 # Lower = more responsive, higher = fewer spurious fires during drag.
 resize_debounce_ms = 250
 
+# PATH the launchd-installed service runs with, and so the PATH every hook
+# inherits. A login shell's PATH never reaches a launchd agent, so set this if
+# a hook works from your terminal but does nothing under the installed service.
+# It replaces the default below entirely rather than adding to it, and takes
+# absolute directories only: "~" is not expanded here, and launchd would not
+# expand it either.
+#
+# Nothing else reads this: run `mimi services install` after changing it, which
+# re-renders the plist. A restart does not pick it up.
+# service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+
 [systray]
 enabled = true
 show_workspace_number = true

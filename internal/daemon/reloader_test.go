@@ -16,6 +16,10 @@ import (
 )
 
 const (
+	// reloaderDebugLogLevel is a log level distinguishable from the one
+	// baseSettings runs, so setting it is a restart-only change a test can see.
+	reloaderDebugLogLevel = "debug"
+
 	reloaderHookRunOld   = "echo old"
 	reloaderHookRunNew   = "echo new"
 	reloaderInvalidRegex = "["
@@ -55,30 +59,45 @@ func newTestReloader(
 	return cfgReloader, reg, bus
 }
 
-// TestReloader_Apply_ReportsRestartOnlySettingsThatChanged pins what a
-// trigger learns from a reload: the restart-only settings the new config
-// changes, so the caller can say a restart is needed instead of reporting a
-// success that changed nothing.
-func TestReloader_Apply_ReportsRestartOnlySettingsThatChanged(t *testing.T) {
+// TestReloader_Apply_ReportsSettingsItCouldNotApply pins what a trigger learns
+// from a reload: the settings the new config changes that the reload did not
+// apply, split by what each of them needs — a restart, or a reinstall of the
+// service — so the caller can say which instead of reporting a success that
+// changed nothing.
+func TestReloader_Apply_ReportsSettingsItCouldNotApply(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
-		name   string
-		change func(*config.Config)
-		want   []string
+		name              string
+		change            func(*config.Config)
+		wantRestartOnly   []string
+		wantReinstallOnly []string
 	}{
 		{
 			name:   "only reloadable settings changed",
 			change: func(c *config.Config) { c.Settings.HookShell = "/bin/bash" },
-			want:   nil,
 		},
 		{
 			name: "restart-only settings changed",
 			change: func(c *config.Config) {
-				c.Settings.LogLevel = "debug"
+				c.Settings.LogLevel = reloaderDebugLogLevel
 				c.Settings.MaxHookWorkers = 8
 			},
-			want: []string{keyLogLevel, keyMaxHookWorkers},
+			wantRestartOnly: []string{keyLogLevel, keyMaxHookWorkers},
+		},
+		{
+			name:              "a reinstall-only setting changed",
+			change:            func(c *config.Config) { c.Settings.ServicePath = "/usr/bin:/bin" },
+			wantReinstallOnly: []string{keyServicePath},
+		},
+		{
+			name: "both changed",
+			change: func(c *config.Config) {
+				c.Settings.LogLevel = reloaderDebugLogLevel
+				c.Settings.ServicePath = "/usr/bin:/bin"
+			},
+			wantRestartOnly:   []string{keyLogLevel},
+			wantReinstallOnly: []string{keyServicePath},
 		},
 	}
 
@@ -95,13 +114,25 @@ func TestReloader_Apply_ReportsRestartOnlySettingsThatChanged(t *testing.T) {
 			newCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunNew}}
 			testCase.change(newCfg)
 
-			restartOnly, err := cfgReloader.Apply(newCfg)
+			changes, err := cfgReloader.Apply(newCfg)
 			if err != nil {
 				t.Fatalf("unexpected error: %v", err)
 			}
 
-			if !reflect.DeepEqual(restartOnly, testCase.want) {
-				t.Errorf("Apply() restart-only settings = %v, want %v", restartOnly, testCase.want)
+			if !reflect.DeepEqual(changes.restartOnly, testCase.wantRestartOnly) {
+				t.Errorf(
+					"Apply() restart-only settings = %v, want %v",
+					changes.restartOnly,
+					testCase.wantRestartOnly,
+				)
+			}
+
+			if !reflect.DeepEqual(changes.reinstallOnly, testCase.wantReinstallOnly) {
+				t.Errorf(
+					"Apply() reinstall-only settings = %v, want %v",
+					changes.reinstallOnly,
+					testCase.wantReinstallOnly,
+				)
 			}
 		})
 	}
@@ -122,28 +153,32 @@ func TestReloader_Apply_ComparesAgainstTheConfigTheDaemonIsRunning(t *testing.T)
 	cfgReloader, _, _ := newTestReloader(t, oldCfg)
 
 	changedCfg := &config.Config{Settings: baseSettings()}
-	changedCfg.Settings.LogLevel = "debug"
+	changedCfg.Settings.LogLevel = reloaderDebugLogLevel
 
-	restartOnly, err := cfgReloader.Apply(changedCfg)
+	changes, err := cfgReloader.Apply(changedCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if !reflect.DeepEqual(restartOnly, []string{keyLogLevel}) {
-		t.Fatalf("Apply() restart-only settings = %v, want %v", restartOnly, []string{keyLogLevel})
+	if !reflect.DeepEqual(changes.restartOnly, []string{keyLogLevel}) {
+		t.Fatalf(
+			"Apply() restart-only settings = %v, want %v",
+			changes.restartOnly,
+			[]string{keyLogLevel},
+		)
 	}
 
 	revertedCfg := &config.Config{Settings: baseSettings()}
 
-	restartOnly, err = cfgReloader.Apply(revertedCfg)
+	changes, err = cfgReloader.Apply(revertedCfg)
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
 
-	if restartOnly != nil {
+	if changes.restartOnly != nil {
 		t.Errorf(
 			"putting a restart-only setting back to the running value still asks for a restart: %v",
-			restartOnly,
+			changes.restartOnly,
 		)
 	}
 }
@@ -308,15 +343,15 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 		{Run: reloaderHookRunNew, Title: reloaderInvalidRegex},
 	}
 
-	restartOnly, err := cfgReloader.Apply(newCfg)
+	changes, err := cfgReloader.Apply(newCfg)
 	if err == nil {
 		t.Fatal("expected an error for an invalid hook regex, got nil")
 	}
 
-	if restartOnly != nil {
+	if changes.restartOnly != nil || changes.reinstallOnly != nil {
 		t.Errorf(
-			"a failed reload reported %v as needing a restart; nothing was applied, so nothing does",
-			restartOnly,
+			"a failed reload reported %+v as unapplied; nothing was applied, so nothing is",
+			changes,
 		)
 	}
 

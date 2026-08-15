@@ -27,6 +27,7 @@ const (
 	keyLogFile        = "settings.log_file"
 	keyLogLevel       = "settings.log_level"
 	keyMaxHookWorkers = "settings.max_hook_workers"
+	keyServicePath    = "settings.service_path"
 )
 
 const reloadReportBaseConfig = `[settings]
@@ -140,6 +141,17 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 			wantInEntry: []string{keyLogLevel, keyMaxHookWorkers},
 			wantOutcome: systray.ReloadOutcomeRestartRequired,
 		},
+		{
+			// A restart would not pick this up either, so the report names the
+			// one thing that would
+			// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+			name:        "a reinstall-only setting changed",
+			contents:    "[settings]\nlog_level = \"info\"\nservice_path = \"/usr/bin:/bin\"\n",
+			wantLevel:   zapcore.WarnLevel,
+			wantMessage: reloadReinstallRequiredMessage,
+			wantInEntry: []string{keyServicePath},
+			wantOutcome: systray.ReloadOutcomeReinstallRequired,
+		},
 	}
 
 	for _, testCase := range tests {
@@ -193,6 +205,68 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 				}
 			}
 		})
+	}
+}
+
+// TestReloadConfig_ReportsARestartAndAReinstallTogether covers the config that
+// changes one of each. The two needs are different actions, so each gets its
+// own line naming its own settings; the tray gets one outcome and it is the
+// restart, the instruction that holds however the daemon was started, with the
+// reinstall a line away in the log.
+func TestReloadConfig_ReportsARestartAndAReinstallTogether(t *testing.T) {
+	t.Parallel()
+
+	path, cfgReloader, logger, logs := newTestReloadConfig(t, reloadReportBaseConfig)
+
+	writeReloadTestConfig(
+		t,
+		path,
+		"[settings]\nlog_level = \"debug\"\nservice_path = \"/usr/bin:/bin\"\n",
+	)
+
+	var reported []systray.ReloadOutcome
+
+	report := func(outcome systray.ReloadOutcome) {
+		reported = append(reported, outcome)
+	}
+
+	reloadConfig(path, cfgReloader, reloadTriggerSighup, report, logger)
+
+	if len(reported) != 1 || reported[0] != systray.ReloadOutcomeRestartRequired {
+		t.Errorf(
+			"reported outcomes = %v, want [%v]",
+			reported,
+			systray.ReloadOutcomeRestartRequired,
+		)
+	}
+
+	entries := logs.All()
+	if len(entries) != 2 {
+		t.Fatalf("got %d log entries, want 2: %+v", len(entries), entries)
+	}
+
+	restart, reinstall := entryText(entries[0]), entryText(entries[1])
+
+	if entries[0].Message != reloadRestartRequiredMessage ||
+		!strings.Contains(restart, keyLogLevel) {
+		t.Errorf("first entry %q does not report the restart-only setting that changed", restart)
+	}
+
+	if entries[1].Message != reloadReinstallRequiredMessage ||
+		!strings.Contains(reinstall, keyServicePath) {
+		t.Errorf(
+			"second entry %q does not report the reinstall-only setting that changed",
+			reinstall,
+		)
+	}
+
+	// The point of the fourth outcome: the user is told the command that
+	// applies the change, not to restart something a restart will not fix.
+	if !strings.Contains(reinstall, "mimi services install") {
+		t.Errorf(
+			"entry %q does not name the command that applies a reinstall-only change",
+			reinstall,
+		)
 	}
 }
 

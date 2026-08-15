@@ -73,6 +73,30 @@ command uses.
 3. Set `log_level = "debug"` in config and check logs
 4. Window hooks require Accessibility; workspace hooks do not
 
+## A hook works by hand, but does nothing under the installed service
+
+The installed service does not inherit your login shell's `PATH` — launchd
+gives it the one baked into the plist, which is
+`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin` unless
+[`settings.service_path`](CONFIGURATION.md#service_path) says otherwise. A hook
+calling anything in `~/.local/bin`, a Nix profile, or a language version
+manager therefore runs from a terminal and fails from the service, usually
+with the daemon's captured stderr showing a "command not found".
+
+Set the whole `PATH` you need and install again — the setting is
+reinstall-only, so nothing shorter of that applies it:
+
+```toml
+[settings]
+service_path = "/Users/me/.local/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+```
+
+```bash
+mimi services install
+```
+
+Or make the hook independent of `PATH` by calling absolute paths.
+
 ## Daemon won't start
 
 ```bash

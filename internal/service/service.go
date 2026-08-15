@@ -107,7 +107,13 @@ func New() *Service {
 // logFile is settings.log_file as config resolved it, and is only used to
 // place the daemon's captured stdout/stderr alongside it; an empty value is
 // valid and leaves those streams at their /tmp defaults.
-func (s *Service) Install(configPath, logFile string) (InstallOutcome, error) {
+//
+// servicePath is settings.service_path: the PATH the installed service, and so
+// every hook it runs, is given. An empty value is valid and leaves the PATH
+// the plist has always carried. It is baked in here and nowhere else, which is
+// what makes it reinstall-only
+// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+func (s *Service) Install(configPath, logFile, servicePath string) (InstallOutcome, error) {
 	ctx := context.Background()
 
 	loaded := s.launcher.list(ctx, Label) == nil
@@ -128,7 +134,7 @@ func (s *Service) Install(configPath, logFile string) (InstallOutcome, error) {
 		return 0, derrors.Wrapf(err, derrors.CodeServiceFailed, "getting binary path")
 	}
 
-	plistContent := renderPlist(binPath, configPath, logFile)
+	plistContent := renderPlist(binPath, configPath, logFile, servicePath)
 
 	// launchd opens StandardOutPath and StandardErrorPath at spawn time and
 	// creates no directories of its own: a missing one silently discards the

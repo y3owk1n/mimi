@@ -25,6 +25,15 @@ const (
 	// success because it is the case where the reload worked and the user's
 	// change still did nothing.
 	ReloadOutcomeRestartRequired
+	// ReloadOutcomeReinstallRequired is a reload the daemon applied as far as
+	// it can, where what it could not apply is a reinstall-only setting: one
+	// baked into the launchd plist, which the daemon never reads and a restart
+	// would not change either. It is separate from RestartRequired because the
+	// two ask the user for different things, and telling someone to restart
+	// when only `mimi services install` will do is exactly the confident wrong
+	// instruction this reporting exists to avoid
+	// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+	ReloadOutcomeReinstallRequired
 	// ReloadOutcomeFailed is a reload the daemon did not apply at all; the
 	// previous config is still running, entirely.
 	ReloadOutcomeFailed
@@ -81,7 +90,7 @@ func (c *Component) adoptReloadStatusItem(item *MenuItem) {
 // showing a time or implying a success that never happened.
 //
 // Nothing from the user's config file can reach these lines: the outcome is
-// three values and a clock reading, so no setting name, no setting value and
+// four values and a clock reading, so no setting name, no setting value and
 // no error text has a way in.
 func formatReloadStatus(status *reloadStatus) string {
 	if status == nil {
@@ -95,6 +104,11 @@ func formatReloadStatus(status *reloadStatus) string {
 		return "Reloaded " + when
 	case ReloadOutcomeRestartRequired:
 		return "Reloaded " + when + " — restart required"
+	case ReloadOutcomeReinstallRequired:
+		// Named as the command to run, not as "reinstall required": a
+		// reinstall of what is the question a user would be left with, and
+		// this is a label they cannot click for more.
+		return "Reloaded " + when + " — run mimi services install"
 	case ReloadOutcomeFailed:
 		return "Reload failed " + when
 	default:

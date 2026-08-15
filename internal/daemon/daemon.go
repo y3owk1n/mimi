@@ -271,13 +271,19 @@ const (
 	reloadTriggerSighup   reloadTrigger = "sighup"
 )
 
-// The three things a reload can report. They are constants so that the tests
+// The four things a reload can report. They are constants so that the tests
 // that pin which outcome a given config produces name the outcome rather than
 // repeating its wording.
+//
+// The reinstall line names the command, because that is the whole of what
+// distinguishes it: a restart does not apply a reinstall-only setting, so
+// saying "restart required" here would be a specific, confident, wrong
+// instruction (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
 const (
-	reloadFailedMessage          = "config reload failed"
-	reloadedMessage              = "config reloaded"
-	reloadRestartRequiredMessage = "config reloaded; restart required for changed restart-only settings"
+	reloadFailedMessage            = "config reload failed"
+	reloadedMessage                = "config reloaded"
+	reloadRestartRequiredMessage   = "config reloaded; restart required for changed restart-only settings"
+	reloadReinstallRequiredMessage = "config reloaded; run `mimi services install` for changed reinstall-only settings"
 )
 
 // reloadConfig loads the config at configPath, applies it, and logs the
@@ -287,10 +293,12 @@ const (
 // naming the trigger that noticed — previously the watcher logged parse
 // failures itself, without a trigger, while apply failures were logged here.
 //
-// A reload that changes a restart-only setting is not a plain success: the
-// daemon has applied everything it can and is still running the old value for
-// the rest, so it says so and names them. The names are mimi's own; the
-// values the user gave them stay out of the log.
+// A reload that changes a setting it cannot apply is not a plain success: the
+// daemon has applied everything it can and the rest keeps its old value, so it
+// says so and names those settings — one line per thing the user would have to
+// do, since a restart and a reinstall are different actions and a config can
+// ask for both at once. The names are mimi's own; the values the user gave
+// them stay out of the log.
 // The outcome also goes to reportReload, which is how a surface with no log in front
 // of it — the systray menu — can show what the last reload did. It travels one
 // way and carries the outcome alone: reporting is the daemon telling, never a
@@ -305,10 +313,10 @@ func reloadConfig(
 ) {
 	newCfg, err := config.Load(configPath)
 
-	var restartOnly []string
+	var changes reloadChanges
 
 	if err == nil {
-		restartOnly, err = cfgReloader.Apply(newCfg)
+		changes, err = cfgReloader.Apply(newCfg)
 	}
 
 	if err != nil {
@@ -320,19 +328,46 @@ func reloadConfig(
 
 	warnUnknownHookKeys(newCfg, logger)
 
-	if len(restartOnly) > 0 {
+	if changes.empty() {
+		logger.Infow(reloadedMessage, "trigger", trigger)
+	}
+
+	if len(changes.restartOnly) > 0 {
 		logger.Warnw(
 			reloadRestartRequiredMessage,
 			"trigger", trigger,
-			"restart_only", restartOnly,
+			"restart_only", changes.restartOnly,
 		)
-		reportReload(systray.ReloadOutcomeRestartRequired)
-
-		return
 	}
 
-	logger.Infow(reloadedMessage, "trigger", trigger)
-	reportReload(systray.ReloadOutcomeApplied)
+	if len(changes.reinstallOnly) > 0 {
+		logger.Warnw(
+			reloadReinstallRequiredMessage,
+			"trigger", trigger,
+			"reinstall_only", changes.reinstallOnly,
+		)
+	}
+
+	reportReload(reloadOutcomeFor(changes))
+}
+
+// reloadOutcomeFor is the single outcome the tray's one status line gets for a
+// reload that succeeded.
+//
+// A config that changes both a restart-only and a reinstall-only setting has
+// two answers and one line to say them in, and this picks the restart: it is
+// the instruction that holds however the daemon was started, where `mimi
+// services install` means nothing to someone running `mimi start` by hand. The
+// log names both either way, and it is the surface with room to.
+func reloadOutcomeFor(changes reloadChanges) systray.ReloadOutcome {
+	switch {
+	case len(changes.restartOnly) > 0:
+		return systray.ReloadOutcomeRestartRequired
+	case len(changes.reinstallOnly) > 0:
+		return systray.ReloadOutcomeReinstallRequired
+	default:
+		return systray.ReloadOutcomeApplied
+	}
 }
 
 // reloadReporter is where a reload's outcome goes. With a tray, that is the

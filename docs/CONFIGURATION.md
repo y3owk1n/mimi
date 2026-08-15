@@ -40,17 +40,31 @@ mimi daemon start`, or equivalent):
 - `systray.enabled`
 - `systray.show_workspace_number`
 
-A reload that changes a restart-only setting still applies everything
-reloadable, and then logs a warning naming the settings that need the restart,
-for example:
+**Reinstall-only** — never read by the daemon at all. It is baked into the
+launchd plist by `mimi services install`, so the value in effect is the one in
+the installed plist, and only installing the service again replaces it. A
+restart does not:
+
+- `settings.service_path`
+
+A reload that changes a restart-only or reinstall-only setting still applies
+everything reloadable, and then logs a warning naming the settings it could not
+apply and what each of them needs, for example:
 
 ```text
 config reloaded; restart required for changed restart-only settings
   trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
 ```
 
+```text
+config reloaded; run `mimi services install` for changed reinstall-only settings
+  trigger=sighup reinstall_only=["settings.service_path"]
+```
+
+A reload that changes both logs both lines, in that order.
+
 A reload that changes only reloadable settings logs the plain
-`config reloaded` line, with no restart notice.
+`config reloaded` line, with neither notice.
 
 The comparison is against the config the daemon started with, not the previous
 edit, so the notice keeps appearing on every reload for as long as the file and
@@ -59,13 +73,16 @@ back.
 
 With `systray.enabled = true`, the menu shows the same outcome to someone who
 has no log in front of them: a disabled line under **Reload Config** reading
-`Reloaded 14:32`, `Reloaded 14:32 — restart required`, or
-`Reload failed 14:32`, and `No config reload yet` until the daemon has reloaded
-once. It reports the daemon's own reload, so every route above updates it, not
-just the menu item.
+`Reloaded 14:32`, `Reloaded 14:32 — restart required`,
+`Reloaded 14:32 — run mimi services install`, or `Reload failed 14:32`, and
+`No config reload yet` until the daemon has reloaded once. It reports the
+daemon's own reload, so every route above updates it, not just the menu item.
+The line shows one outcome, so a reload that needs both a restart and a
+reinstall shows the restart — the instruction that holds however the daemon
+was started — and the log names both.
 
-These two lists are not maintained by hand: each config field is classified on
-the type itself, and a test fails if this document and that classification
+These lists are not maintained by hand: each config field is classified on the
+type itself, and a test fails if this document and that classification
 disagree.
 
 ---
@@ -83,6 +100,7 @@ max_hook_workers = 4                         # restart-only
 pid_file = "~/.local/share/mimi/mimi.pid"    # restart-only
 socket_file = "~/.local/share/mimi/mimi.sock" # restart-only
 resize_debounce_ms = 250                     # on_window_resize debounce window
+service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" # PATH for the installed service — reinstall-only
 ```
 
 `log_format` selects the **console** encoder only: `text` is the human-readable
@@ -111,6 +129,42 @@ daemon that hasn't picked up a changed `socket_file`, since it is
 restart-only) means actions silently execute directly instead of reaching the
 daemon. See [Troubleshooting](TROUBLESHOOTING.md#mimi-action-runs-but-seems-to-ignore-the-running-daemon)
 for how to tell which path an action actually took.
+
+### service_path
+
+`service_path` is the `PATH` `mimi services install` writes into the launchd
+plist, and therefore the `PATH` the installed daemon — and every hook it runs
+— inherits. Unset, it is
+`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`, which is what the plist has
+always hardcoded.
+
+Set it when a hook works from your shell but does nothing under the installed
+service. A login shell's `PATH` never reaches a launchd agent, so a hook
+calling something in `~/.local/bin`, a Nix profile, or a language version
+manager needs that directory listed here:
+
+```toml
+[settings]
+service_path = "/Users/me/.local/bin:/run/current-system/sw/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
+```
+
+It is the whole `PATH`, not an addition to one: what you write is what the
+service gets, so keep the directories you still need. Write absolute
+directories: unlike `log_file` and the other path settings, `~` is not expanded
+here, and launchd does not expand it either — a `~/.local/bin` entry is a
+directory the service will never find anything in.
+
+It is reinstall-only. The daemon never reads it — the value that matters is the
+one already in the installed plist — so run `mimi services install` after
+changing it. That re-renders the plist and reloads the service; a `mimi
+services restart`, or a plain daemon restart, keeps the old `PATH`. Running
+`mimi start` by hand ignores this setting entirely: that daemon inherits the
+`PATH` of whatever started it.
+
+If your service comes from the nix-darwin or home-manager module rather than
+from `mimi services install`, that module renders its own agent and this
+setting does not reach it — set `services.mimi.extraEnvironment.PATH` there
+instead.
 
 ### Debug logging
 
