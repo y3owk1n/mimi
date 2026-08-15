@@ -2,6 +2,8 @@ package cmd
 
 import (
 	"fmt"
+	"os"
+	"os/signal"
 
 	"github.com/spf13/cobra"
 )
@@ -74,7 +76,24 @@ Use "mimi start" to run the background daemon and react to window/space events v
 	return root
 }
 
-// Execute runs the root command and returns any error.
+// Execute runs the root command under a context the user's interrupt cancels,
+// and returns any error.
+//
+// Watching SIGINT here is what takes Go's default response to it away —
+// terminating the process — from every command at once, which is why the
+// second interrupt ends the process instead. What each command does with the
+// first one is recorded, command by command, in the audit in
+// interrupt_audit_test.go.
+//
+// Only SIGINT is watched. SIGTERM keeps Go's default, which is what it has
+// always had here: nothing in the CLI is written to be shut down politely by a
+// supervisor, and taking a killing signal away from one would be the change
+// this makes to Ctrl-C without the second stage that pays for it.
 func Execute() error {
-	return RootCmd.Execute()
+	signals := make(chan os.Signal, interruptBufferSize)
+
+	signal.Notify(signals, os.Interrupt)
+	defer signal.Stop(signals)
+
+	return runUnderInterrupts(RootCmd, signals, exitProcess)
 }
