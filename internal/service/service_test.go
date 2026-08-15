@@ -1100,8 +1100,9 @@ func TestService_Install_FailsWhenLaunchctlCannotBeAsked(t *testing.T) {
 }
 
 // TestService_Install_FailsWhenLoadedByAnotherInstaller pins the refusal that
-// survives idempotence: a loaded service with no plist of mimi's behind it is
-// nix-darwin's or home-manager's, and mimi must not adopt it.
+// survives idempotence: a job launchd holds under mimi's own label with no
+// plist of mimi's behind it was installed by something else — a stale install
+// or a hand-written plist — and mimi must not adopt it.
 func TestService_Install_FailsWhenLoadedByAnotherInstaller(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -1123,20 +1124,16 @@ func TestService_Install_FailsWhenLoadedByAnotherInstaller(t *testing.T) {
 		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
 	}
 
-	for _, tool := range []string{"nix-darwin", "home-manager"} {
-		if !strings.Contains(err.Error(), tool) {
-			t.Errorf("Install() error %q does not name %s", err, tool)
-		}
-	}
+	assertRefusalScopedToMimisLabel(t, err)
 
 	if len(fake.calls) != 0 {
 		t.Errorf("Install() drove launchctl: %v, want no calls", fake.calls)
 	}
 }
 
-// TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote covers the plist
-// home-manager installs: a symlink into the Nix store. Replacing it would
-// break its link and lose to the next rebuild anyway.
+// TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote covers a plist
+// linked out of the Nix store: a symlink where mimi's own file would be.
+// Replacing it would break its link and lose to the next rebuild anyway.
 func TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
@@ -1179,11 +1176,7 @@ func TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote(t *testing.T) {
 		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
 	}
 
-	for _, tool := range []string{"nix-darwin", "home-manager"} {
-		if !strings.Contains(err.Error(), tool) {
-			t.Errorf("Install() error %q does not name %s", err, tool)
-		}
-	}
+	assertRefusalScopedToMimisLabel(t, err)
 
 	if len(fake.calls) != 0 {
 		t.Errorf("Install() drove launchctl: %v, want no calls", fake.calls)
@@ -1197,6 +1190,26 @@ func TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote(t *testing.T) {
 
 	if info.Mode()&os.ModeSymlink == 0 {
 		t.Error("Install() replaced the foreign plist symlink with a file")
+	}
+}
+
+// assertRefusalScopedToMimisLabel fails unless a foreign-install refusal claims
+// the reach the check behind it has and no more: the label is what it must
+// name, and nix-darwin and home-manager are what it must not, both messages
+// having named them until [foreignInstallAdvice] stopped — see the why there.
+// This pins it from both sides, because either half alone lets the old promise
+// back in.
+func assertRefusalScopedToMimisLabel(t *testing.T, err error) {
+	t.Helper()
+
+	if !strings.Contains(err.Error(), Label) {
+		t.Errorf("Install() error %q does not name the label it checked, %s", err, Label)
+	}
+
+	for _, tool := range []string{"nix-darwin", "home-manager"} {
+		if strings.Contains(err.Error(), tool) {
+			t.Errorf("Install() error %q names %s, which neither check can see", err, tool)
+		}
 	}
 }
 

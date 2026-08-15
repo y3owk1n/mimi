@@ -36,9 +36,20 @@ const (
 )
 
 // foreignInstallAdvice is the tail of every refusal to touch a service mimi
-// did not install. It names the tools that install one of their own, because
-// the fix is always in their configuration and never in mimi.
-const foreignInstallAdvice = "check for existing installations (e.g., nix-darwin, home-manager) and uninstall them first"
+// did not install. It claims exactly the reach the checks in front of it have,
+// which is one launchd label: mimi's own.
+//
+// It used to send the user looking for a nix-darwin or home-manager install,
+// and those two are the installs it can never be reporting. Both checks only
+// ever ask about [Label] — the plist at its path, and the job launchd holds
+// under it — while the modules in this repo register their agent under labels
+// of their own: nix/darwin.nix through launchd.user.agents.mimi, nix/home.nix
+// through launchd.agents.mimi. Naming them promised a conflict check that was
+// never performed, so what fires is a stale mimi install or a hand-written
+// plist. Saying what was looked at leaves the rest of the search where it can
+// actually be described, in docs/INSTALLATION.md.
+const foreignInstallAdvice = "remove it with whatever installed it, then run install again — " +
+	"only mimi's own label (" + Label + ") was checked, so an installation under another label is not seen"
 
 // LoadState is what asking launchd whether the service is loaded produced.
 //
@@ -615,8 +626,8 @@ type installedPlist struct {
 	// present reports whether there is anything at path at all.
 	present bool
 	// regular reports whether what is there is a plain file. It is a weaker
-	// claim than "mimi wrote it" and deliberately so: a symlink is
-	// home-manager's link into the Nix store, and that is the shape mimi can
+	// claim than "mimi wrote it" and deliberately so: a symlink is the shape a
+	// plist linked out of the Nix store has, and that is the shape mimi can
 	// actually tell apart. Anything else at mimi's own path is treated as
 	// mimi's to replace.
 	regular bool

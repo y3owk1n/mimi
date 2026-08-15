@@ -389,7 +389,17 @@ mimi services install
 ```
 
 > [!NOTE]
-> If Mimi is already installed via nix-darwin, home-manager, or other methods, `services install` will detect the conflict and refuse to install. Check your existing configurations first.
+> `services install` checks one launchd label, Mimi's own `com.y3owk1n.mimi`. It
+> refuses when that label is already loaded with no plist of Mimi's behind it,
+> and when `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` is not a file Mimi
+> wrote.
+>
+> It cannot see an installation registered under any other label, and the
+> nix-darwin and home-manager modules above register one of their own — so if
+> you installed Mimi that way, check for yourself before running it.
+> `launchctl list | grep -i mimi` lists every agent launchd holds whose label
+> mentions Mimi, which both modules' labels do; if one is already there, keep it
+> and skip `services install` rather than ending up with two daemons.
 
 ### 3. Verify (OPTIONAL)
 
