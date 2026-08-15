@@ -8,6 +8,7 @@ import (
 	"os"
 	"time"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
@@ -15,10 +16,11 @@ import (
 
 const dialTimeout = 100 * time.Millisecond
 
-// TryExecute sends an action to the daemon over the Unix socket when available.
-// Returns CodeDaemonUnavailable when the daemon is not reachable so callers can
-// fall back to direct execution.
-func TryExecute(socketPath, action string, args []string) error {
+// TryExecute sends a typed command to the daemon over the Unix socket when
+// available, marshaling it to the wire's string args itself. Returns
+// CodeDaemonUnavailable when the daemon is not reachable so callers can fall
+// back to direct execution against the same typed cmd.
+func TryExecute(socketPath string, cmd action.Command) error {
 	socketPath = paths.ExpandHome(socketPath)
 
 	_, err := os.Stat(socketPath)
@@ -46,7 +48,9 @@ func TryExecute(socketPath, action string, args []string) error {
 
 	reader := bufio.NewReader(conn)
 
-	err = writeRequest(conn, Request{Action: action, Args: args})
+	name, args := marshalCommand(cmd)
+
+	err = writeRequest(conn, Request{Action: name, Args: args})
 	if err != nil {
 		return err
 	}

@@ -6,18 +6,21 @@ import (
 	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
-// runAction sends an action to the daemon, falling back to executing it
-// directly when no daemon is listening.
-func (s *cliState) runAction(name string, args []string) error {
+// runAction sends a typed command to the daemon, falling back to running it
+// directly when no daemon is listening. The command is built once, so
+// neither path re-parses a string the other already held typed: the daemon
+// path has ipc marshal it to the wire's strings, and the direct path runs it
+// as-is.
+func (s *cliState) runAction(cmd action.Command) error {
 	socketPath := ipc.ResolveSocketPath(s.configPath)
 
-	err := ipc.TryExecute(socketPath, name, args)
+	err := ipc.TryExecute(socketPath, cmd)
 	if err == nil {
 		return nil
 	}
 
 	if derrors.IsCode(err, derrors.CodeDaemonUnavailable) {
-		return action.Execute(name, args)
+		return action.ExecuteCommand(cmd)
 	}
 
 	return err
