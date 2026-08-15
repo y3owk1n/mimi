@@ -208,7 +208,22 @@ Create a default config at `~/.config/mimi/config.toml`.
 
 ### `mimi config validate`
 
-Parse and validate the config file.
+Parse and validate the config file. Exits 0 and prints the hook count when the
+config is good, exits 1 and prints the problems to stderr when it is not.
+
+A key under `[hooks]` that names no hook kind is a failure here — it is a hook
+that would never fire. The daemon is more forgiving: it logs a warning and runs
+with the hooks it did understand, so a typo does not stop mimi from starting.
+
+```
+$ mimi config validate
+Config invalid:
+  hooks.on_window_focussed: not a recognized hook kind
+
+Recognized hook kinds:
+  on_app_activate
+  ...
+```
 
 ### `mimi config dump`
 

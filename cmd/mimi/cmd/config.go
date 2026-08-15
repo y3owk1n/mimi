@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
@@ -118,8 +119,10 @@ func newConfigValidateCmd(state *cliState) *cobra.Command {
 		Short: "Parse and validate the config file, reporting any errors",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load(state.configPath)
-			if err != nil {
-				fmt.Fprintf(os.Stderr, "Config invalid:\n  %s\n", err)
+
+			problems := configProblems(cfg, err)
+			if problems != "" {
+				fmt.Fprint(os.Stderr, problems)
 				os.Exit(1)
 			}
 
@@ -129,6 +132,49 @@ func newConfigValidateCmd(state *cliState) *cobra.Command {
 			return nil
 		},
 	}
+}
+
+// configProblems renders everything wrong with a loaded config as the text
+// `mimi config validate` prints, or "" when there is nothing wrong.
+//
+// It takes both results of config.Load because the two kinds of problem arrive
+// separately: a failed check comes back as the error, while a hook key mimi
+// does not recognize is recorded on the config, which Load still returns when
+// validation fails. Reporting them together is the point -- a user fixing a
+// typo should not have to fix an unrelated error first to discover it.
+func configProblems(cfg *config.Config, loadErr error) string {
+	var unknown []string
+	if cfg != nil {
+		unknown = cfg.UnknownHookKeys
+	}
+
+	if loadErr == nil && len(unknown) == 0 {
+		return ""
+	}
+
+	var report strings.Builder
+
+	report.WriteString("Config invalid:\n")
+
+	if loadErr != nil {
+		fmt.Fprintf(&report, "  %s\n", loadErr)
+	}
+
+	// A hook kind mimi does not know is a hook that will never fire. The
+	// daemon carries on without it; validate exists to say so.
+	for _, key := range unknown {
+		fmt.Fprintf(&report, "  hooks.%s: not a recognized hook kind\n", key)
+	}
+
+	if len(unknown) > 0 {
+		fmt.Fprintf(
+			&report,
+			"\nRecognized hook kinds:\n  %s\n",
+			strings.Join(config.HookKindNames(), "\n  "),
+		)
+	}
+
+	return report.String()
 }
 
 // countHooks totals the hooks the config carries, across every kind.
