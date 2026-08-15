@@ -10,9 +10,9 @@ import (
 
 // Config holds the full mimi configuration.
 //
-// The reload tags classify each part of the file as reloadable or
-// restart-only; see reloadability.go for what they mean and who reads them.
-// A section tagged per-field is classified one field at a time instead.
+// The reload tags classify each part of the file as reloadable, restart-only
+// or reinstall-only; see reloadability.go for what they mean and who reads
+// them. A section tagged per-field is classified one field at a time instead.
 type Config struct {
 	Settings SettingsConfig `json:"settings" reload:"per-field"  toml:"settings"`
 	Hooks    HooksConfig    `json:"hooks"    reload:"reloadable" toml:"hooks"`
@@ -33,16 +33,25 @@ type Config struct {
 // are opened once at startup, and the hook worker limit sizes a channel the
 // executor never resizes, so changing any of them takes a restart. The three
 // the reload path re-reads are tagged reloadable.
+//
+// ServicePath is read by nobody in the daemon at all. It is the PATH `mimi
+// services install` bakes into the launchd plist, so the value in effect is
+// the one on disk in the plist rather than the one in this struct, and only
+// installing the service again changes it — see
+// docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md. It is a
+// PATH rather than a path, so expandPaths leaves it alone: it is a list, and
+// launchd expands no "~" in it whatever mimi does.
 type SettingsConfig struct {
-	LogFile          string `json:"logFile"          reload:"restart-only" toml:"log_file"`
-	LogLevel         string `json:"logLevel"         reload:"restart-only" toml:"log_level"`
-	LogFormat        string `json:"logFormat"        reload:"restart-only" toml:"log_format"`
-	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  reload:"reloadable"   toml:"hook_timeout_secs"`
-	HookShell        string `json:"hookShell"        reload:"reloadable"   toml:"hook_shell"`
-	MaxHookWorkers   int    `json:"maxHookWorkers"   reload:"restart-only" toml:"max_hook_workers"`
-	PIDFile          string `json:"pidFile"          reload:"restart-only" toml:"pid_file"`
-	SocketFile       string `json:"socketFile"       reload:"restart-only" toml:"socket_file"`
-	ResizeDebounceMS int    `json:"resizeDebounceMs" reload:"reloadable"   toml:"resize_debounce_ms"`
+	LogFile          string `json:"logFile"          reload:"restart-only"   toml:"log_file"`
+	LogLevel         string `json:"logLevel"         reload:"restart-only"   toml:"log_level"`
+	LogFormat        string `json:"logFormat"        reload:"restart-only"   toml:"log_format"`
+	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  reload:"reloadable"     toml:"hook_timeout_secs"`
+	HookShell        string `json:"hookShell"        reload:"reloadable"     toml:"hook_shell"`
+	MaxHookWorkers   int    `json:"maxHookWorkers"   reload:"restart-only"   toml:"max_hook_workers"`
+	PIDFile          string `json:"pidFile"          reload:"restart-only"   toml:"pid_file"`
+	SocketFile       string `json:"socketFile"       reload:"restart-only"   toml:"socket_file"`
+	ResizeDebounceMS int    `json:"resizeDebounceMs" reload:"reloadable"     toml:"resize_debounce_ms"`
+	ServicePath      string `json:"servicePath"      reload:"reinstall-only" toml:"service_path"`
 }
 
 // SystrayConfig holds the [systray] section of the config.

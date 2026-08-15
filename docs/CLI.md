@@ -192,6 +192,11 @@ The generated plist captures the daemon's stdout and stderr beside
 `log_file` is unset. See
 [Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
 
+The `PATH` the service runs its hooks with comes from
+[`settings.service_path`](CONFIGURATION.md#service_path), defaulting to
+`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`. Nothing else reads that
+setting, so this command is what makes a change to it take effect.
+
 The plist is a snapshot of the config taken at install time, so running install
 again is how an installed service is brought back in line with a config that
 has moved since. It is idempotent and reports which of three things it did:

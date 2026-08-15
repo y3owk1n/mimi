@@ -50,9 +50,11 @@ func newServicesInstallCmd(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Install and load the system service",
-		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe plist is a snapshot of the config taken at install time, so run install again after changing a setting it bakes in — it replaces the plist and reloads the service, and does nothing at all when the plist already matches.\n\nReloading waits for the running service to unload before loading the new plist, for up to five seconds; a service still loaded after that fails the install with its old plist untouched. A load that fails for any other reason leaves the new plist in place, so running install again retries just the load.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.",
+		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe plist is a snapshot of the config taken at install time, so run install again after changing a setting it bakes in — it replaces the plist and reloads the service, and does nothing at all when the plist already matches.\n\nReloading waits for the running service to unload before loading the new plist, for up to five seconds; a service still loaded after that fails the install with its old plist untouched. A load that fails for any other reason leaves the new plist in place, so running install again retries just the load.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.\n\nThe PATH the installed service runs its hooks with comes from settings.service_path; unset, it is /opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin. Nothing else reads that setting, so this command is what makes a change to it take effect.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			outcome, err := defaultService.Install(state.configPath, state.logFilePath())
+			logFile, servicePath := state.plistSettings()
+
+			outcome, err := defaultService.Install(state.configPath, logFile, servicePath)
 			if err != nil {
 				return err
 			}

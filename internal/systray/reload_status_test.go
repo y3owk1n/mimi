@@ -48,11 +48,14 @@ func newStatusTestItem() *MenuItem {
 }
 
 // TestFormatReloadStatus_RendersEveryOutcome pins the line the menu shows for
-// each reload outcome. The three outcomes must stay distinguishable at a
+// each reload outcome. The four outcomes must stay distinguishable at a
 // glance: a reload that left restart-only settings unapplied worked and still
 // did not do what the user asked, so rendering it as a plain success would be
 // the same lie the reload menu item stopped telling
-// (docs/adr/0002-reload-is-signal-mediated.md).
+// (docs/adr/0002-reload-is-signal-mediated.md). A reinstall-only setting is
+// distinct again: restarting the daemon would not pick it up either, so the
+// line names the command that does
+// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
 //
 // The time is absolute and local. A relative "2 min ago" would need a timer
 // ticking behind a label read only when someone opens the menu.
@@ -80,6 +83,11 @@ func TestFormatReloadStatus_RendersEveryOutcome(t *testing.T) {
 			name:   "the reload left restart-only settings unapplied",
 			status: &reloadStatus{outcome: ReloadOutcomeRestartRequired, at: reloadedAt},
 			want:   "Reloaded 14:32 — restart required",
+		},
+		{
+			name:   "the reload left reinstall-only settings unapplied",
+			status: &reloadStatus{outcome: ReloadOutcomeReinstallRequired, at: reloadedAt},
+			want:   "Reloaded 14:32 — run mimi services install",
 		},
 		{
 			name:   "the reload failed",

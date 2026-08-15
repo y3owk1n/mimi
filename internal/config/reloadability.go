@@ -7,8 +7,11 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
-// reloadability says whether changing a config field takes effect when a
-// running daemon reloads, or only once it is restarted.
+// reloadability says what a user has to do for a change to a config field to
+// take effect: nothing beyond the reload, a restart, or a reinstall of the
+// service. It is not only "when does the daemon pick this up", because a field
+// the daemon never reads has no answer to that
+// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
 type reloadability string
 
 const (
@@ -19,6 +22,12 @@ const (
 	// startup and never again, so a change to it takes effect only after the
 	// daemon is restarted.
 	restartOnly reloadability = "restart-only"
+	// reinstallOnly marks a reinstall-only setting: the daemon never reads it,
+	// because it describes how the launchd service is set up rather than how
+	// the daemon behaves. `mimi services install` renders it into the plist, so
+	// a change to it takes effect only when the service is installed again —
+	// restarting the daemon runs it against the same plist.
+	reinstallOnly reloadability = "reinstall-only"
 )
 
 // reloadTagPerField is the reload tag a section carries when its fields are
@@ -37,10 +46,16 @@ const reloadTagPerField = "per-field"
 // being written, promising that log_format and max_hook_workers take effect
 // on reload when neither does.
 //
-// The tag records what the daemon's reload path re-reads. Widening that path
-// — teaching internal/daemon's reloader.Apply to re-read a field it ignores
-// today — means moving that field's tag to reloadable in the same change.
+// The tag records what a user must do for a change to the field to take
+// effect. Widening what the daemon's reload path re-reads — teaching
+// internal/daemon's reloader.Apply to re-read a field it ignores today —
+// means moving that field's tag to reloadable in the same change.
 const reloadTagKey = "reload"
+
+// reloadTagValues spells out every value reloadTagKey accepts, for the errors
+// an unclassified or misclassified field raises. It is one string so that the
+// two errors cannot list different sets.
+const reloadTagValues = `"reloadable", "restart-only", "reinstall-only", or "per-field"`
 
 // settingField is one classified part of the config file.
 type settingField struct {
@@ -104,8 +119,8 @@ func classifyFields(structType reflect.Type, prefix string, index []int) ([]sett
 		case !classified:
 			return nil, derrors.Newf(
 				derrors.CodeInternal,
-				"config field %q carries no %q tag: classify it as %q, %q, or %q",
-				key, reloadTagKey, reloadable, restartOnly, reloadTagPerField,
+				"config field %q carries no %q tag: classify it as %s",
+				key, reloadTagKey, reloadTagValues,
 			)
 		case tag == reloadTagPerField:
 			if field.Type.Kind() != reflect.Struct {
@@ -137,13 +152,13 @@ func classifyFields(structType reflect.Type, prefix string, index []int) ([]sett
 
 func parseReloadability(key, tag string) (reloadability, error) {
 	switch kind := reloadability(tag); kind {
-	case reloadable, restartOnly:
+	case reloadable, restartOnly, reinstallOnly:
 		return kind, nil
 	default:
 		return "", derrors.Newf(
 			derrors.CodeInternal,
-			"config field %q has %s tag %q: want %q, %q, or %q",
-			key, reloadTagKey, tag, reloadable, restartOnly, reloadTagPerField,
+			"config field %q has %s tag %q: want %s",
+			key, reloadTagKey, tag, reloadTagValues,
 		)
 	}
 }
@@ -158,6 +173,26 @@ func parseReloadability(key, tag string) (reloadability, error) {
 // in between. Changing log_level and then putting it back reports nothing,
 // because nothing is out of step any more.
 func RestartOnlyChanges(running, next *Config) []string {
+	return changedFields(running, next, restartOnly)
+}
+
+// ReinstallOnlyChanges names the reinstall-only settings whose values differ
+// between running and next, as dotted TOML keys in declaration order.
+//
+// These are the settings a restart would not pick up either: they are rendered
+// into the launchd plist by `mimi services install`, and the plist on disk is
+// what the service actually runs with. running is the same baseline
+// RestartOnlyChanges uses — the config this process started with — which is
+// the closest thing the daemon has to "what the installed service was built
+// from", since it cannot read the plist and would not know which install
+// produced it if it could.
+func ReinstallOnlyChanges(running, next *Config) []string {
+	return changedFields(running, next, reinstallOnly)
+}
+
+// changedFields names the settings of one classification whose values differ
+// between running and next, in declaration order.
+func changedFields(running, next *Config, kind reloadability) []string {
 	if running == nil || next == nil {
 		return nil
 	}
@@ -168,7 +203,7 @@ func RestartOnlyChanges(running, next *Config) []string {
 	var changed []string
 
 	for _, field := range settingFields {
-		if field.kind != restartOnly {
+		if field.kind != kind {
 			continue
 		}
 

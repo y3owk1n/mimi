@@ -15,15 +15,20 @@ func (s *cliState) runtimePaths() (string, string) {
 	return config.DefaultPIDPath, config.DefaultSocketPath
 }
 
-// logFilePath returns the configured settings.log_file, already expanded by
-// the loader. It returns "" both when the setting is unset — it is optional —
-// and when the config cannot be read, which callers must treat the same way:
-// there is no log file to place anything beside.
-func (s *cliState) logFilePath() string {
+// plistSettings returns the config values `mimi services install` bakes into
+// the launchd plist: settings.log_file, already expanded by the loader, and
+// settings.service_path. Both are read from one load, so an install cannot
+// take two of them from two different reads of the file.
+//
+// Either is "" when the setting is unset — both are optional — and both are
+// when the config cannot be read, which callers must treat the same way: there
+// is no log file to place anything beside, and no configured PATH, so the
+// plist's own defaults stand.
+func (s *cliState) plistSettings() (string, string) {
 	cfg, err := config.Load(s.configPath)
 	if err != nil {
-		return ""
+		return "", ""
 	}
 
-	return cfg.Settings.LogFile
+	return cfg.Settings.LogFile, cfg.Settings.ServicePath
 }

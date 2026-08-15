@@ -21,8 +21,9 @@ import (
 // reloadLabels maps the bold label that introduces each list in the Reloading
 // section of docs/CONFIGURATION.md onto the classification it documents.
 var reloadLabels = map[string]reloadability{
-	"Restart-only": restartOnly,
-	"Reloadable":   reloadable,
+	"Restart-only":   restartOnly,
+	"Reinstall-only": reinstallOnly,
+	"Reloadable":     reloadable,
 }
 
 var (

@@ -22,6 +22,7 @@ func runningConfig() *Config {
 			PIDFile:          "/tmp/mimi.pid",
 			SocketFile:       "/tmp/mimi.sock",
 			ResizeDebounceMS: 250,
+			ServicePath:      "/usr/bin:/bin",
 		},
 		Systray: SystrayConfig{Enabled: true, ShowWorkspaceNumber: true},
 	}
@@ -92,6 +93,35 @@ func TestClassifyFields_RejectsAnUnclassifiedField(t *testing.T) {
 	}
 }
 
+// TestClassifyFields_AcceptsEveryClassification is the other half of the guard
+// above: the tags a field may carry, pinned as a set so that adding a third
+// leaf classification means teaching the walk rather than working around it. A
+// field tagged reinstall-only must classify, not error
+// (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+func TestClassifyFields_AcceptsEveryClassification(t *testing.T) {
+	t.Parallel()
+
+	fields, err := classifyFields(reflect.TypeOf(struct {
+		Reloads   string `reload:"reloadable"     toml:"reloads"`
+		Restarts  string `reload:"restart-only"   toml:"restarts"`
+		Reinstall string `reload:"reinstall-only" toml:"reinstall"`
+	}{}), "", nil)
+	if err != nil {
+		t.Fatalf("classifyFields() = %v, want nil", err)
+	}
+
+	want := []reloadability{reloadable, restartOnly, reinstallOnly}
+
+	got := make([]reloadability, 0, len(fields))
+	for _, field := range fields {
+		got = append(got, field.kind)
+	}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Errorf("classifyFields() classifications = %v, want %v", got, want)
+	}
+}
+
 func TestRestartOnlyChanges(t *testing.T) {
 	t.Parallel()
 
@@ -136,6 +166,14 @@ func TestRestartOnlyChanges(t *testing.T) {
 			want:   []string{"systray.show_workspace_number"},
 		},
 		{
+			// A reinstall-only setting is not restart-only: restarting the
+			// daemon runs it against the same plist, so reporting a restart
+			// here would be the wrong instruction, confidently given.
+			name:   "a reinstall-only setting needs no restart",
+			change: func(c *Config) { c.Settings.ServicePath = "/opt/homebrew/bin:/usr/bin" },
+			want:   nil,
+		},
+		{
 			name: "several restart-only changes are all named, in declaration order",
 			change: func(c *Config) {
 				c.Systray.Enabled = false
@@ -160,6 +198,54 @@ func TestRestartOnlyChanges(t *testing.T) {
 			got := RestartOnlyChanges(runningConfig(), next)
 			if !reflect.DeepEqual(got, testCase.want) {
 				t.Errorf("RestartOnlyChanges() = %v, want %v", got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestReinstallOnlyChanges covers the classification the daemon never reads:
+// a change to one of these takes effect when the service is installed again,
+// so it is reported separately from the settings a restart would pick up.
+func TestReinstallOnlyChanges(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name   string
+		change func(*Config)
+		want   []string
+	}{
+		{
+			name:   "an unchanged config needs no reinstall",
+			change: func(*Config) {},
+			want:   nil,
+		},
+		{
+			name:   "a reloadable setting needs no reinstall",
+			change: func(c *Config) { c.Settings.HookShell = "/bin/bash" },
+			want:   nil,
+		},
+		{
+			name:   "a restart-only setting needs no reinstall",
+			change: func(c *Config) { c.Settings.LogLevel = "debug" },
+			want:   nil,
+		},
+		{
+			name:   "a changed service path is reinstall-only",
+			change: func(c *Config) { c.Settings.ServicePath = "/opt/homebrew/bin:/usr/bin" },
+			want:   []string{"settings.service_path"},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			next := runningConfig()
+			testCase.change(next)
+
+			got := ReinstallOnlyChanges(runningConfig(), next)
+			if !reflect.DeepEqual(got, testCase.want) {
+				t.Errorf("ReinstallOnlyChanges() = %v, want %v", got, testCase.want)
 			}
 		})
 	}

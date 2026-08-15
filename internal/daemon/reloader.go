@@ -77,17 +77,18 @@ func newReloader(
 // Everything Apply does not touch — the logger, the pid file, the socket, the
 // systray, the hook worker limit — is restart-only, because nothing else in
 // the daemon reads a fresh value for it after startup either. Apply returns
-// the restart-only settings cfg changes, by TOML key, so the caller can say
-// so instead of reporting a reload that quietly did nothing. Those keys are
-// derived from the config type (config.RestartOnlyChanges); widening what
-// Apply re-reads means retagging that field as reloadable in the same change.
+// the settings cfg changes that it did not apply, by TOML key, so the caller
+// can say so instead of reporting a reload that quietly did nothing. Those
+// keys are derived from the config type (config.RestartOnlyChanges and
+// config.ReinstallOnlyChanges); widening what Apply re-reads means retagging
+// that field as reloadable in the same change.
 //
 // Apply is serialized: the whole of it runs under rl.mu, so a file save and a
 // SIGHUP arriving together apply one config after the other rather than
 // interleaving.
-func (rl *reloader) Apply(cfg *config.Config) ([]string, error) {
+func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	if cfg == nil {
-		return nil, derrors.New(derrors.CodeInvalidInput, "nil config")
+		return reloadChanges{}, derrors.New(derrors.CodeInvalidInput, "nil config")
 	}
 
 	rl.mu.Lock()
@@ -95,7 +96,7 @@ func (rl *reloader) Apply(cfg *config.Config) ([]string, error) {
 
 	err := rl.reg.Reload(cfg)
 	if err != nil {
-		return nil, derrors.Wrapf(err, derrors.CodeInvalidConfig, "reloading hooks")
+		return reloadChanges{}, derrors.Wrapf(err, derrors.CodeInvalidConfig, "reloading hooks")
 	}
 
 	rl.executor.UpdateSettings(&cfg.Settings)
@@ -105,5 +106,33 @@ func (rl *reloader) Apply(cfg *config.Config) ([]string, error) {
 	perm := permissions.Check()
 	rl.axTracker.Update(perm.Accessibility && hasWindowEvents(cfg))
 
-	return config.RestartOnlyChanges(rl.running, cfg), nil
+	return reloadChanges{
+		restartOnly:   config.RestartOnlyChanges(rl.running, cfg),
+		reinstallOnly: config.ReinstallOnlyChanges(rl.running, cfg),
+	}, nil
+}
+
+// reloadChanges are the settings a reload did not apply, grouped by what the
+// user has to do for each of them to take effect. They are separate lists
+// rather than one because the two answers are different instructions, and
+// giving the wrong one confidently is the failure this reporting exists to
+// prevent (docs/adr/0003-a-setting-the-daemon-never-reads-is-reinstall-only.md).
+//
+// Both are empty for a reload that applied everything, and for one that
+// applied nothing at all: a failed reload changed no value, so no value is
+// waiting on anything.
+type reloadChanges struct {
+	// restartOnly names the restart-only settings the new config changes,
+	// which the daemon will keep running the old values for until it restarts.
+	restartOnly []string
+	// reinstallOnly names the reinstall-only settings the new config changes.
+	// The daemon never read them; `mimi services install` bakes them into the
+	// launchd plist, so only installing the service again applies them.
+	reinstallOnly []string
+}
+
+// empty reports whether the reload applied the whole config, leaving nothing
+// waiting on the user.
+func (c reloadChanges) empty() bool {
+	return len(c.restartOnly) == 0 && len(c.reinstallOnly) == 0
 }

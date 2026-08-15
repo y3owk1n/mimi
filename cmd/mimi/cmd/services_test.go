@@ -9,35 +9,42 @@ import (
 	"github.com/y3owk1n/mimi/internal/service"
 )
 
-// TestCLIState_LogFilePath covers what `mimi services install` hands the plist
-// renderer: the configured settings.log_file, and "" whenever there is none to
-// hand over — which decides whether the installed service captures stdout
-// beside the log file or in /tmp. See issue #99.
-func TestCLIState_LogFilePath(t *testing.T) {
+// TestCLIState_PlistSettings covers what `mimi services install` hands the
+// plist renderer: settings.log_file, which decides whether the installed
+// service captures stdout beside the log file or in /tmp (issue #99), and
+// settings.service_path, which is the PATH that service runs its hooks with
+// (issue #156). Either is "" whenever there is none to hand over, and both are
+// when the config cannot be read at all.
+func TestCLIState_PlistSettings(t *testing.T) {
 	tests := []struct {
 		name string
 		// body is the config to write; an empty body means write no config
 		// file at all, so config.Load fails.
-		body string
-		want string
+		body            string
+		wantLogFile     string
+		wantServicePath string
 	}{
 		{
-			name: "log_file set",
+			name: "both set",
 			body: fmt.Sprintf(
-				"[settings]\nlog_file = %q\n",
+				"[settings]\nlog_file = %q\nservice_path = %q\n",
 				"/Users/test/.local/state/mimi/mimi.log",
+				"/Users/test/.local/bin:/usr/bin",
 			),
-			want: "/Users/test/.local/state/mimi/mimi.log",
+			wantLogFile:     "/Users/test/.local/state/mimi/mimi.log",
+			wantServicePath: "/Users/test/.local/bin:/usr/bin",
 		},
 		{
-			name: "log_file unset",
-			body: "[settings]\nlog_level = \"debug\"\n",
-			want: "",
+			name:            "both unset",
+			body:            "[settings]\nlog_level = \"debug\"\n",
+			wantLogFile:     "",
+			wantServicePath: "",
 		},
 		{
-			name: "config unreadable",
-			body: "",
-			want: "",
+			name:            "config unreadable",
+			body:            "",
+			wantLogFile:     "",
+			wantServicePath: "",
 		},
 	}
 
@@ -49,8 +56,18 @@ func TestCLIState_LogFilePath(t *testing.T) {
 			}
 
 			state := &cliState{configPath: configPath}
-			if got := state.logFilePath(); got != testCase.want {
-				t.Errorf("logFilePath() = %q, want %q", got, testCase.want)
+
+			logFile, servicePath := state.plistSettings()
+			if logFile != testCase.wantLogFile {
+				t.Errorf("plistSettings() log file = %q, want %q", logFile, testCase.wantLogFile)
+			}
+
+			if servicePath != testCase.wantServicePath {
+				t.Errorf(
+					"plistSettings() service path = %q, want %q",
+					servicePath,
+					testCase.wantServicePath,
+				)
 			}
 		})
 	}
