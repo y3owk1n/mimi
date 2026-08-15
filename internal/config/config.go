@@ -59,20 +59,16 @@ type HookEntry struct {
 	Async       bool   `json:"async"       toml:"async"`
 }
 
-type rawHooksConfig struct {
-	AppActivate       []any `json:"onAppActivate"       toml:"on_app_activate"`
-	AppDeactivate     []any `json:"onAppDeactivate"     toml:"on_app_deactivate"`
-	AppLaunch         []any `json:"onAppLaunch"         toml:"on_app_launch"`
-	AppQuit           []any `json:"onAppQuit"           toml:"on_app_quit"`
-	AppHide           []any `json:"onAppHide"           toml:"on_app_hide"`
-	AppUnhide         []any `json:"onAppUnhide"         toml:"on_app_unhide"`
-	WindowFocus       []any `json:"onWindowFocus"       toml:"on_window_focus"`
-	WindowTitleChange []any `json:"onWindowTitleChange" toml:"on_window_title_change"`
-	WindowCreated     []any `json:"onWindowCreated"     toml:"on_window_created"`
-	WindowClosed      []any `json:"onWindowClosed"      toml:"on_window_closed"`
-	WindowResize      []any `json:"onWindowResize"      toml:"on_window_resize"`
-	WorkspaceChanged  []any `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
-}
+// rawHooksConfig holds the [hooks] table exactly as written, keyed by the TOML
+// key the user typed, so decodeHooks can fold over HookKinds to pull the keys
+// it recognizes instead of restating the twelve field names.
+//
+// The value type is any, not []any: a []any map would make the TOML decoder
+// itself reject every unrecognized key whose value is not an array, which is
+// both a behavior change and the decoder's error rather than one of ours.
+// Unrecognized keys are decoded, ignored here, and left for a later change to
+// report.
+type rawHooksConfig map[string]any
 
 type rawConfig struct {
 	Settings SettingsConfig   `json:"settings" toml:"settings"`
@@ -128,18 +124,23 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 		return entries
 	}
 
-	hooksCfg.AppActivate = decodeField("on_app_activate", raw.AppActivate)
-	hooksCfg.AppDeactivate = decodeField("on_app_deactivate", raw.AppDeactivate)
-	hooksCfg.AppLaunch = decodeField("on_app_launch", raw.AppLaunch)
-	hooksCfg.AppQuit = decodeField("on_app_quit", raw.AppQuit)
-	hooksCfg.AppHide = decodeField("on_app_hide", raw.AppHide)
-	hooksCfg.AppUnhide = decodeField("on_app_unhide", raw.AppUnhide)
-	hooksCfg.WindowFocus = decodeField("on_window_focus", raw.WindowFocus)
-	hooksCfg.WindowTitleChange = decodeField("on_window_title_change", raw.WindowTitleChange)
-	hooksCfg.WindowCreated = decodeField("on_window_created", raw.WindowCreated)
-	hooksCfg.WindowClosed = decodeField("on_window_closed", raw.WindowClosed)
-	hooksCfg.WindowResize = decodeField("on_window_resize", raw.WindowResize)
-	hooksCfg.WorkspaceChanged = decodeField("on_workspace_changed", raw.WorkspaceChanged)
+	for _, kind := range HookKinds {
+		items, isList := rawHookItems(raw[kind.TOMLKey])
+		if !isList {
+			errs = append(
+				errs,
+				fmt.Sprintf(
+					"%s: expected an array of hooks, got %T",
+					kind.TOMLKey,
+					raw[kind.TOMLKey],
+				),
+			)
+
+			continue
+		}
+
+		*kind.Entries(&hooksCfg) = decodeField(kind.TOMLKey, items)
+	}
 
 	if len(errs) > 0 {
 		return hooksCfg, derrors.Newf(
@@ -150,6 +151,31 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 	}
 
 	return hooksCfg, nil
+}
+
+// rawHookItems normalizes the two shapes the TOML decoder produces for a hook
+// list into the one decodeField walks: an inline array (on_x = [...]) arrives
+// as []any, while a sequence of [[hooks.on_x]] tables arrives as
+// []map[string]any.
+//
+// A missing key is an absent list, not a malformed one. The second result is
+// false only when the key is present and holds something that is not a list.
+func rawHookItems(value any) ([]any, bool) {
+	switch list := value.(type) {
+	case nil:
+		return nil, true
+	case []any:
+		return list, true
+	case []map[string]any:
+		items := make([]any, 0, len(list))
+		for _, table := range list {
+			items = append(items, table)
+		}
+
+		return items, true
+	default:
+		return nil, false
+	}
 }
 
 func getString(m map[string]any, key string) string {

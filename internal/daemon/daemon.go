@@ -360,28 +360,24 @@ func removePID(path string) {
 }
 
 func hasWindowEvents(cfg *config.Config) bool {
-	return len(cfg.Hooks.WindowFocus) > 0 ||
-		len(cfg.Hooks.WindowTitleChange) > 0 ||
-		len(cfg.Hooks.WindowCreated) > 0 ||
-		len(cfg.Hooks.WindowClosed) > 0 ||
-		len(cfg.Hooks.WindowResize) > 0
+	return cfg.Hooks.HasGroup(config.GroupWindow)
 }
 
 func hasAppEvents(cfg *config.Config) bool {
-	return len(cfg.Hooks.AppActivate) > 0 ||
-		len(cfg.Hooks.AppDeactivate) > 0 ||
-		len(cfg.Hooks.AppLaunch) > 0 ||
-		len(cfg.Hooks.AppQuit) > 0 ||
-		len(cfg.Hooks.AppHide) > 0 ||
-		len(cfg.Hooks.AppUnhide) > 0
+	return cfg.Hooks.HasGroup(config.GroupApp)
 }
 
 func hasWorkspaceEvents(cfg *config.Config) bool {
-	return len(cfg.Hooks.WorkspaceChanged) > 0
+	return cfg.Hooks.HasGroup(config.GroupWorkspace)
 }
 
 func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 	return native.ObserverConfig{
+		// Window hooks need the app-lifecycle observer too, not just the AX
+		// observers: AX observers attach per process, so the daemon relies on
+		// launch and terminate notifications to attach and detach them. This
+		// union is policy, which is why it lives here rather than as a column
+		// on config.HookKinds.
 		AppLifecycle: hasWindowEvents(cfg) || hasAppEvents(cfg),
 		Workspace:    hasWorkspaceEvents(cfg),
 	}
