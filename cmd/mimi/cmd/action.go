@@ -210,19 +210,14 @@ Examples:
   mimi action resize_window --width 1024 --height 768 --x 0 --y 0 --anchor tl
   mimi action resize_window fill --no-margin
   mimi action resize_window center --width-percent 80 --height-percent 90`,
-		Args: cobra.MaximumNArgs(1),
+		Args: validateResizePresetArg,
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			// The preset name is forwarded exactly as it was given. This used
 			// to trim it, which is why a padded name named a preset here and
 			// was rejected on every other path (mimi#132); the trim now lives
 			// in action.ParseResizePreset, which every path runs.
-			preset := ""
-			if len(args) > 0 {
-				preset = args[0]
-			}
-
 			resizeCmd, err := action.NewResizeWindowCommand(
-				resizeWindowArgsFromFlags(cobraCmd, preset),
+				resizeWindowArgsFromFlags(cobraCmd, presetArg(args)),
 			)
 			if err != nil {
 				return err
@@ -284,6 +279,52 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 		UseMargin:        useMargin,
 		NoMargin:         noMargin,
 	}
+}
+
+// presetArg is resize_window's optional positional argument, or "" for the
+// argument nobody gave — the spelling action.ParseResizePresetArg reads it in.
+func presetArg(args []string) string {
+	if len(args) == 0 {
+		return ""
+	}
+
+	return args[0]
+}
+
+// validateResizePresetArg is resize_window's Args validator, which puts its
+// positional argument in the same layer the space actions validate theirs in
+// (mimi#133). Cobra rejects the argument before RunE runs — that is what
+// produces the usage output and the exit code — and the rule it rejects with is
+// action.ParseResizePresetArg, the one place that rule lives, and the same rule
+// ResizeRequestFromArgs calls for a command that reached the daemon path
+// without passing here.
+//
+// Arity stays cobra's, checked before the preset, so an extra positional
+// argument still reads as the arity mistake it is rather than as a mistyped
+// preset. That is where this differs in shape from validateSpaceArg, whose
+// rule counts the arguments itself.
+//
+// Nothing a user sees moves by validating here: the usage output, the exit
+// code and which of several mistakes gets reported are the same as when the
+// preset was checked in the command body. Cobra parses flags before it
+// validates arguments, so a flag it cannot parse at all was already reported
+// ahead of the preset; a flag whose value parses but breaks a rule is still
+// reported after it, since the preset is rejected here before RunE reads a
+// flag at all, and action.ResizeRequestFromArgs checks the preset first for the
+// daemon path. What does move is invisible: the persistent pre-run that
+// resolves the config path no longer runs for a bad preset, and it only assigns
+// a field.
+// TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder
+// pins the orderings.
+func validateResizePresetArg(cobraCmd *cobra.Command, args []string) error {
+	err := cobra.MaximumNArgs(1)(cobraCmd, args)
+	if err != nil {
+		return err
+	}
+
+	_, err = action.ParseResizePresetArg(presetArg(args))
+
+	return err
 }
 
 // validateSpaceArg builds the Args validator for an action that takes one

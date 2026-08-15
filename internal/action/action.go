@@ -194,6 +194,27 @@ func ParseResizePreset(name string) (geometry.Preset, error) {
 	return preset, nil
 }
 
+// ParseResizePresetArg parses resize_window's one positional argument into the
+// preset it names, and is the only implementation of that argument's rule.
+//
+// The empty string is the argument nobody gave — resize_window's positional
+// argument is optional, and a command that names no preset asks for none, so
+// the zero preset comes back with no error. Anything else is a name,
+// whitespace included, and what it names is ParseResizePreset's decision
+// alone.
+//
+// Both layers that reject a bad preset call this rather than restating it: the
+// CLI's Args layer, which stops the argument before the command body runs, and
+// ResizeRequestFromArgs, which checks it again for a command that arrived over
+// the daemon path with nothing having looked at it.
+func ParseResizePresetArg(name string) (geometry.Preset, error) {
+	if name == "" {
+		return geometry.Preset{}, nil
+	}
+
+	return ParseResizePreset(name)
+}
+
 // dimensionOf folds one axis's two size flags into the dimension they
 // describe. An absolute size wins over a percentage, and a zero of either
 // means the flag was never given, so the window keeps the size it has.

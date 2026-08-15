@@ -241,20 +241,16 @@ type ResizeWindowArgs struct {
 func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 	// The preset is checked first, as the positional argument it is, so a
 	// command carrying both a mistyped preset and a bad flag is rejected for
-	// the preset on this path too.
+	// the preset on this path too. That is what makes the daemon path agree
+	// with the CLI's, where the preset is rejected in the Args layer before a
+	// flag is ever read.
 	//
-	// The empty string is the argument nobody gave — what a command with no
-	// positional argument carries. Anything else is a name, whitespace
-	// included, and what it names is ParseResizePreset's decision alone.
-	var preset geometry.Preset
-
-	if args.Preset != "" {
-		named, err := ParseResizePreset(args.Preset)
-		if err != nil {
-			return geometry.Request{}, err
-		}
-
-		preset = named
+	// ParseResizePresetArg is that layer's rule as well as this one's, called
+	// rather than restated, so the empty argument means the same thing here as
+	// it does there.
+	preset, err := ParseResizePresetArg(args.Preset)
+	if err != nil {
+		return geometry.Request{}, err
 	}
 
 	if args.WidthSet && args.Width < 0 {

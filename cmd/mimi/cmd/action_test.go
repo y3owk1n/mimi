@@ -28,6 +28,10 @@ const (
 	// unknownPreset is a name that is not one of the ten presets, and never
 	// becomes one.
 	unknownPreset = "left-third"
+
+	// whitespaceOnlyArg is a positional argument made of nothing but
+	// whitespace, which names neither a preset nor a space.
+	whitespaceOnlyArg = "   "
 )
 
 // resizeFlags parses args against a fresh resize_window flag set and returns
@@ -159,6 +163,247 @@ func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
 	}
 }
 
+// TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder is
+// the evidence mimi#133 asks for: what a command line with more than one thing
+// wrong is rejected for, now that resize_window's preset is validated in the
+// Args layer rather than in the command body.
+//
+// The order does not depend on that layer, which is why moving the check was
+// free — every case below reports the same thing as it did when the preset was
+// checked in the body. Cobra parses flags before it validates arguments, so a
+// flag it cannot parse at all is reported ahead of the preset either way — the
+// same order "space 0 --nope" has always had, and the case below runs both
+// styles to show it. A flag whose value parses but breaks a rule is reported
+// after the preset: the Args layer now rejects the preset before RunE reads a
+// flag at all, and action.ResizeRequestFromArgs checks the preset first for the
+// daemon path, so both agree. An extra positional argument is reported as
+// arity, ahead of both.
+func TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder(t *testing.T) {
+	t.Parallel()
+
+	_, presetErr := action.ParseResizePreset(unknownPreset)
+	if presetErr == nil {
+		t.Fatalf("ParseResizePreset(%q): expected an error", unknownPreset)
+	}
+
+	testCases := []struct {
+		name    string
+		argv    []string
+		wantErr string
+	}{
+		{
+			name:    "an unparsable flag value beats the preset",
+			argv:    []string{resizeWindowCommandName, unknownPreset, "--height", "abc"},
+			wantErr: `invalid argument "abc" for "--height" flag: strconv.ParseInt: parsing "abc": invalid syntax`,
+		},
+		{
+			name:    "an unknown flag beats the preset",
+			argv:    []string{resizeWindowCommandName, unknownPreset, "--nope"},
+			wantErr: "unknown flag: --nope",
+		},
+		{
+			name:    "an unknown flag beats a space argument too",
+			argv:    []string{string(action.NameSpace), "0", "--nope"},
+			wantErr: "unknown flag: --nope",
+		},
+		{
+			name:    "the preset beats an unknown anchor",
+			argv:    []string{resizeWindowCommandName, unknownPreset, "--anchor", "xx"},
+			wantErr: presetErr.Error(),
+		},
+		{
+			name:    "the preset beats a width-percent above 100",
+			argv:    []string{resizeWindowCommandName, unknownPreset, "--width-percent", "150"},
+			wantErr: presetErr.Error(),
+		},
+		{
+			name:    "arity beats the preset",
+			argv:    []string{resizeWindowCommandName, unknownPreset, "extra"},
+			wantErr: "accepts at most 1 arg(s), received 2",
+		},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			out, err := runCommand(t, append([]string{actionCommandName}, testCase.argv...)...)
+			if err == nil {
+				t.Fatalf("%v: expected an error", testCase.argv)
+			}
+
+			if err.Error() != testCase.wantErr {
+				t.Errorf(
+					"%v rejected for the wrong thing:\n got: %s\nwant: %s",
+					testCase.argv,
+					err,
+					testCase.wantErr,
+				)
+			}
+
+			if !strings.Contains(out, "Usage:") {
+				t.Errorf("%v printed no usage, got: %s", testCase.argv, out)
+			}
+		})
+	}
+}
+
+// stubbedRun runs argv against a fresh command tree whose leaf at path has had
+// its body replaced with a stub, and reports what the tree printed, whether the
+// stub ran, and how the run ended. Stubbing the body is what lets a test drive
+// the real tree without the action reaching the desktop.
+func stubbedRun(t *testing.T, path, argv []string) (string, bool, error) {
+	t.Helper()
+
+	var out bytes.Buffer
+
+	ran := false
+	root := newRootCmd()
+
+	target, _, err := root.Find(path)
+	if err != nil {
+		t.Fatalf("finding %v: %v", path, err)
+	}
+
+	target.RunE = func(_ *cobra.Command, _ []string) error {
+		ran = true
+
+		return nil
+	}
+
+	root.SetOut(&out)
+	root.SetErr(&out)
+	root.SetArgs(argv)
+
+	err = root.Execute()
+
+	return out.String(), ran, err
+}
+
+// assertRejectedBeforeRunE checks the tree rejected argv in the Args layer:
+// with wantErr's own wording, printing usage, and with the command body never
+// running. That layer is what produces the usage output and the exit code, so
+// both actions that validate a positional argument there are pinned through
+// here.
+func assertRejectedBeforeRunE(t *testing.T, path, argv []string, wantErr error) {
+	t.Helper()
+
+	out, ran, err := stubbedRun(t, path, argv)
+	if err == nil {
+		t.Fatalf("%v: expected an error", argv)
+	}
+
+	if err.Error() != wantErr.Error() {
+		t.Errorf(
+			"%v failed with something other than the rule:\n got: %s\nwant: %s",
+			argv,
+			err,
+			wantErr,
+		)
+	}
+
+	if ran {
+		t.Errorf("%v reached RunE", argv)
+	}
+
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("%v printed no usage, got: %s", argv, out)
+	}
+}
+
+// TestResizeWindowArgValidation_RejectsBeforeRunE is resize_window's half of
+// mimi#133: its positional argument is now checked in the same layer the space
+// actions check theirs in, so an unknown preset never reaches the command body.
+// The tree fails with action.ParseResizePreset's own wording and prints its
+// usage, exactly as it did when the check sat in the body.
+func TestResizeWindowArgValidation_RejectsBeforeRunE(t *testing.T) {
+	t.Parallel()
+
+	for _, preset := range []string{unknownPreset, " " + unknownPreset + " ", whitespaceOnlyArg} {
+		t.Run(preset, func(t *testing.T) {
+			t.Parallel()
+
+			_, wantErr := action.ParseResizePreset(preset)
+			if wantErr == nil {
+				t.Fatalf("ParseResizePreset(%q): expected an error", preset)
+			}
+
+			assertRejectedBeforeRunE(
+				t,
+				[]string{actionCommandName, resizeWindowCommandName},
+				[]string{actionCommandName, resizeWindowCommandName, preset},
+				wantErr,
+			)
+		})
+	}
+}
+
+// TestResizeWindowArgValidation_AcceptsWhatItAlwaysAccepted is the other half
+// of mimi#133's promise: checking the preset in the Args layer rejects nothing
+// the command body used to let through.
+//
+// The empty argument is the case that needs saying. resize_window's positional
+// argument is optional, so "" is the argument nobody gave rather than a preset
+// named "" — a distinction only action.ParseResizePresetArg's empty-string
+// branch keeps, and one the Args layer would otherwise turn into a rejection
+// for an input that has always been accepted. The command body is stubbed out,
+// so nothing here reaches the desktop.
+func TestResizeWindowArgValidation_AcceptsWhatItAlwaysAccepted(t *testing.T) {
+	t.Parallel()
+
+	testCases := []struct {
+		name string
+		args []string
+	}{
+		{name: "no argument", args: nil},
+		{name: "the empty argument", args: []string{""}},
+		{name: "a preset", args: []string{"left-half"}},
+		{name: "a padded preset", args: []string{" left-half "}},
+		{name: "a preset beside its flags", args: []string{"center", "--x", "10"}},
+		{name: "flags with no preset", args: []string{"--margin"}},
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			path := []string{actionCommandName, resizeWindowCommandName}
+
+			_, ran, err := stubbedRun(t, path, append(path, testCase.args...))
+			if err != nil {
+				t.Fatalf("%v rejected: %v", testCase.args, err)
+			}
+
+			if !ran {
+				t.Errorf("%v never reached RunE", testCase.args)
+			}
+		})
+	}
+}
+
+// TestResizeWindowArgValidation_HelpStillWinsOverABadPreset pins the one thing
+// asking for help must keep doing: cobra answers --help before it validates
+// arguments, so a command line that also carries an unknown preset prints the
+// help text and succeeds rather than being rejected for the preset.
+func TestResizeWindowArgValidation_HelpStillWinsOverABadPreset(t *testing.T) {
+	t.Parallel()
+
+	path := []string{actionCommandName, resizeWindowCommandName}
+
+	out, ran, err := stubbedRun(t, path, append(path, unknownPreset, "--help"))
+	if err != nil {
+		t.Fatalf("--help beside %q failed: %v", unknownPreset, err)
+	}
+
+	if ran {
+		t.Error("--help reached RunE")
+	}
+
+	if !strings.Contains(out, "Usage:") {
+		t.Errorf("--help printed no usage, got: %s", out)
+	}
+}
+
 // TestFocusWindowCommand_RejectsBackwardWithDirection checks the CLI surfaces
 // action.NewFocusWindowCommand's validation before ever reaching the desktop —
 // this fails while the command is being built, not while it runs, so it is
@@ -208,7 +453,7 @@ func malformedActionArgv() []malformedAction {
 			// made of nothing else names no preset — and says so here rather
 			// than quietly resizing nothing.
 			name: "whitespace-only preset",
-			argv: []string{resizeWindowCommandName, "   "},
+			argv: []string{resizeWindowCommandName, whitespaceOnlyArg},
 		},
 		{
 			name: "a direction combined with --backward",
@@ -391,7 +636,7 @@ func malformedSpaceArgs() []struct {
 		args []string
 	}{
 		{name: "empty", args: []string{""}},
-		{name: "whitespace only", args: []string{"   "}},
+		{name: "whitespace only", args: []string{whitespaceOnlyArg}},
 		{name: "non-numeric", args: []string{"foo"}},
 		{name: "zero", args: []string{"0"}},
 		{name: "negative", args: []string{"-1"}},
@@ -510,55 +755,17 @@ func TestSpaceArgValidation_RejectsBeforeRunE(t *testing.T) {
 				t.Run(testCase.name, func(t *testing.T) {
 					t.Parallel()
 
-					var out bytes.Buffer
-
-					ran := false
-					root := newRootCmd()
-					path := []string{actionCommandName, string(name)}
-
-					target, _, err := root.Find(path)
-					if err != nil {
-						t.Fatalf("finding command: %v", err)
-					}
-
-					target.RunE = func(_ *cobra.Command, _ []string) error {
-						ran = true
-
-						return nil
-					}
-
-					root.SetOut(&out)
-					root.SetErr(&out)
-					root.SetArgs(spaceArgv(name, testCase.args))
-
-					err = root.Execute()
-					if err == nil {
-						t.Fatalf("%s %v: expected an error", name, testCase.args)
-					}
-
 					_, wantErr := action.ParseSpaceArg(name, testCase.args)
-					if err.Error() != wantErr.Error() {
-						t.Errorf(
-							"%s %v failed with something other than the rule:\n got: %s\nwant: %s",
-							name,
-							testCase.args,
-							err,
-							wantErr,
-						)
+					if wantErr == nil {
+						t.Fatalf("ParseSpaceArg(%s, %v): expected an error", name, testCase.args)
 					}
 
-					if ran {
-						t.Errorf("%s %v reached RunE", name, testCase.args)
-					}
-
-					if !strings.Contains(out.String(), "Usage:") {
-						t.Errorf(
-							"%s %v printed no usage, got: %s",
-							name,
-							testCase.args,
-							out.String(),
-						)
-					}
+					assertRejectedBeforeRunE(
+						t,
+						[]string{actionCommandName, string(name)},
+						spaceArgv(name, testCase.args),
+						wantErr,
+					)
 				})
 			}
 		})
