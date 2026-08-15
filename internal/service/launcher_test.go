@@ -9,9 +9,28 @@ import (
 	"testing"
 )
 
-// stubPerm is the mode of the stand-in launchctl a cancellation test puts on
-// PATH: executable, because the point of it is being run.
+// stubPerm is the mode of a stand-in launchctl these tests put on PATH:
+// executable, because the point of one is being run.
 const stubPerm = 0o755
+
+// writeStubLaunchctl puts a launchctl of the test's own in dir and makes dir
+// the whole of PATH, so that what [execLauncher] shells out to is a script the
+// test wrote rather than the machine's real launchd. body is a shell script
+// without its shebang.
+//
+// dir is the caller's rather than this function's because a stub that reports
+// anything back does it through a file beside itself, and the body naming that
+// file has to be written before there is a stub to write.
+func writeStubLaunchctl(t *testing.T, dir, body string) {
+	t.Helper()
+
+	err := os.WriteFile(filepath.Join(dir, "launchctl"), []byte("#!/bin/sh\n"+body), stubPerm)
+	if err != nil {
+		t.Fatalf("writing the stub launchctl: %v", err)
+	}
+
+	t.Setenv("PATH", dir)
+}
 
 // TestExecLauncher_List_ReportsALaunchctlThatCouldNotRun covers half of the
 // distinction the rest of this package is built on, in the one place it is
@@ -32,6 +51,38 @@ func TestExecLauncher_List_ReportsALaunchctlThatCouldNotRun(t *testing.T) {
 
 	if loaded {
 		t.Error("list() reported a job loaded on a launchctl that never ran")
+	}
+}
+
+// TestExecLauncher_Kickstart_RestartsRatherThanStarts pins the one argument
+// that separates the two. `launchctl kickstart` on a job that is already
+// running does nothing at all; only -k kills it first, and a restart that
+// silently left the old process up is a restart that never picked up the
+// config it was run for. The fake launcher elsewhere is handed a target and
+// cannot see the flag, so this is the only place it is checked.
+func TestExecLauncher_Kickstart_RestartsRatherThanStarts(t *testing.T) {
+	dir := t.TempDir()
+	argsFile := filepath.Join(dir, "args")
+
+	// A launchctl that records what it was asked to do and succeeds, so what
+	// this asserts is the command line rather than anything launchd did.
+	writeStubLaunchctl(t, dir, "printf '%s\\n' \"$@\" > "+argsFile+"\n")
+
+	target := "gui/501/" + Label
+
+	err := execLauncher{}.kickstart(context.Background(), target)
+	if err != nil {
+		t.Fatalf("kickstart() = %v, want nil", err)
+	}
+
+	recorded, err := os.ReadFile(argsFile)
+	if err != nil {
+		t.Fatalf("reading what the stub launchctl was asked: %v", err)
+	}
+
+	want := "kickstart\n-k\n" + target + "\n"
+	if string(recorded) != want {
+		t.Errorf("kickstart() ran launchctl with %q, want %q", string(recorded), want)
 	}
 }
 
@@ -60,14 +111,7 @@ func TestExecLauncher_List_DoesNotReadACanceledCallAsAnAbsentJob(t *testing.T) {
 		t.Fatalf("creating the fifo the stub launchctl reports through: %v", err)
 	}
 
-	stub := "#!/bin/sh\necho started > " + started + "\nexec /bin/sleep 30\n"
-
-	err = os.WriteFile(filepath.Join(dir, "launchctl"), []byte(stub), stubPerm)
-	if err != nil {
-		t.Fatalf("writing the stub launchctl: %v", err)
-	}
-
-	t.Setenv("PATH", dir)
+	writeStubLaunchctl(t, dir, "echo started > "+started+"\nexec /bin/sleep 30\n")
 
 	ctx, cancel := context.WithCancel(t.Context())
 	defer cancel()

@@ -31,6 +31,11 @@ type launcher interface {
 	start(ctx context.Context, label string) error
 	// stop stops the already-loaded service named label.
 	stop(ctx context.Context, label string) error
+	// kickstart restarts target (e.g. "gui/501/com.y3owk1n.mimi") in one call:
+	// launchd kills whatever is running under the job and spawns it again. It
+	// takes a domain target rather than a label because it acts on the job
+	// launchd holds, and it fails on a job launchd does not hold at all.
+	kickstart(ctx context.Context, target string) error
 }
 
 // execLauncher is the launcher backed by the real launchctl binary on PATH.
@@ -97,4 +102,11 @@ func (execLauncher) start(ctx context.Context, label string) error {
 
 func (execLauncher) stop(ctx context.Context, label string) error {
 	return exec.CommandContext(ctx, "launchctl", "stop", label).Run()
+}
+
+// kickstart runs `launchctl kickstart -k target`. The -k is what makes it a
+// restart rather than a start: without it launchd leaves a running job alone,
+// and the config a restart exists to pick up would go on being the old one.
+func (execLauncher) kickstart(ctx context.Context, target string) error {
+	return exec.CommandContext(ctx, "launchctl", "kickstart", "-k", target).Run()
 }

@@ -86,6 +86,11 @@ type fakeLauncher struct {
 	printOutput string
 	printErr    error
 	printedFor  string
+
+	kickstartErr error
+	// kickstartedFor is the target the restart named, which is the domain one
+	// rather than the bare label start and stop take.
+	kickstartedFor string
 }
 
 func (f *fakeLauncher) list(_ context.Context, _ string) (bool, error) {
@@ -161,6 +166,13 @@ func (f *fakeLauncher) stop(_ context.Context, _ string) error {
 	f.calls = append(f.calls, "stop")
 
 	return f.stopErr
+}
+
+func (f *fakeLauncher) kickstart(_ context.Context, target string) error {
+	f.kickstartedFor = target
+	f.calls = append(f.calls, "kickstart")
+
+	return f.kickstartErr
 }
 
 // newTestService is a [Service] whose waiting costs nothing. The interval
@@ -425,17 +437,133 @@ func TestService_Stop_RunsLaunchctlStop(t *testing.T) {
 	}
 }
 
-func TestService_Restart_StopsThenStartsEvenWhenStopFails(t *testing.T) {
-	fake := &fakeLauncher{stopErr: derrors.New(derrors.CodeServiceFailed, "wasn't running")}
+// TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode is the other half of
+// stop still being a command of its own. Restart no longer runs it, so a stop
+// that fails is now only ever a `mimi services stop` that failed, and its
+// failure has to reach the user as one.
+func TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
+	fake := &fakeLauncher{stopErr: derrors.New(derrors.CodeServiceFailed, "boom")}
+	svc := newTestService(fake)
+
+	err := svc.Stop(t.Context())
+	if err == nil {
+		t.Fatal("Stop() = nil, want an error")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Stop() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+}
+
+// TestService_Restart_ReportsThatNothingIsInstalled covers the failure restart
+// used to name wrongly. A service that is not loaded has nothing to stop and
+// nothing to start, and the old pair reported the second of those as "starting
+// service" — the symptom, over a machine where the actual answer is that no
+// service was ever installed.
+func TestService_Restart_ReportsThatNothingIsInstalled(t *testing.T) {
+	fake := &fakeLauncher{loaded: false}
+	svc := newTestService(fake)
+
+	err := svc.Restart(t.Context())
+	if err == nil {
+		t.Fatal("Restart() = nil, want the absent service reported")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Restart() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	// The advice is the whole point of the message: a user reaching for restart
+	// has something wrong already, and install is what fixes this one.
+	if !strings.Contains(err.Error(), "mimi services install") {
+		t.Errorf("Restart() = %q, want it to point at `mimi services install`", err)
+	}
+
+	if len(fake.calls) != 0 {
+		t.Errorf(
+			"Restart() made %v, want nothing run against a service that is not there",
+			fake.calls,
+		)
+	}
+}
+
+// TestService_Restart_DoesNotReadAnUnaskableLaunchctlAsNothingInstalled is the
+// third answer [LoadState] exists for, on the command with the most to lose by
+// collapsing it into the second. A launchctl that could not run says nothing
+// about whether a service is installed, and sending that user off to install
+// one is wrong advice twice over: it names a problem the machine may not have,
+// and the install it recommends would fail on the very same launchctl.
+func TestService_Restart_DoesNotReadAnUnaskableLaunchctlAsNothingInstalled(t *testing.T) {
+	fake := &fakeLauncher{listErr: errLaunchctlMissing}
+	svc := newTestService(fake)
+
+	err := svc.Restart(t.Context())
+	if err == nil {
+		t.Fatal("Restart() = nil, want the launchctl that could not be run reported")
+	}
+
+	if strings.Contains(err.Error(), "mimi services install") {
+		t.Errorf(
+			"Restart() = %q, want no install advice over a service nobody could ask about",
+			err,
+		)
+	}
+
+	if !errors.Is(err, errLaunchctlMissing) {
+		t.Errorf("Restart() = %q, want it to carry why launchctl could not answer", err)
+	}
+
+	if len(fake.calls) != 0 {
+		t.Errorf("Restart() made %v, want nothing run on an unanswered load state", fake.calls)
+	}
+}
+
+// TestService_Restart_RestartsALoadedServiceInOneLaunchdCall pins what replaced
+// the stop-then-start pair. The pair had two failures where a restart has one,
+// and it discarded the first of them; one kickstart is the whole restart, so
+// there is no error left to throw away.
+func TestService_Restart_RestartsALoadedServiceInOneLaunchdCall(t *testing.T) {
+	fake := &fakeLauncher{loaded: true}
 	svc := newTestService(fake)
 
 	err := svc.Restart(t.Context())
 	if err != nil {
-		t.Fatalf("Restart() = %v, want nil (start succeeded)", err)
+		t.Fatalf("Restart() = %v, want nil", err)
 	}
 
-	if !fake.stopped || !fake.started {
-		t.Errorf("Restart() stopped=%v started=%v, want both true", fake.stopped, fake.started)
+	if got := strings.Join(fake.calls, ","); got != "kickstart" {
+		t.Errorf("Restart() made %q, want a single kickstart", got)
+	}
+
+	// kickstart takes a domain target, not the bare label launchctl start and
+	// stop take.
+	if !strings.HasSuffix(fake.kickstartedFor, "/"+Label) {
+		t.Errorf(
+			"Restart() kickstarted %q, want a domain target for %q",
+			fake.kickstartedFor,
+			Label,
+		)
+	}
+}
+
+// TestService_Restart_WrapsAFailedKickstartWithADerrorsCode covers the failure
+// the old pair could not report at all: a loaded service launchd refused to
+// restart used to be reported as a failure to start.
+func TestService_Restart_WrapsAFailedKickstartWithADerrorsCode(t *testing.T) {
+	fake := &fakeLauncher{loaded: true, kickstartErr: errKickstartRefused}
+	svc := newTestService(fake)
+
+	err := svc.Restart(t.Context())
+	if err == nil {
+		t.Fatal("Restart() = nil, want the refused kickstart reported")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Restart() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	if !errors.Is(err, errKickstartRefused) {
+		t.Errorf("Restart() = %q, want it to carry why launchd refused", err)
 	}
 }
 
@@ -453,6 +581,10 @@ var (
 // has not finished letting go of, in the same plain shape a real launchctl
 // failure arrives in.
 var errBootstrapInProgress = errors.New("operation now in progress")
+
+// errKickstartRefused is a restart launchd would not perform on a job it does
+// hold, in the plain shape exec hands such a failure back.
+var errKickstartRefused = errors.New("operation not permitted")
 
 // errLaunchctlMissing is launchctl failing to run at all, in the shape exec
 // reports it: not a job launchd denies having, but a question that never
