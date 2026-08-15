@@ -57,9 +57,16 @@ _Avoid_: reload source, reload event, reload signal
 
 **Restart-only setting**:
 A config field the running daemon reads once at startup and never re-reads, so
-changing it takes effect only after the daemon is restarted. The complement of
-the fields a reload applies.
+changing it takes effect only after the daemon is restarted.
 _Avoid_: static setting, boot setting, startup setting
+
+**Reinstall-only setting**:
+A config field the daemon never reads at all, because it describes how the
+installed service is set up rather than how the daemon behaves. Changing it
+takes effect only when the service is installed again — a restart does not
+pick it up. Distinct from a **restart-only setting**: between them they account
+for every field a reload does not apply.
+_Avoid_: install setting, service setting, plist setting
 
 **Event kind**:
 The category of desktop change a hook subscribes to — window focused, space
