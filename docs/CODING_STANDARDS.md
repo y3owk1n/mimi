@@ -110,7 +110,7 @@ return derrors.New(derrors.CodeInternal, "something went wrong")
 return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "reading config")
 ```
 
-Available error codes: `CodeAccessibilityDenied`, `CodeAccessibilityFailed`, `CodeInvalidConfig`, `CodeInvalidInput`, `CodeActionFailed`, `CodeContextCanceled`, `CodeTimeout`, `CodeInternal`, `CodeLoggingFailed`, `CodeConfigIOFailed`, `CodeSerializationFailed`, `CodeBridgeFailed`, `CodeDaemonUnavailable`, `CodeIPCFailed`, `CodeServiceFailed`, `CodeNotSupported`.
+Available error codes: `CodeAccessibilityDenied`, `CodeAccessibilityFailed`, `CodeInvalidConfig`, `CodeInvalidInput`, `CodeActionFailed`, `CodeContextCanceled`, `CodeTimeout`, `CodeInternal`, `CodeLoggingFailed`, `CodeConfigIOFailed`, `CodeSerializationFailed`, `CodeBridgeFailed`, `CodeDaemonUnavailable`, `CodeIPCFailed`, `CodeProtocolMismatch`, `CodeServiceFailed`, `CodeNotSupported`.
 
 ---
 
