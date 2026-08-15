@@ -31,7 +31,14 @@ Examples:
   mimi action resize_window left-half
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			// The root command silences usage for everything that fails from
+			// its run function, because usage says nothing about a runtime
+			// failure. This failure is the exception: nothing ran, the user is
+			// missing a subcommand, and usage is the only place the four
+			// subcommands are named.
+			cobraCmd.SilenceUsage = false
+
 			return derrors.New(
 				derrors.CodeInvalidInput,
 				"action subcommand required (e.g., mimi action focus_window, mimi action space 1)",
