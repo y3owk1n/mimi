@@ -22,9 +22,23 @@ const foreignInstallAdvice = "check for existing installations (e.g., nix-darwin
 
 // Status is what checking the launchd service reports: a typed result a
 // caller can act on, in place of a formatted string only a human can read.
+//
+// Loaded is the only field always answered. The installed plist sets KeepAlive
+// with a ten second ThrottleInterval, so a daemon that crashes at startup is
+// relaunched forever and stays as loaded as a healthy one — the other two
+// fields are what tell them apart, and both are optional because launchd's own
+// description of the job is undocumented text that may not carry them.
 type Status struct {
 	// Loaded reports whether launchctl currently has the service loaded.
 	Loaded bool
+	// PID is the process id of the running daemon. It is unknown whenever the
+	// service is not loaded, is not currently running, or launchd's
+	// description could not be read.
+	PID OptionalInt
+	// LastExitStatus is how the daemon last exited. It is unknown before it
+	// ever has, when it was killed by a signal rather than exiting, and
+	// whenever launchd's description could not be read.
+	LastExitStatus OptionalInt
 }
 
 // InstallOutcome is what an [Service.Install] did. Install is idempotent, so
@@ -167,9 +181,37 @@ func (s *Service) Restart() error {
 	return s.Start()
 }
 
-// Status reports whether the service is currently loaded.
+// Status reports whether the service is currently loaded, and — when it is —
+// the pid it runs under or the status it last exited with.
+//
+// Only the loaded answer is guaranteed. Everything past it comes from
+// `launchctl print`, whose output Apple documents nowhere, so anything that
+// goes wrong there degrades to the answer this returned before it asked:
+// loaded, or not. A status command that fails tells a user less than one that
+// says a little less.
 func (s *Service) Status() Status {
-	return Status{Loaded: s.launcher.list(context.Background(), Label) == nil}
+	ctx := context.Background()
+
+	status := Status{Loaded: s.launcher.list(ctx, Label) == nil}
+	if !status.Loaded {
+		return status
+	}
+
+	domain, err := guiDomain()
+	if err != nil {
+		return status
+	}
+
+	output, err := s.launcher.printJob(ctx, domain+"/"+Label)
+	if err != nil {
+		return status
+	}
+
+	report := parseJobReport(output)
+	status.PID = report.pid
+	status.LastExitStatus = report.lastExitStatus
+
+	return status
 }
 
 // apply makes the installed service be content: it unloads whatever is

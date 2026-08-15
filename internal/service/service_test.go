@@ -36,6 +36,12 @@ type fakeLauncher struct {
 	started      bool
 	stopErr      error
 	stopped      bool
+
+	// printOutput and printErr stand in for `launchctl print`, whose stdout —
+	// unlike every other call here — is the point of making it.
+	printOutput string
+	printErr    error
+	printedFor  string
 }
 
 func (f *fakeLauncher) list(_ context.Context, _ string) error {
@@ -44,6 +50,12 @@ func (f *fakeLauncher) list(_ context.Context, _ string) error {
 	}
 
 	return derrors.New(derrors.CodeServiceFailed, "not loaded")
+}
+
+func (f *fakeLauncher) printJob(_ context.Context, target string) (string, error) {
+	f.printedFor = target
+
+	return f.printOutput, f.printErr
 }
 
 func (f *fakeLauncher) bootstrap(_ context.Context, _, _ string) error {
@@ -74,23 +86,81 @@ func (f *fakeLauncher) stop(_ context.Context, _ string) error {
 	return f.stopErr
 }
 
+// TestService_Status_ReportsWhatTheLauncherSees covers the distinction the
+// status exists to make: a loaded service is not necessarily a running one.
+// The installed plist sets KeepAlive with a ten second ThrottleInterval, so a
+// daemon that crashes at startup stays loaded forever while never running, and
+// only the pid and the last exit status tell it apart from a healthy one.
 func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 	tests := []struct {
-		name   string
-		loaded bool
-		want   Status
+		name        string
+		loaded      bool
+		printOutput string
+		printErr    error
+		want        Status
 	}{
-		{name: "loaded", loaded: true, want: Status{Loaded: true}},
-		{name: "not loaded", loaded: false, want: Status{Loaded: false}},
+		{
+			name:        "loaded and running",
+			loaded:      true,
+			printOutput: "\tstate = running\n\tpid = 1478\n\tlast exit code = (never exited)\n",
+			want:        Status{Loaded: true, PID: OptionalInt{Value: 1478, Known: true}},
+		},
+		{
+			name:        "loaded but respawning after a crash",
+			loaded:      true,
+			printOutput: "\tstate = spawn scheduled\n\tlast exit code = 1\n",
+			want:        Status{Loaded: true, LastExitStatus: OptionalInt{Value: 1, Known: true}},
+		},
+		{
+			// launchctl print is undocumented text with no promise behind it,
+			// so a shape this parser does not know must cost the command
+			// nothing beyond the detail it could not read.
+			name:        "loaded, with output nothing can be read from",
+			loaded:      true,
+			printOutput: "some future launchctl saying something else entirely",
+			want:        Status{Loaded: true},
+		},
+		{
+			name:     "loaded, with launchctl print failing outright",
+			loaded:   true,
+			printErr: derrors.New(derrors.CodeServiceFailed, "no such process"),
+			want:     Status{Loaded: true},
+		},
+		{
+			// Nothing to describe, so nothing is asked.
+			name:        "not loaded",
+			loaded:      false,
+			printOutput: "\tpid = 1478\n",
+			want:        Status{Loaded: false},
+		},
 	}
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
-			svc := &Service{launcher: &fakeLauncher{loaded: testCase.loaded}}
+			fake := &fakeLauncher{
+				loaded:      testCase.loaded,
+				printOutput: testCase.printOutput,
+				printErr:    testCase.printErr,
+			}
+			svc := &Service{launcher: fake}
 
 			got := svc.Status()
 			if got != testCase.want {
 				t.Errorf("Status() = %+v, want %+v", got, testCase.want)
+			}
+
+			if !testCase.loaded && fake.printedFor != "" {
+				t.Errorf("Status() described an unloaded service: %q", fake.printedFor)
+			}
+
+			// launchctl print takes a domain target, not the bare label a
+			// launchctl list takes.
+			if testCase.loaded && !strings.HasSuffix(fake.printedFor, "/"+Label) {
+				t.Errorf(
+					"Status() printed %q, want a domain target ending in /%s",
+					fake.printedFor,
+					Label,
+				)
 			}
 		})
 	}

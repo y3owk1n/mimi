@@ -12,6 +12,11 @@ type launcher interface {
 	// list reports whether label is currently loaded. Every caller here only
 	// cares whether it succeeded, so its stdout is never surfaced.
 	list(ctx context.Context, label string) error
+	// printJob runs `launchctl print` against target (e.g.
+	// "gui/501/com.y3owk1n.mimi") and returns what it said. Alone among these
+	// calls, its stdout is the reason for making it: that text is where a
+	// loaded job's pid and last exit status live.
+	printJob(ctx context.Context, target string) (string, error)
 	// bootstrap loads the plist at plistPath into domain (e.g. "gui/501").
 	bootstrap(ctx context.Context, domain, plistPath string) error
 	// bootout unloads target (e.g. "gui/501/com.y3owk1n.mimi").
@@ -27,6 +32,12 @@ type execLauncher struct{}
 
 func (execLauncher) list(ctx context.Context, label string) error {
 	return exec.CommandContext(ctx, "launchctl", "list", label).Run()
+}
+
+func (execLauncher) printJob(ctx context.Context, target string) (string, error) {
+	out, err := exec.CommandContext(ctx, "launchctl", "print", target).Output()
+
+	return string(out), err
 }
 
 func (execLauncher) bootstrap(ctx context.Context, domain, plistPath string) error {

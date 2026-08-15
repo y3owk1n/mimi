@@ -71,6 +71,22 @@ launchctl list | grep mimi
 cat /tmp/mimi.err.log    # Nix module, or mimi services install with log_file unset
 ```
 
+### Reading `mimi services status`
+
+Loaded is not the same as running. The installed plist sets `KeepAlive` with a
+ten second `ThrottleInterval`, so a daemon that crashes at startup is
+relaunched forever and stays loaded the whole time.
+
+| Line                                                  | What it means                                                                                                              |
+| ----------------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------- |
+| `Service loaded and running (pid 1478)`               | Healthy: launchd has a live process for it.                                                                                 |
+| `Service loaded but not running (last exit status 1)` | launchd is respawning it. A non-zero status that stays put is a crash loop — the captured stderr below says why.             |
+| `Service loaded`                                      | Neither number was available: the daemon has never run, it was killed by a signal rather than exiting, or launchd's description of the job could not be read. That output is undocumented, so an unreadable one costs the detail, never the answer. |
+| `Service not loaded`                                  | No service installed, or it was unloaded.                                                                                   |
+
+`launchctl print gui/$(id -u)/com.y3owk1n.mimi` is the same description mimi
+reads, in full, when a bare `Service loaded` leaves a question open.
+
 ### Where a service-installed daemon's console output lands
 
 `mimi services install` writes a launchd plist that captures the daemon's
