@@ -20,19 +20,46 @@ subset of `[settings]` listed below; a bad config (e.g. an invalid `title`
 regex) leaves the previous, working config in place and logs the failure
 rather than applying it partially.
 
-**Restart-only** — these fields are read once at daemon startup and are not
-picked up by a reload; changing them requires restarting the daemon
-(`mimi daemon stop && mimi daemon start`, or equivalent):
+**Reloadable** — picked up by every reload:
 
-- `[systray]` (both `enabled` and `show_workspace_number`)
+- `settings.hook_timeout_secs`
+- `settings.hook_shell`
+- `settings.resize_debounce_ms`
+- `[hooks]` (every hook kind)
+
+**Restart-only** — read once at daemon startup and never re-read, so changing
+one takes effect only after the daemon is restarted (`mimi daemon stop &&
+mimi daemon start`, or equivalent):
+
 - `settings.log_file`
 - `settings.log_level`
+- `settings.log_format`
+- `settings.max_hook_workers`
 - `settings.pid_file`
 - `settings.socket_file`
+- `systray.enabled`
+- `systray.show_workspace_number`
 
-Everything else in `[settings]` (`log_format`, `hook_timeout_secs`,
-`hook_shell`, `max_hook_workers`, `resize_debounce_ms`) and all of `[hooks]`
-take effect on the next reload.
+A reload that changes a restart-only setting still applies everything
+reloadable, and then logs a warning naming the settings that need the restart,
+for example:
+
+```text
+config reloaded; restart required for changed restart-only settings
+  trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
+```
+
+A reload that changes only reloadable settings logs the plain
+`config reloaded` line, with no restart notice.
+
+The comparison is against the config the daemon started with, not the previous
+edit, so the notice keeps appearing on every reload for as long as the file and
+the running daemon disagree — and stops on its own if you put the old value
+back.
+
+These two lists are not maintained by hand: each config field is classified on
+the type itself, and a test fails if this document and that classification
+disagree.
 
 ---
 
@@ -42,10 +69,10 @@ take effect on the next reload.
 [settings]
 log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only — restart-only
 log_level = "info"                           # debug | info | warn | error — restart-only
-log_format = "text"                          # text | json — console output only
+log_format = "text"                          # text | json — console output only — restart-only
 hook_timeout_secs = 10
 hook_shell = "/bin/sh"
-max_hook_workers = 4
+max_hook_workers = 4                         # restart-only
 pid_file = "~/.local/share/mimi/mimi.pid"    # restart-only
 socket_file = "~/.local/share/mimi/mimi.sock" # restart-only
 resize_debounce_ms = 250                     # on_window_resize debounce window

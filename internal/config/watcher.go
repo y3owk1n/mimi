@@ -13,15 +13,23 @@ import (
 
 const debounceDelay = 300 * time.Millisecond
 
-// Watcher monitors a config file and triggers a callback on changes.
+// Watcher monitors a config file and calls a callback once the writes to it
+// have settled.
+//
+// It reports that the file changed and nothing more: it does not read the
+// file, so it can neither parse it nor fail to. The daemon's reloadConfig is
+// the one place that loads a config, applies it, and logs how that went, so
+// a file that will not parse and a file that will not apply are reported the
+// same way, by the same line — which they were not while this watcher parsed
+// the file itself and logged its own failure.
 type Watcher struct {
 	path     string
-	onChange func(*Config)
+	onChange func()
 	logger   *zap.SugaredLogger
 }
 
 // NewWatcher creates a new config file watcher.
-func NewWatcher(path string, onChange func(*Config), logger *zap.SugaredLogger) *Watcher {
+func NewWatcher(path string, onChange func(), logger *zap.SugaredLogger) *Watcher {
 	if logger == nil {
 		logger = zap.NewNop().Sugar()
 	}
@@ -74,10 +82,10 @@ func (w *Watcher) Run(ctx context.Context) error {
 					if debounce.Stop() {
 						debounce.Reset(debounceDelay)
 					} else {
-						debounce = time.AfterFunc(debounceDelay, w.reload)
+						debounce = time.AfterFunc(debounceDelay, w.notifyChange)
 					}
 				} else {
-					debounce = time.AfterFunc(debounceDelay, w.reload)
+					debounce = time.AfterFunc(debounceDelay, w.notifyChange)
 				}
 			}
 		case err, ok := <-fileWatcher.Errors:
@@ -90,24 +98,15 @@ func (w *Watcher) Run(ctx context.Context) error {
 	}
 }
 
-// reload parses the watched file and, on success, hands it to onChange.
+// notifyChange tells onChange the watched file has changed.
 //
-// It does not log a success line: onChange is where the hook registry
-// actually reloads and where a bad hook (an invalid regex, for example) is
-// caught, so only the caller can know whether the reload as a whole
-// succeeded. The daemon's applyReload is that caller, and it logs the one
-// authoritative "config reloaded" / "config reload failed" line for every
-// trigger. Logging a debug line here — rather than nothing — still records
-// that the file parsed, which is useful when a later onChange failure needs
-// to be told apart from a parse failure.
-func (w *Watcher) reload() {
-	cfg, err := Load(w.path)
-	if err != nil {
-		w.logger.Warnw("config reload failed", "err", err)
-
-		return
-	}
-
-	w.logger.Debug("config file parsed")
-	w.onChange(cfg)
+// It logs at debug and claims nothing about the reload: onChange is where the
+// file is loaded, where the hook registry reloads, and where a bad hook (an
+// invalid regex, for example) is caught, so only it can know how the reload
+// went. The debug line still records that the watcher fired, which is what
+// tells "my editor's save was never noticed" apart from "it was noticed and
+// the config was rejected".
+func (w *Watcher) notifyChange() {
+	w.logger.Debug("config file changed")
+	w.onChange()
 }
