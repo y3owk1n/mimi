@@ -7,6 +7,25 @@
 3. **Check space index** — spaces are 1-based in Mission Control order (`mimi action space 1` is the first space)
 4. **Close Mission Control** — actions refuse to run while Mission Control is open
 
+### Space switching on macOS 27 and later
+
+macOS 27 changed how the Dock reads a synthetic swipe: the gesture fields on the
+posted `CGEvent` are no longer enough on their own, and the event must also carry
+a serialized IOHID payload. mimi picks the encoding from the running OS version,
+so no configuration is needed.
+
+If space switching misbehaves near that boundary, override the choice with
+`MIMI_FORCE_DOCK_SWIPE_AUGMENTATION` — `1` forces the macOS 27 encoding, `0`
+forces the pre-27 one:
+
+```bash
+MIMI_FORCE_DOCK_SWIPE_AUGMENTATION=1 mimi action space next
+```
+
+The variable is read once per process, so a daemon has to be restarted for a
+change to take effect. Failures to build the payload are logged with a
+`Mimi: dock swipe augmentation failed` prefix.
+
 ## `mimi action` runs but seems to ignore the running daemon
 
 `mimi action …` routes over the daemon's Unix socket (`settings.socket_file`)

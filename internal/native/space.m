@@ -6,6 +6,7 @@
 //
 
 #import "constants.h"
+#import "dockswipe.h"
 #import "mimi.h"
 #import "mimi_log.h"
 
@@ -17,6 +18,7 @@
 #import <mach-o/dyld.h>
 #import <mach-o/loader.h>
 #import <mach-o/nlist.h>
+#import <mach/mach_time.h>
 #import <objc/message.h>
 #import <objc/objc.h>
 #import <objc/runtime.h>
@@ -241,7 +243,18 @@ static const int kMimiCGEventGestureSwipeProgress = 124;   // kCGEventGestureSwi
 static const int kMimiCGEventGestureSwipeVelocityX = 129;  // kCGEventGestureSwipeVelocityX
 static const int kMimiCGEventGesturePhase = 132;           // kCGEventGesturePhase
 static const int kMimiCGSGesturePhaseBegan = 1;            // kCGSGesturePhaseBegan
+static const int kMimiCGSGesturePhaseChanged = 2;          // kCGSGesturePhaseChanged
 static const int kMimiCGSGesturePhaseEnded = 4;            // kCGSGesturePhaseEnded
+
+// Additional fields the Dock requires on macOS 27+, alongside the serialized
+// IOHID payload built in dockswipe.m. See MimiDockSwipeRequiresAugmentation.
+static const int kMimiCGEventGestureSwipePositionX = 125;     // kCGEventGestureSwipePositionX
+static const int kMimiCGEventGesturePhaseAlias = 134;         // kCGEventGesturePhaseAlias
+static const int kMimiCGEventGestureZoomDeltaY = 138;         // kCGEventGestureZoomDeltaY
+static const int kMimiCGEventSourceUnixProcessIDAlias = 169;  // kCGEventSourceUnixProcessIDAlias
+static const double kMimiDockSwipeAugmentedZoomDeltaY = 3.0;  // empirically required
+static const double kMimiDockSwipeAugmentedPositionX = 0.1;   // empirically required
+static const double kMimiDockSwipeVelocity = 9999.0;          // high enough to skip the animation
 
 /// Return the 1-based local index of a space within its display's space
 /// ordering. Returns 0 if the space is not found on the given display.
@@ -292,6 +305,68 @@ static int mimiLocalSpaceIndex(uint64_t sid, uint32_t did) {
 	CFRelease(uuid);
 	return 0;
 }
+
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+
+/// Build one phase of a synthetic dock swipe for macOS 27+, carrying both the
+/// extra gesture fields and the serialized IOHID payload the Dock now reads.
+/// @param phase kCGSGesturePhase value for this event
+/// @param sign Direction of travel through the display's space ordering
+/// @return Retained CGEventRef (caller must CFRelease), or NULL on failure
+static CGEventRef mimiCreateAugmentedDockSwipeEvent(int phase, double sign) {
+	CGEventRef event = CGEventCreate(NULL);
+	if (!event) {
+		return NULL;
+	}
+
+	CGEventSetIntegerValueField(event, kMimiCGSEventTypeField, kMimiCGSEventDockControl);
+	CGEventSetIntegerValueField(event, kMimiCGEventGestureHIDType, kMimiIOHIDEventTypeDockSwipe);
+	CGEventSetIntegerValueField(event, kMimiCGEventGestureSwipeMotion, kMimiCGGestureMotionHorizontal);
+	CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, phase);
+	CGEventSetIntegerValueField(event, kMimiCGEventGesturePhaseAlias, phase);
+
+	// The payload is read with the raw HID sign convention, which runs opposite
+	// to the space-index direction used everywhere else here.
+	CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeProgress, -sign);
+	CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipePositionX, kMimiDockSwipeAugmentedPositionX);
+	CGEventSetDoubleValueField(event, kMimiCGEventGestureZoomDeltaY, kMimiDockSwipeAugmentedZoomDeltaY);
+	CGEventSetDoubleValueField(event, kMimiCGEventSourceUnixProcessIDAlias, (double)mach_absolute_time());
+
+	// Only the ending phase carries velocity, matching a real trackpad lift.
+	if (phase == kMimiCGSGesturePhaseEnded) {
+		CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeVelocityX, -sign * kMimiDockSwipeVelocity);
+	}
+
+	CGEventRef augmented = MimiDockSwipeAugment(event);
+	CFRelease(event);
+
+	return augmented;
+}
+
+/// Post one whole synthetic swipe as the began/changed/ended phase sequence a
+/// real trackpad produces. macOS 27 rejects the abbreviated began/ended pair
+/// the legacy path gets away with.
+/// @return true if every phase was posted
+static bool mimiPostAugmentedDockSwipe(double sign) {
+	static const int phases[] = {kMimiCGSGesturePhaseBegan, kMimiCGSGesturePhaseChanged, kMimiCGSGesturePhaseEnded};
+
+	for (size_t i = 0; i < sizeof(phases) / sizeof(phases[0]); i++) {
+		CGEventRef event = mimiCreateAugmentedDockSwipeEvent(phases[i], sign);
+		if (!event) {
+			MIMI_LOG("failed to build augmented dock swipe event (phase=%d)", phases[i]);
+
+			return false;
+		}
+
+		CGEventPost(kCGSessionEventTap, event);
+		CFRelease(event);
+	}
+
+	return true;
+}
+
+#pragma clang diagnostic pop
 
 /// Focus a space using a synthetic high-velocity horizontal dock swipe
 /// gesture to skip the standard Mission Control swipe animation — macOS
@@ -359,28 +434,38 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 		return 1;
 	}
 
-	CGEventRef event = CGEventCreate(NULL);
-	if (!event) {
-		return 0;
-	}
-
 	double sign = (toIdx - fromIdx) > 0 ? 1.0 : -1.0;
 
-	CGEventSetIntegerValueField(event, kMimiCGSEventTypeField, kMimiCGSEventDockControl);
-	CGEventSetIntegerValueField(event, kMimiCGEventGestureHIDType, kMimiIOHIDEventTypeDockSwipe);
-	CGEventSetIntegerValueField(event, kMimiCGEventGestureSwipeMotion, kMimiCGGestureMotionHorizontal);
-	CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeProgress, sign);
-	CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeVelocityX, sign * 9999.0);
+	if (MimiDockSwipeRequiresAugmentation()) {
+		for (int i = 0; i < count; i++) {
+			if (!mimiPostAugmentedDockSwipe(sign)) {
+				return 0;
+			}
 
-	for (int i = 0; i < count; i++) {
-		CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, kMimiCGSGesturePhaseBegan);
-		CGEventPost(kCGSessionEventTap, event);
-		CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, kMimiCGSGesturePhaseEnded);
-		CGEventPost(kCGSessionEventTap, event);
-		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
+			mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
+		}
+	} else {
+		CGEventRef event = CGEventCreate(NULL);
+		if (!event) {
+			return 0;
+		}
+
+		CGEventSetIntegerValueField(event, kMimiCGSEventTypeField, kMimiCGSEventDockControl);
+		CGEventSetIntegerValueField(event, kMimiCGEventGestureHIDType, kMimiIOHIDEventTypeDockSwipe);
+		CGEventSetIntegerValueField(event, kMimiCGEventGestureSwipeMotion, kMimiCGGestureMotionHorizontal);
+		CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeProgress, sign);
+		CGEventSetDoubleValueField(event, kMimiCGEventGestureSwipeVelocityX, sign * kMimiDockSwipeVelocity);
+
+		for (int i = 0; i < count; i++) {
+			CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, kMimiCGSGesturePhaseBegan);
+			CGEventPost(kCGSessionEventTap, event);
+			CGEventSetIntegerValueField(event, kMimiCGEventGesturePhase, kMimiCGSGesturePhaseEnded);
+			CGEventPost(kCGSessionEventTap, event);
+			mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
+		}
+
+		CFRelease(event);
 	}
-
-	CFRelease(event);
 
 	mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay * (CFTimeInterval)count + kMimiSpaceGestureProcessingDelay);
 
