@@ -104,21 +104,21 @@ func runCore(
 		return nil
 	}
 
-	bus, axTracker, router, reg, executor, logSub, hookSub, ctx, cancel, err := setupEventPipeline(
-		cfg,
-		logger,
-		accessibilityGranted,
-	)
+	pipeline, ctx, cancel, err := setupEventPipeline(cfg, logger, accessibilityGranted)
 	if err != nil {
 		return err
 	}
 	defer cancel()
 
-	go router.Run(ctx)
-	go executor.Run(ctx, hookSub)
-	go logging.WriteEventLog(ctx, logSub, cfg.Settings.LogFile, logger)
+	go pipeline.router.Run(ctx)
+	go pipeline.executor.Run(ctx, pipeline.hookSub)
+	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
-	onChange := newReloadHandler(reg, executor, axTracker, router, logger)
+	cfgReloader := newReloader(pipeline.reg, pipeline.executor, pipeline.axTracker, pipeline.router)
+
+	onChange := func(newCfg *config.Config) {
+		applyReload(cfgReloader, newCfg, reloadTriggerFsnotify, logger)
+	}
 
 	watcher := config.NewWatcher(configPath, onChange, logger)
 	go func() { _ = watcher.Run(ctx) }()
@@ -133,19 +133,7 @@ func runCore(
 		}
 	}()
 
-	runSignalLoop(
-		cancel,
-		quitCh,
-		reg,
-		executor,
-		axTracker,
-		router,
-		logger,
-		configPath,
-		bus,
-		logSub,
-		hookSub,
-	)
+	runSignalLoop(cancel, quitCh, cfgReloader, pipeline, logger, configPath)
 
 	return nil
 }
@@ -179,13 +167,28 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 	return &obsCfg, accessibilityGranted
 }
 
+// eventPipeline bundles the dependencies setupEventPipeline wires together:
+// the event bus, the hook registry and its executor, the AX tracker and
+// router that react to window state, and the two subscribers that drain the
+// bus. Packaging them here means callers — runCore and, in turn, the
+// reloader — pass the bundle once instead of threading the same handful of
+// pointers by hand through every call site, which is how the fsnotify and
+// SIGHUP reload paths drifted from each other in the first place.
+type eventPipeline struct {
+	bus       *events.Bus
+	axTracker *observe.AXTracker
+	router    *observe.Router
+	reg       *hooks.Registry
+	executor  *hooks.Executor
+	logSub    events.Subscriber
+	hookSub   events.Subscriber
+}
+
 func setupEventPipeline(
 	cfg *config.Config,
 	logger *zap.SugaredLogger,
 	accessibilityGranted bool,
-) (*events.Bus, *observe.AXTracker, *observe.Router, *hooks.Registry, *hooks.Executor,
-	events.Subscriber, events.Subscriber, context.Context, context.CancelFunc, error,
-) {
+) (*eventPipeline, context.Context, context.CancelFunc, error) {
 	axEnabled := accessibilityGranted && hasWindowEvents(cfg)
 
 	bus := events.NewBus()
@@ -201,8 +204,7 @@ func setupEventPipeline(
 
 	err := reg.Reload(cfg)
 	if err != nil {
-		return nil, nil, nil, nil, nil, nil, nil, nil, nil,
-			derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading hooks")
+		return nil, nil, nil, derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading hooks")
 	}
 
 	executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
@@ -231,50 +233,57 @@ func setupEventPipeline(
 
 	ctx, cancel := context.WithCancel(context.Background())
 
-	return bus, axTracker, router, reg, executor, logSub, hookSub, ctx, cancel, nil
+	pipeline := &eventPipeline{
+		bus:       bus,
+		axTracker: axTracker,
+		router:    router,
+		reg:       reg,
+		executor:  executor,
+		logSub:    logSub,
+		hookSub:   hookSub,
+	}
+
+	return pipeline, ctx, cancel, nil
 }
 
-func newReloadHandler(
-	reg *hooks.Registry,
-	executor *hooks.Executor,
-	axTracker *observe.AXTracker,
-	router *observe.Router,
+// reloadTrigger names which route into the daemon fired a reload. It closes
+// the set of triggers that can call applyReload — fsnotify and SIGHUP today
+// — over a bare string so a new call site can't drift in an ad hoc label.
+type reloadTrigger string
+
+const (
+	reloadTriggerFsnotify reloadTrigger = "fsnotify"
+	reloadTriggerSighup   reloadTrigger = "sighup"
+)
+
+// applyReload runs cfgReloader.Apply against newCfg and logs the outcome. fsnotify's
+// onChange and the SIGHUP handler both funnel through this one function, so
+// a bad config is reported identically regardless of which trigger noticed
+// it — previously the fsnotify path logged and stopped on a hook-reload
+// error while the SIGHUP path discarded it and logged success anyway.
+func applyReload(
+	cfgReloader *reloader,
+	newCfg *config.Config,
+	trigger reloadTrigger,
 	logger *zap.SugaredLogger,
-) func(*config.Config) {
-	return func(newCfg *config.Config) {
-		if newCfg == nil {
-			return
-		}
+) {
+	err := cfgReloader.Apply(newCfg)
+	if err != nil {
+		logger.Warnw("config reload failed", "trigger", trigger, "err", err)
 
-		err := reg.Reload(newCfg)
-		if err != nil {
-			logger.Warnw("hook registry reload failed", "err", err)
-
-			return
-		}
-
-		executor.UpdateSettings(&newCfg.Settings)
-		native.UpdateObservers(getObserverConfig(newCfg))
-		router.SetDebounceWindow(time.Duration(newCfg.Settings.ResizeDebounceMS) * time.Millisecond)
-
-		perm := permissions.Check()
-		axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))
-		logger.Info("hooks reloaded from config")
+		return
 	}
+
+	logger.Infow("config reloaded", "trigger", trigger)
 }
 
 func runSignalLoop(
 	cancel context.CancelFunc,
 	quitCh <-chan struct{},
-	reg *hooks.Registry,
-	executor *hooks.Executor,
-	axTracker *observe.AXTracker,
-	router *observe.Router,
+	cfgReloader *reloader,
+	pipeline *eventPipeline,
 	logger *zap.SugaredLogger,
 	configPath string,
-	bus *events.Bus,
-	logSub events.Subscriber,
-	hookSub events.Subscriber,
 ) {
 	sigCh := make(chan os.Signal, 1)
 
@@ -285,59 +294,40 @@ func runSignalLoop(
 		select {
 		case <-quitCh:
 			logger.Info("shutting down from systray")
-			shutdown(cancel, bus, logSub, hookSub)
+			shutdown(cancel, pipeline)
 
 			return
 		case sig := <-sigCh:
 			if sig == syscall.SIGHUP {
-				reloadConfig(configPath, reg, executor, axTracker, router, logger)
+				reloadConfig(configPath, cfgReloader, logger)
 
 				continue
 			}
 
 			logger.Infow("shutting down", "signal", sig)
-			shutdown(cancel, bus, logSub, hookSub)
+			shutdown(cancel, pipeline)
 
 			return
 		}
 	}
 }
 
-func reloadConfig(
-	configPath string,
-	reg *hooks.Registry,
-	executor *hooks.Executor,
-	axTracker *observe.AXTracker,
-	router *observe.Router,
-	logger *zap.SugaredLogger,
-) {
+func reloadConfig(configPath string, cfgReloader *reloader, logger *zap.SugaredLogger) {
 	newCfg, err := config.Load(configPath)
 	if err != nil {
-		logger.Warnw("SIGHUP reload failed", "err", err)
+		logger.Warnw("config reload failed", "trigger", reloadTriggerSighup, "err", err)
 
 		return
 	}
 
-	_ = reg.Reload(newCfg)
-	executor.UpdateSettings(&newCfg.Settings)
-	native.UpdateObservers(getObserverConfig(newCfg))
-	router.SetDebounceWindow(time.Duration(newCfg.Settings.ResizeDebounceMS) * time.Millisecond)
-
-	perm := permissions.Check()
-	axTracker.Update(perm.Accessibility && hasWindowEvents(newCfg))
-	logger.Info("reloaded config via SIGHUP")
+	applyReload(cfgReloader, newCfg, reloadTriggerSighup, logger)
 }
 
-func shutdown(
-	cancel context.CancelFunc,
-	bus *events.Bus,
-	logSub events.Subscriber,
-	hookSub events.Subscriber,
-) {
+func shutdown(cancel context.CancelFunc, pipeline *eventPipeline) {
 	cancel()
 	native.StopObservers()
-	bus.Unsubscribe(logSub)
-	bus.Unsubscribe(hookSub)
+	pipeline.bus.Unsubscribe(pipeline.logSub)
+	pipeline.bus.Unsubscribe(pipeline.hookSub)
 }
 
 func writePID(path string) error {
