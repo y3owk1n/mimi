@@ -25,37 +25,39 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 		{
 			name: string(action.NameFocusWindow),
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameFocusWindow), nil)
+				return e.ExecuteCommand(focusCommandFor(t, false, false, false, false, false))
 			},
 		},
 		{
 			name: string(action.NameFocusWindow) + " directional",
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameFocusWindow), []string{flagRight})
+				return e.ExecuteCommand(focusCommandFor(t, false, false, false, false, true))
 			},
 		},
 		{
 			name: string(action.NameSpace),
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameSpace), []string{"3"})
+				return e.ExecuteCommand(spaceCommandFor(t, action.NameSpace, "3"))
 			},
 		},
 		{
 			name: string(action.NameSpace) + " next",
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameSpace), []string{nextKeyword})
+				return e.ExecuteCommand(spaceCommandFor(t, action.NameSpace, nextKeyword))
 			},
 		},
 		{
 			name: string(action.NameMoveWindowToSpace),
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameMoveWindowToSpace), []string{"3"})
+				return e.ExecuteCommand(spaceCommandFor(t, action.NameMoveWindowToSpace, "3"))
 			},
 		},
 		{
 			name: string(action.NameResizeWindow),
 			run: func(e *action.Executor) error {
-				return e.Execute(string(action.NameResizeWindow), []string{presetFill})
+				return e.ExecuteCommand(resizeCommandFor(t, action.ResizeWindowArgs{
+					Preset: presetFill,
+				}))
 			},
 		},
 	}
@@ -90,11 +92,11 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 
 			err := testCase.run(action.NewExecutor(desktop))
 			if err == nil {
-				t.Fatal("Execute() error = nil, want an error")
+				t.Fatal("ExecuteCommand() error = nil, want an error")
 			}
 
 			if !derrors.IsCode(err, derrors.CodeAccessibilityDenied) {
-				t.Fatalf("Execute() error = %v, want accessibility denied", err)
+				t.Fatalf("ExecuteCommand() error = %v, want accessibility denied", err)
 			}
 
 			wantFocused(t, desktop, 1)

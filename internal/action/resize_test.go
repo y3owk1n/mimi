@@ -4,76 +4,79 @@ import (
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
-	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
-// TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest covers the flag
-// spellings whose meaning is decided here rather than in the geometry: which
-// of the three dimension kinds a size flag produces, and which of the optional
-// fields a flag makes explicit.
-func TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest(t *testing.T) {
+// TestResizeRequestFromArgs_MapsArgumentsOntoTheGeometryRequest covers the
+// arguments whose meaning is decided here rather than in the geometry: which
+// of the three dimension kinds a size argument produces, and which of the
+// optional fields an argument makes explicit.
+//
+// This is the only conversion left. It used to have a string-parsing twin that
+// had to be kept in agreement with it, which is the drift
+// docs/adr/0001-typed-versioned-daemon-wire.md exists to remove.
+func TestResizeRequestFromArgs_MapsArgumentsOntoTheGeometryRequest(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		args []string
+		args action.ResizeWindowArgs
 		want geometry.Request
 	}{
 		{
-			name: "no arguments ask for nothing",
-			args: nil,
+			name: "nothing set asks for nothing",
+			args: action.ResizeWindowArgs{},
 			want: geometry.Request{},
 		},
 		{
-			name: "a preset is taken from the first positional argument",
-			args: []string{presetLeftHalf},
+			name: "a preset carries through",
+			args: action.ResizeWindowArgs{Preset: presetLeftHalf},
 			want: geometry.Request{Preset: presetFor(t, presetLeftHalf)},
 		},
 		{
 			name: "absolute sizes",
-			args: []string{flagWidth, "800", flagHeight, "600"},
-			want: geometry.Request{
-				Width:  geometry.Absolute(800),
-				Height: geometry.Absolute(600),
-			},
+			args: action.ResizeWindowArgs{Width: 800, WidthSet: true, Height: 600, HeightSet: true},
+			want: geometry.Request{Width: geometry.Absolute(800), Height: geometry.Absolute(600)},
 		},
 		{
 			name: "percentage sizes",
-			args: []string{flagWidthPercent, "45", flagHeightPercent, "55"},
-			want: geometry.Request{
-				Width:  geometry.Percent(45),
-				Height: geometry.Percent(55),
+			args: action.ResizeWindowArgs{
+				WidthPercent: 45, WidthPercentSet: true,
+				HeightPercent: 55, HeightPercentSet: true,
 			},
+			want: geometry.Request{Width: geometry.Percent(45), Height: geometry.Percent(55)},
 		},
 		{
 			name: "an absolute size wins over a percentage one",
-			args: []string{flagWidth, "800", flagWidthPercent, "45"},
+			args: action.ResizeWindowArgs{
+				Width: 800, WidthSet: true,
+				WidthPercent: 45, WidthPercentSet: true,
+			},
 			want: geometry.Request{Width: geometry.Absolute(800)},
 		},
 		{
 			name: "an explicit position",
-			args: []string{"--x", "100", "--y", "230"},
+			args: action.ResizeWindowArgs{X: 100, XSet: true, Y: 230, YSet: true},
 			want: geometry.Request{X: new(100.0), Y: new(230.0)},
 		},
 		{
 			name: "a negative position is accepted, for displays left of the primary",
-			args: []string{"--x", "-1920"},
+			args: action.ResizeWindowArgs{X: -1920, XSet: true},
 			want: geometry.Request{X: new(-1920.0)},
 		},
 		{
 			name: "an anchor",
-			args: []string{flagAnchor, "br"},
+			args: action.ResizeWindowArgs{Anchor: "br", AnchorSet: true},
 			want: geometry.Request{Anchor: new(geometry.BottomRight)},
 		},
 		{
 			name: "margins forced on",
-			args: []string{"--margin"},
+			args: action.ResizeWindowArgs{UseMargin: true},
 			want: geometry.Request{UseMargins: new(true)},
 		},
 		{
 			name: "margins forced off",
-			args: []string{"--no-margin"},
+			args: action.ResizeWindowArgs{NoMargin: true},
 			want: geometry.Request{UseMargins: new(false)},
 		},
 	}
@@ -82,9 +85,9 @@ func TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := action.ParseResizeRequest(testCase.args)
+			got, err := action.ResizeRequestFromArgs(testCase.args)
 			if err != nil {
-				t.Fatalf("ParseResizeRequest(%v) error = %v", testCase.args, err)
+				t.Fatalf("ResizeRequestFromArgs(%+v) error = %v", testCase.args, err)
 			}
 
 			assertRequest(t, got, testCase.want)
@@ -92,55 +95,34 @@ func TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest(t *testing.T) {
 	}
 }
 
-// TestParseResizeRequest_RejectsAnUnknownPreset covers mimi#125 on the path a
-// command from outside the CLI takes: the daemon decodes a request's string
-// arguments here, and a preset name it does not know is now rejected on the
-// same rule — and so in the same words — as the CLI's own check. It used to
-// fall past the preset check and be reported as a stray positional argument.
-func TestParseResizeRequest_RejectsAnUnknownPreset(t *testing.T) {
-	t.Parallel()
-
-	_, err := action.ParseResizeRequest([]string{unknownPreset, flagWidth, "800"})
-	if err == nil {
-		t.Fatalf("ParseResizeRequest(%s) expected error", unknownPreset)
-	}
-
-	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
-		t.Fatalf("expected CodeInvalidInput, got %v", err)
-	}
-
-	assertListsEveryPreset(t, err)
-
-	_, wantErr := action.ParseResizePreset(unknownPreset)
-	if err.Error() != wantErr.Error() {
-		t.Errorf("rejected with its own wording:\n got: %s\nwant: %s", err, wantErr)
-	}
-}
-
-// TestParseResizeRequest_ZeroSizeKeepsTheCurrentOne pins the CLI convention
-// that a zero size flag means "not given": the window keeps the size it has,
-// or takes the one a preset or a percentage supplies.
-func TestParseResizeRequest_ZeroSizeKeepsTheCurrentOne(t *testing.T) {
+// TestResizeRequestFromArgs_ZeroSizeKeepsTheCurrentOne pins the CLI convention
+// that a zero size means "keep what the window has": the flag was given, so it
+// crosses the wire, but the window keeps the size it has or takes the one a
+// preset or a percentage supplies.
+func TestResizeRequestFromArgs_ZeroSizeKeepsTheCurrentOne(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
 		name string
-		args []string
+		args action.ResizeWindowArgs
 		want geometry.Request
 	}{
 		{
-			name: "a zero width keeps the current width",
-			args: []string{flagWidth, "0", flagHeight, "0"},
+			name: "a zero width and height keep the current ones",
+			args: action.ResizeWindowArgs{Width: 0, WidthSet: true, Height: 0, HeightSet: true},
 			want: geometry.Request{Width: geometry.Keep(), Height: geometry.Keep()},
 		},
 		{
 			name: "a zero percentage keeps the current size too",
-			args: []string{flagWidthPercent, "0"},
+			args: action.ResizeWindowArgs{WidthPercent: 0, WidthPercentSet: true},
 			want: geometry.Request{Width: geometry.Keep()},
 		},
 		{
 			name: "a zero width still leaves a percentage to apply",
-			args: []string{flagWidth, "0", flagWidthPercent, "45"},
+			args: action.ResizeWindowArgs{
+				Width: 0, WidthSet: true,
+				WidthPercent: 45, WidthPercentSet: true,
+			},
 			want: geometry.Request{Width: geometry.Percent(45)},
 		},
 	}
@@ -149,9 +131,9 @@ func TestParseResizeRequest_ZeroSizeKeepsTheCurrentOne(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := action.ParseResizeRequest(testCase.args)
+			got, err := action.ResizeRequestFromArgs(testCase.args)
 			if err != nil {
-				t.Fatalf("ParseResizeRequest(%v) error = %v", testCase.args, err)
+				t.Fatalf("ResizeRequestFromArgs(%+v) error = %v", testCase.args, err)
 			}
 
 			assertRequest(t, got, testCase.want)
@@ -159,15 +141,15 @@ func TestParseResizeRequest_ZeroSizeKeepsTheCurrentOne(t *testing.T) {
 	}
 }
 
-// TestParseResizeRequest_ZeroWidthLeavesTheWindowAsWide pins the same
+// TestResizeRequestFromArgs_ZeroWidthLeavesTheWindowAsWide pins the same
 // convention end to end: a zero width reaches the geometry as a kept
 // dimension, so the frame it produces is as wide as the window already was.
-func TestParseResizeRequest_ZeroWidthLeavesTheWindowAsWide(t *testing.T) {
+func TestResizeRequestFromArgs_ZeroWidthLeavesTheWindowAsWide(t *testing.T) {
 	t.Parallel()
 
-	req, err := action.ParseResizeRequest([]string{flagWidth, "0"})
+	req, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs{Width: 0, WidthSet: true})
 	if err != nil {
-		t.Fatalf("ParseResizeRequest(--width 0) error = %v", err)
+		t.Fatalf("ResizeRequestFromArgs(width 0) error = %v", err)
 	}
 
 	screen := geometry.Screen{
@@ -177,7 +159,7 @@ func TestParseResizeRequest_ZeroWidthLeavesTheWindowAsWide(t *testing.T) {
 	current := geometry.Rect{X: 300, Y: 180, W: 700, H: 500}
 
 	if got := geometry.Resize(current, screen, req); got.W != current.W {
-		t.Errorf("Resize(--width 0) = %v, want the current width %v", got, current.W)
+		t.Errorf("Resize(width 0) = %v, want the current width %v", got, current.W)
 	}
 }
 

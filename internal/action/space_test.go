@@ -43,12 +43,11 @@ func TestExecutor_Space_NextAndPrevWrapAround(t *testing.T) {
 
 			desktop := desktopWithSpaces(testCase.active)
 
-			err := action.NewExecutor(desktop).Execute(
-				string(action.NameSpace),
-				[]string{testCase.arg},
+			err := action.NewExecutor(desktop).ExecuteCommand(
+				spaceCommandFor(t, action.NameSpace, testCase.arg),
 			)
 			if err != nil {
-				t.Fatalf("Execute(space, %q) error = %v, want nil", testCase.arg, err)
+				t.Fatalf("ExecuteCommand(space %q) error = %v, want nil", testCase.arg, err)
 			}
 
 			if desktop.activeSpace != testCase.want {
@@ -75,13 +74,15 @@ func TestExecutor_Space_OutOfRangeNumberIsInvalidInput(t *testing.T) {
 
 			desktop := desktopWithSpaces(2)
 
-			err := action.NewExecutor(desktop).Execute(string(testCase.action), []string{"9"})
+			err := action.NewExecutor(desktop).ExecuteCommand(
+				spaceCommandFor(t, testCase.action, "9"),
+			)
 			if err == nil {
-				t.Fatal("Execute() error = nil, want an error")
+				t.Fatal("ExecuteCommand() error = nil, want an error")
 			}
 
 			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
-				t.Fatalf("Execute() error = %v, want invalid input", err)
+				t.Fatalf("ExecuteCommand() error = %v, want invalid input", err)
 			}
 
 			if desktop.activeSpace != 2 {
@@ -175,9 +176,11 @@ func TestExecutor_Space_RefreshesWorkspaceTitleOnSuccess(t *testing.T) {
 
 			desktop := desktopWithSpaces(1)
 
-			err := action.NewExecutor(desktop).Execute(string(testCase.action), []string{"2"})
+			err := action.NewExecutor(desktop).ExecuteCommand(
+				spaceCommandFor(t, testCase.action, "2"),
+			)
 			if err != nil {
-				t.Fatalf("Execute(%s) error = %v, want nil", testCase.name, err)
+				t.Fatalf("ExecuteCommand(%s) error = %v, want nil", testCase.name, err)
 			}
 
 			wantRefreshCalls(t, desktop, 1)
@@ -197,9 +200,9 @@ func TestExecutor_Space_DoesNotRefreshWorkspaceTitleOnFailure(t *testing.T) {
 		for _, name := range []action.Name{action.NameSpace, action.NameMoveWindowToSpace} {
 			desktop := desktopWithSpaces(2)
 
-			err := action.NewExecutor(desktop).Execute(string(name), []string{"9"})
+			err := action.NewExecutor(desktop).ExecuteCommand(spaceCommandFor(t, name, "9"))
 			if err == nil {
-				t.Fatalf("Execute(%s) error = nil, want an error", name)
+				t.Fatalf("ExecuteCommand(%s) error = nil, want an error", name)
 			}
 
 			wantRefreshCalls(t, desktop, 0)

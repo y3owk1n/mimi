@@ -69,18 +69,56 @@ func (d Display) Screen() geometry.Screen {
 	}
 }
 
-// ResizeCase is one recorded resize_window invocation: the flags, the frame the
-// window started from, and the frame macOS ended up with.
+// ResizeArgs is one recorded resize_window invocation's arguments: the raw
+// flags the recorder ran it with, each paired with the bit saying whether it
+// was given at all.
 //
-// Args holds the command line as a user would type it, which is what the
-// recorder ran. A test of the geometry alone has to put those flags through the
-// action layer's argument parsing first — the recording deliberately does not
-// store a parsed form, because the shape of that form is not settled.
+// It holds the same fields as the action layer's resize_window payload, in the
+// same order, so the two convert directly — the same arrangement Rect has with
+// the geometry's rectangle, and for the same reason: the names the arguments
+// are stored under stay a property of this file format, and a field added to
+// the payload fails to compile here rather than silently going unrecorded.
+//
+// The recording used to store the command line as a user would type it, and a
+// test of the geometry had to put those strings back through a parser first.
+// That parser is gone (see docs/adr/0001-typed-versioned-daemon-wire.md), and
+// the shape it parsed into is now the settled one that crosses the daemon's
+// socket, so the recording stores that instead.
+type ResizeArgs struct {
+	Preset string `json:"preset,omitempty"`
+
+	Width    int  `json:"width,omitempty"`
+	WidthSet bool `json:"widthSet,omitempty"`
+
+	Height    int  `json:"height,omitempty"`
+	HeightSet bool `json:"heightSet,omitempty"`
+
+	WidthPercent    float64 `json:"widthPercent,omitempty"`
+	WidthPercentSet bool    `json:"widthPercentSet,omitempty"`
+
+	HeightPercent    float64 `json:"heightPercent,omitempty"`
+	HeightPercentSet bool    `json:"heightPercentSet,omitempty"`
+
+	X    int  `json:"x,omitempty"`
+	XSet bool `json:"xSet,omitempty"`
+
+	Y    int  `json:"y,omitempty"`
+	YSet bool `json:"ySet,omitempty"`
+
+	Anchor    string `json:"anchor,omitempty"`
+	AnchorSet bool   `json:"anchorSet,omitempty"`
+
+	UseMargin bool `json:"useMargin,omitempty"`
+	NoMargin  bool `json:"noMargin,omitempty"`
+}
+
+// ResizeCase is one recorded resize_window invocation: the arguments, the frame
+// the window started from, and the frame macOS ended up with.
 type ResizeCase struct {
-	Name  string   `json:"name"`
-	Args  []string `json:"args"`
-	Start Rect     `json:"start"`
-	Want  Rect     `json:"want"`
+	Name  string     `json:"name"`
+	Args  ResizeArgs `json:"args"`
+	Start Rect       `json:"start"`
+	Want  Rect       `json:"want"`
 }
 
 // FocusCase is one recorded focus_window invocation. Arrangement holds the

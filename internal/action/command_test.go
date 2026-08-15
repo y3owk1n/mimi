@@ -5,8 +5,61 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
-	"github.com/y3owk1n/mimi/internal/geometry"
 )
+
+// The three helpers below build a command through the constructor the CLI
+// builds it with, so a test that drives the executor drives it with the very
+// command a `mimi action …` invocation produces rather than a hand-assembled
+// one. A constructor that rejects the arguments fails the test on the spot:
+// these are for the valid cases, and the rejections have tests of their own.
+
+func focusCommandFor(t *testing.T, backward, up, down, left, right bool) action.Command {
+	t.Helper()
+
+	cmd, err := action.NewFocusWindowCommand(backward, up, down, left, right)
+	if err != nil {
+		t.Fatalf("building %s: %v", action.NameFocusWindow, err)
+	}
+
+	return cmd
+}
+
+func spaceCommandFor(t *testing.T, name action.Name, arg string) action.Command {
+	t.Helper()
+
+	var (
+		cmd action.Command
+		err error
+	)
+
+	switch name {
+	case action.NameSpace:
+		cmd, err = action.NewSpaceCommand([]string{arg})
+	case action.NameMoveWindowToSpace:
+		cmd, err = action.NewMoveWindowToSpaceCommand([]string{arg})
+	case action.NameFocusWindow, action.NameResizeWindow:
+		t.Fatalf("%s takes no space argument", name)
+	default:
+		t.Fatalf("unknown action %q", name)
+	}
+
+	if err != nil {
+		t.Fatalf("building %s %q: %v", name, arg, err)
+	}
+
+	return cmd
+}
+
+func resizeCommandFor(t *testing.T, args action.ResizeWindowArgs) action.Command {
+	t.Helper()
+
+	cmd, err := action.NewResizeWindowCommand(args)
+	if err != nil {
+		t.Fatalf("building %s: %v", action.NameResizeWindow, err)
+	}
+
+	return cmd
+}
 
 // TestNewFocusWindowCommand_BuildsTheTypedPayload pins the mapping from the
 // CLI's already-typed bools onto focus_window's command, without a string
@@ -77,90 +130,6 @@ func TestNewFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("expected CodeInvalidInput, got %v", err)
-	}
-}
-
-// TestResizeRequestFromArgs_MatchesParseResizeRequest pins that the typed
-// direct-execution path resolves every ResizeWindowArgs case exactly the way
-// ParseResizeRequest resolves the equivalent string flags, so the two paths
-// can never quietly diverge.
-func TestResizeRequestFromArgs_MatchesParseResizeRequest(t *testing.T) {
-	t.Parallel()
-
-	tests := []struct {
-		name string
-		args action.ResizeWindowArgs
-		want geometry.Request
-	}{
-		{
-			name: "nothing set asks for nothing",
-			args: action.ResizeWindowArgs{},
-			want: geometry.Request{},
-		},
-		{
-			name: "absolute sizes",
-			args: action.ResizeWindowArgs{Width: 800, WidthSet: true, Height: 600, HeightSet: true},
-			want: geometry.Request{Width: geometry.Absolute(800), Height: geometry.Absolute(600)},
-		},
-		{
-			name: "percentage sizes",
-			args: action.ResizeWindowArgs{
-				WidthPercent: 45, WidthPercentSet: true,
-				HeightPercent: 55, HeightPercentSet: true,
-			},
-			want: geometry.Request{Width: geometry.Percent(45), Height: geometry.Percent(55)},
-		},
-		{
-			name: "an absolute size wins over a percentage one",
-			args: action.ResizeWindowArgs{
-				Width: 800, WidthSet: true,
-				WidthPercent: 45, WidthPercentSet: true,
-			},
-			want: geometry.Request{Width: geometry.Absolute(800)},
-		},
-		{
-			name: "a zero width, explicitly set, still keeps the current width",
-			args: action.ResizeWindowArgs{Width: 0, WidthSet: true},
-			want: geometry.Request{Width: geometry.Keep()},
-		},
-		{
-			name: "an explicit position",
-			args: action.ResizeWindowArgs{X: 100, XSet: true, Y: 230, YSet: true},
-			want: geometry.Request{X: new(100.0), Y: new(230.0)},
-		},
-		{
-			name: "an anchor",
-			args: action.ResizeWindowArgs{Anchor: "br", AnchorSet: true},
-			want: geometry.Request{Anchor: new(geometry.BottomRight)},
-		},
-		{
-			name: "margins forced on",
-			args: action.ResizeWindowArgs{UseMargin: true},
-			want: geometry.Request{UseMargins: new(true)},
-		},
-		{
-			name: "margins forced off",
-			args: action.ResizeWindowArgs{NoMargin: true},
-			want: geometry.Request{UseMargins: new(false)},
-		},
-		{
-			name: "a preset carries through",
-			args: action.ResizeWindowArgs{Preset: presetLeftHalf},
-			want: geometry.Request{Preset: presetFor(t, presetLeftHalf)},
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			got, err := action.ResizeRequestFromArgs(testCase.args)
-			if err != nil {
-				t.Fatalf("ResizeRequestFromArgs(%+v) error = %v", testCase.args, err)
-			}
-
-			assertRequest(t, got, testCase.want)
-		})
 	}
 }
 
@@ -448,10 +417,11 @@ func TestNewResizeWindowCommand_CarriesTheRawArgumentsUnchanged(t *testing.T) {
 	}
 }
 
-// TestExecuteCommand_MirrorsExecute checks ExecuteCommand reaches the same
-// executor methods Execute's string parsing does, for every action, using
-// the same fake desktop tests already exercise Execute against.
-func TestExecuteCommand_MirrorsExecute(t *testing.T) {
+// TestExecuteCommand_ReachesEveryAction checks each action's command lands on
+// the executor method that performs it, against a fake desktop, so the
+// dispatch and the payload each branch reads are covered without a Mac under
+// them.
+func TestExecuteCommand_ReachesEveryAction(t *testing.T) {
 	t.Parallel()
 
 	t.Run("focus_window", func(t *testing.T) {
@@ -526,6 +496,104 @@ func TestExecuteCommand_MirrorsExecute(t *testing.T) {
 			t.Fatalf("ExecuteCommand(resize_window) error = %v, want nil", err)
 		}
 	})
+}
+
+// TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild covers the trust
+// boundary the daemon became once it decodes commands off a socket instead of
+// parsing them: a payload that no constructor would have produced arrives with
+// nothing having checked it, so ExecuteCommand checks it before driving the
+// desktop.
+//
+// The desktop underneath refuses every accessibility check, so a case that
+// reached it would fail on that instead of on invalid input — which is what
+// makes "rejected before anything moved" the thing being asserted.
+func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		cmd  action.Command
+	}{
+		{
+			name: "focus_window with a direction and --backward at once",
+			cmd: action.Command{
+				Name:        action.NameFocusWindow,
+				FocusWindow: action.FocusWindowArgs{Backward: true, Direction: "up"},
+			},
+		},
+		{
+			name: "focus_window with a direction that is not one",
+			cmd: action.Command{
+				Name:        action.NameFocusWindow,
+				FocusWindow: action.FocusWindowArgs{Direction: "sideways"},
+			},
+		},
+		{
+			name: "space naming no space at all",
+			cmd:  action.Command{Name: action.NameSpace},
+		},
+		{
+			name: "space naming an index and a direction at once",
+			cmd: action.Command{
+				Name:  action.NameSpace,
+				Space: action.SpaceArg{Index: 2, Direction: 1},
+			},
+		},
+		{
+			name: "space stepping by something other than one",
+			cmd: action.Command{
+				Name:  action.NameSpace,
+				Space: action.SpaceArg{Direction: 5},
+			},
+		},
+		{
+			name: "move_window_to_space naming no space at all",
+			cmd:  action.Command{Name: action.NameMoveWindowToSpace},
+		},
+		{
+			name: "move_window_to_space naming an index and a direction at once",
+			cmd: action.Command{
+				Name:              action.NameMoveWindowToSpace,
+				MoveWindowToSpace: action.SpaceArg{Index: 2, Direction: -1},
+			},
+		},
+		{
+			name: "resize_window naming a preset that is not one",
+			cmd: action.Command{
+				Name:         action.NameResizeWindow,
+				ResizeWindow: action.ResizeWindowArgs{Preset: unknownPreset},
+			},
+		},
+		{
+			name: "resize_window with a negative width",
+			cmd: action.Command{
+				Name:         action.NameResizeWindow,
+				ResizeWindow: action.ResizeWindowArgs{Width: -5, WidthSet: true},
+			},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := &fakeDesktop{
+				accessibilityErr: derrors.New(
+					derrors.CodeAccessibilityDenied,
+					"the desktop must not be reached",
+				),
+			}
+
+			err := action.NewExecutor(desktop).ExecuteCommand(testCase.cmd)
+			if err == nil {
+				t.Fatalf("ExecuteCommand(%+v) error = nil, want an error", testCase.cmd)
+			}
+
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf("ExecuteCommand(%+v) got %v, want CodeInvalidInput", testCase.cmd, err)
+			}
+		})
+	}
 }
 
 func TestExecuteCommand_UnknownName(t *testing.T) {

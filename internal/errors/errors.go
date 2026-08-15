@@ -3,6 +3,7 @@ package errors
 import (
 	"errors"
 	"fmt"
+	"strings"
 )
 
 // Code represents a domain-specific error code.
@@ -188,6 +189,22 @@ func GetCode(err error) Code {
 	}
 
 	return CodeInternal
+}
+
+// Message is err's text without the "[CODE] " prefix Error puts in front of
+// it.
+//
+// A caller that carries the code in a field of its own — the daemon's IPC
+// response does, so the CLI can rebuild the error from the pair — would
+// otherwise show the code twice. This package writes that prefix, so this is
+// where taking it off belongs. An error carrying no code of this package's is
+// returned unchanged.
+func Message(err error) string {
+	if err == nil {
+		return ""
+	}
+
+	return strings.TrimPrefix(err.Error(), "["+string(GetCode(err))+"] ")
 }
 
 // Is is a helper function that checks if an error is of a specific type.

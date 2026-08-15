@@ -13,10 +13,10 @@
 	"resize": [
 		{
 			"name": "preset/left-half/margin",
-			"args": [
-				"left-half",
-				"--margin"
-			],
+			"args": {
+				"preset": "left-half",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -32,10 +32,10 @@
 		},
 		{
 			"name": "preset/left-half/no-margin",
-			"args": [
-				"left-half",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "left-half",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -51,10 +51,10 @@
 		},
 		{
 			"name": "preset/right-half/margin",
-			"args": [
-				"right-half",
-				"--margin"
-			],
+			"args": {
+				"preset": "right-half",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -70,10 +70,10 @@
 		},
 		{
 			"name": "preset/right-half/no-margin",
-			"args": [
-				"right-half",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "right-half",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -89,10 +89,10 @@
 		},
 		{
 			"name": "preset/top-half/margin",
-			"args": [
-				"top-half",
-				"--margin"
-			],
+			"args": {
+				"preset": "top-half",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -108,10 +108,10 @@
 		},
 		{
 			"name": "preset/top-half/no-margin",
-			"args": [
-				"top-half",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "top-half",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -127,10 +127,10 @@
 		},
 		{
 			"name": "preset/bottom-half/margin",
-			"args": [
-				"bottom-half",
-				"--margin"
-			],
+			"args": {
+				"preset": "bottom-half",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -146,10 +146,10 @@
 		},
 		{
 			"name": "preset/bottom-half/no-margin",
-			"args": [
-				"bottom-half",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "bottom-half",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -165,10 +165,10 @@
 		},
 		{
 			"name": "preset/top-left/margin",
-			"args": [
-				"top-left",
-				"--margin"
-			],
+			"args": {
+				"preset": "top-left",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -184,10 +184,10 @@
 		},
 		{
 			"name": "preset/top-left/no-margin",
-			"args": [
-				"top-left",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "top-left",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -203,10 +203,10 @@
 		},
 		{
 			"name": "preset/top-right/margin",
-			"args": [
-				"top-right",
-				"--margin"
-			],
+			"args": {
+				"preset": "top-right",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -222,10 +222,10 @@
 		},
 		{
 			"name": "preset/top-right/no-margin",
-			"args": [
-				"top-right",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "top-right",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -241,10 +241,10 @@
 		},
 		{
 			"name": "preset/bottom-left/margin",
-			"args": [
-				"bottom-left",
-				"--margin"
-			],
+			"args": {
+				"preset": "bottom-left",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -260,10 +260,10 @@
 		},
 		{
 			"name": "preset/bottom-left/no-margin",
-			"args": [
-				"bottom-left",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "bottom-left",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -279,10 +279,10 @@
 		},
 		{
 			"name": "preset/bottom-right/margin",
-			"args": [
-				"bottom-right",
-				"--margin"
-			],
+			"args": {
+				"preset": "bottom-right",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -298,10 +298,10 @@
 		},
 		{
 			"name": "preset/bottom-right/no-margin",
-			"args": [
-				"bottom-right",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "bottom-right",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -317,10 +317,10 @@
 		},
 		{
 			"name": "preset/center/margin",
-			"args": [
-				"center",
-				"--margin"
-			],
+			"args": {
+				"preset": "center",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -336,10 +336,10 @@
 		},
 		{
 			"name": "preset/center/no-margin",
-			"args": [
-				"center",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "center",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -355,10 +355,10 @@
 		},
 		{
 			"name": "preset/fill/margin",
-			"args": [
-				"fill",
-				"--margin"
-			],
+			"args": {
+				"preset": "fill",
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -374,10 +374,10 @@
 		},
 		{
 			"name": "preset/fill/no-margin",
-			"args": [
-				"fill",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "fill",
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -393,9 +393,9 @@
 		},
 		{
 			"name": "preset/left-half/system-default",
-			"args": [
-				"left-half"
-			],
+			"args": {
+				"preset": "left-half"
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -411,15 +411,15 @@
 		},
 		{
 			"name": "anchor/tl/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tl",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tl",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -435,15 +435,15 @@
 		},
 		{
 			"name": "anchor/tl/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tl",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tl",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -459,15 +459,15 @@
 		},
 		{
 			"name": "anchor/tc/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tc",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tc",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -483,15 +483,15 @@
 		},
 		{
 			"name": "anchor/tc/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tc",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tc",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -507,15 +507,15 @@
 		},
 		{
 			"name": "anchor/tr/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tr",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tr",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -531,15 +531,15 @@
 		},
 		{
 			"name": "anchor/tr/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"tr",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "tr",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -555,15 +555,15 @@
 		},
 		{
 			"name": "anchor/cl/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cl",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cl",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -579,15 +579,15 @@
 		},
 		{
 			"name": "anchor/cl/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cl",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cl",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -603,15 +603,15 @@
 		},
 		{
 			"name": "anchor/cc/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cc",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cc",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -627,15 +627,15 @@
 		},
 		{
 			"name": "anchor/cc/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cc",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cc",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -651,15 +651,15 @@
 		},
 		{
 			"name": "anchor/cr/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cr",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cr",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -675,15 +675,15 @@
 		},
 		{
 			"name": "anchor/cr/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"cr",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "cr",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -699,15 +699,15 @@
 		},
 		{
 			"name": "anchor/bl/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"bl",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "bl",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -723,15 +723,15 @@
 		},
 		{
 			"name": "anchor/bl/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"bl",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "bl",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -747,15 +747,15 @@
 		},
 		{
 			"name": "anchor/bc/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"bc",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "bc",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -771,15 +771,15 @@
 		},
 		{
 			"name": "anchor/bc/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"bc",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "bc",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -795,15 +795,15 @@
 		},
 		{
 			"name": "anchor/br/margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"br",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "br",
+				"anchorSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -819,15 +819,15 @@
 		},
 		{
 			"name": "anchor/br/no-margin",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--anchor",
-				"br",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"anchor": "br",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -843,13 +843,13 @@
 		},
 		{
 			"name": "explicit/width-height",
-			"args": [
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -865,11 +865,11 @@
 		},
 		{
 			"name": "explicit/width-only",
-			"args": [
-				"--width",
-				"800",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -885,11 +885,11 @@
 		},
 		{
 			"name": "explicit/height-only",
-			"args": [
-				"--height",
-				"600",
-				"--no-margin"
-			],
+			"args": {
+				"height": 600,
+				"heightSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -905,13 +905,13 @@
 		},
 		{
 			"name": "explicit/percent",
-			"args": [
-				"--width-percent",
-				"45",
-				"--height-percent",
-				"55",
-				"--no-margin"
-			],
+			"args": {
+				"widthPercent": 45,
+				"widthPercentSet": true,
+				"heightPercent": 55,
+				"heightPercentSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -927,13 +927,13 @@
 		},
 		{
 			"name": "explicit/percent-margin",
-			"args": [
-				"--width-percent",
-				"45",
-				"--height-percent",
-				"55",
-				"--margin"
-			],
+			"args": {
+				"widthPercent": 45,
+				"widthPercentSet": true,
+				"heightPercent": 55,
+				"heightPercentSet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -949,13 +949,13 @@
 		},
 		{
 			"name": "explicit/position",
-			"args": [
-				"--x",
-				"100",
-				"--y",
-				"230",
-				"--no-margin"
-			],
+			"args": {
+				"x": 100,
+				"xSet": true,
+				"y": 230,
+				"ySet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -971,17 +971,17 @@
 		},
 		{
 			"name": "explicit/position-size",
-			"args": [
-				"--x",
-				"100",
-				"--y",
-				"230",
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--no-margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"x": 100,
+				"xSet": true,
+				"y": 230,
+				"ySet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -997,17 +997,17 @@
 		},
 		{
 			"name": "explicit/position-size-margin",
-			"args": [
-				"--x",
-				"100",
-				"--y",
-				"230",
-				"--width",
-				"800",
-				"--height",
-				"600",
-				"--margin"
-			],
+			"args": {
+				"width": 800,
+				"widthSet": true,
+				"height": 600,
+				"heightSet": true,
+				"x": 100,
+				"xSet": true,
+				"y": 230,
+				"ySet": true,
+				"useMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -1023,12 +1023,12 @@
 		},
 		{
 			"name": "explicit/preset-with-anchor",
-			"args": [
-				"left-half",
-				"--anchor",
-				"br",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "left-half",
+				"anchor": "br",
+				"anchorSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,
@@ -1044,12 +1044,12 @@
 		},
 		{
 			"name": "explicit/preset-with-width",
-			"args": [
-				"left-half",
-				"--width",
-				"800",
-				"--no-margin"
-			],
+			"args": {
+				"preset": "left-half",
+				"width": 800,
+				"widthSet": true,
+				"noMargin": true
+			},
 			"start": {
 				"x": 300,
 				"y": 180,

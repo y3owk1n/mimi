@@ -5,13 +5,30 @@ import (
 	"encoding/json"
 	"io"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
-// Request is a JSON-encoded action request sent over the Unix socket.
+// ProtocolVersion is the version of the request envelope this build speaks.
+//
+// It is carried on every request but not yet checked by the daemon; enforcing
+// it, and the fallback a mismatch triggers, is mimi#128. Bump it whenever the
+// encoded shape of a request changes in a way an older daemon would read
+// wrongly — a renamed or removed field, or a field whose meaning changed.
+// TestRequest_EncodesTheGoldenBytes is what makes such a change visible.
+const ProtocolVersion = 1
+
+// Request is the envelope one command travels in over the daemon's Unix
+// socket.
+//
+// The command is carried typed rather than flattened into command-line
+// strings, so the daemon runs the same value the CLI built instead of
+// re-parsing one (see docs/adr/0001-typed-versioned-daemon-wire.md). The
+// action's name lives on the command and nowhere else, so no two fields can
+// disagree about which action this is.
 type Request struct {
-	Action string   `json:"action"`
-	Args   []string `json:"args"`
+	Version int            `json:"version"`
+	Command action.Command `json:"command"`
 }
 
 // Response is a JSON-encoded action result sent back to the client.
@@ -94,10 +111,14 @@ func responseFromError(err error) Response {
 		return Response{OK: true}
 	}
 
+	// The code travels in its own field and errorFromResponse rebuilds the
+	// error from the pair, so the message must not carry the code as well:
+	// the daemon path would report "[INVALID_INPUT] [INVALID_INPUT] …" where
+	// the direct path reports it once, for the same command.
 	return Response{
 		OK:      false,
 		Code:    string(derrors.GetCode(err)),
-		Message: err.Error(),
+		Message: derrors.Message(err),
 	}
 }
 
