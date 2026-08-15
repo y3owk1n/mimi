@@ -53,6 +53,14 @@ const (
 	// CodeIPCFailed indicates a failure in IPC communication.
 	CodeIPCFailed Code = "IPC_FAILED"
 
+	// CodeProtocolMismatch indicates the daemon and the CLI do not speak the
+	// same version of the request envelope carried over the socket — mimi was
+	// upgraded and the daemon not restarted. It is deliberately distinct from
+	// CodeDaemonUnavailable: the CLI falls back to the direct path for both,
+	// but only this one is worth warning about, and telling them apart by
+	// message text would break the first time the message is reworded.
+	CodeProtocolMismatch Code = "PROTOCOL_MISMATCH"
+
 	// CodeServiceFailed indicates a failure managing the launchd service:
 	// rendering or writing its plist, or a launchctl invocation.
 	CodeServiceFailed Code = "SERVICE_FAILED"

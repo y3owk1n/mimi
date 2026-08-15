@@ -138,8 +138,8 @@ func TestRequest_RoundTripsEveryAction(t *testing.T) {
 // trip cannot make: a renamed field round-trips perfectly against itself and
 // still breaks every daemon that has not restarted. The bytes below are what a
 // running daemon of this protocol version reads, so changing them is a
-// protocol change — bump ProtocolVersion with it (mimi#128 makes the daemon
-// act on that).
+// protocol change — bump ProtocolVersion with it, and a daemon still running
+// the old build will reject this build's requests rather than misread them.
 //
 // One command per action, each built the way the CLI builds it. Within a
 // payload that is encoded at all, every field is, whether or not it carries a

@@ -3,11 +3,13 @@ package cmd
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"fmt"
 	"net"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -68,6 +70,71 @@ func TestRunAction_RoutesToDaemonWhenListening(t *testing.T) {
 	socketPath := filepath.Join(shortSocketDir(t), "mimi.sock")
 	state := stateWithSocketConfig(t, socketPath)
 
+	// The fake daemon never inspects what was asked of it for this test.
+	serveOneResponse(t, socketPath, `{"ok":true}`)
+
+	err := state.runAction(action.Command{})
+	if err != nil {
+		t.Fatalf(
+			"runAction with a daemon listening on the configured socket = %v, want nil (it should have routed there instead of falling back to direct execution, which always errors on an empty action name)",
+			err,
+		)
+	}
+}
+
+// TestRunAction_FallsBackToDirectWhenTheDaemonSpeaksAnotherProtocol is the CLI
+// half of mimi#128: a daemon left running across an upgrade rejects the
+// request with CodeProtocolMismatch, and the CLI treats that the way it
+// already treats an absent daemon — it runs the command on the direct path —
+// except that it also says so, because a mismatch that nobody is told about
+// persists until the next reboot.
+//
+// The fallback is observable the same way the no-daemon case is: the empty
+// action name only ever fails with CodeInvalidInput on the direct path, and
+// the fake daemon below answers nothing but the mismatch. The warning is
+// asserted on its parts rather than its wording — the cause, the fix, and the
+// path the action actually ran on — so it can be reworded without a test
+// change but cannot lose one of the three.
+func TestRunAction_FallsBackToDirectWhenTheDaemonSpeaksAnotherProtocol(t *testing.T) {
+	t.Parallel()
+
+	socketPath := filepath.Join(shortSocketDir(t), "mimi.sock")
+	state := stateWithSocketConfig(t, socketPath)
+
+	var warnings bytes.Buffer
+
+	state.warnOut = &warnings
+
+	serveOneResponse(t, socketPath, fmt.Sprintf(
+		`{"ok":false,"code":%q,"message":"daemon speaks request protocol version 1, client sent 2"}`,
+		derrors.CodeProtocolMismatch,
+	))
+
+	err := state.runAction(action.Command{})
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf(
+			"runAction against a mismatched daemon = %v, want CodeInvalidInput from the direct path it should have fallen back to",
+			err,
+		)
+	}
+
+	warning := warnings.String()
+	if warning == "" {
+		t.Fatal("the fallback was silent; expected a warning naming the mismatch")
+	}
+
+	for _, want := range []string{"protocol", "restart", "direct"} {
+		if !strings.Contains(strings.ToLower(warning), want) {
+			t.Errorf("warning %q does not mention %q", warning, want)
+		}
+	}
+}
+
+// serveOneResponse stands a fake daemon on socketPath that answers a single
+// request with response, then hangs up.
+func serveOneResponse(t *testing.T, socketPath, response string) {
+	t.Helper()
+
 	lc := net.ListenConfig{}
 
 	listener, err := lc.Listen(context.Background(), "unix", socketPath)
@@ -84,19 +151,9 @@ func TestRunAction_RoutesToDaemonWhenListening(t *testing.T) {
 		}
 		defer func() { _ = conn.Close() }()
 
-		// Drain the request line, then answer ok — the fake daemon never
-		// needs to inspect what was asked of it for this test.
 		_, _ = bufio.NewReader(conn).ReadBytes('\n')
-		_, _ = conn.Write([]byte("{\"ok\":true}\n"))
+		_, _ = conn.Write([]byte(response + "\n"))
 	}()
-
-	err = state.runAction(action.Command{})
-	if err != nil {
-		t.Fatalf(
-			"runAction with a daemon listening on the configured socket = %v, want nil (it should have routed there instead of falling back to direct execution, which always errors on an empty action name)",
-			err,
-		)
-	}
 }
 
 // TestRunAction_FallsBackToDirectWhenNoDaemonListening is

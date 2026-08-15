@@ -11,11 +11,11 @@ import (
 
 // ProtocolVersion is the version of the request envelope this build speaks.
 //
-// It is carried on every request but not yet checked by the daemon; enforcing
-// it, and the fallback a mismatch triggers, is mimi#128. Bump it whenever the
-// encoded shape of a request changes in a way an older daemon would read
-// wrongly — a renamed or removed field, or a field whose meaning changed.
-// TestRequest_EncodesTheGoldenBytes is what makes such a change visible.
+// It is carried on every request and compared for strict equality by the
+// daemon. Bump it whenever the encoded shape of a request changes in a way an
+// older daemon would read wrongly — a renamed or removed field, or a field
+// whose meaning changed. TestRequest_EncodesTheGoldenBytes is what makes such
+// a change visible.
 const ProtocolVersion = 1
 
 // Request is the envelope one command travels in over the daemon's Unix
@@ -66,6 +66,25 @@ func readRequest(r *bufio.Reader) (Request, error) {
 			err,
 			derrors.CodeSerializationFailed,
 			"decoding IPC request",
+		)
+	}
+
+	// A request on another version of the envelope decodes without complaint —
+	// unknown fields are ignored and absent ones take their zero value — so
+	// this comparison, not the decoder, is what catches a CLI and a daemon
+	// built either side of a wire change. It lives here rather than at the
+	// caller so no request can be acted on without having passed it.
+	//
+	// Strict equality in both directions: skew breaks a newer daemon reading
+	// an older client's request just as badly as the reverse, and a version
+	// absent altogether decodes to zero and fails the same comparison, which
+	// is the right answer for any CLI built before the typed wire.
+	if req.Version != ProtocolVersion {
+		return Request{}, derrors.Newf(
+			derrors.CodeProtocolMismatch,
+			"daemon speaks request protocol version %d, client sent %d",
+			ProtocolVersion,
+			req.Version,
 		)
 	}
 

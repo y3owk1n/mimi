@@ -23,6 +23,19 @@ It matters when:
   restarted (it's restart-only — see [Reloading](CONFIGURATION.md#reloading)),
   the CLI is checking a socket the daemon isn't on, actions fall back to
   direct execution silently, and nothing errors.
+- **mimi was upgraded and the daemon not restarted.** The daemon path carries
+  a versioned request, and the daemon accepts only the version its own build
+  speaks. A daemon running a different build therefore rejects the request,
+  and `mimi action` runs the command on the direct path instead, printing one
+  line to stderr naming the mismatch and the fix. The action itself still does
+  what it was asked and exits as it always did, so this is a warning, not a
+  failure. Skew is rejected whichever build is ahead — a daemon newer than the
+  `mimi` binary on your `PATH` refuses that binary's requests just the same.
+  A daemon older than the version check itself has no way to recognise a
+  request it cannot read, and may instead fail the action outright with a
+  complaint about its arguments. Either way the fix is the same: restart the
+  daemon so it runs the same build as the CLI — `mimi stop && mimi start`, or
+  `mimi services restart` when it is installed as a launchd service.
 - **You're timing something.** The daemon path is a socket round trip to an
   already-running process; the direct path pays process startup cost instead
   but skips the socket. An action that behaves differently under load, or
