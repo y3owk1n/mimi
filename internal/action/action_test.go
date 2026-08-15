@@ -239,3 +239,49 @@ func TestResizePreset(t *testing.T) {
 		assertListsEveryPreset(t, err)
 	})
 }
+
+// TestParseResizePresetArg covers the one thing resize_window's positional
+// argument adds to the preset rule: it is optional, so the empty string is the
+// argument nobody gave and names no preset without that being an error.
+// Everything else is ParseResizePreset's decision, which is why an unknown name
+// still reads in its words — the CLI's Args layer and ResizeRequestFromArgs
+// both reject through here (mimi#133).
+func TestParseResizePresetArg(t *testing.T) {
+	t.Parallel()
+
+	t.Run("no argument names no preset", func(t *testing.T) {
+		t.Parallel()
+
+		got, err := action.ParseResizePresetArg("")
+		if err != nil {
+			t.Fatalf(`ParseResizePresetArg("") error = %v`, err)
+		}
+
+		if (got != geometry.Preset{}) {
+			t.Fatalf(`ParseResizePresetArg("") = %v, want the zero preset`, got)
+		}
+	})
+
+	t.Run("a name is the preset rule's decision", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range append(everyPreset(), unknownPreset, whitespaceOnlyArg) {
+			got, gotErr := action.ParseResizePresetArg(name)
+			want, wantErr := action.ParseResizePreset(name)
+
+			switch {
+			case (gotErr == nil) != (wantErr == nil):
+				t.Errorf("ParseResizePresetArg(%q) error = %v, want %v", name, gotErr, wantErr)
+			case gotErr != nil && gotErr.Error() != wantErr.Error():
+				t.Errorf(
+					"ParseResizePresetArg(%q) rejected in other words:\n got: %s\nwant: %s",
+					name,
+					gotErr,
+					wantErr,
+				)
+			case gotErr == nil && got != want:
+				t.Errorf("ParseResizePresetArg(%q) = %v, want %v", name, got, want)
+			}
+		}
+	})
+}
