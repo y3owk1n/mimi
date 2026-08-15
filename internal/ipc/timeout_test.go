@@ -11,7 +11,7 @@ import (
 )
 
 // TestServerHandleConnEnqueueTimeout verifies that handleConn returns
-// an IPCF_FAILED "timed out enqueueing action" error when the action
+// an IPC_FAILED "timed out enqueueing action" error when the action
 // worker isn't consuming from actionCh, instead of blocking forever.
 func TestServerHandleConnEnqueueTimeout(t *testing.T) {
 	t.Parallel()
