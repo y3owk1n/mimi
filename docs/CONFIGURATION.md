@@ -57,6 +57,27 @@ line with no color. The `log_file` log is always JSON, whatever `log_format`
 says, so anything already piping that file through `jq` keeps working. An
 unrecognized value logs a warning and falls back to `text`.
 
+### socket_file
+
+`socket_file` is the Unix socket the daemon listens on and `mimi action …`
+looks for it on. Every `mimi action` invocation resolves its config path
+first (the default path when `-c`/`--config` is not given) and reads
+`socket_file` from it, then checks that socket:
+
+- **A daemon is listening** — the action is sent over the socket and runs on
+  the daemon's dedicated OS thread.
+- **Nothing is listening** — the CLI falls back to running the action
+  directly, in the CLI's own process.
+
+Both paths produce the same result, but not with the same timing: the daemon
+path is a socket round trip; the direct path runs in-process with no daemon
+involved at all. If you run the daemon with a non-default `socket_file`, that
+value is what routes `mimi action` to it — a mismatch between the two (or a
+daemon that hasn't picked up a changed `socket_file`, since it is
+restart-only) means actions silently execute directly instead of reaching the
+daemon. See [Troubleshooting](TROUBLESHOOTING.md#mimi-action-runs-but-seems-to-ignore-the-running-daemon)
+for how to tell which path an action actually took.
+
 ### Debug logging
 
 `log_level = "debug"` adds two extra lines per routed event: a router
