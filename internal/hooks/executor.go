@@ -131,9 +131,9 @@ func (ex *Executor) Handle(evt events.Event) {
 		)
 
 		if hook.Entry.Async {
-			go ex.run(hook, evt)
+			go ex.run(hookIndex, hook, evt)
 		} else {
-			ex.run(hook, evt)
+			ex.run(hookIndex, hook, evt)
 		}
 	}
 }
@@ -154,7 +154,12 @@ func (ex *Executor) Run(ctx context.Context, sub events.Subscriber) {
 	}
 }
 
-func (ex *Executor) run(hook Hook, evt events.Event) {
+// run executes a single matched hook. hookIndex is the hook's 0-based
+// position within its kind, passed down from Handle's loop so the log lines
+// below can identify the hook without recording its command text. It is a
+// parameter rather than executor state because Handle may launch several
+// async hooks concurrently.
+func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 	ex.sem <- struct{}{}
 	defer func() { <-ex.sem }()
 
@@ -189,18 +194,18 @@ func (ex *Executor) run(hook Hook, evt events.Event) {
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			ex.logger.Warnw("hook timed out",
-				"kind", evt.Kind, "cmd", hook.Entry.Run, "timeout", timeout)
+				"kind", evt.Kind, "index", hookIndex, "timeout", timeout)
 		} else {
 			ex.logger.Errorw("hook failed",
-				"kind", evt.Kind, "cmd", hook.Entry.Run,
-				"exit", err, "output", strings.TrimSpace(string(out)))
+				"kind", evt.Kind, "index", hookIndex,
+				"exit", err)
 		}
 	} else {
 		output := strings.TrimSpace(string(out))
 
 		attrs := []any{
 			"kind", evt.Kind,
-			"cmd", hook.Entry.Run,
+			"index", hookIndex,
 			"elapsed", elapsed.Round(time.Millisecond),
 		}
 		if output != "" {
