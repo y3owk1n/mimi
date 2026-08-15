@@ -212,6 +212,12 @@ their configuration.
 
 Remove the launchd agent.
 
+A service that is not loaded is uninstalled without complaint — there is
+nothing to unload, and the leftover plist is removed. When a loaded service
+cannot be unloaded, the plist is left in place and the command fails, because a
+service that keeps running until logout with no plist behind it is one nothing
+can uninstall any more. Fix what blocked the unload and run it again.
+
 ### `mimi services start` / `stop` / `restart` / `status`
 
 Control the launchd service directly.
