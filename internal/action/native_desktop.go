@@ -7,6 +7,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/geometry"
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/systray"
 )
 
 // nativeDesktop is the Desktop macOS itself: the adapter between the actions'
@@ -168,6 +169,14 @@ func (d *nativeDesktop) FocusSpace(index int) error {
 // 1-based index.
 func (d *nativeDesktop) MoveWindowToSpace(index int) error {
 	return native.MoveWindowToSpace(index)
+}
+
+// RefreshWorkspaceTitle brings the systray's title up to date with the active
+// space. internal/systray already no-ops this when the tray is disabled or
+// was never started, which is what keeps it harmless to call from a CLI
+// invocation with no daemon running.
+func (d *nativeDesktop) RefreshWorkspaceTitle() {
+	systray.RefreshWorkspaceTitle()
 }
 
 // withWindow runs apply against the reference behind windowID, holding the lock

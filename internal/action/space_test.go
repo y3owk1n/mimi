@@ -153,3 +153,95 @@ func TestExecutor_MoveWindowToSpace_MovesTheWindow(t *testing.T) {
 		t.Fatalf("window space = %d, want 3", desktop.windowSpace)
 	}
 }
+
+// TestExecutor_Space_RefreshesWorkspaceTitleOnSuccess pins the fix for
+// mimi#98: a successful space switch or window move refreshes the systray's
+// workspace title through the same Desktop seam regardless of which path
+// (daemon or direct execution) drove the desktop.
+func TestExecutor_Space_RefreshesWorkspaceTitleOnSuccess(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name   string
+		action action.Name
+	}{
+		{name: string(action.NameSpace), action: action.NameSpace},
+		{name: string(action.NameMoveWindowToSpace), action: action.NameMoveWindowToSpace},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := desktopWithSpaces(1)
+
+			err := action.NewExecutor(desktop).Execute(string(testCase.action), []string{"2"})
+			if err != nil {
+				t.Fatalf("Execute(%s) error = %v, want nil", testCase.name, err)
+			}
+
+			wantRefreshCalls(t, desktop, 1)
+		})
+	}
+}
+
+// TestExecutor_Space_DoesNotRefreshWorkspaceTitleOnFailure checks the refresh
+// is tied to a change actually landing: neither an out-of-range space number
+// nor Mission Control refusing the action should touch the systray title.
+func TestExecutor_Space_DoesNotRefreshWorkspaceTitleOnFailure(t *testing.T) {
+	t.Parallel()
+
+	t.Run("out of range", func(t *testing.T) {
+		t.Parallel()
+
+		for _, name := range []action.Name{action.NameSpace, action.NameMoveWindowToSpace} {
+			desktop := desktopWithSpaces(2)
+
+			err := action.NewExecutor(desktop).Execute(string(name), []string{"9"})
+			if err == nil {
+				t.Fatalf("Execute(%s) error = nil, want an error", name)
+			}
+
+			wantRefreshCalls(t, desktop, 0)
+		}
+	})
+
+	t.Run("mission control active", func(t *testing.T) {
+		t.Parallel()
+
+		desktop := desktopWithSpaces(2)
+		desktop.missionControlActive = true
+
+		err := action.NewExecutor(desktop).FocusSpace(3)
+		if err == nil {
+			t.Fatal("FocusSpace() error = nil, want an error")
+		}
+
+		err = action.NewExecutor(desktop).MoveWindowToSpace(3)
+		if err == nil {
+			t.Fatal("MoveWindowToSpace() error = nil, want an error")
+		}
+
+		wantRefreshCalls(t, desktop, 0)
+	})
+
+	t.Run("underlying desktop error", func(t *testing.T) {
+		t.Parallel()
+
+		desktop := desktopWithSpaces(2)
+		desktop.focusSpaceErr = derrors.New(derrors.CodeActionFailed, "boom")
+		desktop.moveErr = derrors.New(derrors.CodeActionFailed, "boom")
+
+		err := action.NewExecutor(desktop).FocusSpace(3)
+		if err == nil {
+			t.Fatal("FocusSpace() error = nil, want an error")
+		}
+
+		err = action.NewExecutor(desktop).MoveWindowToSpace(3)
+		if err == nil {
+			t.Fatal("MoveWindowToSpace() error = nil, want an error")
+		}
+
+		wantRefreshCalls(t, desktop, 0)
+	})
+}

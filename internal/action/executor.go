@@ -93,6 +93,8 @@ func (e *Executor) FocusSpace(index int) error {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to focus space")
 	}
 
+	e.desktop.RefreshWorkspaceTitle()
+
 	return nil
 }
 
@@ -120,6 +122,8 @@ func (e *Executor) MoveWindowToSpace(index int) error {
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
 	}
+
+	e.desktop.RefreshWorkspaceTitle()
 
 	return nil
 }

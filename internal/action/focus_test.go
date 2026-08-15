@@ -47,6 +47,23 @@ func TestExecutor_FocusWindow_BackwardCyclingWrapsToLast(t *testing.T) {
 	wantFocused(t, desktop, 3)
 }
 
+// TestExecutor_FocusWindow_DoesNotRefreshWorkspaceTitle guards the scope of
+// mimi#98's fix: focusing a window never moves it between spaces, so it must
+// not touch the systray's workspace title the way space and
+// move_window_to_space do.
+func TestExecutor_FocusWindow_DoesNotRefreshWorkspaceTitle(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithWindows(3, 2)
+
+	err := action.NewExecutor(desktop).FocusWindow(false, "")
+	if err != nil {
+		t.Fatalf("FocusWindow() error = %v, want nil", err)
+	}
+
+	wantRefreshCalls(t, desktop, 0)
+}
+
 func TestExecutor_FocusWindow_UnfocusedDesktopFallsBackToFirstWindow(t *testing.T) {
 	t.Parallel()
 

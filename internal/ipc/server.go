@@ -15,7 +15,6 @@ import (
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
-	"github.com/y3owk1n/mimi/internal/systray"
 )
 
 // actionEnqueueTimeout caps how long handleConn will block waiting for the
@@ -153,10 +152,6 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	err = <-done
-	if err == nil &&
-		(req.Action == string(action.NameSpace) || req.Action == string(action.NameMoveWindowToSpace)) {
-		systray.RefreshWorkspaceTitle()
-	}
 
 	_ = writeResponse(conn, responseFromError(err))
 }
