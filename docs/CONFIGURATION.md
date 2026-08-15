@@ -57,6 +57,28 @@ line with no color. The `log_file` log is always JSON, whatever `log_format`
 says, so anything already piping that file through `jq` keeps working. An
 unrecognized value logs a warning and falls back to `text`.
 
+### Debug logging
+
+`log_level = "debug"` adds two extra lines per routed event: a router
+`"event"` line (one per event reaching the bus) and, for each hook
+registered on that event's kind, an executor `"hook matched"` or
+`"hook skipped"` line.
+
+Both record only counts, IDs, kinds, PIDs, and booleans: `kind`, `app`,
+`bundle`, `pid`, `event_id`, the hook's `index` within its kind (0-based,
+scoped to hooks of the same kind — enough to tell two hooks apart in the
+log), the `reason` a hook was skipped (a fixed string, e.g.
+`"app filter mismatch"`), and `title_present` (whether the window has a
+non-empty title). They never record the window title itself or a hook's
+`run` command text, even at `debug`.
+
+This does not cover every log line that touches hook data. The `"hook ok"` /
+`"hook timed out"` / `"hook failed"` lines emitted after a hook finishes
+running still include the hook's `run` command as `cmd` — that gap is not
+closed here and remains open against AGENTS.md's "never log ... hook command
+contents" rule. Only the `"event"` and `"hook matched"` / `"hook skipped"`
+lines described above carry the no-payload guarantee.
+
 ---
 
 ## Systray

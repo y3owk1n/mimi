@@ -3,10 +3,13 @@ package observe
 
 import (
 	"slices"
+	"strings"
 	"testing"
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/y3owk1n/mimi/internal/events"
 )
@@ -127,6 +130,77 @@ func TestDebounceResize_SingleEvent(t *testing.T) {
 	if remaining != 0 {
 		t.Errorf("expected 0 remaining timers, got %d", remaining)
 	}
+}
+
+// assertNoFieldLeak fails the test if any string-valued log field contains
+// secret. Shared by the title_present tests below so a leak check on one
+// entry's ContextMap isn't duplicated per test.
+func assertNoFieldLeak(t *testing.T, fields map[string]any, secret string) {
+	t.Helper()
+
+	for key, val := range fields {
+		if s, ok := val.(string); ok && strings.Contains(s, secret) {
+			t.Fatalf("log field %q leaked secret: %q", key, s)
+		}
+	}
+}
+
+// TestDebounceResize_FireLogsTitlePresenceNotRawTitle pins the same
+// title_present contract for the debounced-resize publish path (the second
+// "event" log call site in router.go, distinct from handle's). See issue
+// #112.
+func TestDebounceResize_FireLogsTitlePresenceNotRawTitle(t *testing.T) {
+	t.Parallel()
+
+	const secretTitle = "Q4 Financials - confidential.xlsx"
+
+	bus := events.NewBus()
+	sub := bus.Subscribe(16)
+	ax := NewAXTracker(false)
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core).Sugar()
+
+	router := NewRouterWithDebounce(bus, ax, logger, testDebounceWindow)
+
+	evt := events.Event{
+		Kind:        events.WindowResizing,
+		AppName:     testAppName,
+		BundleID:    testBundleID,
+		PID:         42,
+		WindowTitle: secretTitle,
+		At:          time.Now(),
+	}
+
+	router.debounceResize(evt)
+
+	select {
+	case <-sub:
+	case <-time.After(testFireTimeout):
+		t.Fatal("timed out waiting for debounced resize event")
+	}
+
+	entries := logs.FilterMessage("event").All()
+	if len(entries) != 1 {
+		t.Fatalf("got %d \"event\" entries, want 1", len(entries))
+	}
+
+	fields := entries[0].ContextMap()
+
+	if _, hasTitle := fields["title"]; hasTitle {
+		t.Errorf("\"event\" entry logged raw \"title\": %+v", fields)
+	}
+
+	gotPresent, hasPresent := fields["title_present"]
+	if !hasPresent {
+		t.Fatalf("\"event\" entry missing \"title_present\" field: %+v", fields)
+	}
+
+	if b, ok := gotPresent.(bool); !ok || !b {
+		t.Errorf("title_present = %v, want true", gotPresent)
+	}
+
+	assertNoFieldLeak(t, fields, secretTitle)
 }
 
 func TestDebounceResize_MultipleEventsCoalesce(t *testing.T) {
@@ -433,6 +507,71 @@ func TestHandle_DefaultCase_LogsAndPublishesVerbatim(t *testing.T) {
 		}
 	case <-time.After(testFireTimeout):
 		t.Fatal("timed out waiting for the default-case publish")
+	}
+}
+
+// TestHandle_LogsTitlePresenceNotRawTitle pins the contract that the
+// "event" log line never carries evt.WindowTitle verbatim. handle() has no
+// visibility into whether a hook's title filter matched (that lives in
+// internal/hooks), so it logs whether a title is present instead — a
+// payload-free signal computable locally. See AGENTS.md's logging contract
+// and issue #112.
+func TestHandle_LogsTitlePresenceNotRawTitle(t *testing.T) {
+	t.Parallel()
+
+	const secretTitle = "Q4 Financials - confidential.xlsx"
+
+	tests := []struct {
+		name        string
+		windowTitle string
+		wantPresent bool
+	}{
+		{name: "title present", windowTitle: secretTitle, wantPresent: true},
+		{name: "title empty", windowTitle: "", wantPresent: false},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			bus := events.NewBus()
+			ax := NewAXTracker(false)
+
+			core, logs := observer.New(zapcore.DebugLevel)
+			logger := zap.New(core).Sugar()
+
+			router := NewRouterWithDebounce(bus, ax, logger, testDebounceWindow)
+
+			router.handle(events.Event{
+				Kind:        events.WindowFocus,
+				AppName:     testAppName,
+				BundleID:    testBundleID,
+				PID:         3,
+				WindowTitle: testCase.windowTitle,
+			})
+
+			entries := logs.FilterMessage("event").All()
+			if len(entries) != 1 {
+				t.Fatalf("got %d \"event\" entries, want 1", len(entries))
+			}
+
+			fields := entries[0].ContextMap()
+
+			if _, hasTitle := fields["title"]; hasTitle {
+				t.Errorf("\"event\" entry logged raw \"title\": %+v", fields)
+			}
+
+			gotPresent, hasPresent := fields["title_present"]
+			if !hasPresent {
+				t.Fatalf("\"event\" entry missing \"title_present\" field: %+v", fields)
+			}
+
+			if gotPresent != testCase.wantPresent {
+				t.Errorf("title_present = %v, want %v", gotPresent, testCase.wantPresent)
+			}
+
+			assertNoFieldLeak(t, fields, secretTitle)
+		})
 	}
 }
 
