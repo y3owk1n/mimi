@@ -52,6 +52,10 @@ const (
 	// CodeIPCFailed indicates a failure in IPC communication.
 	CodeIPCFailed Code = "IPCF_FAILED"
 
+	// CodeServiceFailed indicates a failure managing the launchd service:
+	// rendering or writing its plist, or a launchctl invocation.
+	CodeServiceFailed Code = "SERVICE_FAILED"
+
 	// CodeNotSupported indicates the operation is not supported on the current platform.
 	// Use this in stub implementations so callers can distinguish "not implemented yet"
 	// from "actually failed". Example:
