@@ -9,10 +9,14 @@ import (
 )
 
 // Config holds the full mimi configuration.
+//
+// The reload tags classify each part of the file as reloadable or
+// restart-only; see reloadability.go for what they mean and who reads them.
+// A section tagged per-field is classified one field at a time instead.
 type Config struct {
-	Settings SettingsConfig `json:"settings" toml:"settings"`
-	Hooks    HooksConfig    `json:"hooks"    toml:"hooks"`
-	Systray  SystrayConfig  `json:"systray"  toml:"systray"`
+	Settings SettingsConfig `json:"settings" reload:"per-field"  toml:"settings"`
+	Hooks    HooksConfig    `json:"hooks"    reload:"reloadable" toml:"hooks"`
+	Systray  SystrayConfig  `json:"systray"  reload:"per-field"  toml:"systray"`
 
 	// UnknownHookKeys lists the keys found under [hooks] that name no hook
 	// kind, sorted. Loading records them rather than reporting them so each
@@ -24,22 +28,30 @@ type Config struct {
 }
 
 // SettingsConfig holds the [settings] section of the config.
+//
+// Every field carries a reload tag: the logger, the pid file and the socket
+// are opened once at startup, and the hook worker limit sizes a channel the
+// executor never resizes, so changing any of them takes a restart. The three
+// the reload path re-reads are tagged reloadable.
 type SettingsConfig struct {
-	LogFile          string `json:"logFile"          toml:"log_file"`
-	LogLevel         string `json:"logLevel"         toml:"log_level"`
-	LogFormat        string `json:"logFormat"        toml:"log_format"`
-	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  toml:"hook_timeout_secs"`
-	HookShell        string `json:"hookShell"        toml:"hook_shell"`
-	MaxHookWorkers   int    `json:"maxHookWorkers"   toml:"max_hook_workers"`
-	PIDFile          string `json:"pidFile"          toml:"pid_file"`
-	SocketFile       string `json:"socketFile"       toml:"socket_file"`
-	ResizeDebounceMS int    `json:"resizeDebounceMs" toml:"resize_debounce_ms"`
+	LogFile          string `json:"logFile"          reload:"restart-only" toml:"log_file"`
+	LogLevel         string `json:"logLevel"         reload:"restart-only" toml:"log_level"`
+	LogFormat        string `json:"logFormat"        reload:"restart-only" toml:"log_format"`
+	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  reload:"reloadable"   toml:"hook_timeout_secs"`
+	HookShell        string `json:"hookShell"        reload:"reloadable"   toml:"hook_shell"`
+	MaxHookWorkers   int    `json:"maxHookWorkers"   reload:"restart-only" toml:"max_hook_workers"`
+	PIDFile          string `json:"pidFile"          reload:"restart-only" toml:"pid_file"`
+	SocketFile       string `json:"socketFile"       reload:"restart-only" toml:"socket_file"`
+	ResizeDebounceMS int    `json:"resizeDebounceMs" reload:"reloadable"   toml:"resize_debounce_ms"`
 }
 
 // SystrayConfig holds the [systray] section of the config.
+//
+// The systray is built before the daemon's reload path exists and is never
+// rebuilt, so both fields are restart-only.
 type SystrayConfig struct {
-	Enabled             bool `json:"enabled"             toml:"enabled"`
-	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
+	Enabled             bool `json:"enabled"             reload:"restart-only" toml:"enabled"`
+	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" reload:"restart-only" toml:"show_workspace_number"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.

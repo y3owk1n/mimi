@@ -117,10 +117,16 @@ func runCore(
 	go pipeline.executor.Run(ctx, pipeline.hookSub)
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
-	cfgReloader := newReloader(pipeline.reg, pipeline.executor, pipeline.axTracker, pipeline.router)
+	cfgReloader := newReloader(
+		cfg,
+		pipeline.reg,
+		pipeline.executor,
+		pipeline.axTracker,
+		pipeline.router,
+	)
 
-	onChange := func(newCfg *config.Config) {
-		applyReload(cfgReloader, newCfg, reloadTriggerFsnotify, logger)
+	onChange := func() {
+		reloadConfig(configPath, cfgReloader, reloadTriggerFsnotify, logger)
 	}
 
 	watcher := config.NewWatcher(configPath, onChange, logger)
@@ -250,7 +256,7 @@ func setupEventPipeline(
 }
 
 // reloadTrigger names which route into the daemon fired a reload. It closes
-// the set of triggers that can call applyReload — fsnotify and SIGHUP today
+// the set of triggers that can call reloadConfig — fsnotify and SIGHUP today
 // — over a bare string so a new call site can't drift in an ad hoc label.
 type reloadTrigger string
 
@@ -259,26 +265,59 @@ const (
 	reloadTriggerSighup   reloadTrigger = "sighup"
 )
 
-// applyReload runs cfgReloader.Apply against newCfg and logs the outcome. fsnotify's
-// onChange and the SIGHUP handler both funnel through this one function, so
-// a bad config is reported identically regardless of which trigger noticed
-// it — previously the fsnotify path logged and stopped on a hook-reload
-// error while the SIGHUP path discarded it and logged success anyway.
-func applyReload(
+// The three things a reload can report. They are constants so that the tests
+// that pin which outcome a given config produces name the outcome rather than
+// repeating its wording.
+const (
+	reloadFailedMessage          = "config reload failed"
+	reloadedMessage              = "config reloaded"
+	reloadRestartRequiredMessage = "config reloaded; restart required for changed restart-only settings"
+)
+
+// reloadConfig loads the config at configPath, applies it, and logs the
+// outcome. It is the one place all three of those happen: fsnotify's onChange
+// and the SIGHUP handler both call it, so a config that will not parse and a
+// config that will not apply are reported the same way, by the same line,
+// naming the trigger that noticed — previously the watcher logged parse
+// failures itself, without a trigger, while apply failures were logged here.
+//
+// A reload that changes a restart-only setting is not a plain success: the
+// daemon has applied everything it can and is still running the old value for
+// the rest, so it says so and names them. The names are mimi's own; the
+// values the user gave them stay out of the log.
+func reloadConfig(
+	configPath string,
 	cfgReloader *reloader,
-	newCfg *config.Config,
 	trigger reloadTrigger,
 	logger *zap.SugaredLogger,
 ) {
-	err := cfgReloader.Apply(newCfg)
+	newCfg, err := config.Load(configPath)
+
+	var restartOnly []string
+
+	if err == nil {
+		restartOnly, err = cfgReloader.Apply(newCfg)
+	}
+
 	if err != nil {
-		logger.Warnw("config reload failed", "trigger", trigger, "err", err)
+		logger.Warnw(reloadFailedMessage, "trigger", trigger, "err", err)
 
 		return
 	}
 
 	warnUnknownHookKeys(newCfg, logger)
-	logger.Infow("config reloaded", "trigger", trigger)
+
+	if len(restartOnly) > 0 {
+		logger.Warnw(
+			reloadRestartRequiredMessage,
+			"trigger", trigger,
+			"restart_only", restartOnly,
+		)
+
+		return
+	}
+
+	logger.Infow(reloadedMessage, "trigger", trigger)
 }
 
 // warnUnknownHookKeys notes that the config asked for hook kinds mimi does not
@@ -323,7 +362,7 @@ func runSignalLoop(
 			return
 		case sig := <-sigCh:
 			if sig == syscall.SIGHUP {
-				reloadConfig(configPath, cfgReloader, logger)
+				reloadConfig(configPath, cfgReloader, reloadTriggerSighup, logger)
 
 				continue
 			}
@@ -334,17 +373,6 @@ func runSignalLoop(
 			return
 		}
 	}
-}
-
-func reloadConfig(configPath string, cfgReloader *reloader, logger *zap.SugaredLogger) {
-	newCfg, err := config.Load(configPath)
-	if err != nil {
-		logger.Warnw("config reload failed", "trigger", reloadTriggerSighup, "err", err)
-
-		return
-	}
-
-	applyReload(cfgReloader, newCfg, reloadTriggerSighup, logger)
 }
 
 func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.SugaredLogger) {

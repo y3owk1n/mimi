@@ -1,4 +1,4 @@
-//nolint:testpackage // exercises reload, an unexported method, to reach the logger call
+//nolint:testpackage // exercises notifyChange, an unexported method, to reach the logger call
 package config
 
 import (
@@ -27,12 +27,12 @@ func TestNewWatcher_NilLogger(t *testing.T) {
 			construct: func(t *testing.T) {
 				t.Helper()
 
-				// A path that cannot be loaded drives reload down its
-				// Warnw branch, which is the cheapest route to a log call.
+				// notifyChange logs before it calls onChange, and it never
+				// reads the file, so the path need not exist.
 				missing := filepath.Join(t.TempDir(), "does-not-exist.toml")
 
-				w := NewWatcher(missing, func(*Config) {}, nil)
-				w.reload()
+				w := NewWatcher(missing, func() {}, nil)
+				w.notifyChange()
 			},
 		},
 	}

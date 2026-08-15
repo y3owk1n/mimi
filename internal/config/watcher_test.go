@@ -1,4 +1,4 @@
-//nolint:testpackage // tests reload, an unexported method exercising Watcher's private log/dispatch ordering
+//nolint:testpackage // tests notifyChange, an unexported method exercising Watcher's private log/dispatch ordering
 package config
 
 import (
@@ -11,15 +11,13 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 )
 
-const watcherTestMarker = "watcher-test-marker.log"
-
 // newTestWatcher writes contents to a config file in dir and returns a
-// Watcher over it, wired to onChange, plus the log entries reload will
+// Watcher over it, wired to onChange, plus the log entries notifyChange will
 // produce on it.
 func newTestWatcher(
 	t *testing.T,
 	dir, contents string,
-	onChange func(*Config),
+	onChange func(),
 ) (*Watcher, *observer.ObservedLogs) {
 	t.Helper()
 
@@ -36,87 +34,56 @@ func newTestWatcher(
 	return NewWatcher(path, onChange, logger), logs
 }
 
-// TestWatcher_Reload_OnSuccess_DoesNotClaimReloadSucceeded pins the fix for
-// #107: a successful config.Load must not log an Info "config reloaded" line,
-// because that claims more than has happened at that point — onChange (the
-// hook registry reload) hasn't run yet, and it is the one that can still
-// fail. The daemon's applyReload is the sole place that logs the outcome of
-// a reload; the watcher only logs that it parsed the file.
-func TestWatcher_Reload_OnSuccess_DoesNotClaimReloadSucceeded(t *testing.T) {
+// TestWatcher_NotifyChange_ReportsTheChangeAndNothingMore pins the fix for
+// #107 and the split it grew into: the watcher says the file changed, and
+// claims nothing about the reload. It does not read the file, so a config
+// that will not parse reaches the daemon's one reload path — which loads it,
+// applies it, and logs the single authoritative outcome line — instead of
+// being reported here, in a second voice that cannot name the trigger.
+func TestWatcher_NotifyChange_ReportsTheChangeAndNothingMore(t *testing.T) {
 	t.Parallel()
 
-	var gotCfg *Config
-
-	onChange := func(cfg *Config) { gotCfg = cfg }
-
-	dir := t.TempDir()
-	watcher, logs := newTestWatcher(
-		t,
-		dir,
-		"[settings]\nlog_file = \""+watcherTestMarker+"\"\n",
-		onChange,
-	)
-	watcher.reload()
-
-	if gotCfg == nil {
-		t.Fatal("onChange was not called")
+	tests := []struct {
+		name     string
+		contents string
+	}{
+		{name: "a config that parses", contents: "[settings]\nlog_level = \"info\"\n"},
+		{name: "a config that does not parse", contents: "not valid toml [[["},
 	}
 
-	if gotCfg.Settings.LogFile != watcherTestMarker {
-		t.Errorf("onChange got LogFile = %q, want %q", gotCfg.Settings.LogFile, watcherTestMarker)
-	}
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
 
-	entries := logs.All()
-	if len(entries) != 1 {
-		t.Fatalf("got %d log entries, want 1: %+v", len(entries), entries)
-	}
+			called := 0
 
-	entry := entries[0]
+			onChange := func() { called++ }
 
-	if entry.Message != "config file parsed" {
-		t.Errorf("log message = %q, want %q", entry.Message, "config file parsed")
-	}
+			watcher, logs := newTestWatcher(t, t.TempDir(), testCase.contents, onChange)
+			watcher.notifyChange()
 
-	if entry.Level != zapcore.DebugLevel {
-		t.Errorf(
-			"watcher logged %q at %v, want Debug; the daemon's applyReload owns the Info-level success/failure line",
-			entry.Message,
-			entry.Level,
-		)
-	}
-}
+			if called != 1 {
+				t.Fatalf("onChange was called %d times, want 1", called)
+			}
 
-// TestWatcher_Reload_OnFailure_LogsWarnAndSkipsOnChange pins the existing
-// (and unchanged) failure path: a bad config file must not invoke onChange,
-// and must log exactly one Warn line so it isn't followed by anything that
-// looks like a success.
-func TestWatcher_Reload_OnFailure_LogsWarnAndSkipsOnChange(t *testing.T) {
-	t.Parallel()
+			entries := logs.All()
+			if len(entries) != 1 {
+				t.Fatalf("got %d log entries, want 1: %+v", len(entries), entries)
+			}
 
-	called := false
+			entry := entries[0]
 
-	onChange := func(*Config) { called = true }
+			if entry.Message != "config file changed" {
+				t.Errorf("log message = %q, want %q", entry.Message, "config file changed")
+			}
 
-	dir := t.TempDir()
-	watcher, logs := newTestWatcher(t, dir, "not valid toml [[[", onChange)
-	watcher.reload()
-
-	if called {
-		t.Error("onChange was called despite a failed Load")
-	}
-
-	entries := logs.All()
-	if len(entries) != 1 {
-		t.Fatalf("got %d log entries, want 1: %+v", len(entries), entries)
-	}
-
-	entry := entries[0]
-
-	if entry.Level != zapcore.WarnLevel {
-		t.Errorf("log level = %v, want Warn", entry.Level)
-	}
-
-	if entry.Message != "config reload failed" {
-		t.Errorf("log message = %q, want %q", entry.Message, "config reload failed")
+			if entry.Level != zapcore.DebugLevel {
+				t.Errorf(
+					"watcher logged %q at %v, want Debug; the daemon's reloadConfig owns the reload outcome line",
+					entry.Message,
+					entry.Level,
+				)
+			}
+		})
 	}
 }
