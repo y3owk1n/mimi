@@ -68,7 +68,7 @@ func newServicesUninstallCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "uninstall",
 		Short: "Unload and remove the system service",
-		Long:  "Unload the Mimi launchd service and remove its plist file. Mimi will no longer start automatically on login.",
+		Long:  "Unload the Mimi launchd service and remove its plist file. Mimi will no longer start automatically on login.\n\nA service that is not loaded is uninstalled without complaint. When a loaded service cannot be unloaded, the plist is left in place and this fails, so the uninstall can be retried once whatever blocked the unload is fixed.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			err := defaultService.Uninstall()
 			if err != nil {

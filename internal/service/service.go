@@ -132,9 +132,16 @@ func (s *Service) Install(configPath, logFile string) (InstallOutcome, error) {
 	return s.apply(ctx, loaded, expandedPlist, plistContent)
 }
 
-// Uninstall unloads the service and removes its plist. A launchctl bootout
-// failure is not fatal — the service may already be unloaded, e.g. after a
-// prior partial uninstall — so it only removes the plist file.
+// Uninstall unloads the service and removes its plist.
+//
+// The bootout is attempted either way, but whether its failure matters is
+// decided before it runs. An unloaded service — after a prior partial
+// uninstall, say — has nothing to unload, and a bootout that fails at nothing
+// must not stand between the leftover plist and its removal. A loaded service
+// whose bootout failed is a different thing wearing the same error: it is
+// still running, and it keeps running until logout. Removing its plist there
+// would take away the only thing an uninstall can still act on, so the file
+// stays and the failure is returned for the caller to retry.
 func (s *Service) Uninstall() error {
 	ctx := context.Background()
 
@@ -143,7 +150,16 @@ func (s *Service) Uninstall() error {
 		return err
 	}
 
-	_ = s.launcher.bootout(ctx, domain+"/"+Label)
+	// Sampled before the bootout, so a service that unloads between the two
+	// makes this uninstall report a failure the retry will not see again.
+	// Sampling after would be worse: the bootout's own success is what empties
+	// it, so every unload would look like it had nothing to unload.
+	loaded := s.launcher.list(ctx, Label) == nil
+
+	err = s.launcher.bootout(ctx, domain+"/"+Label)
+	if err != nil && loaded {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "unloading service")
+	}
 
 	err = os.Remove(plistPath())
 	if err != nil && !os.IsNotExist(err) {

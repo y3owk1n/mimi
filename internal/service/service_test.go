@@ -3,6 +3,7 @@ package service
 
 import (
 	"context"
+	"errors"
 	"os"
 	"path/filepath"
 	"strings"
@@ -222,20 +223,105 @@ func TestService_Restart_StopsThenStartsEvenWhenStopFails(t *testing.T) {
 	}
 }
 
-func TestService_Uninstall_BootsOutEvenWhenNotLoaded(t *testing.T) {
-	fake := &fakeLauncher{bootoutErr: derrors.New(derrors.CodeServiceFailed, "not loaded")}
-	svc := &Service{launcher: fake}
+// The two failures a launchctl bootout can come back with, as the plain stdlib
+// errors a real one hands back — exec returns an *exec.ExitError, never a
+// derrors. Plain is also the only kind a test can identify: derrors matches
+// errors.Is on the code alone, so a derrors sentinel would match any other
+// service failure just as happily and prove nothing.
+var (
+	errBootoutRefused  = errors.New("operation not permitted")
+	errBootoutNotFound = errors.New("not loaded")
+)
 
-	dir := t.TempDir()
-	t.Setenv("HOME", dir)
-
-	err := svc.Uninstall()
-	if err != nil {
-		t.Fatalf("Uninstall() = %v, want nil (a bootout failure is not fatal)", err)
+// TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService pins
+// the difference [Service.Uninstall] draws between the two reasons a bootout
+// fails, which mean opposite things: see its doc comment. Every case expects
+// the bootout to have been attempted — what varies is whether its failure
+// counted.
+func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *testing.T) {
+	tests := []struct {
+		name       string
+		loaded     bool
+		bootoutErr error
+		wantErr    bool
+		wantPlist  bool
+	}{
+		{
+			name:       "not loaded, so a bootout that fails failed at nothing",
+			loaded:     false,
+			bootoutErr: errBootoutNotFound,
+			wantErr:    false,
+			wantPlist:  false,
+		},
+		{
+			name:       "loaded, and the bootout failed",
+			loaded:     true,
+			bootoutErr: errBootoutRefused,
+			wantErr:    true,
+			wantPlist:  true,
+		},
+		{
+			name:      "loaded, and the bootout succeeded",
+			loaded:    true,
+			wantErr:   false,
+			wantPlist: false,
+		},
 	}
 
-	if !fake.booted {
-		t.Error("Uninstall() did not call the launcher's bootout")
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("HOME", dir)
+
+			path := filepath.Join(dir, "Library", "LaunchAgents", Label+".plist")
+
+			err := os.MkdirAll(filepath.Dir(path), dirPerm)
+			if err != nil {
+				t.Fatalf("creating LaunchAgents directory: %v", err)
+			}
+
+			err = os.WriteFile(path, []byte("installed"), filePerm)
+			if err != nil {
+				t.Fatalf("writing plist: %v", err)
+			}
+
+			fake := &fakeLauncher{loaded: testCase.loaded, bootoutErr: testCase.bootoutErr}
+			svc := &Service{launcher: fake}
+
+			err = svc.Uninstall()
+			if (err != nil) != testCase.wantErr {
+				t.Fatalf("Uninstall() = %v, wantErr %v", err, testCase.wantErr)
+			}
+
+			// The bootout is attempted whatever the list said. Only whether
+			// its failure counted is in question here.
+			if !fake.booted {
+				t.Error("Uninstall() did not call the launcher's bootout")
+			}
+
+			if err != nil {
+				if derrors.GetCode(err) != derrors.CodeServiceFailed {
+					t.Errorf(
+						"Uninstall() code = %v, want %v",
+						derrors.GetCode(err),
+						derrors.CodeServiceFailed,
+					)
+				}
+
+				if !errors.Is(err, errBootoutRefused) {
+					t.Errorf("Uninstall() = %v, want it to carry the bootout failure", err)
+				}
+			}
+
+			_, statErr := os.Stat(path)
+			if testCase.wantPlist && statErr != nil {
+				t.Errorf("Uninstall() removed the plist: %v", statErr)
+			}
+
+			if !testCase.wantPlist && !os.IsNotExist(statErr) {
+				t.Errorf("Uninstall() left the plist in place, stat = %v", statErr)
+			}
+		})
 	}
 }
 
