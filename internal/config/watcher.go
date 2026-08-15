@@ -54,18 +54,6 @@ func (w *Watcher) Run(ctx context.Context) error {
 	}
 	defer stopDebounce()
 
-	reload := func() {
-		cfg, err := Load(w.path)
-		if err != nil {
-			w.logger.Warnw("config reload failed", "err", err)
-
-			return
-		}
-
-		w.logger.Info("config reloaded")
-		w.onChange(cfg)
-	}
-
 	for {
 		select {
 		case <-ctx.Done():
@@ -82,10 +70,10 @@ func (w *Watcher) Run(ctx context.Context) error {
 					if debounce.Stop() {
 						debounce.Reset(debounceDelay)
 					} else {
-						debounce = time.AfterFunc(debounceDelay, reload)
+						debounce = time.AfterFunc(debounceDelay, w.reload)
 					}
 				} else {
-					debounce = time.AfterFunc(debounceDelay, reload)
+					debounce = time.AfterFunc(debounceDelay, w.reload)
 				}
 			}
 		case err, ok := <-fileWatcher.Errors:
@@ -96,4 +84,26 @@ func (w *Watcher) Run(ctx context.Context) error {
 			w.logger.Warnw("config watcher error", "err", err)
 		}
 	}
+}
+
+// reload parses the watched file and, on success, hands it to onChange.
+//
+// It does not log a success line: onChange is where the hook registry
+// actually reloads and where a bad hook (an invalid regex, for example) is
+// caught, so only the caller can know whether the reload as a whole
+// succeeded. The daemon's applyReload is that caller, and it logs the one
+// authoritative "config reloaded" / "config reload failed" line for every
+// trigger. Logging a debug line here — rather than nothing — still records
+// that the file parsed, which is useful when a later onChange failure needs
+// to be told apart from a parse failure.
+func (w *Watcher) reload() {
+	cfg, err := Load(w.path)
+	if err != nil {
+		w.logger.Warnw("config reload failed", "err", err)
+
+		return
+	}
+
+	w.logger.Debug("config file parsed")
+	w.onChange(cfg)
 }
