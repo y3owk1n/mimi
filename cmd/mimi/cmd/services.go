@@ -1,6 +1,8 @@
 package cmd
 
 import (
+	"fmt"
+
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/service"
@@ -31,7 +33,7 @@ Subcommands:
   start       Start the system service
   stop        Stop the system service
   restart     Restart the system service
-  status      Check whether the service is loaded and running`,
+  status      Check whether the service is loaded, and whether it is running`,
 	}
 
 	cmd.AddCommand(newServicesInstallCmd(state))
@@ -138,7 +140,7 @@ func newServicesStatusCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "status",
 		Short: "Check the status of the system service",
-		Long:  "Check whether the Mimi launchd service is currently loaded and running. Displays whether the service is active.",
+		Long:  "Check whether the Mimi launchd service is currently loaded, and whether it is actually running.\n\nThe two are not the same: the installed plist sets KeepAlive, so a daemon that crashes at startup is relaunched every ten seconds and stays loaded the whole time. A running service reports the pid it runs under; a loaded one that is not running reports the status it last exited with — a repeated non-zero status there is a daemon in a crash loop, and the captured stderr beside settings.log_file says why.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cmd.Println(formatStatus(defaultService.Status()))
 
@@ -166,13 +168,30 @@ func formatInstallOutcome(outcome service.InstallOutcome) string {
 	}
 }
 
-// formatStatus renders a service.Status the way the CLI has always printed
-// it, so nothing that scripts against the old string output sees a
-// difference now that Status is a typed result.
+// formatStatus renders a service.Status as the one line `mimi services status`
+// prints.
+//
+// Loaded and running are not the same thing, and that is the point of the
+// line: the installed plist sets KeepAlive, so a daemon that crashes at
+// startup is relaunched every ten seconds forever while staying exactly as
+// loaded as a healthy one. The pid says it is up; the exit status it left
+// behind says it is not. When launchd's description carries neither — it is
+// undocumented text and may change shape — this falls back to the two words
+// the command printed before it ever asked.
 func formatStatus(status service.Status) string {
-	if status.Loaded {
-		return "Service loaded"
+	if !status.Loaded {
+		return "Service not loaded"
 	}
 
-	return "Service not loaded"
+	switch {
+	case status.PID.Known:
+		return fmt.Sprintf("Service loaded and running (pid %d)", status.PID.Value)
+	case status.LastExitStatus.Known:
+		return fmt.Sprintf(
+			"Service loaded but not running (last exit status %d)",
+			status.LastExitStatus.Value,
+		)
+	default:
+		return "Service loaded"
+	}
 }

@@ -98,13 +98,60 @@ func TestFormatInstallOutcome(t *testing.T) {
 	}
 }
 
+// TestFormatStatus pins the line each shape of a status prints. The wording is
+// the whole feature: the installed plist relaunches a crashing daemon forever,
+// so "loaded" said on its own is the answer that hides the failure this
+// command is run to find.
 func TestFormatStatus(t *testing.T) {
 	tests := []struct {
 		name   string
 		status service.Status
 		want   string
 	}{
-		{name: "loaded", status: service.Status{Loaded: true}, want: "Service loaded"},
+		{
+			name: "loaded and running",
+			status: service.Status{
+				Loaded: true,
+				PID:    service.OptionalInt{Value: 1478, Known: true},
+			},
+			want: "Service loaded and running (pid 1478)",
+		},
+		{
+			name: "loaded but respawning after a crash",
+			status: service.Status{
+				Loaded:         true,
+				LastExitStatus: service.OptionalInt{Value: 1, Known: true},
+			},
+			want: "Service loaded but not running (last exit status 1)",
+		},
+		{
+			// A clean exit is still not running, and launchd will bring it
+			// back: the number is what separates it from a crash.
+			name: "loaded, exited cleanly",
+			status: service.Status{
+				Loaded:         true,
+				LastExitStatus: service.OptionalInt{Value: 0, Known: true},
+			},
+			want: "Service loaded but not running (last exit status 0)",
+		},
+		{
+			// A job that is running now has a last exit status from before it
+			// was restarted. The pid is the fact worth printing.
+			name: "loaded and running, having exited before",
+			status: service.Status{
+				Loaded:         true,
+				PID:            service.OptionalInt{Value: 1478, Known: true},
+				LastExitStatus: service.OptionalInt{Value: 1, Known: true},
+			},
+			want: "Service loaded and running (pid 1478)",
+		},
+		{
+			// launchd's description could not be read, so the command falls
+			// back to everything it has ever said.
+			name:   "loaded, with nothing else known",
+			status: service.Status{Loaded: true},
+			want:   "Service loaded",
+		},
 		{name: "not loaded", status: service.Status{Loaded: false}, want: "Service not loaded"},
 	}
 

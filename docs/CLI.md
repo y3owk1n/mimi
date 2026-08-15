@@ -216,6 +216,24 @@ Remove the launchd agent.
 
 Control the launchd service directly.
 
+`status` separates a loaded service from a running one — the installed plist
+sets `KeepAlive`, so a daemon that crashes at startup is relaunched forever
+while staying loaded:
+
+```
+Service loaded and running (pid 1478)
+Service loaded but not running (last exit status 1)
+Service loaded
+Service not loaded
+```
+
+The bare `Service loaded` is the fallback, printed whenever neither number is
+available — the daemon has never run, it was killed by a signal rather than
+exiting, or launchd's description of the job could not be read. That
+description is undocumented text, so output mimi cannot parse costs the detail,
+never the answer. See
+[TROUBLESHOOTING.md](TROUBLESHOOTING.md#reading-mimi-services-status).
+
 ---
 
 ## Configuration Management
