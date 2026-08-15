@@ -36,8 +36,17 @@ Use "mimi start" to run the background daemon and react to window/space events v
 		// Cobra runs the nearest persistent pre-run it finds walking up from the
 		// command that executes, so resolving here covers every command in the
 		// tree — including leaves under a parent that has no RunE of its own.
-		PersistentPreRun: func(_ *cobra.Command, _ []string) {
+		PersistentPreRun: func(cobraCmd *cobra.Command, _ []string) {
 			state.resolveConfigPath()
+
+			// Silencing usage here rather than on the root command is what
+			// keeps usage for the errors it answers. Cobra parses flags and
+			// validates arguments before it reaches any persistent pre-run, so
+			// a bad flag or a rejected argument still prints usage; by the time
+			// this runs the command line was understood, and anything that
+			// fails from here on is a runtime failure whose message should not
+			// be buried under a list of flags.
+			cobraCmd.SilenceUsage = true
 		},
 	}
 
