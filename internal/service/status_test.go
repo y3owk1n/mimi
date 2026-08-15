@@ -123,3 +123,83 @@ func TestParseJobReport(t *testing.T) {
 		})
 	}
 }
+
+// TestPlistString covers reading one key's value back out of a plist mimi
+// wrote, and every shape that must read as "no value" rather than as the wrong
+// one. The status prints a file size next to whatever this returns, so a
+// confident wrong path is the failure worth ruling out.
+func TestPlistString(t *testing.T) {
+	// The key the captured stdout path lives under, spelled here rather than
+	// read from the code that reads it.
+	const testStandardOutKey = "StandardOutPath"
+
+	// A plist in the shape renderPlist produces, trimmed to the keys this test
+	// asks about: one string key, one key whose value is not a string at all,
+	// and one that appears inside the environment dict rather than at the top.
+	const plist = `<dict>
+    <key>RunAtLoad</key>
+    <true/>
+    <key>StandardOutPath</key>
+    <string>/Users/test/.local/state/mimi/mimi.out.log</string>
+    <key>EnvironmentVariables</key>
+    <dict>
+        <key>PATH</key>
+        <string>/usr/bin:/bin</string>
+    </dict>
+</dict>`
+
+	tests := []struct {
+		name    string
+		content string
+		key     string
+		want    string
+	}{
+		{
+			name:    "a key whose value is a string",
+			content: plist,
+			key:     testStandardOutKey,
+			want:    testCapturedStdout,
+		},
+		{
+			name:    "a key that is not there",
+			content: plist,
+			key:     "StandardErrorPath",
+			want:    "",
+		},
+		{
+			// The next thing after this key is another key, so the first
+			// <string> after it belongs to something else entirely.
+			name:    "a key whose value is not a string",
+			content: plist,
+			key:     "RunAtLoad",
+			want:    "",
+		},
+		{
+			name:    "a nested key still reads its own value",
+			content: plist,
+			key:     "PATH",
+			want:    "/usr/bin:/bin",
+		},
+		{
+			name:    "a value that is never closed",
+			content: "<key>StandardOutPath</key>\n    <string>/tmp/mimi.log",
+			key:     testStandardOutKey,
+			want:    "",
+		},
+		{name: "nothing to read at all", content: "", key: testStandardOutKey, want: ""},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			got := plistString(testCase.content, testCase.key)
+			if got != testCase.want {
+				t.Errorf(
+					"plistString(_, %q) = %q, want %q",
+					testCase.key,
+					got,
+					testCase.want,
+				)
+			}
+		})
+	}
+}

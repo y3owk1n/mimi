@@ -130,6 +130,21 @@ relaunched forever and stays loaded the whole time.
 `launchctl print gui/$(id -u)/com.y3owk1n.mimi` is the same description mimi
 reads, in full, when a bare `Service loaded` leaves a question open.
 
+Under that line come the captured console streams, as the installed plist
+names them, with how large each has grown:
+
+```text
+Service loaded and running (pid 1478)
+Captured stdout: /Users/me/.local/state/mimi/mimi.out.log (2.0 KB)
+Captured stderr: /Users/me/.local/state/mimi/mimi.err.log (not created yet)
+```
+
+The size is one run's console output, because a daemon launchd started empties
+both files at startup (see below). `not created yet` is a file launchd has
+never spawned the daemon against. Neither line is printed when there is no
+plist to read the paths from: nothing installed, or a plist mimi cannot read —
+home-manager's, for one, is a symlink into the Nix store rather than a file.
+
 ### Where a service-installed daemon's console output lands
 
 `mimi services install` writes a launchd plist that captures the daemon's
@@ -159,17 +174,37 @@ Notes on this:
   `log_file` that is not an absolute path — a relative path, or a `~` that
   could not be expanded because the home directory was unresolvable — falls
   back the same way, since launchd expands neither and runs the job from `/`.
-- **The captured streams are not rotated.** `settings.log_file` gets size,
-  age, and backup limits; these two get none, while the same plist sets
-  `KeepAlive = true`, so the daemon is restarted for as long as you are
-  logged in. At `log_level = "debug"` mimi emits a console line per window
-  event, so these files grow without bound. Truncate them yourself if they
-  get large:
+- **The captured streams are bounded by one run, not rotated.**
+  `settings.log_file` gets size, age, and backup limits from the writer that
+  owns it; these two get none, and nothing can rotate them — launchd opens both
+  at spawn and holds the descriptors, while the same plist sets
+  `KeepAlive = true`, so the daemon is restarted for as long as you are logged
+  in. At `log_level = "debug"` mimi emits a console line per window event, and
+  a crash loop respawns every ten seconds, so they would otherwise grow without
+  bound.
+
+  Instead, a daemon launchd started empties both files once at startup, before
+  it writes anything to them. Each file therefore holds the console output of
+  the current run and nothing older, and `mimi services status` prints how
+  large each has grown.
+
+  The plist is what tells the daemon those files exist, in its
+  `MIMI_CAPTURED_STDOUT` and `MIMI_CAPTURED_STDERR` environment entries. A
+  daemon started any other way — `mimi start` by hand, with a terminal on
+  stdout — is told about no captured streams and empties nothing, so running
+  mimi in a shell never destroys the crash log the service left behind. The
+  next start does, though, so copy a run's output aside before restarting the
+  service — and truncate by hand whenever you want to:
 
   ```bash
+  cp ~/.local/state/mimi/mimi.err.log /tmp/mimi-crash.log   # keep it past the restart
   : > ~/.local/state/mimi/mimi.out.log
   : > ~/.local/state/mimi/mimi.err.log
   ```
+
+  A service installed before this behaviour existed keeps appending until
+  `mimi services install` is run again — that is what puts the two environment
+  entries into its plist.
 
 - launchd opens both files when it spawns the daemon and creates no
   directories of its own, so `mimi services install` creates
@@ -183,7 +218,9 @@ Notes on this:
   `Service already up to date` and does nothing when it does not.
 - The Nix modules (`nix/darwin.nix`, `nix/home.nix`) write their own plists,
   which always use `/tmp/mimi.log` and `/tmp/mimi.err.log` regardless of
-  `settings.log_file`.
+  `settings.log_file`. They carry no `MIMI_CAPTURED_*` entries either, so a
+  daemon from one of those modules appends to both files forever and never
+  empties them.
 
 ## Permission prompt keeps appearing
 

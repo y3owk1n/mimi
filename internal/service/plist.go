@@ -32,6 +32,19 @@ const defaultServicePath = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 
 // plistTemplate is the launchd plist mimi installs, with the binary, config,
 // captured-stream and PATH values left as tokens for renderPlist to fill in.
+//
+// Each captured-stream token appears twice: once as the path launchd writes
+// that stream to, and once as the MIMI_CAPTURED_STDOUT / MIMI_CAPTURED_STDERR
+// environment entry the daemon reads it back out of. One substitution fills
+// both, so the two can never name different files.
+//
+// Those entries are the whole of what tells a daemon that these files exist
+// and are its to truncate once at startup. A daemon started any other way —
+// `mimi start` by hand, with a terminal on stdout — sees neither and truncates
+// nothing. internal/daemon spells the same two names and deliberately does not
+// import this package to learn them: this is the install-time surface, and the
+// daemon is not its consumer. The golden plist test and the daemon's own test
+// each spell the literals, so a rename on either side fails a test there.
 const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 <!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
 <plist version="1.0">
@@ -63,6 +76,10 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
     <integer>10</integer>
     <key>EnvironmentVariables</key>
     <dict>
+        <key>MIMI_CAPTURED_STDERR</key>
+        <string>MIMI_STDERR_PATH</string>
+        <key>MIMI_CAPTURED_STDOUT</key>
+        <string>MIMI_STDOUT_PATH</string>
         <key>PATH</key>
         <string>MIMI_SERVICE_PATH</string>
     </dict>

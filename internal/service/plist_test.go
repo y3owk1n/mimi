@@ -6,6 +6,15 @@ import (
 	"testing"
 )
 
+// The settings.log_file the tests in this package render against, and the
+// captured stdout it puts beside that file. Both are written out here in full
+// rather than derived, so a test using them still disagrees with the code if
+// the code changes how one is placed relative to the other.
+const (
+	testLogFile        = "/Users/test/.local/state/mimi/mimi.log"
+	testCapturedStdout = "/Users/test/.local/state/mimi/mimi.out.log"
+)
+
 // wantGoldenPlist is the full plist renderPlist must produce for binPath
 // "/usr/local/bin/mimi", configPath "/Users/test/.config/mimi/config.toml" and
 // logFile "/Users/test/.local/state/mimi/mimi.log" — written out by hand, not
@@ -13,20 +22,25 @@ import (
 // byte-identical output.
 //
 // It inherits from the pre-refactor cmd/mimi/cmd output, changed in exactly
-// one place: issue #99 moved StandardOutPath/StandardErrorPath off the
-// hardcoded /tmp/mimi.log and /tmp/mimi.err.log and onto log_file's directory.
-const wantGoldenPlist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>Label</key>\n    <string>com.y3owk1n.mimi</string>\n    <key>ProgramArguments</key>\n    <array>\n        <string>/usr/local/bin/mimi</string>\n        <string>start</string>\n        <string>--config</string>\n        <string>/Users/test/.config/mimi/config.toml</string>\n    </array>\n    <key>RunAtLoad</key>\n    <true/>\n    <key>KeepAlive</key>\n    <true/>\n    <key>StandardOutPath</key>\n    <string>/Users/test/.local/state/mimi/mimi.out.log</string>\n    <key>StandardErrorPath</key>\n    <string>/Users/test/.local/state/mimi/mimi.err.log</string>\n    <key>ProcessType</key>\n    <string>Interactive</string>\n    <key>LimitLoadToSessionType</key>\n    <string>Aqua</string>\n    <key>Nice</key>\n    <integer>-10</integer>\n    <key>ThrottleInterval</key>\n    <integer>10</integer>\n    <key>EnvironmentVariables</key>\n    <dict>\n        <key>PATH</key>\n        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>\n    </dict>\n</dict>\n</plist>"
+// two places: issue #99 moved StandardOutPath/StandardErrorPath off the
+// hardcoded /tmp/mimi.log and /tmp/mimi.err.log and onto log_file's directory,
+// and issue #157 added the two MIMI_CAPTURED_* environment entries the daemon
+// reads those same paths back out of.
+const wantGoldenPlist = "<?xml version=\"1.0\" encoding=\"UTF-8\"?>\n<!DOCTYPE plist PUBLIC \"-//Apple//DTD PLIST 1.0//EN\" \"http://www.apple.com/DTDs/PropertyList-1.0.dtd\">\n<plist version=\"1.0\">\n<dict>\n    <key>Label</key>\n    <string>com.y3owk1n.mimi</string>\n    <key>ProgramArguments</key>\n    <array>\n        <string>/usr/local/bin/mimi</string>\n        <string>start</string>\n        <string>--config</string>\n        <string>/Users/test/.config/mimi/config.toml</string>\n    </array>\n    <key>RunAtLoad</key>\n    <true/>\n    <key>KeepAlive</key>\n    <true/>\n    <key>StandardOutPath</key>\n    <string>/Users/test/.local/state/mimi/mimi.out.log</string>\n    <key>StandardErrorPath</key>\n    <string>/Users/test/.local/state/mimi/mimi.err.log</string>\n    <key>ProcessType</key>\n    <string>Interactive</string>\n    <key>LimitLoadToSessionType</key>\n    <string>Aqua</string>\n    <key>Nice</key>\n    <integer>-10</integer>\n    <key>ThrottleInterval</key>\n    <integer>10</integer>\n    <key>EnvironmentVariables</key>\n    <dict>\n        <key>MIMI_CAPTURED_STDERR</key>\n        <string>/Users/test/.local/state/mimi/mimi.err.log</string>\n        <key>MIMI_CAPTURED_STDOUT</key>\n        <string>/Users/test/.local/state/mimi/mimi.out.log</string>\n        <key>PATH</key>\n        <string>/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin</string>\n    </dict>\n</dict>\n</plist>"
 
 // TestRenderPlist_MatchesTheGoldenOutputByteForByte pins the plist rendered
-// for a config that sets no service_path. The golden bytes are the ones this
-// rendered before settings.service_path existed, so an unset service_path
-// changes nothing about an installed service — including whether `mimi
-// services install` decides the plist on disk needs replacing at all.
+// for a config that sets no service_path: the whole file, byte for byte,
+// written out by hand.
+//
+// Every byte of it reaches an installed service, and only through `mimi
+// services install` — so this is also what decides whether that command finds
+// the plist on disk stale and replaces it. A change here is a change to every
+// installed service on the next install, and has to be made deliberately.
 func TestRenderPlist_MatchesTheGoldenOutputByteForByte(t *testing.T) {
 	got := renderPlist(
 		"/usr/local/bin/mimi",
 		"/Users/test/.config/mimi/config.toml",
-		"/Users/test/.local/state/mimi/mimi.log",
+		testLogFile,
 		"",
 	)
 	if got != wantGoldenPlist {
@@ -69,7 +83,7 @@ func TestRenderPlist_ServicePath(t *testing.T) {
 			got := renderPlist(
 				"/usr/local/bin/mimi",
 				"/Users/test/.config/mimi/config.toml",
-				"/Users/test/.local/state/mimi/mimi.log",
+				testLogFile,
 				testCase.servicePath,
 			)
 
@@ -87,10 +101,17 @@ func TestRenderPlist_ServicePath(t *testing.T) {
 }
 
 // TestRenderPlist_CapturedStreamPaths pins where launchd is told to write the
-// daemon's stdout and stderr for each shape settings.log_file can arrive in.
-// Every expected value is written out literally rather than derived, and no
-// case may name log_file itself: lumberjack rotates that file, so a second
-// writer appending to it would corrupt the rotation.
+// daemon's stdout and stderr for each shape settings.log_file can arrive in,
+// and that the environment entries the daemon reads those paths back out of
+// name the same two files. Every expected value is written out literally rather
+// than derived, and no case may name log_file itself: lumberjack rotates that
+// file, so a second writer appending to it would corrupt the rotation.
+//
+// The environment is the whole of what tells a daemon those files exist and are
+// its to empty at startup — one started by hand has a terminal on stdout, sees
+// neither entry, and truncates nothing. Its names are spelled literally here,
+// because internal/daemon spells the same two literals and nothing else holds
+// the two sides together: a rename has to fail a test on the side that made it.
 func TestRenderPlist_CapturedStreamPaths(t *testing.T) {
 	// The /tmp paths every fallback case expects — the ones the plist
 	// hardcoded before issue #99 — spelled out here rather than read from the
@@ -109,8 +130,8 @@ func TestRenderPlist_CapturedStreamPaths(t *testing.T) {
 	}{
 		{
 			name:       "derived from log_file's directory with distinct names",
-			logFile:    "/Users/test/.local/state/mimi/mimi.log",
-			wantStdout: "/Users/test/.local/state/mimi/mimi.out.log",
+			logFile:    testLogFile,
+			wantStdout: testCapturedStdout,
 			wantStderr: "/Users/test/.local/state/mimi/mimi.err.log",
 		},
 		{
@@ -199,6 +220,22 @@ func TestRenderPlist_CapturedStreamPaths(t *testing.T) {
 					got,
 				)
 			}
+
+			environment := map[string]string{
+				"MIMI_CAPTURED_STDOUT": testCase.wantStdout,
+				"MIMI_CAPTURED_STDERR": testCase.wantStderr,
+			}
+			for key, want := range environment {
+				wantEntry := "<key>" + key + "</key>\n        <string>" + want + "</string>"
+				if !strings.Contains(got, wantEntry) {
+					t.Errorf(
+						"renderPlist(logFile=%q) does not contain %q:\n%s",
+						testCase.logFile,
+						wantEntry,
+						got,
+					)
+				}
+			}
 		})
 	}
 }
@@ -215,7 +252,7 @@ func TestRenderPlist_Table(t *testing.T) {
 			name:        "typical paths",
 			binPath:     "/opt/homebrew/bin/mimi",
 			configPath:  "~/.config/mimi/config.toml",
-			logFile:     "/Users/test/.local/state/mimi/mimi.log",
+			logFile:     testLogFile,
 			servicePath: "/usr/bin:/bin",
 		},
 		{

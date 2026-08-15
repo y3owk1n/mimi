@@ -187,6 +187,11 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 
 	for _, testCase := range tests {
 		t.Run(testCase.name, func(t *testing.T) {
+			// A home with no plist in it: these cases are about what launchctl
+			// says, and the captured logs are read from the installed plist,
+			// which the machine running the tests must not supply.
+			t.Setenv("HOME", t.TempDir())
+
 			fake := &fakeLauncher{
 				loaded:      testCase.loaded,
 				printOutput: testCase.printOutput,
@@ -213,6 +218,118 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+// TestService_Status_ReportsTheCapturedLogsTheInstalledPlistNames covers the
+// half of the status that is not launchctl's to answer. The captured console
+// streams are the only place a crash before the logger exists can surface, and
+// how large they have grown is the question a user asks about them — they are
+// truncated once per launchd start, so a big one is a long run and a growing
+// one under a service that keeps exiting is a crash loop.
+//
+// The paths come from the installed plist rather than from settings.log_file,
+// because the plist is what launchd actually loaded: a log_file changed since
+// the last install has moved the config's answer and not the service's, and
+// the size of a file nothing is writing is the one number that must not be
+// reported here.
+func TestService_Status_ReportsTheCapturedLogsTheInstalledPlistNames(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	logDir := filepath.Join(dir, "state", "mimi")
+	logFile := filepath.Join(logDir, "mimi.log")
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, logFile, "")
+	if err != nil {
+		t.Fatalf("Install() = %v, want nil", err)
+	}
+
+	// The console output of a run, as launchd would have appended it. Only
+	// stdout has anything in it: stderr is the file launchd creates at spawn
+	// and a healthy daemon never writes to.
+	stdoutPath := filepath.Join(logDir, "mimi.out.log")
+
+	err = os.WriteFile(stdoutPath, []byte("0123456789"), filePerm)
+	if err != nil {
+		t.Fatalf("seeding captured stdout: %v", err)
+	}
+
+	stderrPath := filepath.Join(logDir, "mimi.err.log")
+
+	err = os.WriteFile(stderrPath, nil, filePerm)
+	if err != nil {
+		t.Fatalf("seeding captured stderr: %v", err)
+	}
+
+	fake.loaded = true
+	fake.printOutput = "\tstate = running\n\tpid = 1478\n"
+
+	status := svc.Status()
+
+	wantStdout := CapturedLog{Path: stdoutPath, Size: 10, Present: true}
+	if status.CapturedStdout != wantStdout {
+		t.Errorf("Status() stdout = %+v, want %+v", status.CapturedStdout, wantStdout)
+	}
+
+	wantStderr := CapturedLog{Path: stderrPath, Size: 0, Present: true}
+	if status.CapturedStderr != wantStderr {
+		t.Errorf("Status() stderr = %+v, want %+v", status.CapturedStderr, wantStderr)
+	}
+}
+
+// TestService_Status_ReportsACapturedLogThatIsNotThereYet separates a stream
+// of zero bytes from one that does not exist. launchd creates both files when
+// it first spawns the daemon, so a missing one is a service that has never
+// run — a different answer from a stream that ran and said nothing.
+func TestService_Status_ReportsACapturedLogThatIsNotThereYet(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	logDir := filepath.Join(dir, "state", "mimi")
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, filepath.Join(logDir, "mimi.log"), "")
+	if err != nil {
+		t.Fatalf("Install() = %v, want nil", err)
+	}
+
+	fake.loaded = true
+
+	status := svc.Status()
+
+	want := CapturedLog{Path: filepath.Join(logDir, "mimi.out.log")}
+	if status.CapturedStdout != want {
+		t.Errorf("Status() stdout = %+v, want %+v", status.CapturedStdout, want)
+	}
+}
+
+// TestService_Status_ReportsNoCapturedLogsWithoutAPlistOfMimisOwn pins the
+// answer when there is nothing to read the paths out of: an uninstalled
+// service, or a plist another installer wrote — home-manager's is a symlink
+// into the Nix store. Guessing where such a service captures its output is
+// exactly the wrong-file-size answer this reads the plist to avoid.
+func TestService_Status_ReportsNoCapturedLogsWithoutAPlistOfMimisOwn(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	fake := &fakeLauncher{loaded: true}
+	svc := newTestService(fake)
+
+	status := svc.Status()
+
+	var none CapturedLog
+	if status.CapturedStdout != none || status.CapturedStderr != none {
+		t.Errorf(
+			"Status() captured logs = %+v / %+v, want neither",
+			status.CapturedStdout,
+			status.CapturedStderr,
+		)
 	}
 }
 
@@ -583,6 +700,83 @@ func TestService_Install_ReplacesAStalePlistAfterServicePathChanges(t *testing.T
 
 	if !strings.Contains(string(content), "<string>"+wantPath+"</string>") {
 		t.Errorf("installed plist does not carry the configured PATH:\n%s", content)
+	}
+}
+
+// TestService_Install_GivesAnOlderServiceTheCapturedStreamEnvironment is how
+// the truncation reaches a machine where mimi was installed before it existed.
+// The daemon learns which files are its to empty from the plist's environment
+// and from nowhere else, so a service still running the plist of an older mimi
+// truncates nothing until that plist is replaced — and replacing it is what an
+// install does when the rendered bytes differ, which they now do.
+func TestService_Install_GivesAnOlderServiceTheCapturedStreamEnvironment(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	logFile := filepath.Join(dir, "state", "mimi", "mimi.log")
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, logFile, "")
+	if err != nil {
+		t.Fatalf("first Install() = %v, want nil", err)
+	}
+
+	plistPath := filepath.Join(dir, "Library", "LaunchAgents", Label+".plist")
+
+	current, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading installed plist: %v", err)
+	}
+
+	// The same plist as an older mimi rendered it: identical in every way but
+	// the two entries this change added, so nothing else can explain a replace.
+	stdoutPath := filepath.Join(dir, "state", "mimi", "mimi.out.log")
+	stderrPath := filepath.Join(dir, "state", "mimi", "mimi.err.log")
+	older := strings.NewReplacer(
+		"        <key>MIMI_CAPTURED_STDERR</key>\n        <string>"+stderrPath+"</string>\n", "",
+		"        <key>MIMI_CAPTURED_STDOUT</key>\n        <string>"+stdoutPath+"</string>\n", "",
+	).Replace(string(current))
+
+	if older == string(current) {
+		t.Fatalf("the installed plist carries no captured-stream environment:\n%s", current)
+	}
+
+	err = os.WriteFile(plistPath, []byte(older), filePerm)
+	if err != nil {
+		t.Fatalf("seeding the older plist: %v", err)
+	}
+
+	fake.loaded = true
+	fake.calls = nil
+
+	outcome, err := svc.Install(testConfigPath, logFile, "")
+	if err != nil {
+		t.Fatalf("second Install() = %v, want nil", err)
+	}
+
+	if outcome != InstallOutcomeReplaced {
+		t.Errorf("second Install() outcome = %v, want %v", outcome, InstallOutcomeReplaced)
+	}
+
+	// Replaced and handed back to launchd: an environment written to a plist
+	// launchd is not reading again reaches no daemon.
+	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
+		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+	}
+
+	after, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading the replaced plist: %v", err)
+	}
+
+	if string(after) != string(current) {
+		t.Errorf(
+			"the replaced plist is not the one mimi renders:\ngot\n%s\nwant\n%s",
+			after,
+			current,
+		)
 	}
 }
 
