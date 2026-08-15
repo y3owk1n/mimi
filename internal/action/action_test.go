@@ -29,6 +29,10 @@ const (
 	// one: the input every rejection case below is written against.
 	unknownPreset = "left-third"
 
+	// nonNumericArg names no space and no preset — the argument every
+	// "that is not a number or a keyword" case is written against.
+	nonNumericArg = "foo"
+
 	flagWidth         = "--width"
 	flagHeight        = "--height"
 	flagWidthPercent  = "--width-percent"
@@ -133,7 +137,7 @@ func TestParseSpaceArg_MalformedNamesTheAction(t *testing.T) {
 	}{
 		{name: "empty", args: []string{""}},
 		{name: "whitespace only", args: []string{"   "}},
-		{name: "non-numeric", args: []string{"foo"}},
+		{name: "non-numeric", args: []string{nonNumericArg}},
 		{name: "zero", args: []string{"0"}},
 		{name: "negative", args: []string{"-1"}},
 		{name: "no argument", args: nil},
@@ -186,7 +190,7 @@ func TestExecute_SpaceValidation(t *testing.T) {
 	}{
 		{name: "zero", arg: "0", code: derrors.CodeInvalidInput},
 		{name: "negative", arg: "-1", code: derrors.CodeInvalidInput},
-		{name: "non-numeric", arg: "foo", code: derrors.CodeInvalidInput},
+		{name: "non-numeric", arg: nonNumericArg, code: derrors.CodeInvalidInput},
 		{name: "empty", arg: "", code: derrors.CodeInvalidInput},
 	}
 

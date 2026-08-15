@@ -58,6 +58,8 @@ CLI actions pump the run loop briefly after posting events so gestures complete 
 
 When the daemon is running, `mimi action` first tries the Unix socket at `settings.socket_file`. The daemon executes the action on a dedicated OS thread and returns the result. If the socket is unavailable, the CLI falls back to direct execution.
 
+Each action builds its command through the constructor `internal/action` gives it (`NewFocusWindowCommand`, `NewSpaceCommand`, `NewMoveWindowToSpaceCommand`, `NewResizeWindowCommand`), and those constructors validate as they build. A malformed argument is therefore rejected before either path is chosen — no socket is opened, and the message reads the same whether or not a daemon is listening.
+
 ---
 
 ## Hook Daemon
