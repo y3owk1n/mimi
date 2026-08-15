@@ -1,9 +1,6 @@
 package service
 
 import (
-	"encoding/xml"
-	"errors"
-	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -166,35 +163,4 @@ func plistString(content, key string) string {
 	}
 
 	return unescapeXMLText(value)
-}
-
-// unescapeXMLText resolves the text of a <string> back to the value it stands
-// for, undoing escapeXMLText. It is encoding/xml doing it, so that the two
-// sides cannot drift: whatever the escaper learns to write, this reads.
-//
-// A value it cannot resolve comes back exactly as it was read. That is a plist
-// mimi did not write — home-manager's, or a hand-edited one — and this reader's
-// bargain everywhere else is to degrade the detail rather than invent one, so
-// the text on disk is a better answer than a partially decoded path.
-func unescapeXMLText(value string) string {
-	var (
-		decoder = xml.NewDecoder(strings.NewReader("<v>" + value + "</v>"))
-		decoded strings.Builder
-	)
-
-	for {
-		token, err := decoder.Token()
-		if errors.Is(err, io.EOF) {
-			return decoded.String()
-		}
-
-		if err != nil {
-			return value
-		}
-
-		chars, isText := token.(xml.CharData)
-		if isText {
-			decoded.Write(chars)
-		}
-	}
 }

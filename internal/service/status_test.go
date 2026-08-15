@@ -206,6 +206,15 @@ func TestPlistString(t *testing.T) {
 			key:     testStandardOutKey,
 			want:    "/tmp/mi&nosuch;mi.log",
 		},
+		{
+			// Markup renderPlist would never write parses, but it is not
+			// escaped text and resolving it would drop the tags — naming a
+			// shorter path that exists nowhere. It comes back as it was read.
+			name:    "a value that is markup rather than escaped text comes back unchanged",
+			content: "<key>StandardOutPath</key>\n    <string>/tmp/a<b>c</b>d.log</string>",
+			key:     testStandardOutKey,
+			want:    "/tmp/a<b>c</b>d.log",
+		},
 		{name: "nothing to read at all", content: "", key: testStandardOutKey, want: ""},
 	}
 
