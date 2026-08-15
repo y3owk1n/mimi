@@ -39,10 +39,30 @@ _Avoid_: desktop, workspace, virtual desktop
 
 **Hook**:
 A shell command the daemon runs when a desktop event of a given kind occurs.
-_Avoid_: handler, callback, trigger, listener
+_Avoid_: handler, callback, listener, and _trigger_ — which names a reload
+route (see **Reload trigger**), never a hook.
+
+**Reload**:
+Applying a new config to a running daemon without restarting it. A reload is
+all-or-nothing: an invalid config leaves the previous, working one entirely in
+place.
+_Avoid_: refresh, re-init, restart (a restart is the other thing entirely)
+
+**Reload trigger**:
+One of the routes that asks a running daemon to reload: the config file
+watcher, `SIGHUP`, the systray's reload menu item, and `mimi config reload`.
+Every trigger produces the same outcome for the same config — a trigger
+chooses _when_ a reload happens, never _what_ it does.
+_Avoid_: reload source, reload event, reload signal
+
+**Restart-only setting**:
+A config field the running daemon reads once at startup and never re-reads, so
+changing it takes effect only after the daemon is restarted. The complement of
+the fields a reload applies.
+_Avoid_: static setting, boot setting, startup setting
 
 **Event kind**:
-The category of desktop change a hook subscribes to (window focused, space
-changed, app launched, …). The one table in `internal/events` is its
-definition; every other enumeration is derived from it.
+The category of desktop change a hook subscribes to — window focused, space
+changed, app launched, and so on. One table defines the set; every other list
+of kinds is derived from that table rather than restated alongside it.
 _Avoid_: event type, event name
