@@ -3,6 +3,8 @@ package cmd
 import (
 	"fmt"
 
+	"github.com/spf13/cobra"
+
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/ipc"
@@ -13,7 +15,12 @@ import (
 // paths run that same value: the daemon path puts it on the socket as JSON,
 // and the direct path runs it where it stands. Neither re-parses a string the
 // other already held typed.
-func (s *cliState) runAction(cmd action.Command) error {
+//
+// cobraCmd is the command being run, carried in for the one thing this needs
+// from it: the error stream any warning below goes out on. Warnings never
+// share the command's stdout — an action's own output has to stay exactly what
+// it was with no daemon in the picture at all.
+func (s *cliState) runAction(cobraCmd *cobra.Command, cmd action.Command) error {
 	socketPath := ipc.ResolveSocketPath(s.configPath)
 
 	err := ipc.TryExecute(socketPath, cmd)
@@ -34,7 +41,7 @@ func (s *cliState) runAction(cmd action.Command) error {
 	// would then last until the next reboot with nothing ever mentioning it.
 	if derrors.IsCode(err, derrors.CodeProtocolMismatch) {
 		_, _ = fmt.Fprintf(
-			s.warnWriter(),
+			cobraCmd.ErrOrStderr(),
 			"mimi: the daemon speaks a different request protocol than this CLI (%s) — restart the daemon so it runs this build ('mimi stop && mimi start', or 'mimi services restart' when installed as a service). This action ran on the direct path instead.\n",
 			derrors.Message(err),
 		)

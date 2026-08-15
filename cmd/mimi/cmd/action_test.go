@@ -542,7 +542,8 @@ func TestActionCommands_RejectMalformedArgumentsWithoutOpeningASocket(t *testing
 				)
 			}
 
-			err = (&cliState{configPath: configPath}).runAction(action.Command{})
+			err = (&cliState{configPath: configPath}).
+				runAction(discardErrCommand(), action.Command{})
 			if err != nil {
 				t.Fatalf("routing a command over the same socket = %v, want nil", err)
 			}

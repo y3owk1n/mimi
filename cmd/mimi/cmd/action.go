@@ -68,7 +68,7 @@ in that direction based on screen position.
 
 Only windows that are focusable (not minimized, not hidden) and on the
 current space are included.`,
-		RunE: func(_ *cobra.Command, _ []string) error {
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			focusCmd, err := action.NewFocusWindowCommand(
 				backward,
 				focusUp,
@@ -80,7 +80,7 @@ current space are included.`,
 				return err
 			}
 
-			return state.runAction(focusCmd)
+			return state.runAction(cobraCmd, focusCmd)
 		},
 	}
 
@@ -124,13 +124,13 @@ Examples:
   mimi action space next     Cycle to the next space (with wrap)
   mimi action space prev     Cycle to the previous space (with wrap)`,
 		Args: validateSpaceArg(action.NameSpace),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			spaceCmd, err := action.NewSpaceCommand(args)
 			if err != nil {
 				return err
 			}
 
-			return state.runAction(spaceCmd)
+			return state.runAction(cobraCmd, spaceCmd)
 		},
 	}
 }
@@ -157,13 +157,13 @@ Examples:
   mimi action move_window_to_space next     Move window to next space (with wrap)
   mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
 		Args: validateSpaceArg(action.NameMoveWindowToSpace),
-		RunE: func(_ *cobra.Command, args []string) error {
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			moveCmd, err := action.NewMoveWindowToSpaceCommand(args)
 			if err != nil {
 				return err
 			}
 
-			return state.runAction(moveCmd)
+			return state.runAction(cobraCmd, moveCmd)
 		},
 	}
 }
@@ -223,7 +223,7 @@ Examples:
 				return err
 			}
 
-			return state.runAction(resizeCmd)
+			return state.runAction(cobraCmd, resizeCmd)
 		},
 	}
 
