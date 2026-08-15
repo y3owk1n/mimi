@@ -124,6 +124,27 @@ func TestResizeWindowArgsFromFlags_CarriesThePresetAndTheOtherFlags(t *testing.T
 	}
 }
 
+// TestResizeWindowCommand_RejectsAnUnknownPreset covers mimi#125 at the CLI:
+// an unknown preset is rejected before anything reaches the desktop, and with
+// action.ParseResizePreset's own wording rather than a second copy of the valid
+// name list that could drift from it. This fails during argument validation,
+// not execution, so it is safe to run through the real command tree.
+func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
+	t.Parallel()
+
+	const unknownPreset = "left-third"
+
+	_, err := runCommand(t, actionCommandName, "resize_window", unknownPreset)
+	if err == nil {
+		t.Fatalf("resize_window %s: expected an error", unknownPreset)
+	}
+
+	_, wantErr := action.ParseResizePreset(unknownPreset)
+	if err.Error() != wantErr.Error() {
+		t.Errorf("rejected with its own wording:\n got: %s\nwant: %s", err, wantErr)
+	}
+}
+
 // TestFocusWindowCommand_RejectsBackwardWithDirection checks the CLI surfaces
 // action.NewFocusWindowArgs' validation before ever reaching the desktop —
 // this fails during flag validation, not execution, so it is safe to run

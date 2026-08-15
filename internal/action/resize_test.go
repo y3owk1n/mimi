@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
@@ -27,7 +28,7 @@ func TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest(t *testing.T) {
 		{
 			name: "a preset is taken from the first positional argument",
 			args: []string{presetLeftHalf},
-			want: geometry.Request{Preset: presetLeftHalf},
+			want: geometry.Request{Preset: presetFor(t, presetLeftHalf)},
 		},
 		{
 			name: "absolute sizes",
@@ -88,6 +89,31 @@ func TestParseResizeRequest_MapsFlagsOntoTheGeometryRequest(t *testing.T) {
 
 			assertRequest(t, got, testCase.want)
 		})
+	}
+}
+
+// TestParseResizeRequest_RejectsAnUnknownPreset covers mimi#125 on the path a
+// command from outside the CLI takes: the daemon decodes a request's string
+// arguments here, and a preset name it does not know is now rejected on the
+// same rule — and so in the same words — as the CLI's own check. It used to
+// fall past the preset check and be reported as a stray positional argument.
+func TestParseResizeRequest_RejectsAnUnknownPreset(t *testing.T) {
+	t.Parallel()
+
+	_, err := action.ParseResizeRequest([]string{unknownPreset, flagWidth, "800"})
+	if err == nil {
+		t.Fatalf("ParseResizeRequest(%s) expected error", unknownPreset)
+	}
+
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+
+	assertListsEveryPreset(t, err)
+
+	_, wantErr := action.ParseResizePreset(unknownPreset)
+	if err.Error() != wantErr.Error() {
+		t.Errorf("rejected with its own wording:\n got: %s\nwant: %s", err, wantErr)
 	}
 }
 

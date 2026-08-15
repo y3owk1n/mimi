@@ -3,6 +3,7 @@ package geometry_test
 import (
 	"fmt"
 	"math"
+	"slices"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/geometry"
@@ -32,6 +33,26 @@ const (
 	presetCenter      = "center"
 	presetFill        = "fill"
 )
+
+// The presets the cases below place windows with, in the form a request holds
+// them.
+var (
+	leftHalf   = presetFor(presetLeftHalf)
+	rightHalf  = presetFor(presetRightHalf)
+	bottomHalf = presetFor(presetBottomHalf)
+	center     = presetFor(presetCenter)
+	fill       = presetFor(presetFill)
+)
+
+// presetFor is ParsePreset for the names this file spells out as constants,
+// which TestParsePreset pins as ten of the ten. A name that somehow stopped
+// being one yields the zero preset, and the frame the case expects then fails
+// to match.
+func presetFor(name string) geometry.Preset {
+	preset, _ := geometry.ParsePreset(name)
+
+	return preset
+}
 
 // The frame every recorded resize case started from.
 var startFrame = geometry.Rect{X: 300, Y: 180, W: 700, H: 500}
@@ -204,7 +225,7 @@ func TestResize_ExpandsEveryPreset(t *testing.T) {
 		t.Run(testCase.preset, func(t *testing.T) {
 			t.Parallel()
 
-			req := geometry.Request{Preset: testCase.preset}
+			req := geometry.Request{Preset: presetFor(testCase.preset)}
 
 			got := geometry.Resize(startFrame, singleDisplay, req)
 			if got != testCase.want {
@@ -220,26 +241,13 @@ func TestResize_PresetSizesAreDefaults(t *testing.T) {
 	// left-half is 50% x 100%; an explicit width replaces its width and leaves
 	// its height and anchor in place.
 	got := geometry.Resize(startFrame, singleDisplay, geometry.Request{
-		Preset: presetLeftHalf,
+		Preset: leftHalf,
 		Width:  geometry.Absolute(800),
 	})
 
 	want := geometry.Rect{X: 0, Y: 30, W: 800, H: 1050}
 	if got != want {
 		t.Errorf("Resize(left-half --width 800) = %v, want %v", got, want)
-	}
-}
-
-func TestResize_IgnoresAnUnknownPreset(t *testing.T) {
-	t.Parallel()
-
-	// Resize is total, so an unknown name cannot be an error here; the CLI
-	// rejects one at parse time with IsPreset.
-	got := geometry.Resize(startFrame, singleDisplay, geometry.Request{Preset: "left-third"})
-
-	want := geometry.Resize(startFrame, singleDisplay, geometry.Request{})
-	if got != want {
-		t.Errorf("Resize(preset left-third) = %v, want the presetless %v", got, want)
 	}
 }
 
@@ -262,17 +270,17 @@ func TestResize_AppliesMargins(t *testing.T) {
 			// Left, top and bottom abut the visible frame and take a full 8pt
 			// margin; the right edge is internal and takes half of one.
 			name: "a half-screen preset takes a full margin on the edges it abuts",
-			req:  geometry.Request{Preset: presetLeftHalf},
+			req:  geometry.Request{Preset: leftHalf},
 			want: geometry.Rect{X: 8, Y: 38, W: 948, H: 1034},
 		},
 		{
 			name: "a filling preset takes a full margin on all four edges",
-			req:  geometry.Request{Preset: presetFill},
+			req:  geometry.Request{Preset: fill},
 			want: geometry.Rect{X: 8, Y: 38, W: 1904, H: 1034},
 		},
 		{
 			name: "a preset that abuts nothing takes half a margin on all four edges",
-			req:  geometry.Request{Preset: presetCenter},
+			req:  geometry.Request{Preset: center},
 			want: geometry.Rect{X: 388, Y: 139, W: 1144, H: 832},
 		},
 		{
@@ -327,25 +335,25 @@ func TestResize_MarginPreferenceOverridesTheSystemSetting(t *testing.T) {
 		{
 			name: "no preference follows a system setting that is on",
 			scr:  withMargins,
-			req:  geometry.Request{Preset: presetLeftHalf},
+			req:  geometry.Request{Preset: leftHalf},
 			want: inset,
 		},
 		{
 			name: "no preference follows a system setting that is off",
 			scr:  singleDisplay,
-			req:  geometry.Request{Preset: presetLeftHalf},
+			req:  geometry.Request{Preset: leftHalf},
 			want: full,
 		},
 		{
 			name: "margins off overrides a system setting that is on",
 			scr:  withMargins,
-			req:  geometry.Request{Preset: presetLeftHalf, UseMargins: &disabled},
+			req:  geometry.Request{Preset: leftHalf, UseMargins: &disabled},
 			want: full,
 		},
 		{
 			name: "margins on overrides a system setting that is off",
 			scr:  singleDisplay,
-			req:  geometry.Request{Preset: presetLeftHalf, UseMargins: &enabled},
+			req:  geometry.Request{Preset: leftHalf, UseMargins: &enabled},
 			want: inset,
 		},
 	}
@@ -392,31 +400,31 @@ func TestResize_PlacesWindowsOnSecondaryDisplays(t *testing.T) {
 		{
 			name: "filling the display to the left",
 			scr:  toTheLeft,
-			req:  geometry.Request{Preset: presetFill},
+			req:  geometry.Request{Preset: fill},
 			want: geometry.Rect{X: -1920, Y: 0, W: 1920, H: 1080},
 		},
 		{
 			name: "the right half of the display to the left",
 			scr:  toTheLeft,
-			req:  geometry.Request{Preset: presetRightHalf},
+			req:  geometry.Request{Preset: rightHalf},
 			want: geometry.Rect{X: -960, Y: 0, W: 960, H: 1080},
 		},
 		{
 			name: "margins on the display to the left",
 			scr:  toTheLeft,
-			req:  geometry.Request{Preset: presetFill, UseMargins: new(true)},
+			req:  geometry.Request{Preset: fill, UseMargins: new(true)},
 			want: geometry.Rect{X: -1912, Y: 8, W: 1904, H: 1064},
 		},
 		{
 			name: "filling the display above sits a whole primary height up",
 			scr:  above,
-			req:  geometry.Request{Preset: presetFill},
+			req:  geometry.Request{Preset: fill},
 			want: geometry.Rect{X: 0, Y: -1080, W: 1920, H: 1080},
 		},
 		{
 			name: "the bottom half of the display above still ends at the primary's top",
 			scr:  above,
-			req:  geometry.Request{Preset: presetBottomHalf},
+			req:  geometry.Request{Preset: bottomHalf},
 			want: geometry.Rect{X: 0, Y: -540, W: 1920, H: 540},
 		},
 		{
@@ -453,7 +461,7 @@ func TestResize_PresetAnchorIsADefault(t *testing.T) {
 	t.Parallel()
 
 	got := geometry.Resize(startFrame, singleDisplay, geometry.Request{
-		Preset: presetLeftHalf,
+		Preset: leftHalf,
 		Anchor: new(geometry.BottomRight),
 	})
 
@@ -864,7 +872,10 @@ func TestResize_ExplicitPositionMeasuresItsEdges(t *testing.T) {
 // anything a display can show.
 const tolerance = 1e-9
 
-func TestIsPreset(t *testing.T) {
+// TestParsePreset covers mimi#125: a preset name is only a preset once
+// ParsePreset has turned it into one, and an unknown name has no Preset to be
+// turned into — which is what stops one reaching Resize to be ignored there.
+func TestParsePreset(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -889,9 +900,41 @@ func TestIsPreset(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := geometry.IsPreset(testCase.name); got != testCase.want {
-				t.Fatalf("IsPreset(%q) = %v, want %v", testCase.name, got, testCase.want)
+			got, isPreset := geometry.ParsePreset(testCase.name)
+			if isPreset != testCase.want {
+				t.Fatalf(
+					"ParsePreset(%q) ok = %v, want %v",
+					testCase.name,
+					isPreset,
+					testCase.want,
+				)
+			}
+
+			if isPreset && got.String() != testCase.name {
+				t.Fatalf("ParsePreset(%q).String() = %q", testCase.name, got.String())
+			}
+
+			if !isPreset && got != (geometry.Preset{}) {
+				t.Fatalf("ParsePreset(%q) = %v, want the zero preset", testCase.name, got)
 			}
 		})
+	}
+}
+
+// TestPresetNames_ListsEveryPresetInTheDocumentedOrder pins both halves of the
+// list an unknown name is rejected with: which names are valid, and the order
+// the CLI's help and docs/CLI.md present them in, which the rejection message
+// is built from and so is user-visible.
+func TestPresetNames_ListsEveryPresetInTheDocumentedOrder(t *testing.T) {
+	t.Parallel()
+
+	want := []string{
+		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
+		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
+		presetCenter, presetFill,
+	}
+
+	if got := geometry.PresetNames(); !slices.Equal(got, want) {
+		t.Fatalf("PresetNames() = %v, want %v", got, want)
 	}
 }

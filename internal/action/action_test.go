@@ -6,6 +6,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
 const (
@@ -23,6 +24,10 @@ const (
 	presetBottomRight = "bottom-right"
 	presetCenter      = "center"
 	presetFill        = "fill"
+
+	// unknownPreset is a name that is not one of the ten, and never becomes
+	// one: the input every rejection case below is written against.
+	unknownPreset = "left-third"
 
 	flagWidth         = "--width"
 	flagHeight        = "--height"
@@ -259,48 +264,84 @@ func TestExecute_MoveWindowToSpaceNextPrev(t *testing.T) {
 	}
 }
 
-func TestIsResizePreset(t *testing.T) {
-	t.Parallel()
+// everyPreset lists the ten preset names resize_window takes. The cases below
+// are written against this list rather than against the geometry's own, so a
+// preset silently leaving the table is a failure rather than a case that stops
+// running.
+func everyPreset() []string {
+	return []string{
+		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
+		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
+		presetCenter, presetFill,
+	}
+}
 
-	cases := []struct {
-		name  string
-		input string
-		want  bool
-	}{
-		{name: presetLeftHalf, input: presetLeftHalf, want: true},
-		{name: presetRightHalf, input: presetRightHalf, want: true},
-		{name: presetTopHalf, input: presetTopHalf, want: true},
-		{name: presetBottomHalf, input: presetBottomHalf, want: true},
-		{name: presetTopLeft, input: presetTopLeft, want: true},
-		{name: presetTopRight, input: presetTopRight, want: true},
-		{name: presetBottomLeft, input: presetBottomLeft, want: true},
-		{name: presetBottomRight, input: presetBottomRight, want: true},
-		{name: presetCenter, input: presetCenter, want: true},
-		{name: presetFill, input: presetFill, want: true},
-		{name: "unknown", input: "left-third", want: false},
+// presetFor is the preset a name names, for the cases that expect one to reach
+// the geometry.
+func presetFor(t *testing.T, name string) geometry.Preset {
+	t.Helper()
+
+	preset, ok := geometry.ParsePreset(name)
+	if !ok {
+		t.Fatalf("ParsePreset(%q) is not a preset", name)
 	}
 
-	for _, tc := range cases {
-		t.Run(tc.name, func(t *testing.T) {
+	return preset
+}
+
+// assertListsEveryPreset checks a rejection names all ten presets, which is
+// what makes it useful to whoever mistyped one.
+func assertListsEveryPreset(t *testing.T, err error) {
+	t.Helper()
+
+	for _, name := range everyPreset() {
+		if !strings.Contains(err.Error(), name) {
+			t.Errorf("rejection does not list %q: %v", name, err)
+		}
+	}
+}
+
+// TestResizePreset covers mimi#125: one rule decides whether a name is a
+// preset, and it hands back the preset itself rather than a boolean beside it,
+// so a caller cannot carry an unrecognized name past the check.
+func TestResizePreset(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range everyPreset() {
+		t.Run(name, func(t *testing.T) {
 			t.Parallel()
 
-			if got := action.IsResizePreset(tc.input); got != tc.want {
-				t.Fatalf("IsResizePreset(%q) = %v, want %v", tc.input, got, tc.want)
+			got, err := action.ParseResizePreset(name)
+			if err != nil {
+				t.Fatalf("ParseResizePreset(%q) error = %v", name, err)
+			}
+
+			if got != presetFor(t, name) {
+				t.Fatalf("ParseResizePreset(%q) = %q, want %q", name, got, name)
 			}
 		})
 	}
+
+	t.Run("unknown", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := action.ParseResizePreset(unknownPreset)
+		if err == nil {
+			t.Fatalf("ParseResizePreset(%q) expected error", unknownPreset)
+		}
+
+		if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+			t.Fatalf("expected CodeInvalidInput, got %v", err)
+		}
+
+		assertListsEveryPreset(t, err)
+	})
 }
 
 func TestExecute_ResizeWindowPresets(t *testing.T) {
 	t.Parallel()
 
-	presets := []string{
-		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
-		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
-		presetCenter, presetFill,
-	}
-
-	for _, preset := range presets {
+	for _, preset := range everyPreset() {
 		t.Run(preset, func(t *testing.T) {
 			t.Parallel()
 

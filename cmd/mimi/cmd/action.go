@@ -223,13 +223,14 @@ Examples:
 			preset := ""
 
 			if len(args) > 0 {
+				// The rule lives in action.ParseResizePreset, which the conversion
+				// this payload feeds applies again — this is the fail-fast
+				// copy of the call, not a second copy of the rule.
 				preset = strings.TrimSpace(args[0])
-				if !action.IsResizePreset(preset) {
-					return derrors.Newf(
-						derrors.CodeInvalidInput,
-						"unknown preset %q (valid: left-half, right-half, top-half, bottom-half, top-left, top-right, bottom-left, bottom-right, center, fill)",
-						preset,
-					)
+
+				_, err := action.ParseResizePreset(preset)
+				if err != nil {
+					return err
 				}
 			}
 

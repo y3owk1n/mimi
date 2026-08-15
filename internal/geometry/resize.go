@@ -32,9 +32,9 @@ type Screen struct {
 // Request is what the user asked for. Every field is optional; the zero
 // Request keeps the window's current size and centers it.
 type Request struct {
-	// Preset is a named tiling shortcut, or "" for none. An unknown name is
-	// ignored — IsPreset is what turns one into an error, at parse time.
-	Preset string
+	// Preset is a named tiling shortcut, or the zero Preset for none. Only
+	// ParsePreset produces one, so an unknown name never reaches here.
+	Preset Preset
 	// Width and Height are the size asked for: a length in points, a share of
 	// the visible frame, or the window's current size.
 	Width  Dimension
@@ -111,8 +111,9 @@ func (d Dimension) resolve(current, available float64) float64 {
 // Resize returns the frame a window at cur should be moved to on scr to
 // satisfy req.
 //
-// It is total: every input produces a frame. An unknown preset name is
-// ignored, and nothing here reports an error.
+// It is total: every input produces a frame, and nothing here reports an
+// error. Every field of req is either optional or a value only this package
+// can produce, so there is no input left for it to reject.
 //
 // cur and the returned frame are in window coordinates — y-down, origin at the
 // primary display's top-left — while scr.Visible is in screen coordinates.
@@ -282,14 +283,14 @@ func marginOn(flush bool, size float64) float64 {
 
 // expandPreset fills in what the request's named preset asks for: its
 // percentages wherever the request keeps the current size, and its anchor
-// wherever the request left one unset. An unknown name — including the empty
-// one — leaves the request untouched.
+// wherever the request left one unset. The zero Preset — no preset — leaves
+// the request untouched.
 //
 // Nothing the preset supplies overrides a value the request already carries,
 // so an explicit --width, --height or --anchor always wins over the preset's
 // own.
 func expandPreset(req Request) Request {
-	named, ok := presets[req.Preset]
+	named, ok := presetNamed(req.Preset.name)
 	if !ok {
 		return req
 	}
@@ -445,27 +446,97 @@ const (
 	centerHeight = 80.0
 )
 
-// presets are the named tiling shortcuts resize_window accepts as its
-// positional argument.
-var presets = map[string]preset{
-	"left-half":    {widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopLeft},
-	"right-half":   {widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopRight},
-	"top-half":     {widthPercent: wholeScreen, heightPercent: halfScreen, anchor: TopLeft},
-	"bottom-half":  {widthPercent: wholeScreen, heightPercent: halfScreen, anchor: BottomLeft},
-	"top-left":     {widthPercent: halfScreen, heightPercent: halfScreen, anchor: TopLeft},
-	"top-right":    {widthPercent: halfScreen, heightPercent: halfScreen, anchor: TopRight},
-	"bottom-left":  {widthPercent: halfScreen, heightPercent: halfScreen, anchor: BottomLeft},
-	"bottom-right": {widthPercent: halfScreen, heightPercent: halfScreen, anchor: BottomRight},
-	"center":       {widthPercent: centerWidth, heightPercent: centerHeight, anchor: Center},
-	"fill":         {widthPercent: wholeScreen, heightPercent: wholeScreen, anchor: TopLeft},
+// namedPreset pairs a preset with the name resize_window takes it by.
+type namedPreset struct {
+	name   string
+	preset preset
 }
 
-// IsPreset reports whether name is one of the named resize presets.
-//
-// Resize ignores a name it does not know, so callers that want an unknown
-// preset to be an error — the CLI does — check it with this first.
-func IsPreset(name string) bool {
-	_, ok := presets[name]
+// presets are the named tiling shortcuts resize_window accepts as its
+// positional argument, in the order the CLI's help and docs/CLI.md list them:
+// the halves, then the quadrants, then the two that need neither word. The
+// order is user-visible through PresetNames, which is what an unknown name is
+// rejected with, so this is the one place it is decided.
+var presets = []namedPreset{
+	{"left-half", preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopLeft}},
+	{"right-half", preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopRight}},
+	{"top-half", preset{widthPercent: wholeScreen, heightPercent: halfScreen, anchor: TopLeft}},
+	{
+		"bottom-half",
+		preset{widthPercent: wholeScreen, heightPercent: halfScreen, anchor: BottomLeft},
+	},
+	{"top-left", preset{widthPercent: halfScreen, heightPercent: halfScreen, anchor: TopLeft}},
+	{"top-right", preset{widthPercent: halfScreen, heightPercent: halfScreen, anchor: TopRight}},
+	{
+		"bottom-left",
+		preset{widthPercent: halfScreen, heightPercent: halfScreen, anchor: BottomLeft},
+	},
+	{
+		"bottom-right",
+		preset{widthPercent: halfScreen, heightPercent: halfScreen, anchor: BottomRight},
+	},
+	{"center", preset{widthPercent: centerWidth, heightPercent: centerHeight, anchor: Center}},
+	{"fill", preset{widthPercent: wholeScreen, heightPercent: wholeScreen, anchor: TopLeft}},
+}
 
-	return ok
+// Preset is one of the named tiling shortcuts, in the form a Request holds it.
+//
+// Its name is unexported and ParsePreset is the only thing that fills it in,
+// so a Preset naming something that is not a preset cannot be built at all —
+// which is what stops an unknown name traveling as far as Resize, where it
+// used to be ignored. The zero Preset is no preset, and is what the zero
+// Request asks for.
+//
+// It is deliberately not a wire type: encoding/json renders a struct whose
+// every field is unexported as {} and reports no error. What travels over the
+// daemon's socket is the raw preset name, parsed into a Preset once decoded,
+// on the terms docs/adr/0001-typed-versioned-daemon-wire.md sets out.
+type Preset struct {
+	name string
+}
+
+// String returns the name the preset is asked for by, or "" for no preset.
+func (p Preset) String() string {
+	return p.name
+}
+
+// ParsePreset maps a preset name onto the preset it names, and reports whether
+// the name is one of them.
+//
+// An unknown name reports false alongside the zero Preset, which means no
+// preset rather than that name — following ParseAnchor, callers have to read
+// the boolean.
+func ParsePreset(name string) (Preset, bool) {
+	_, ok := presetNamed(name)
+	if !ok {
+		return Preset{}, false
+	}
+
+	return Preset{name: name}, true
+}
+
+// PresetNames returns every preset name, in the order presets lists them. It
+// is what a caller rejecting an unknown name tells the user about, so the
+// valid names are read from the table rather than restated beside it.
+func PresetNames() []string {
+	names := make([]string, 0, len(presets))
+	for _, named := range presets {
+		names = append(names, named.name)
+	}
+
+	return names
+}
+
+// presetNamed returns the preset the given name asks for, and reports whether
+// there is one. The table is ten entries long and its order is what
+// PresetNames reports, so it is scanned by name the way ParseAnchor scans
+// anchorNames.
+func presetNamed(name string) (preset, bool) {
+	for _, named := range presets {
+		if named.name == name {
+			return named.preset, true
+		}
+	}
+
+	return preset{}, false
 }
