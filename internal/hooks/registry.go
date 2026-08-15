@@ -86,24 +86,15 @@ func (h *Hook) Matches(evt events.Event) (bool, string) {
 
 func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 	hookMap := make(map[events.EventKind][]Hook)
-	entries := map[events.EventKind][]config.HookEntry{
-		events.AppActivate:       cfg.Hooks.AppActivate,
-		events.AppDeactivate:     cfg.Hooks.AppDeactivate,
-		events.AppLaunch:         cfg.Hooks.AppLaunch,
-		events.AppQuit:           cfg.Hooks.AppQuit,
-		events.AppHide:           cfg.Hooks.AppHide,
-		events.AppUnhide:         cfg.Hooks.AppUnhide,
-		events.WindowFocus:       cfg.Hooks.WindowFocus,
-		events.WindowTitleChange: cfg.Hooks.WindowTitleChange,
-		events.WindowCreated:     cfg.Hooks.WindowCreated,
-		events.WindowClosed:      cfg.Hooks.WindowClosed,
-		events.WindowResize:      cfg.Hooks.WindowResize,
-		events.WorkspaceChanged:  cfg.Hooks.WorkspaceChanged,
-	}
 
-	for kind, hookEntries := range entries {
+	// Folding over config.HookKinds rather than a locally built map also
+	// settles which error a config with several bad patterns reports. This
+	// returns on the first failure; ranging a map made "first" mean first in
+	// the map's random iteration order, so the same config could blame a
+	// different pattern on each run. It is now the first one in the file.
+	for _, kind := range config.HookKinds {
 		var hooks []Hook
-		for _, entry := range hookEntries {
+		for _, entry := range *kind.Entries(&cfg.Hooks) {
 			hook := Hook{Entry: entry}
 			if entry.Title != "" {
 				re, err := regexp.Compile(entry.Title)
@@ -136,7 +127,7 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 		}
 
 		if len(hooks) > 0 {
-			hookMap[kind] = hooks
+			hookMap[kind.Kind] = hooks
 		}
 	}
 

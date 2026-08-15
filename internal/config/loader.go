@@ -10,7 +10,6 @@ import (
 
 	"github.com/y3owk1n/mimi/configs"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
-	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/paths"
 )
 
@@ -188,10 +187,13 @@ func validate(cfg *Config) error {
 		errs = append(errs, "settings.resize_debounce_ms must be >= 0")
 	}
 
-	for kind, entries := range allHookEntries(cfg) {
-		for i, e := range entries {
+	// HookKinds is a slice, so these errors come out in its declared order.
+	// The map this replaced meant validate reported the same broken config in
+	// a different order on every run.
+	for _, kind := range HookKinds {
+		for i, e := range *kind.Entries(&cfg.Hooks) {
 			if e.Run == "" {
-				errs = append(errs, fmt.Sprintf("hooks.%s[%d]: run command is empty", kind, i))
+				errs = append(errs, fmt.Sprintf("hooks.%s[%d]: run command is empty", kind.Kind, i))
 			}
 		}
 	}
@@ -205,23 +207,6 @@ func validate(cfg *Config) error {
 	}
 
 	return nil
-}
-
-func allHookEntries(cfg *Config) map[string][]HookEntry {
-	return map[string][]HookEntry{
-		string(events.AppActivate):       cfg.Hooks.AppActivate,
-		string(events.AppDeactivate):     cfg.Hooks.AppDeactivate,
-		string(events.AppLaunch):         cfg.Hooks.AppLaunch,
-		string(events.AppQuit):           cfg.Hooks.AppQuit,
-		string(events.AppHide):           cfg.Hooks.AppHide,
-		string(events.AppUnhide):         cfg.Hooks.AppUnhide,
-		string(events.WindowFocus):       cfg.Hooks.WindowFocus,
-		string(events.WindowTitleChange): cfg.Hooks.WindowTitleChange,
-		string(events.WindowCreated):     cfg.Hooks.WindowCreated,
-		string(events.WindowClosed):      cfg.Hooks.WindowClosed,
-		string(events.WindowResize):      cfg.Hooks.WindowResize,
-		string(events.WorkspaceChanged):  cfg.Hooks.WorkspaceChanged,
-	}
 }
 
 func expandPaths(cfg *Config) {

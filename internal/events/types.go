@@ -64,8 +64,3 @@ type Event struct {
 	At          time.Time         `json:"at"`
 	Extra       map[string]string `json:"extra,omitempty"`
 }
-
-// Publisher is the interface for publishing events to the bus.
-type Publisher interface {
-	Publish(e Event)
-}
