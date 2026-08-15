@@ -142,7 +142,7 @@ func TestResizeRequestFromArgs_MatchesParseResizeRequest(t *testing.T) {
 		{
 			name: "a preset carries through",
 			args: action.ResizeWindowArgs{Preset: presetLeftHalf},
-			want: geometry.Request{Preset: presetLeftHalf},
+			want: geometry.Request{Preset: presetFor(t, presetLeftHalf)},
 		},
 	}
 
@@ -185,6 +185,48 @@ func TestResizeRequestFromArgs_InvalidWidthPercent(t *testing.T) {
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+}
+
+// TestResizeRequestFromArgs_RejectsAnUnknownPreset covers mimi#125: the
+// conversion from a command's raw arguments to a geometry request is where a
+// preset name becomes a preset, so a name that is not one is rejected there —
+// on every path a command can be built on, the daemon's included, rather than
+// only on the one the CLI's own argument check stands in front of.
+func TestResizeRequestFromArgs_RejectsAnUnknownPreset(t *testing.T) {
+	t.Parallel()
+
+	_, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs{Preset: unknownPreset})
+	if err == nil {
+		t.Fatalf("ResizeRequestFromArgs(preset %s) expected error", unknownPreset)
+	}
+
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+
+	assertListsEveryPreset(t, err)
+}
+
+// TestResizeRequestFromArgs_AcceptsEveryPreset is the other half of the rule:
+// each of the ten names still converts, and reaches the geometry as the preset
+// it names.
+func TestResizeRequestFromArgs_AcceptsEveryPreset(t *testing.T) {
+	t.Parallel()
+
+	for _, name := range everyPreset() {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			got, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs{Preset: name})
+			if err != nil {
+				t.Fatalf("ResizeRequestFromArgs(preset %s) error = %v", name, err)
+			}
+
+			if got.Preset != presetFor(t, name) {
+				t.Fatalf("Preset = %q, want %q", got.Preset, name)
+			}
+		})
 	}
 }
 

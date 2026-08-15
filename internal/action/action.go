@@ -161,9 +161,29 @@ func (e *Executor) resolveSpaceArgTyped(parsed SpaceArg) (int, error) {
 	return ((current - 1 + parsed.Direction + count) % count) + 1, nil
 }
 
-// IsResizePreset reports whether s is a known resize window preset.
-func IsResizePreset(s string) bool {
-	return geometry.IsPreset(s)
+// ParseResizePreset maps the name resize_window's positional argument carries onto
+// the preset it names, and is the one place a name that is not one of them is
+// rejected. Every path that takes a preset — the CLI's own argument check, the
+// conversion from a command's arguments, and the string parser the daemon
+// still decodes with — goes through it, so an unknown name is rejected in the
+// same words wherever it arrives from.
+//
+// The rejection lists the ten valid names, read from the geometry's own table
+// rather than restated here, since mistyping one is the likely way to get
+// here. The empty name is not a preset either: a command that names no preset
+// never asks for one.
+func ParseResizePreset(name string) (geometry.Preset, error) {
+	preset, ok := geometry.ParsePreset(name)
+	if !ok {
+		return geometry.Preset{}, derrors.Newf(
+			derrors.CodeInvalidInput,
+			"unknown preset %q (valid: %s)",
+			name,
+			strings.Join(geometry.PresetNames(), ", "),
+		)
+	}
+
+	return preset, nil
 }
 
 // ParseResizeRequest turns resize_window's command line into the geometry
@@ -186,9 +206,18 @@ func ParseResizeRequest(rawArgs []string) (geometry.Request, error) {
 
 	args := rawArgs
 
-	// Check for preset as first positional arg
-	if len(args) > 0 && IsResizePreset(args[0]) {
-		req.Preset = args[0]
+	// The preset is the one positional argument resize_window takes, so
+	// anything leading that is not a flag is meant as one. A name that is not
+	// a preset is rejected here, on the rule the CLI rejects it with, rather
+	// than falling through to the flag loop to be reported as a stray
+	// argument.
+	if len(args) > 0 && !strings.HasPrefix(args[0], "-") {
+		preset, err := ParseResizePreset(args[0])
+		if err != nil {
+			return req, err
+		}
+
+		req.Preset = preset
 		args = args[1:]
 	}
 

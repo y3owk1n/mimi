@@ -93,7 +93,11 @@ func validateFocusWindowCombo(direction string, backward bool) error {
 // from one given as its zero value — the same distinction
 // cobraCmd.Flags().Changed(...) makes at the CLI layer.
 type ResizeWindowArgs struct {
-	// Preset is a named tiling shortcut, or "" for none.
+	// Preset is a named tiling shortcut, or "" for none. It stays a raw name
+	// rather than a geometry.Preset because this is the payload the socket
+	// carries, and a value whose fields are unexported does not survive the
+	// trip; ResizeRequestFromArgs is what turns it into one, and rejects a
+	// name that is not a preset.
 	Preset string
 
 	Width    int
@@ -128,6 +132,20 @@ type ResizeWindowArgs struct {
 // zero-collapses-to-keep convention (see ParseResizeRequest's doc comment),
 // without the string flags that convention was written against.
 func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
+	// The preset is checked first, as the positional argument it is, so a
+	// command carrying both a mistyped preset and a bad flag is rejected for
+	// the preset on this path too.
+	var preset geometry.Preset
+
+	if args.Preset != "" {
+		named, err := ParseResizePreset(args.Preset)
+		if err != nil {
+			return geometry.Request{}, err
+		}
+
+		preset = named
+	}
+
 	if args.WidthSet && args.Width < 0 {
 		return geometry.Request{}, derrors.Newf(
 			derrors.CodeInvalidInput,
@@ -160,7 +178,7 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 		)
 	}
 
-	req := geometry.Request{Preset: args.Preset}
+	req := geometry.Request{Preset: preset}
 
 	width, widthPercent := 0.0, 0.0
 	if args.WidthSet {
