@@ -17,9 +17,10 @@ import (
 const dialTimeout = 100 * time.Millisecond
 
 // TryExecute sends a typed command to the daemon over the Unix socket when
-// available, marshaling it to the wire's string args itself. Returns
-// CodeDaemonUnavailable when the daemon is not reachable so callers can fall
-// back to direct execution against the same typed cmd.
+// available. The command travels as it was built, so the daemon runs the very
+// value the CLI validated. Returns CodeDaemonUnavailable when the daemon is
+// not reachable so callers can fall back to direct execution against the same
+// typed cmd.
 func TryExecute(socketPath string, cmd action.Command) error {
 	socketPath = paths.ExpandHome(socketPath)
 
@@ -48,9 +49,7 @@ func TryExecute(socketPath string, cmd action.Command) error {
 
 	reader := bufio.NewReader(conn)
 
-	name, args := marshalCommand(cmd)
-
-	err = writeRequest(conn, Request{Action: name, Args: args})
+	err = writeRequest(conn, Request{Version: ProtocolVersion, Command: cmd})
 	if err != nil {
 		return err
 	}

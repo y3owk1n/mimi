@@ -39,9 +39,9 @@ func TestResize_ReproducesTheRecordedFrames(t *testing.T) {
 
 	for _, resize := range recording.Resize {
 		t.Run(resize.Name, func(t *testing.T) {
-			req, err := action.ParseResizeRequest(resize.Args)
+			req, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs(resize.Args))
 			if err != nil {
-				t.Fatalf("ParseResizeRequest(%v) error = %v", resize.Args, err)
+				t.Fatalf("ResizeRequestFromArgs(%+v) error = %v", resize.Args, err)
 			}
 
 			got := baseline.Rect(geometry.Resize(resize.Start.Geometry(), screen, req))

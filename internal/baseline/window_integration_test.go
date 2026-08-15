@@ -21,8 +21,6 @@ package baseline_test
 import (
 	"math"
 	"os"
-	"slices"
-	"strconv"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -89,25 +87,19 @@ const (
 	dirRight = "right"
 )
 
-// The resize_window flags and preset name the cases are built from.
-const (
-	flagWidth         = "--width"
-	flagHeight        = "--height"
-	flagWidthPercent  = "--width-percent"
-	flagHeightPercent = "--height-percent"
-	flagAnchor        = "--anchor"
-	flagX             = "--x"
-	flagY             = "--y"
-	flagMargin        = "--margin"
-	flagNoMargin      = "--no-margin"
+// The preset name the cases are built from.
+const presetLeftHalf = "left-half"
 
-	presetLeftHalf = "left-half"
+// The two percentages the percentage cases ask for.
+const (
+	widthPercent  = 45.0
+	heightPercent = 55.0
 )
 
 // resizeSpec is one resize_window invocation the baseline covers.
 type resizeSpec struct {
 	name string
-	args []string
+	args action.ResizeWindowArgs
 }
 
 func TestWindowBaseline_ResizeAndFocus(t *testing.T) {
@@ -230,7 +222,7 @@ func (h *harness) runResizeCases(
 		start, got := h.runResize(t, spec.args)
 		observed = append(observed, baseline.ResizeCase{
 			Name:  spec.name,
-			Args:  spec.args,
+			Args:  baseline.ResizeArgs(spec.args),
 			Start: start,
 			Want:  got,
 		})
@@ -245,9 +237,9 @@ func (h *harness) runResizeCases(
 				t.Fatalf("no recorded baseline for this case; re-record with %s=1", recordEnv)
 			}
 
-			if !slices.Equal(want.Args, spec.args) {
+			if want.Args != baseline.ResizeArgs(spec.args) {
 				t.Fatalf(
-					"the recording covers args %v but the recorder ran %v; re-record with %s=1",
+					"the recording covers args %+v but the recorder ran %+v; re-record with %s=1",
 					want.Args,
 					spec.args,
 					recordEnv,
@@ -265,7 +257,7 @@ func (h *harness) runResizeCases(
 
 			if got != want.Want {
 				t.Errorf(
-					"resize_window %v produced %s, baseline says %s",
+					"resize_window %+v produced %s, baseline says %s",
 					spec.args,
 					got,
 					want.Want,
@@ -279,7 +271,10 @@ func (h *harness) runResizeCases(
 
 // runResize parks the recorder's own window at the shared start frame, runs one
 // resize_window invocation against it and reports the frames either side.
-func (h *harness) runResize(t *testing.T, args []string) (baseline.Rect, baseline.Rect) {
+func (h *harness) runResize(
+	t *testing.T,
+	args action.ResizeWindowArgs,
+) (baseline.Rect, baseline.Rect) {
 	t.Helper()
 
 	target := h.windows[0]
@@ -299,14 +294,19 @@ func (h *harness) runResize(t *testing.T, args []string) (baseline.Rect, baselin
 	// rather than a silently wrong recording.
 	bringToFront(t, target)
 
-	err := action.Execute(string(action.NameResizeWindow), args)
+	resizeCmd, err := action.NewResizeWindowCommand(args)
 	if err != nil {
-		t.Fatalf("resize_window %v failed: %v", args, err)
+		t.Fatalf("resize_window %+v is not a command: %v", args, err)
+	}
+
+	err = action.ExecuteCommand(resizeCmd)
+	if err != nil {
+		t.Fatalf("resize_window %+v failed: %v", args, err)
 	}
 
 	if !isFrontmost(target) {
 		t.Fatalf(
-			"focus moved off the recorder's own window while resize_window %v ran",
+			"focus moved off the recorder's own window while resize_window %+v ran",
 			args,
 		)
 	}
@@ -332,10 +332,13 @@ func (h *harness) resizeSpecs() []resizeSpec {
 
 	for _, preset := range presets {
 		specs = append(specs,
-			resizeSpec{name: "preset/" + preset + "/margin", args: []string{preset, flagMargin}},
+			resizeSpec{
+				name: "preset/" + preset + "/margin",
+				args: action.ResizeWindowArgs{Preset: preset, UseMargin: true},
+			},
 			resizeSpec{
 				name: "preset/" + preset + "/no-margin",
-				args: []string{preset, flagNoMargin},
+				args: action.ResizeWindowArgs{Preset: preset, NoMargin: true},
 			},
 		)
 	}
@@ -343,75 +346,110 @@ func (h *harness) resizeSpecs() []resizeSpec {
 	// The one case that exercises the system margin setting rather than a flag.
 	specs = append(
 		specs,
-		resizeSpec{name: "preset/left-half/system-default", args: []string{presetLeftHalf}},
+		resizeSpec{
+			name: "preset/left-half/system-default",
+			args: action.ResizeWindowArgs{Preset: presetLeftHalf},
+		},
 	)
 
-	width := strconv.Itoa(fixedWidth)
-	height := strconv.Itoa(fixedHeight)
+	sized := action.ResizeWindowArgs{
+		Width: fixedWidth, WidthSet: true,
+		Height: fixedHeight, HeightSet: true,
+	}
 
 	for _, anchor := range anchors {
-		sized := []string{flagWidth, width, flagHeight, height, flagAnchor, anchor}
+		anchored := sized
+		anchored.Anchor, anchored.AnchorSet = anchor, true
+
+		withMargin, withoutMargin := anchored, anchored
+		withMargin.UseMargin = true
+		withoutMargin.NoMargin = true
+
 		specs = append(specs,
-			resizeSpec{
-				name: "anchor/" + anchor + "/margin",
-				args: append(slices.Clone(sized), flagMargin),
-			},
-			resizeSpec{
-				name: "anchor/" + anchor + "/no-margin",
-				args: append(slices.Clone(sized), flagNoMargin),
-			},
+			resizeSpec{name: "anchor/" + anchor + "/margin", args: withMargin},
+			resizeSpec{name: "anchor/" + anchor + "/no-margin", args: withoutMargin},
 		)
 	}
 
-	posX := strconv.Itoa(int(h.visible.X) + explicitOffsetX)
-	posY := strconv.Itoa(int(h.top) + explicitOffsetY)
+	posX := int(h.visible.X) + explicitOffsetX
+	posY := int(h.top) + explicitOffsetY
 
 	return append(specs,
 		resizeSpec{
 			name: "explicit/width-height",
-			args: []string{flagWidth, width, flagHeight, height, flagNoMargin},
+			args: action.ResizeWindowArgs{
+				Width: fixedWidth, WidthSet: true,
+				Height: fixedHeight, HeightSet: true,
+				NoMargin: true,
+			},
 		},
 		resizeSpec{
 			name: "explicit/width-only",
-			args: []string{flagWidth, width, flagNoMargin},
+			args: action.ResizeWindowArgs{Width: fixedWidth, WidthSet: true, NoMargin: true},
 		},
 		resizeSpec{
 			name: "explicit/height-only",
-			args: []string{flagHeight, height, flagNoMargin},
+			args: action.ResizeWindowArgs{Height: fixedHeight, HeightSet: true, NoMargin: true},
 		},
 		resizeSpec{
 			name: "explicit/percent",
-			args: []string{flagWidthPercent, "45", flagHeightPercent, "55", flagNoMargin},
+			args: action.ResizeWindowArgs{
+				WidthPercent: widthPercent, WidthPercentSet: true,
+				HeightPercent: heightPercent, HeightPercentSet: true,
+				NoMargin: true,
+			},
 		},
 		resizeSpec{
 			name: "explicit/percent-margin",
-			args: []string{flagWidthPercent, "45", flagHeightPercent, "55", flagMargin},
+			args: action.ResizeWindowArgs{
+				WidthPercent: widthPercent, WidthPercentSet: true,
+				HeightPercent: heightPercent, HeightPercentSet: true,
+				UseMargin: true,
+			},
 		},
 		resizeSpec{
 			name: "explicit/position",
-			args: []string{flagX, posX, flagY, posY, flagNoMargin},
+			args: action.ResizeWindowArgs{
+				X: posX, XSet: true,
+				Y: posY, YSet: true,
+				NoMargin: true,
+			},
 		},
 		resizeSpec{
 			name: "explicit/position-size",
-			args: []string{
-				flagX, posX, flagY, posY,
-				flagWidth, width, flagHeight, height, flagNoMargin,
+			args: action.ResizeWindowArgs{
+				X: posX, XSet: true,
+				Y: posY, YSet: true,
+				Width: fixedWidth, WidthSet: true,
+				Height: fixedHeight, HeightSet: true,
+				NoMargin: true,
 			},
 		},
 		resizeSpec{
 			name: "explicit/position-size-margin",
-			args: []string{
-				flagX, posX, flagY, posY,
-				flagWidth, width, flagHeight, height, flagMargin,
+			args: action.ResizeWindowArgs{
+				X: posX, XSet: true,
+				Y: posY, YSet: true,
+				Width: fixedWidth, WidthSet: true,
+				Height: fixedHeight, HeightSet: true,
+				UseMargin: true,
 			},
 		},
 		resizeSpec{
 			name: "explicit/preset-with-anchor",
-			args: []string{presetLeftHalf, flagAnchor, "br", flagNoMargin},
+			args: action.ResizeWindowArgs{
+				Preset: presetLeftHalf,
+				Anchor: "br", AnchorSet: true,
+				NoMargin: true,
+			},
 		},
 		resizeSpec{
 			name: "explicit/preset-with-width",
-			args: []string{presetLeftHalf, flagWidth, width, flagNoMargin},
+			args: action.ResizeWindowArgs{
+				Preset: presetLeftHalf,
+				Width:  fixedWidth, WidthSet: true,
+				NoMargin: true,
+			},
 		},
 	)
 }

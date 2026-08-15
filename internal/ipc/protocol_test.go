@@ -22,25 +22,38 @@ func TestResponseFromError(t *testing.T) {
 	}
 }
 
-func TestWriteReadRequestRoundTrip(t *testing.T) {
+// TestErrorSurvivesTheResponseRoundTripUnchanged pins that an error the daemon
+// answers with reads, back at the CLI, exactly as it read where it was raised.
+// The code travels in its own field, so leaving it in the message too is what
+// used to print it twice on the daemon path and once on the direct one.
+func TestErrorSurvivesTheResponseRoundTripUnchanged(t *testing.T) {
 	t.Parallel()
 
-	var buf bytes.Buffer
-
-	req := Request{Action: "space", Args: []string{"2"}}
-
-	err := writeRequest(&buf, req)
-	if err != nil {
-		t.Fatal(err)
+	tests := []error{
+		derrors.New(
+			derrors.CodeInvalidInput,
+			"space number 9 is out of range; valid range is 1..3",
+		),
+		derrors.Wrapf(
+			derrors.New(derrors.CodeAccessibilityFailed, "macOS said no"),
+			derrors.CodeActionFailed,
+			"failed to activate window",
+		),
 	}
 
-	got, err := readRequest(bufio.NewReader(&buf))
-	if err != nil {
-		t.Fatal(err)
-	}
+	for _, want := range tests {
+		t.Run(want.Error(), func(t *testing.T) {
+			t.Parallel()
 
-	if got.Action != req.Action || len(got.Args) != 1 || got.Args[0] != "2" {
-		t.Fatalf("unexpected request: %+v", got)
+			got := errorFromResponse(responseFromError(want))
+			if got == nil {
+				t.Fatal("errorFromResponse() = nil, want an error")
+			}
+
+			if got.Error() != want.Error() {
+				t.Errorf("round trip = %q, want %q", got.Error(), want.Error())
+			}
+		})
 	}
 }
 

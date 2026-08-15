@@ -7,6 +7,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
@@ -37,7 +38,7 @@ func TestServerHandleConnEnqueueTimeout(t *testing.T) {
 	// Write a request from the client side of the pipe.
 	writeErr := writeRequest(
 		clientConn,
-		Request{Action: "anything", Args: nil},
+		Request{Version: ProtocolVersion, Command: action.Command{Name: action.NameSpace}},
 	)
 	if writeErr != nil {
 		t.Fatalf("writeRequest: %v", writeErr)

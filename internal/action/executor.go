@@ -47,13 +47,9 @@ func (e *Executor) FocusWindow(backward bool, direction string) error {
 	}
 
 	if direction != "" {
-		dir, ok := geometry.ParseDirection(direction)
-		if !ok {
-			return derrors.Newf(
-				derrors.CodeInvalidInput,
-				"unknown direction %q (use up, down, left, or right)",
-				direction,
-			)
+		dir, err := parseFocusDirection(direction)
+		if err != nil {
+			return err
 		}
 
 		return e.focusDirectional(windows, focusedIndex, dir)

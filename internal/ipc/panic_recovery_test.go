@@ -4,6 +4,8 @@ import (
 	"strings"
 	"testing"
 	"time"
+
+	"github.com/y3owk1n/mimi/internal/action"
 )
 
 // TestActionWorkerRecoversFromPanic verifies that a panic inside the
@@ -14,7 +16,7 @@ func TestActionWorkerRecoversFromPanic(t *testing.T) {
 	t.Parallel()
 
 	server := NewServer(t.TempDir() + "/unused.sock")
-	server.execute = func(string, []string) error {
+	server.execute = func(action.Command) error {
 		panic("simulated action panic")
 	}
 
@@ -46,7 +48,7 @@ func TestActionWorkerRecoversFromPanic(t *testing.T) {
 
 	// 2) Replace the runner with a successful one, then send a second
 	//    job to prove the worker is still alive and consuming.
-	server.execute = func(string, []string) error { return nil }
+	server.execute = func(action.Command) error { return nil }
 
 	second := newJob()
 	server.actionCh <- second.job
@@ -72,7 +74,7 @@ func newJob() jobFixture {
 	done := make(chan error, 1)
 
 	return jobFixture{
-		job:  actionJob{name: "anything", args: nil, done: done},
+		job:  actionJob{cmd: action.Command{Name: action.NameSpace}, done: done},
 		done: done,
 	}
 }

@@ -30,17 +30,16 @@ type Server struct {
 
 	actionCh       chan actionJob
 	enqueueTimeout time.Duration
-	// execute is the per-job action runner; defaults to action.Execute and
-	// is exposed as a field so tests can inject panicking/failing runners
+	// execute is the per-job action runner; defaults to action.ExecuteCommand
+	// and is exposed as a field so tests can inject panicking/failing runners
 	// to exercise the worker recovery and shutdown paths.
-	execute      func(name string, args []string) error
+	execute      func(cmd action.Command) error
 	once         sync.Once
 	shutdownOnce sync.Once
 }
 
 type actionJob struct {
-	name string
-	args []string
+	cmd  action.Command
 	done chan error
 }
 
@@ -50,7 +49,7 @@ func NewServer(path string) *Server {
 		path:           paths.ExpandHome(path),
 		actionCh:       make(chan actionJob),
 		enqueueTimeout: actionEnqueueTimeout,
-		execute:        action.Execute,
+		execute:        action.ExecuteCommand,
 	}
 }
 
@@ -121,7 +120,7 @@ func (s *Server) startActionWorker() {
 					}
 				}()
 
-				job.done <- s.execute(job.name, job.args)
+				job.done <- s.execute(job.cmd)
 			}()
 		}
 	}()
@@ -141,7 +140,7 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	done := make(chan error, 1)
 	select {
-	case s.actionCh <- actionJob{name: req.Action, args: req.Args, done: done}:
+	case s.actionCh <- actionJob{cmd: req.Command, done: done}:
 	case <-time.After(s.enqueueTimeout):
 		_ = writeResponse(conn, responseFromError(derrors.New(
 			derrors.CodeIPCFailed,

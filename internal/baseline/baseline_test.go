@@ -52,8 +52,8 @@ func TestLoad_CasesAreUsableAsFixtures(t *testing.T) {
 
 		seen[resize.Name] = true
 
-		if len(resize.Args) == 0 {
-			t.Errorf("resize case %q has no args", resize.Name)
+		if resize.Args == (baseline.ResizeArgs{}) {
+			t.Errorf("resize case %q asks resize_window for nothing", resize.Name)
 		}
 
 		if resize.Want.W <= 0 || resize.Want.H <= 0 {

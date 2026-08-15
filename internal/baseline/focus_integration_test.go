@@ -122,7 +122,18 @@ func (h *harness) runFocus(t *testing.T, center *native.Element, dir string) bas
 		)
 	}
 
-	err := action.Execute(string(action.NameFocusWindow), []string{"--" + dir})
+	focusCmd, err := action.NewFocusWindowCommand(
+		false,
+		dir == dirUp,
+		dir == dirDown,
+		dir == dirLeft,
+		dir == dirRight,
+	)
+	if err != nil {
+		t.Fatalf("focus_window --%s is not a command: %v", dir, err)
+	}
+
+	err = action.ExecuteCommand(focusCmd)
 	if err != nil {
 		t.Fatalf("focus_window --%s failed: %v", dir, err)
 	}

@@ -30,12 +30,11 @@ func TestExecutor_ResizeWindow_WritesTheResizedFrame(t *testing.T) {
 
 	desktop := desktopWithOneWindow()
 
-	err := action.NewExecutor(desktop).Execute(
-		string(action.NameResizeWindow),
-		[]string{"--width", "400"},
+	err := action.NewExecutor(desktop).ExecuteCommand(
+		resizeCommandFor(t, action.ResizeWindowArgs{Width: 400, WidthSet: true}),
 	)
 	if err != nil {
-		t.Fatalf("Execute(resize_window) error = %v, want nil", err)
+		t.Fatalf("ExecuteCommand(resize_window) error = %v, want nil", err)
 	}
 
 	if got := desktop.windows[0].frame.W; got != 400 {
