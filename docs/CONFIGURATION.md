@@ -93,12 +93,16 @@ log), the `reason` a hook was skipped (a fixed string, e.g.
 non-empty title). They never record the window title itself or a hook's
 `run` command text, even at `debug`.
 
-This does not cover every log line that touches hook data. The `"hook ok"` /
-`"hook timed out"` / `"hook failed"` lines emitted after a hook finishes
-running still include the hook's `run` command as `cmd` — that gap is not
-closed here and remains open against AGENTS.md's "never log ... hook command
-contents" rule. Only the `"event"` and `"hook matched"` / `"hook skipped"`
-lines described above carry the no-payload guarantee.
+The `"hook ok"` / `"hook timed out"` / `"hook failed"` lines emitted after a
+hook finishes running follow the same rule: they identify the hook by the
+same `index`, and none of them records the `run` command text.
+
+One gap remains. The `"hook ok"` line still logs the hook's own captured
+stdout and stderr as `output` (trimmed, and capped at 64 KiB). That is hook
+output, i.e. a user payload, and it is an open exception to AGENTS.md's
+"never log ... other user payloads" rule. It is emitted only at
+`log_level = "debug"`; at `info` and above no hook output reaches the log,
+and the `"hook failed"` line reports the failure through `exit` alone.
 
 ---
 

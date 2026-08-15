@@ -383,3 +383,234 @@ func TestHandle_LogsHookIndexNotCommand(t *testing.T) {
 		}
 	}
 }
+
+// assertNoLeak fails the test if any observed log entry carries the hook's
+// command text or the hook's own output in its message or any string field.
+func assertNoLeak(t *testing.T, logs *observer.ObservedLogs, secrets ...string) {
+	t.Helper()
+
+	for _, entry := range logs.All() {
+		for _, secret := range secrets {
+			if strings.Contains(entry.Message, secret) {
+				t.Errorf("log message leaked %q: %q", secret, entry.Message)
+			}
+
+			for key, val := range entry.ContextMap() {
+				s, ok := val.(string)
+				if ok && strings.Contains(s, secret) {
+					t.Errorf("log field %q leaked %q: %q", key, secret, s)
+				}
+			}
+		}
+	}
+}
+
+// TestRun_HookFailedLogsIndexWithoutCommandOrOutput pins the contract that the
+// "hook failed" line — which fires at ERROR, i.e. without the user opting into
+// anything — identifies the hook by its index within its kind and carries
+// neither the command text nor the hook's stdout/stderr. See issue #117.
+func TestRun_HookFailedLogsIndexWithoutCommandOrOutput(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secretCmd    = "printf 'sk-output-should-not-appear\\n'; exit 3"
+		secretOutput = "sk-output-should-not-appear"
+	)
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			AppActivate: []config.HookEntry{
+				{Run: testHookRun}, // index 0: succeeds
+				{Run: secretCmd},   // index 1: fails, printing a secret
+			},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	core, logs := observer.New(zapcore.DebugLevel)
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 5,
+		MaxHookWorkers:  1,
+	}
+	exec := NewExecutor(reg, cfg, zap.New(core).Sugar())
+
+	exec.Handle(events.Event{
+		Kind:    events.AppActivate,
+		ID:      "failed-test",
+		AppName: testAppName,
+	})
+
+	failedEntries := logs.FilterMessage("hook failed").All()
+	if len(failedEntries) != 1 {
+		t.Fatalf("got %d \"hook failed\" entries, want 1", len(failedEntries))
+	}
+
+	fields := failedEntries[0].ContextMap()
+
+	if _, hasCmd := fields["cmd"]; hasCmd {
+		t.Errorf("\"hook failed\" entry logged \"cmd\": %+v", fields)
+	}
+
+	if _, hasOutput := fields["output"]; hasOutput {
+		t.Errorf("\"hook failed\" entry logged \"output\": %+v", fields)
+	}
+
+	gotIndex, hasIndex := fields["index"]
+	if !hasIndex {
+		t.Fatalf("\"hook failed\" entry missing \"index\" field: %+v", fields)
+	}
+
+	if gotIndex != int64(1) {
+		t.Errorf("\"hook failed\" index = %v, want 1", gotIndex)
+	}
+
+	if _, hasExit := fields["exit"]; !hasExit {
+		t.Errorf("\"hook failed\" entry missing \"exit\" field: %+v", fields)
+	}
+
+	assertNoLeak(t, logs, secretCmd, secretOutput)
+}
+
+// TestRun_HookTimedOutLogsIndexNotCommand pins that the "hook timed out" line
+// — emitted at WARN, again without any opt-in — identifies the hook by index
+// and never by its command text. See issue #117.
+func TestRun_HookTimedOutLogsIndexNotCommand(t *testing.T) {
+	t.Parallel()
+
+	const secretCmd = "sleep 30 # sk-timeout-should-not-appear"
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			AppActivate: []config.HookEntry{
+				{Run: secretCmd, TimeoutSecs: 1},
+			},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	core, logs := observer.New(zapcore.DebugLevel)
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 30,
+		MaxHookWorkers:  1,
+	}
+	exec := NewExecutor(reg, cfg, zap.New(core).Sugar())
+
+	exec.Handle(events.Event{
+		Kind:    events.AppActivate,
+		ID:      "timeout-test",
+		AppName: testAppName,
+	})
+
+	timedOutEntries := logs.FilterMessage("hook timed out").All()
+	if len(timedOutEntries) != 1 {
+		t.Fatalf("got %d \"hook timed out\" entries, want 1", len(timedOutEntries))
+	}
+
+	fields := timedOutEntries[0].ContextMap()
+
+	if _, hasCmd := fields["cmd"]; hasCmd {
+		t.Errorf("\"hook timed out\" entry logged \"cmd\": %+v", fields)
+	}
+
+	gotIndex, hasIndex := fields["index"]
+	if !hasIndex {
+		t.Fatalf("\"hook timed out\" entry missing \"index\" field: %+v", fields)
+	}
+
+	if gotIndex != int64(0) {
+		t.Errorf("\"hook timed out\" index = %v, want 0", gotIndex)
+	}
+
+	if _, hasTimeout := fields["timeout"]; !hasTimeout {
+		t.Errorf("\"hook timed out\" entry missing \"timeout\" field: %+v", fields)
+	}
+
+	assertNoLeak(t, logs, secretCmd)
+}
+
+// TestRun_HookOkLogsIndexNotCommandAndKeepsOutput pins both halves of the
+// ruling on the debug path: "hook ok" identifies the hook by index rather
+// than by its command text, but deliberately still carries the hook's own
+// output, which is only ever emitted at debug. See issue #117.
+func TestRun_HookOkLogsIndexNotCommandAndKeepsOutput(t *testing.T) {
+	t.Parallel()
+
+	const (
+		secretCmd  = "printf 'hook-stdout-marker\\n' # sk-ok-should-not-appear"
+		wantOutput = "hook-stdout-marker"
+	)
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			AppActivate: []config.HookEntry{
+				{Run: testHookRun}, // index 0: succeeds silently
+				{Run: secretCmd},   // index 1: succeeds with output
+			},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	core, logs := observer.New(zapcore.DebugLevel)
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 5,
+		MaxHookWorkers:  1,
+	}
+	exec := NewExecutor(reg, cfg, zap.New(core).Sugar())
+
+	exec.Handle(events.Event{
+		Kind:    events.AppActivate,
+		ID:      "ok-test",
+		AppName: testAppName,
+	})
+
+	okEntries := logs.FilterMessage("hook ok").All()
+	if len(okEntries) != 2 {
+		t.Fatalf("got %d \"hook ok\" entries, want 2", len(okEntries))
+	}
+
+	for _, entry := range okEntries {
+		if _, hasCmd := entry.ContextMap()["cmd"]; hasCmd {
+			t.Errorf("\"hook ok\" entry logged \"cmd\": %+v", entry.ContextMap())
+		}
+
+		if _, hasIndex := entry.ContextMap()["index"]; !hasIndex {
+			t.Errorf("\"hook ok\" entry missing \"index\" field: %+v", entry.ContextMap())
+		}
+	}
+
+	fields := okEntries[1].ContextMap()
+
+	if gotIndex := fields["index"]; gotIndex != int64(1) {
+		t.Errorf("\"hook ok\" index = %v, want 1", gotIndex)
+	}
+
+	if _, hasElapsed := fields["elapsed"]; !hasElapsed {
+		t.Errorf("\"hook ok\" entry missing \"elapsed\" field: %+v", fields)
+	}
+
+	// The debug path deliberately keeps the hook's output; only the
+	// command text is removed.
+	if gotOutput := fields["output"]; gotOutput != wantOutput {
+		t.Errorf("\"hook ok\" output = %v, want %q", gotOutput, wantOutput)
+	}
+
+	assertNoLeak(t, logs, secretCmd)
+}
