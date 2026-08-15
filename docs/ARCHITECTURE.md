@@ -56,7 +56,7 @@ it is what checks that the real desktop behaves the way the fake pretends to.
 
 CLI actions pump the run loop briefly after posting events so gestures complete before the process exits.
 
-When the daemon is running, `mimi action` first tries the Unix socket at `settings.socket_file`. The daemon executes the action on a dedicated OS thread and returns the result. If the socket is unavailable, the CLI falls back to direct execution.
+When the daemon is running, `mimi action` first tries the Unix socket at `settings.socket_file`. The daemon executes the action on a dedicated OS thread and returns the result. If the socket is unavailable, the CLI falls back to direct execution. It falls back the same way when a daemon is listening but rejects the request because it accepts only the version its own build speaks, printing a warning naming the mismatch and the fix — the action still does what it was asked.
 
 Each action builds its command through the constructor `internal/action` gives it (`NewFocusWindowCommand`, `NewSpaceCommand`, `NewMoveWindowToSpaceCommand`, `NewResizeWindowCommand`), and those constructors validate as they build. A malformed argument is therefore rejected before either path is chosen — no socket is opened, and the message reads the same whether or not a daemon is listening.
 
