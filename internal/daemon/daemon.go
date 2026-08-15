@@ -294,7 +294,7 @@ func runSignalLoop(
 		select {
 		case <-quitCh:
 			logger.Info("shutting down from systray")
-			shutdown(cancel, pipeline)
+			shutdown(cancel, pipeline, logger)
 
 			return
 		case sig := <-sigCh:
@@ -305,7 +305,7 @@ func runSignalLoop(
 			}
 
 			logger.Infow("shutting down", "signal", sig)
-			shutdown(cancel, pipeline)
+			shutdown(cancel, pipeline, logger)
 
 			return
 		}
@@ -323,11 +323,25 @@ func reloadConfig(configPath string, cfgReloader *reloader, logger *zap.SugaredL
 	applyReload(cfgReloader, newCfg, reloadTriggerSighup, logger)
 }
 
-func shutdown(cancel context.CancelFunc, pipeline *eventPipeline) {
+func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.SugaredLogger) {
 	cancel()
 	native.StopObservers()
+	logEventDropCounts(native.EventDropCount(), pipeline.bus.DropCount(), logger)
 	pipeline.bus.Unsubscribe(pipeline.logSub)
 	pipeline.bus.Unsubscribe(pipeline.hookSub)
+}
+
+// logEventDropCounts logs the native observer's and the event bus's drop
+// counters as distinct fields. Shutdown is the first — and, per #94, the
+// only — place either count becomes observable: the native counter lives in
+// the daemon process's own address space (mimi status runs in the CLI
+// process and can never see it), and the bus has no other reader.
+func logEventDropCounts(nativeDropped, busDropped int64, logger *zap.SugaredLogger) {
+	logger.Infow(
+		"event drop counts",
+		"native_dropped", nativeDropped,
+		"bus_dropped", busDropped,
+	)
 }
 
 func writePID(path string) error {
