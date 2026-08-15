@@ -185,6 +185,11 @@ Install mimi as a launchd user agent for automatic startup at login.
 mimi services install
 ```
 
+The generated plist captures the daemon's stdout and stderr beside
+`settings.log_file`, creating that directory if missing, or in `/tmp` when
+`log_file` is unset. See
+[Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
+
 ### `mimi services uninstall`
 
 Remove the launchd agent.

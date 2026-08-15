@@ -48,9 +48,9 @@ func newServicesInstallCmd(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Install and load the system service",
-		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.",
+		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Install(state.configPath)
+			err := defaultService.Install(state.configPath, state.logFilePath())
 			if err != nil {
 				return err
 			}

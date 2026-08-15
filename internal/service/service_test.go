@@ -158,10 +158,15 @@ func TestService_Install_WritesThePlistAndBootstraps(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)
 
+	// A log directory that does not exist yet, as on a machine where the
+	// service is installed before mimi has ever run.
+	logDir := filepath.Join(dir, "state", "mimi")
+	logFile := filepath.Join(logDir, "mimi.log")
+
 	fake := &fakeLauncher{}
 	svc := &Service{launcher: fake}
 
-	err := svc.Install("/Users/test/.config/mimi/config.toml")
+	err := svc.Install("/Users/test/.config/mimi/config.toml", logFile)
 	if err != nil {
 		t.Fatalf("Install() = %v, want nil", err)
 	}
@@ -180,6 +185,27 @@ func TestService_Install_WritesThePlistAndBootstraps(t *testing.T) {
 	if !strings.Contains(string(content), "/Users/test/.config/mimi/config.toml") {
 		t.Errorf("installed plist does not carry the config path:\n%s", content)
 	}
+
+	// The captured streams land beside log_file, never on it.
+	if !strings.Contains(string(content), filepath.Join(logDir, "mimi.out.log")) {
+		t.Errorf("installed plist does not carry the derived stdout path:\n%s", content)
+	}
+
+	if strings.Contains(string(content), "<string>"+logFile+"</string>") {
+		t.Errorf("installed plist points a captured stream at log_file itself:\n%s", content)
+	}
+
+	// launchd opens both files at spawn and creates no directories, so a
+	// missing one silently discards the console output of the very first
+	// run — the startup crash these streams exist to capture.
+	info, err := os.Stat(logDir)
+	if err != nil {
+		t.Fatalf("Install() did not create the captured-stream directory: %v", err)
+	}
+
+	if !info.IsDir() {
+		t.Errorf("captured-stream path %s is not a directory", logDir)
+	}
 }
 
 func TestService_Install_FailsWhenAlreadyLoaded(t *testing.T) {
@@ -189,7 +215,10 @@ func TestService_Install_FailsWhenAlreadyLoaded(t *testing.T) {
 	fake := &fakeLauncher{loaded: true}
 	svc := &Service{launcher: fake}
 
-	err := svc.Install("/Users/test/.config/mimi/config.toml")
+	err := svc.Install(
+		"/Users/test/.config/mimi/config.toml",
+		filepath.Join(dir, "state", "mimi", "mimi.log"),
+	)
 	if err == nil {
 		t.Fatal("Install() = nil, want an error")
 	}
@@ -222,7 +251,10 @@ func TestService_Install_FailsWhenThePlistAlreadyExists(t *testing.T) {
 	fake := &fakeLauncher{}
 	svc := &Service{launcher: fake}
 
-	err = svc.Install("/Users/test/.config/mimi/config.toml")
+	err = svc.Install(
+		"/Users/test/.config/mimi/config.toml",
+		filepath.Join(dir, "state", "mimi", "mimi.log"),
+	)
 	if err == nil {
 		t.Fatal("Install() = nil, want an error")
 	}
@@ -233,5 +265,40 @@ func TestService_Install_FailsWhenThePlistAlreadyExists(t *testing.T) {
 
 	if fake.bootstrapped {
 		t.Error("Install() bootstrapped despite a pre-existing plist")
+	}
+}
+
+// TestService_Install_FailsWhenTheCapturedStreamDirectoryCannotBeCreated
+// pins that an unusable log_file directory is reported rather than swallowed:
+// launchd would otherwise load a service whose console output goes nowhere.
+func TestService_Install_FailsWhenTheCapturedStreamDirectoryCannotBeCreated(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	// A regular file where the log directory would have to be.
+	blocker := filepath.Join(dir, "state")
+
+	err := os.WriteFile(blocker, []byte("not a directory"), 0o644)
+	if err != nil {
+		t.Fatalf("seeding blocking file: %v", err)
+	}
+
+	fake := &fakeLauncher{}
+	svc := &Service{launcher: fake}
+
+	err = svc.Install(
+		"/Users/test/.config/mimi/config.toml",
+		filepath.Join(blocker, "mimi", "mimi.log"),
+	)
+	if err == nil {
+		t.Fatal("Install() = nil, want an error")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	if fake.bootstrapped {
+		t.Error("Install() bootstrapped despite an unusable log directory")
 	}
 }
