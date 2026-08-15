@@ -242,6 +242,10 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 	// The preset is checked first, as the positional argument it is, so a
 	// command carrying both a mistyped preset and a bad flag is rejected for
 	// the preset on this path too.
+	//
+	// The empty string is the argument nobody gave — what a command with no
+	// positional argument carries. Anything else is a name, whitespace
+	// included, and what it names is ParseResizePreset's decision alone.
 	var preset geometry.Preset
 
 	if args.Preset != "" {

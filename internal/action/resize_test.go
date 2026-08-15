@@ -4,6 +4,7 @@ import (
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
@@ -92,6 +93,41 @@ func TestResizeRequestFromArgs_MapsArgumentsOntoTheGeometryRequest(t *testing.T)
 
 			assertRequest(t, got, testCase.want)
 		})
+	}
+}
+
+// TestResizeRequestFromArgs_TrimsAPaddedPresetName covers mimi#132 where it
+// matters most: this conversion is what the daemon runs on a command it
+// decoded off the socket, with no CLI in front of it to trim the name first. A
+// padded preset therefore has to name its preset here, or the same argument
+// means one thing on the direct path and nothing on the daemon path.
+func TestResizeRequestFromArgs_TrimsAPaddedPresetName(t *testing.T) {
+	t.Parallel()
+
+	args := action.ResizeWindowArgs{Preset: " \t" + presetLeftHalf + " "}
+
+	got, err := action.ResizeRequestFromArgs(args)
+	if err != nil {
+		t.Fatalf("ResizeRequestFromArgs(%+v) error = %v", args, err)
+	}
+
+	assertRequest(t, got, geometry.Request{Preset: presetFor(t, presetLeftHalf)})
+}
+
+// TestResizeRequestFromArgs_RejectsAPresetNameThatIsOnlyWhitespace pins the
+// other half of that rule: whitespace is not part of a preset name, so an
+// argument made of nothing else names no preset and is rejected — on every
+// path, rather than quietly meaning "no preset" on the one that trimmed.
+func TestResizeRequestFromArgs_RejectsAPresetNameThatIsOnlyWhitespace(t *testing.T) {
+	t.Parallel()
+
+	_, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs{Preset: whitespaceOnlyArg})
+	if err == nil {
+		t.Fatal("ResizeRequestFromArgs(whitespace preset) error = nil, want an error")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("expected CodeInvalidInput, got %v", err)
 	}
 }
 

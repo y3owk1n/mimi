@@ -198,6 +198,19 @@ func malformedActionArgv() []malformedAction {
 		{name: "unknown anchor", argv: []string{resizeWindowCommandName, "--anchor", "xx"}},
 		{name: "unknown preset", argv: []string{resizeWindowCommandName, unknownPreset}},
 		{
+			// mimi#132: a padded name is trimmed by action.ParseResizePreset, so
+			// this is rejected for the name it carries and not for its padding.
+			name: "padded unknown preset",
+			argv: []string{resizeWindowCommandName, " " + unknownPreset + " "},
+		},
+		{
+			// mimi#132: whitespace is not part of a preset name, so an argument
+			// made of nothing else names no preset — and says so here rather
+			// than quietly resizing nothing.
+			name: "whitespace-only preset",
+			argv: []string{resizeWindowCommandName, "   "},
+		},
+		{
 			name: "a direction combined with --backward",
 			argv: []string{focusWindowCommandName, "--backward", "--up"},
 		},
