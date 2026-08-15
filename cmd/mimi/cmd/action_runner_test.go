@@ -6,11 +6,14 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"io"
 	"net"
 	"os"
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -56,6 +59,16 @@ func stateWithSocketConfig(t *testing.T, socketPath string) *cliState {
 	return &cliState{configPath: configWithSocket(t, socketPath)}
 }
 
+// discardErrCommand is the cobra command runAction is handed by a test that
+// does not read its warnings. Its error stream goes nowhere, so a warning the
+// test does not expect cannot reach the test binary's own stderr.
+func discardErrCommand() *cobra.Command {
+	cobraCmd := &cobra.Command{}
+	cobraCmd.SetErr(io.Discard)
+
+	return cobraCmd
+}
+
 // TestRunAction_RoutesToDaemonWhenListening pins the routing mimi#90 asks to
 // be documented and tested: since PR #88, runAction resolves socket_file
 // from the (now always-resolved) config path and finds a daemon listening on
@@ -73,7 +86,7 @@ func TestRunAction_RoutesToDaemonWhenListening(t *testing.T) {
 	// The fake daemon never inspects what was asked of it for this test.
 	serveOneResponse(t, socketPath, `{"ok":true}`)
 
-	err := state.runAction(action.Command{})
+	err := state.runAction(discardErrCommand(), action.Command{})
 	if err != nil {
 		t.Fatalf(
 			"runAction with a daemon listening on the configured socket = %v, want nil (it should have routed there instead of falling back to direct execution, which always errors on an empty action name)",
@@ -95,6 +108,11 @@ func TestRunAction_RoutesToDaemonWhenListening(t *testing.T) {
 // asserted on its parts rather than its wording — the cause, the fix, and the
 // path the action actually ran on — so it can be reworded without a test
 // change but cannot lose one of the three.
+//
+// It is read off the real tree's error stream, set on the root and inherited
+// by the leaf the warning is written from (mimi#140), which is how a caller
+// redirecting a command's error output captures this warning along with every
+// other message the command tree writes.
 func TestRunAction_FallsBackToDirectWhenTheDaemonSpeaksAnotherProtocol(t *testing.T) {
 	t.Parallel()
 
@@ -103,14 +121,20 @@ func TestRunAction_FallsBackToDirectWhenTheDaemonSpeaksAnotherProtocol(t *testin
 
 	var warnings bytes.Buffer
 
-	state.warnOut = &warnings
+	root := newRootCmd()
+	root.SetErr(&warnings)
+
+	leaf, _, err := root.Find([]string{"action", "space"})
+	if err != nil {
+		t.Fatalf("finding the action space command: %v", err)
+	}
 
 	serveOneResponse(t, socketPath, fmt.Sprintf(
 		`{"ok":false,"code":%q,"message":"daemon speaks request protocol version 1, client sent 2"}`,
 		derrors.CodeProtocolMismatch,
 	))
 
-	err := state.runAction(action.Command{})
+	err = state.runAction(leaf, action.Command{})
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf(
 			"runAction against a mismatched daemon = %v, want CodeInvalidInput from the direct path it should have fallen back to",
@@ -169,7 +193,7 @@ func TestRunAction_FallsBackToDirectWhenNoDaemonListening(t *testing.T) {
 	socketPath := filepath.Join(shortSocketDir(t), "mimi.sock")
 	state := stateWithSocketConfig(t, socketPath)
 
-	err := state.runAction(action.Command{})
+	err := state.runAction(discardErrCommand(), action.Command{})
 	if err == nil {
 		t.Fatal(
 			"expected runAction to fall back to direct execution and fail on the empty action name",
