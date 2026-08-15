@@ -12,7 +12,7 @@ import (
 type Component struct {
 	version             string
 	configPath          string
-	reload              func(context.Context, string) error
+	requestReload       func(context.Context, string) error
 	quit                func()
 	logger              *zap.SugaredLogger
 	showWorkspaceNumber bool
@@ -33,7 +33,7 @@ type Component struct {
 func NewComponent(
 	version string,
 	configPath string,
-	reload func(context.Context, string) error,
+	requestReload func(context.Context, string) error,
 	quit func(),
 	showWorkspaceNumber bool,
 	logger *zap.SugaredLogger,
@@ -47,7 +47,7 @@ func NewComponent(
 	return &Component{
 		version:             version,
 		configPath:          configPath,
-		reload:              reload,
+		requestReload:       requestReload,
 		quit:                quit,
 		showWorkspaceNumber: showWorkspaceNumber,
 		logger:              logger,
@@ -154,13 +154,18 @@ func (c *Component) openURL(url string, label string) {
 	}()
 }
 
+// handleReloadConfig asks the daemon to reload its config. The menu item is a
+// reload trigger and nothing more: it signals and returns, so it learns whether
+// the ask was delivered but never whether the config was applied. It therefore
+// reports a requested reload, the same thing `mimi config reload` prints. See
+// docs/adr/0002-reload-is-signal-mediated.md.
 func (c *Component) handleReloadConfig() {
-	err := c.reload(c.ctx, c.configPath)
+	err := c.requestReload(c.ctx, c.configPath)
 	if err != nil {
-		c.logger.Warnw("failed to reload config from systray", "err", err)
+		c.logger.Warnw("failed to request config reload from systray", "err", err)
 
 		return
 	}
 
-	c.logger.Info("configuration reloaded from systray")
+	c.logger.Info("config reload requested from systray")
 }

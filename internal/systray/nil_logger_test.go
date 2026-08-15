@@ -7,7 +7,8 @@ import (
 	"testing"
 )
 
-// errReloadFailed drives handleReloadConfig down its Warnw branch.
+// errReloadFailed drives handleReloadConfig down its Warnw branch. Shared with
+// reload_test.go, which pins what that branch logs.
 var errReloadFailed = errors.New("reload failed")
 
 // TestNewComponent_NilLogger pins the contract stated in AGENTS.md and
