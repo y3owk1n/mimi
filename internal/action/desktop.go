@@ -81,4 +81,11 @@ type Desktop interface {
 	// space at the given 1-based index, which the caller has already checked
 	// against SpaceCount.
 	MoveWindowToSpace(index int) error
+
+	// RefreshWorkspaceTitle brings any on-screen UI for the active space (the
+	// systray's title, on the desktop macOS itself runs) up to date after a
+	// space change. It is a no-op wherever there is nothing on screen to
+	// update, so every caller of FocusSpace or MoveWindowToSpace may call it
+	// unconditionally on success.
+	RefreshWorkspaceTitle()
 }

@@ -45,6 +45,10 @@ type fakeDesktop struct {
 	// windowSpace is the space the frontmost window sits on, which is what
 	// move_window_to_space is observed through.
 	windowSpace int
+
+	// refreshWorkspaceTitleCalls counts how many times the desktop's systray
+	// title was asked to catch up with the active space.
+	refreshWorkspaceTitleCalls int
 }
 
 func (d *fakeDesktop) EnsureAccessible() error {
@@ -160,6 +164,10 @@ func (d *fakeDesktop) MoveWindowToSpace(index int) error {
 	return nil
 }
 
+func (d *fakeDesktop) RefreshWorkspaceTitle() {
+	d.refreshWorkspaceTitleCalls++
+}
+
 // indexOf resolves a window id the way the real adapter's handle table does:
 // an id it never handed out is not a window.
 func (d *fakeDesktop) indexOf(windowID action.WindowID) (int, error) {
@@ -196,6 +204,16 @@ func desktopWithWindows(count, focused int) *fakeDesktop {
 	}
 
 	return desktop
+}
+
+// wantRefreshCalls fails unless the desktop's systray title was refreshed
+// exactly want times.
+func wantRefreshCalls(t *testing.T, desktop *fakeDesktop, want int) {
+	t.Helper()
+
+	if got := desktop.refreshWorkspaceTitleCalls; got != want {
+		t.Fatalf("refreshWorkspaceTitleCalls = %d, want %d", got, want)
+	}
 }
 
 // wantFocused fails unless the desktop ended up focused on want.

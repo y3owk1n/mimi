@@ -41,6 +41,10 @@ func TestExecutor_ResizeWindow_WritesTheResizedFrame(t *testing.T) {
 	if got := desktop.windows[0].frame.W; got != 400 {
 		t.Fatalf("window width = %v, want 400", got)
 	}
+
+	// Resizing never moves a window between spaces, so it must not touch the
+	// systray's workspace title the way space and move_window_to_space do.
+	wantRefreshCalls(t, desktop, 0)
 }
 
 func TestExecutor_ResizeWindow_ErrorPaths(t *testing.T) {
