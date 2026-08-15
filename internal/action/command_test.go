@@ -8,10 +8,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
-// TestNewFocusWindowArgs_BuildsTheTypedPayload pins the mapping from the
-// CLI's already-typed bools onto FocusWindowArgs, without a string round
-// trip.
-func TestNewFocusWindowArgs_BuildsTheTypedPayload(t *testing.T) {
+// TestNewFocusWindowCommand_BuildsTheTypedPayload pins the mapping from the
+// CLI's already-typed bools onto focus_window's command, without a string
+// round trip.
+func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 	t.Parallel()
 
 	tests := []struct {
@@ -32,7 +32,7 @@ func TestNewFocusWindowArgs_BuildsTheTypedPayload(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			t.Parallel()
 
-			got, err := action.NewFocusWindowArgs(
+			got, err := action.NewFocusWindowCommand(
 				testCase.backward,
 				testCase.up,
 				testCase.down,
@@ -40,22 +40,26 @@ func TestNewFocusWindowArgs_BuildsTheTypedPayload(t *testing.T) {
 				testCase.right,
 			)
 			if err != nil {
-				t.Fatalf("NewFocusWindowArgs() error = %v, want nil", err)
+				t.Fatalf("NewFocusWindowCommand() error = %v, want nil", err)
 			}
 
-			if got != testCase.want {
-				t.Fatalf("NewFocusWindowArgs() = %+v, want %+v", got, testCase.want)
+			if got.Name != action.NameFocusWindow {
+				t.Fatalf("Name = %q, want %q", got.Name, action.NameFocusWindow)
+			}
+
+			if got.FocusWindow != testCase.want {
+				t.Fatalf("FocusWindow = %+v, want %+v", got.FocusWindow, testCase.want)
 			}
 		})
 	}
 }
 
-func TestNewFocusWindowArgs_RejectsMoreThanOneDirection(t *testing.T) {
+func TestNewFocusWindowCommand_RejectsMoreThanOneDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowArgs(false, true, true, false, false)
+	_, err := action.NewFocusWindowCommand(false, true, true, false, false)
 	if err == nil {
-		t.Fatal("NewFocusWindowArgs(up, down) expected error")
+		t.Fatal("NewFocusWindowCommand(up, down) expected error")
 	}
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
@@ -63,12 +67,12 @@ func TestNewFocusWindowArgs_RejectsMoreThanOneDirection(t *testing.T) {
 	}
 }
 
-func TestNewFocusWindowArgs_RejectsBackwardWithDirection(t *testing.T) {
+func TestNewFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowArgs(true, true, false, false, false)
+	_, err := action.NewFocusWindowCommand(true, true, false, false, false)
 	if err == nil {
-		t.Fatal("NewFocusWindowArgs(backward, up) expected error")
+		t.Fatal("NewFocusWindowCommand(backward, up) expected error")
 	}
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
@@ -240,6 +244,207 @@ func TestResizeRequestFromArgs_InvalidAnchor(t *testing.T) {
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+}
+
+// TestNewSpaceCommands_ParseTheArgumentIntoTheirOwnField checks each space
+// constructor puts the parsed argument on the field its action reads, so the
+// name and the payload can no longer be paired up wrongly by hand.
+func TestNewSpaceCommands_ParseTheArgumentIntoTheirOwnField(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		arg  string
+		want action.SpaceArg
+	}{
+		{name: "absolute index", arg: "2", want: action.SpaceArg{Index: 2}},
+		{name: "next", arg: nextKeyword, want: action.SpaceArg{Direction: 1}},
+		{name: "prev", arg: prevKeyword, want: action.SpaceArg{Direction: -1}},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			spaceCmd, err := action.NewSpaceCommand([]string{testCase.arg})
+			if err != nil {
+				t.Fatalf("NewSpaceCommand(%q) error = %v, want nil", testCase.arg, err)
+			}
+
+			if spaceCmd.Name != action.NameSpace || spaceCmd.Space != testCase.want {
+				t.Fatalf(
+					"NewSpaceCommand(%q) = %+v, want %s carrying %+v",
+					testCase.arg,
+					spaceCmd,
+					action.NameSpace,
+					testCase.want,
+				)
+			}
+
+			moveCmd, err := action.NewMoveWindowToSpaceCommand([]string{testCase.arg})
+			if err != nil {
+				t.Fatalf("NewMoveWindowToSpaceCommand(%q) error = %v, want nil", testCase.arg, err)
+			}
+
+			if moveCmd.Name != action.NameMoveWindowToSpace ||
+				moveCmd.MoveWindowToSpace != testCase.want {
+				t.Fatalf(
+					"NewMoveWindowToSpaceCommand(%q) = %+v, want %s carrying %+v",
+					testCase.arg,
+					moveCmd,
+					action.NameMoveWindowToSpace,
+					testCase.want,
+				)
+			}
+		})
+	}
+}
+
+// TestNewSpaceCommands_RejectAMalformedArgument checks both space constructors
+// reject with ParseSpaceArg — the one rule mimi#124 left in place — rather than
+// a second copy of it.
+func TestNewSpaceCommands_RejectAMalformedArgument(t *testing.T) {
+	t.Parallel()
+
+	malformed := [][]string{
+		nil,
+		{""},
+		{"0"},
+		{"-1"},
+		{nonNumericArg},
+		{"1", "2"},
+	}
+
+	builders := []struct {
+		actionName action.Name
+		build      func([]string) (action.Command, error)
+	}{
+		{actionName: action.NameSpace, build: action.NewSpaceCommand},
+		{actionName: action.NameMoveWindowToSpace, build: action.NewMoveWindowToSpaceCommand},
+	}
+
+	for _, builder := range builders {
+		actionName, build := builder.actionName, builder.build
+
+		t.Run(string(actionName), func(t *testing.T) {
+			t.Parallel()
+
+			for _, args := range malformed {
+				_, err := build(args)
+				if err == nil {
+					t.Fatalf("%s %v: expected an error", actionName, args)
+				}
+
+				if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+					t.Fatalf("%s %v: expected CodeInvalidInput, got %v", actionName, args, err)
+				}
+
+				_, wantErr := action.ParseSpaceArg(actionName, args)
+				if err.Error() != wantErr.Error() {
+					t.Errorf(
+						"%s %v rejected with its own wording:\n got: %s\nwant: %s",
+						actionName,
+						args,
+						err,
+						wantErr,
+					)
+				}
+			}
+		})
+	}
+}
+
+// TestNewResizeWindowCommand_RejectsWhatTheConversionRejects covers mimi#126:
+// resize_window's command is built through a constructor that validates as it
+// builds, and it validates by running the conversion — so every argument the
+// conversion rejects is rejected at construction, in the conversion's own
+// words, before the command exists to be sent anywhere.
+func TestNewResizeWindowCommand_RejectsWhatTheConversionRejects(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name string
+		args action.ResizeWindowArgs
+	}{
+		{
+			name: "negative width",
+			args: action.ResizeWindowArgs{Width: -5, WidthSet: true},
+		},
+		{
+			name: "negative height",
+			args: action.ResizeWindowArgs{Height: -5, HeightSet: true},
+		},
+		{
+			name: "width-percent above 100",
+			args: action.ResizeWindowArgs{WidthPercent: 150, WidthPercentSet: true},
+		},
+		{
+			name: "negative height-percent",
+			args: action.ResizeWindowArgs{HeightPercent: -1, HeightPercentSet: true},
+		},
+		{
+			name: "unknown anchor",
+			args: action.ResizeWindowArgs{Anchor: "xx", AnchorSet: true},
+		},
+		{
+			name: "unknown preset",
+			args: action.ResizeWindowArgs{Preset: unknownPreset},
+		},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := action.NewResizeWindowCommand(testCase.args)
+			if err == nil {
+				t.Fatalf("NewResizeWindowCommand(%+v) expected an error", testCase.args)
+			}
+
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf("expected CodeInvalidInput, got %v", err)
+			}
+
+			_, wantErr := action.ResizeRequestFromArgs(testCase.args)
+			if err.Error() != wantErr.Error() {
+				t.Errorf(
+					"rejected with its own wording:\n got: %s\nwant: %s",
+					err,
+					wantErr,
+				)
+			}
+		})
+	}
+}
+
+// TestNewResizeWindowCommand_CarriesTheRawArgumentsUnchanged pins the other
+// half: a valid command keeps the raw flags it was built from, rather than the
+// geometry request the conversion made of them. Those raw flags are what the
+// socket carries (see docs/adr/0001-typed-versioned-daemon-wire.md); the
+// conversion runs here for its rejections, not for its result.
+func TestNewResizeWindowCommand_CarriesTheRawArgumentsUnchanged(t *testing.T) {
+	t.Parallel()
+
+	args := action.ResizeWindowArgs{
+		Preset: presetLeftHalf,
+		Width:  800, WidthSet: true,
+		Height: 600, HeightSet: true,
+		Anchor: "cc", AnchorSet: true,
+		NoMargin: true,
+	}
+
+	cmd, err := action.NewResizeWindowCommand(args)
+	if err != nil {
+		t.Fatalf("NewResizeWindowCommand(%+v) error = %v, want nil", args, err)
+	}
+
+	if cmd.Name != action.NameResizeWindow {
+		t.Fatalf("Name = %q, want %q", cmd.Name, action.NameResizeWindow)
+	}
+
+	if cmd.ResizeWindow != args {
+		t.Fatalf("ResizeWindow = %+v, want %+v", cmd.ResizeWindow, args)
 	}
 }
 

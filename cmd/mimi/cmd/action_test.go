@@ -2,8 +2,13 @@
 package cmd
 
 import (
+	"bufio"
 	"bytes"
+	"context"
+	"net"
+	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -11,8 +16,19 @@ import (
 	"github.com/y3owk1n/mimi/internal/action"
 )
 
-// actionCommandName is the parent every action subcommand hangs off.
-const actionCommandName = "action"
+const (
+	// actionCommandName is the parent every action subcommand hangs off.
+	actionCommandName = "action"
+
+	// The two action subcommands whose flags these tests malform, spelled the
+	// way the CLI takes them.
+	focusWindowCommandName  = string(action.NameFocusWindow)
+	resizeWindowCommandName = string(action.NameResizeWindow)
+
+	// unknownPreset is a name that is not one of the ten presets, and never
+	// becomes one.
+	unknownPreset = "left-third"
+)
 
 // resizeFlags parses args against a fresh resize_window flag set and returns
 // the typed payload resizeWindowArgsFromFlags builds from it, without
@@ -132,11 +148,9 @@ func TestResizeWindowArgsFromFlags_CarriesThePresetAndTheOtherFlags(t *testing.T
 func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
 	t.Parallel()
 
-	const unknownPreset = "left-third"
-
-	_, err := runCommand(t, actionCommandName, "resize_window", unknownPreset)
+	_, err := runCommand(t, actionCommandName, resizeWindowCommandName, unknownPreset)
 	if err == nil {
-		t.Fatalf("resize_window %s: expected an error", unknownPreset)
+		t.Fatalf("%s %s: expected an error", resizeWindowCommandName, unknownPreset)
 	}
 
 	_, wantErr := action.ParseResizePreset(unknownPreset)
@@ -146,15 +160,187 @@ func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
 }
 
 // TestFocusWindowCommand_RejectsBackwardWithDirection checks the CLI surfaces
-// action.NewFocusWindowArgs' validation before ever reaching the desktop —
-// this fails during flag validation, not execution, so it is safe to run
-// through the real command tree.
+// action.NewFocusWindowCommand's validation before ever reaching the desktop —
+// this fails while the command is being built, not while it runs, so it is
+// safe to run through the real command tree.
 func TestFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := runCommand(t, actionCommandName, "focus_window", "--backward", "--up")
+	_, err := runCommand(t, actionCommandName, focusWindowCommandName, "--backward", "--up")
 	if err == nil {
 		t.Fatal("expected an error combining --backward with a direction flag")
+	}
+}
+
+// malformedAction is one command line that names an action and gives it
+// arguments the action must reject.
+type malformedAction struct {
+	name string
+	argv []string
+}
+
+// malformedActionArgv lists one command line per way an action's arguments can
+// be malformed — every case mimi#126 names, plus the two space arguments,
+// which the subcommand's own argument check rejects on the same rule the
+// constructor calls. None of them can reach the desktop.
+func malformedActionArgv() []malformedAction {
+	return []malformedAction{
+		{name: "negative width", argv: []string{resizeWindowCommandName, "--width", "-5"}},
+		{name: "negative height", argv: []string{resizeWindowCommandName, "--height", "-5"}},
+		{
+			name: "width-percent above 100",
+			argv: []string{resizeWindowCommandName, "--width-percent", "150"},
+		},
+		{
+			name: "negative height-percent",
+			argv: []string{resizeWindowCommandName, "--height-percent", "-1"},
+		},
+		{name: "unknown anchor", argv: []string{resizeWindowCommandName, "--anchor", "xx"}},
+		{name: "unknown preset", argv: []string{resizeWindowCommandName, unknownPreset}},
+		{
+			name: "a direction combined with --backward",
+			argv: []string{focusWindowCommandName, "--backward", "--up"},
+		},
+		{name: "space zero", argv: []string{string(action.NameSpace), "0"}},
+		{
+			name: "move_window_to_space nonsense",
+			argv: []string{string(action.NameMoveWindowToSpace), "nxt"},
+		},
+	}
+}
+
+// listeningDaemon starts a Unix listener that answers every request the way a
+// daemon would, and returns the number of connections it has accepted. A
+// command that validates its arguments before routing them never makes that
+// count move.
+func listeningDaemon(t *testing.T, socketPath string) *atomic.Int64 {
+	t.Helper()
+
+	lc := net.ListenConfig{}
+
+	listener, err := lc.Listen(context.Background(), "unix", socketPath)
+	if err != nil {
+		t.Fatalf("listening on fake daemon socket: %v", err)
+	}
+
+	t.Cleanup(func() { _ = listener.Close() })
+
+	accepted := &atomic.Int64{}
+
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+
+			accepted.Add(1)
+
+			_, _ = bufio.NewReader(conn).ReadBytes('\n')
+			_, _ = conn.Write([]byte("{\"ok\":true}\n"))
+			_ = conn.Close()
+		}
+	}()
+
+	return accepted
+}
+
+// actionArgv builds the command line that runs argv as an action subcommand
+// against the config at configPath.
+func actionArgv(configPath string, argv []string) []string {
+	return append([]string{"--config", configPath, actionCommandName}, argv...)
+}
+
+// TestActionCommands_RejectMalformedArgumentsWithoutOpeningASocket covers
+// mimi#126: every action builds its command through a constructor that
+// validates, so a malformed argument fails in the CLI's own process — with a
+// daemon listening on the configured socket and never contacted.
+//
+// Each case then routes a command over the same socket, so an accepted count
+// that stayed at zero is read as "nothing was sent" rather than as "nothing
+// could have been": the empty command name below is one no action carries, so
+// it never reaches the desktop whichever path takes it.
+func TestActionCommands_RejectMalformedArgumentsWithoutOpeningASocket(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range malformedActionArgv() {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			socketPath := filepath.Join(shortSocketDir(t), "mimi.sock")
+			accepted := listeningDaemon(t, socketPath)
+			configPath := configWithSocket(t, socketPath)
+
+			_, err := runCommand(t, actionArgv(configPath, testCase.argv)...)
+			if err == nil {
+				t.Fatalf("%v: expected an error", testCase.argv)
+			}
+
+			if accepted.Load() != 0 {
+				t.Fatalf(
+					"%v reached the daemon: %d connection(s) accepted",
+					testCase.argv,
+					accepted.Load(),
+				)
+			}
+
+			err = (&cliState{configPath: configPath}).runAction(action.Command{})
+			if err != nil {
+				t.Fatalf("routing a command over the same socket = %v, want nil", err)
+			}
+
+			if accepted.Load() != 1 {
+				t.Fatalf(
+					"the socket registers nothing at all: %d connection(s) accepted after routing one command",
+					accepted.Load(),
+				)
+			}
+		})
+	}
+}
+
+// TestActionCommands_RejectMalformedArgumentsIdenticallyWithAndWithoutADaemon
+// is the user-visible half of mimi#126: the same malformed argument used to
+// read one way when a daemon was listening and another way when it was not,
+// because only one of the two paths checked it. Validating as the command is
+// built leaves one sentence for both.
+func TestActionCommands_RejectMalformedArgumentsIdenticallyWithAndWithoutADaemon(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range malformedActionArgv() {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			liveSocket := filepath.Join(shortSocketDir(t), "mimi.sock")
+			listeningDaemon(t, liveSocket)
+
+			// Nothing ever listens here, so this run falls back to the direct
+			// path — the other side of the behavior difference.
+			deadSocket := filepath.Join(shortSocketDir(t), "mimi.sock")
+
+			_, withDaemon := runCommand(
+				t,
+				actionArgv(configWithSocket(t, liveSocket), testCase.argv)...)
+			if withDaemon == nil {
+				t.Fatalf("%v with a daemon listening: expected an error", testCase.argv)
+			}
+
+			_, withoutDaemon := runCommand(
+				t,
+				actionArgv(configWithSocket(t, deadSocket), testCase.argv)...)
+			if withoutDaemon == nil {
+				t.Fatalf("%v with no daemon: expected an error", testCase.argv)
+			}
+
+			if withDaemon.Error() != withoutDaemon.Error() {
+				t.Errorf(
+					"%v reads differently depending on the daemon:\n with: %s\n without: %s",
+					testCase.argv,
+					withDaemon,
+					withoutDaemon,
+				)
+			}
+		})
 	}
 }
 

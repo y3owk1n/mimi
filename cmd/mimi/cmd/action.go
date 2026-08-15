@@ -71,7 +71,7 @@ in that direction based on screen position.
 Only windows that are focusable (not minimized, not hidden) and on the
 current space are included.`,
 		RunE: func(_ *cobra.Command, _ []string) error {
-			focusArgs, err := action.NewFocusWindowArgs(
+			focusCmd, err := action.NewFocusWindowCommand(
 				backward,
 				focusUp,
 				focusDown,
@@ -82,10 +82,7 @@ current space are included.`,
 				return err
 			}
 
-			return state.runAction(action.Command{
-				Name:        action.NameFocusWindow,
-				FocusWindow: focusArgs,
-			})
+			return state.runAction(focusCmd)
 		},
 	}
 
@@ -130,12 +127,12 @@ Examples:
   mimi action space prev     Cycle to the previous space (with wrap)`,
 		Args: validateSpaceArg(action.NameSpace),
 		RunE: func(_ *cobra.Command, args []string) error {
-			spaceArg, err := action.ParseSpaceArg(action.NameSpace, args)
+			spaceCmd, err := action.NewSpaceCommand(args)
 			if err != nil {
 				return err
 			}
 
-			return state.runAction(action.Command{Name: action.NameSpace, Space: spaceArg})
+			return state.runAction(spaceCmd)
 		},
 	}
 }
@@ -163,15 +160,12 @@ Examples:
   mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
 		Args: validateSpaceArg(action.NameMoveWindowToSpace),
 		RunE: func(_ *cobra.Command, args []string) error {
-			spaceArg, err := action.ParseSpaceArg(action.NameMoveWindowToSpace, args)
+			moveCmd, err := action.NewMoveWindowToSpaceCommand(args)
 			if err != nil {
 				return err
 			}
 
-			return state.runAction(action.Command{
-				Name:              action.NameMoveWindowToSpace,
-				MoveWindowToSpace: spaceArg,
-			})
+			return state.runAction(moveCmd)
 		},
 	}
 }
@@ -221,25 +215,18 @@ Examples:
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			preset := ""
-
 			if len(args) > 0 {
-				// The rule lives in action.ParseResizePreset, which the conversion
-				// this payload feeds applies again — this is the fail-fast
-				// copy of the call, not a second copy of the rule.
 				preset = strings.TrimSpace(args[0])
-
-				_, err := action.ParseResizePreset(preset)
-				if err != nil {
-					return err
-				}
 			}
 
-			resizeArgs := resizeWindowArgsFromFlags(cobraCmd, preset)
+			resizeCmd, err := action.NewResizeWindowCommand(
+				resizeWindowArgsFromFlags(cobraCmd, preset),
+			)
+			if err != nil {
+				return err
+			}
 
-			return state.runAction(action.Command{
-				Name:         action.NameResizeWindow,
-				ResizeWindow: resizeArgs,
-			})
+			return state.runAction(resizeCmd)
 		},
 	}
 
@@ -300,7 +287,10 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 // validateSpaceArg builds the Args validator for an action that takes one
 // space argument. Cobra keeps rejecting the argument before RunE runs — that
 // is what produces the usage output and the exit code — but the rule it
-// rejects with is action.ParseSpaceArg, the one place that rule lives.
+// rejects with is action.ParseSpaceArg, the one place that rule lives, and the
+// same rule the constructor in RunE calls. A malformed argument therefore
+// never gets as far as being built into a command, and reads the same either
+// way if it ever does.
 func validateSpaceArg(name action.Name) cobra.PositionalArgs {
 	return func(_ *cobra.Command, args []string) error {
 		_, err := action.ParseSpaceArg(name, args)

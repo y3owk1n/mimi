@@ -34,16 +34,24 @@ func shortSocketDir(t *testing.T) string {
 	return dir
 }
 
-// stateWithSocketConfig writes a minimal config setting socket_file to
-// socketPath and returns a cliState pointed at it — the setup both routing
-// tests below share.
-func stateWithSocketConfig(t *testing.T, socketPath string) *cliState {
+// configWithSocket writes a minimal config setting socket_file to socketPath
+// and returns the path it wrote it to — how a test points a command tree at a
+// socket of its own rather than the default one.
+func configWithSocket(t *testing.T, socketPath string) string {
 	t.Helper()
 
 	configPath := filepath.Join(t.TempDir(), "config.toml")
 	writeConfigFile(t, configPath, fmt.Sprintf("[settings]\nsocket_file = %q\n", socketPath))
 
-	return &cliState{configPath: configPath}
+	return configPath
+}
+
+// stateWithSocketConfig returns a cliState pointed at a config whose
+// socket_file is socketPath — the setup both routing tests below share.
+func stateWithSocketConfig(t *testing.T, socketPath string) *cliState {
+	t.Helper()
+
+	return &cliState{configPath: configWithSocket(t, socketPath)}
 }
 
 // TestRunAction_RoutesToDaemonWhenListening pins the routing mimi#90 asks to

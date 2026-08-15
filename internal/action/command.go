@@ -5,10 +5,22 @@ import (
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
-// Command is a fully-typed action instruction, built once by the caller
-// instead of round-tripped through the string arguments the IPC wire format
-// carries. Only the field matching Name is read; the others sit at their
-// zero value.
+// Command is one fully-specified, validated instance of an action, built once
+// by the caller instead of round-tripped through the string arguments the IPC
+// wire format carries. Only the field matching Name is read; the others sit at
+// their zero value.
+//
+// Build one through the constructor its action carries —
+// NewFocusWindowCommand, NewSpaceCommand, NewMoveWindowToSpaceCommand or
+// NewResizeWindowCommand. Each validates as it builds, so a command's
+// arguments are checked once, in one implementation, at the moment the command
+// comes into existence: the direct path and the daemon path then reject the
+// same argument in the same words, and neither reaches a socket to do it.
+//
+// The fields stay exported, which makes an ill-formed command unconventional
+// to build rather than impossible. That is deliberate: these payloads cross
+// the daemon's socket as JSON, where an unexported field encodes to {} and
+// reports no error (see docs/adr/0001-typed-versioned-daemon-wire.md).
 //
 // ExecuteCommand is the direct-execution counterpart to Execute: Execute
 // exists because the IPC wire format is strings, and ExecuteCommand exists
@@ -29,24 +41,71 @@ type FocusWindowArgs struct {
 	Direction string
 }
 
-// NewFocusWindowArgs builds focus_window's typed payload directly from the
-// CLI's already-typed flags, without a string round trip. It applies the
-// same rule parseFocusWindowArgs enforces on the string path: at most one
-// direction, and never alongside --backward.
-func NewFocusWindowArgs(
+// NewFocusWindowCommand builds focus_window's command directly from the CLI's
+// already-typed flags, without a string round trip. It applies the same rule
+// parseFocusWindowArgs enforces on the string path: at most one direction, and
+// never alongside --backward.
+func NewFocusWindowCommand(
 	backward, focusUp, focusDown, focusLeft, focusRight bool,
-) (FocusWindowArgs, error) {
+) (Command, error) {
 	direction, err := focusDirectionOf(focusUp, focusDown, focusLeft, focusRight)
 	if err != nil {
-		return FocusWindowArgs{}, err
+		return Command{}, err
 	}
 
 	err = validateFocusWindowCombo(direction, backward)
 	if err != nil {
-		return FocusWindowArgs{}, err
+		return Command{}, err
 	}
 
-	return FocusWindowArgs{Backward: backward, Direction: direction}, nil
+	return Command{
+		Name:        NameFocusWindow,
+		FocusWindow: FocusWindowArgs{Backward: backward, Direction: direction},
+	}, nil
+}
+
+// NewSpaceCommand builds space's command from the one positional argument the
+// action takes, rejecting an argument that names no space. The rule is
+// ParseSpaceArg's, called rather than restated.
+func NewSpaceCommand(args []string) (Command, error) {
+	spaceArg, err := ParseSpaceArg(NameSpace, args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameSpace, Space: spaceArg}, nil
+}
+
+// NewMoveWindowToSpaceCommand builds move_window_to_space's command from the
+// one positional argument the action takes. It is NewSpaceCommand's
+// counterpart: the same rule, reported against this action's name, landing on
+// the field this action reads.
+func NewMoveWindowToSpaceCommand(args []string) (Command, error) {
+	spaceArg, err := ParseSpaceArg(NameMoveWindowToSpace, args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameMoveWindowToSpace, MoveWindowToSpace: spaceArg}, nil
+}
+
+// NewResizeWindowCommand builds resize_window's command from the CLI's raw
+// flags, rejecting arguments the geometry cannot be asked for.
+//
+// It validates by running ResizeRequestFromArgs and keeping only its
+// rejection: the conversion from raw arguments to a geometry request is the
+// rule, so a preset name, a size, a percentage or an anchor is checked here in
+// exactly the words every other path checks it in. The command keeps the raw
+// arguments rather than the request the conversion built, because those are
+// what the socket carries and the request is not something that survives the
+// trip.
+func NewResizeWindowCommand(args ResizeWindowArgs) (Command, error) {
+	_, err := ResizeRequestFromArgs(args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameResizeWindow, ResizeWindow: args}, nil
 }
 
 // focusDirectionOf turns the four direction flags into the one direction
