@@ -22,8 +22,9 @@ const (
 	pipelineWaitWindow = time.Second
 )
 
-// pipelineResult names setupEventPipeline's ten-value return so test bodies
-// can address the piece they care about instead of a wall of blanks.
+// pipelineResult flattens setupEventPipeline's *eventPipeline return (plus
+// its ctx/cancel/err) so test bodies can address the piece they care about
+// instead of a wall of blanks.
 type pipelineResult struct {
 	bus       *events.Bus
 	axTracker *observe.AXTracker
@@ -42,20 +43,24 @@ func runSetupEventPipeline(
 	logger *zap.SugaredLogger,
 	accessibilityGranted bool,
 ) pipelineResult {
-	bus, axTracker, router, reg, executor, logSub, hookSub, ctx, cancel, err := setupEventPipeline(
+	pipeline, ctx, cancel, err := setupEventPipeline(
 		cfg,
 		logger,
 		accessibilityGranted,
 	)
 
+	if pipeline == nil {
+		return pipelineResult{ctx: ctx, cancel: cancel, err: err}
+	}
+
 	return pipelineResult{
-		bus:       bus,
-		axTracker: axTracker,
-		router:    router,
-		reg:       reg,
-		executor:  executor,
-		logSub:    logSub,
-		hookSub:   hookSub,
+		bus:       pipeline.bus,
+		axTracker: pipeline.axTracker,
+		router:    pipeline.router,
+		reg:       pipeline.reg,
+		executor:  pipeline.executor,
+		logSub:    pipeline.logSub,
+		hookSub:   pipeline.hookSub,
 		ctx:       ctx,
 		cancel:    cancel,
 		err:       err,

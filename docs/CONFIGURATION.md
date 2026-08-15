@@ -11,17 +11,43 @@ mimi config reload     # reload running daemon (SIGHUP)
 
 ---
 
+## Reloading
+
+`mimi config reload` (SIGHUP) and the systray's reload menu item both trigger
+the same reload, and the daemon also picks up an edit to the config file on
+disk automatically (fsnotify). All three routes reload `[hooks]` and the
+subset of `[settings]` listed below; a bad config (e.g. an invalid `title`
+regex) leaves the previous, working config in place and logs the failure
+rather than applying it partially.
+
+**Restart-only** — these fields are read once at daemon startup and are not
+picked up by a reload; changing them requires restarting the daemon
+(`mimi daemon stop && mimi daemon start`, or equivalent):
+
+- `[systray]` (both `enabled` and `show_workspace_number`)
+- `settings.log_file`
+- `settings.log_level`
+- `settings.pid_file`
+- `settings.socket_file`
+
+Everything else in `[settings]` (`log_format`, `hook_timeout_secs`,
+`hook_shell`, `max_hook_workers`, `resize_debounce_ms`) and all of `[hooks]`
+take effect on the next reload.
+
+---
+
 ## Settings
 
 ```toml
 [settings]
-log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only
-log_level = "info"                           # debug | info | warn | error
+log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only — restart-only
+log_level = "info"                           # debug | info | warn | error — restart-only
 log_format = "text"                          # text | json — console output only
 hook_timeout_secs = 10
 hook_shell = "/bin/sh"
 max_hook_workers = 4
-pid_file = "~/.local/share/mimi/mimi.pid"
+pid_file = "~/.local/share/mimi/mimi.pid"    # restart-only
+socket_file = "~/.local/share/mimi/mimi.sock" # restart-only
 resize_debounce_ms = 250                     # on_window_resize debounce window
 ```
 
@@ -37,8 +63,8 @@ unrecognized value logs a warning and falls back to `text`.
 
 ```toml
 [systray]
-enabled = true
-show_workspace_number = true   # show active space number in menu bar
+enabled = true                 # restart-only
+show_workspace_number = true   # show active space number in menu bar — restart-only
 ```
 
 ---
