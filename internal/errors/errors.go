@@ -50,7 +50,7 @@ const (
 	CodeDaemonUnavailable Code = "DAEMON_UNAVAILABLE"
 
 	// CodeIPCFailed indicates a failure in IPC communication.
-	CodeIPCFailed Code = "IPCF_FAILED"
+	CodeIPCFailed Code = "IPC_FAILED"
 
 	// CodeServiceFailed indicates a failure managing the launchd service:
 	// rendering or writing its plist, or a launchctl invocation.
