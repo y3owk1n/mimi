@@ -103,19 +103,24 @@ const plistTemplate = `<?xml version="1.0" encoding="UTF-8"?>
 // each one is a path the user chose, and any of them may legally be named with
 // something that is markup here. Escaping changes nothing about an ordinary
 // path, which is why the golden test still pins the same bytes.
+//
+// It fills every token in one pass, over the template and never over its own
+// output, so that a substituted value is text the rendering is finished with.
+// A chain of passes could not promise that: a path is free to be named after
+// one of these tokens, and a later pass scanning an earlier pass's output would
+// find that name inside the user's path and replace it there too. See issue
+// #177, where a config path of "/Users/test/MIMI_SERVICE_PATH/config.toml"
+// rendered with the service PATH spliced into the middle of it.
 func renderPlist(binPath, configPath, logFile, servicePath string) string {
 	streams := capturedStreamsFor(logFile)
 
-	content := strings.ReplaceAll(plistTemplate, "MIMI_BINARY_PATH", escapeXMLText(binPath))
-	content = strings.ReplaceAll(content, "MIMI_CONFIG_PATH", escapeXMLText(configPath))
-	content = strings.ReplaceAll(content, "MIMI_STDOUT_PATH", escapeXMLText(streams.stdout))
-	content = strings.ReplaceAll(content, "MIMI_STDERR_PATH", escapeXMLText(streams.stderr))
-
-	return strings.ReplaceAll(
-		content,
-		"MIMI_SERVICE_PATH",
-		escapeXMLText(servicePathFor(servicePath)),
-	)
+	return strings.NewReplacer(
+		"MIMI_BINARY_PATH", escapeXMLText(binPath),
+		"MIMI_CONFIG_PATH", escapeXMLText(configPath),
+		"MIMI_STDOUT_PATH", escapeXMLText(streams.stdout),
+		"MIMI_STDERR_PATH", escapeXMLText(streams.stderr),
+		"MIMI_SERVICE_PATH", escapeXMLText(servicePathFor(servicePath)),
+	).Replace(plistTemplate)
 }
 
 // escapeXMLText renders a value as the XML text node it is substituted into, so
