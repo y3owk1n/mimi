@@ -1,6 +1,9 @@
 package events
 
-import "sync"
+import (
+	"sync"
+	"sync/atomic"
+)
 
 // Subscriber is a channel that receives events.
 type Subscriber chan Event
@@ -12,9 +15,10 @@ type KindFilter func(EventKind) bool
 
 // Bus is a pub-sub event bus that fans out events to subscribers.
 type Bus struct {
-	mu      sync.RWMutex
-	subs    []Subscriber
-	filters []KindFilter
+	mu        sync.RWMutex
+	subs      []Subscriber
+	filters   []KindFilter
+	dropCount atomic.Int64
 }
 
 // NewBus creates a new event bus.
@@ -74,6 +78,14 @@ func (b *Bus) Publish(evt Event) {
 		select {
 		case sub <- evt:
 		default:
+			b.dropCount.Add(1)
 		}
 	}
+}
+
+// DropCount returns the number of events Publish has discarded because a
+// subscriber's buffer was full. It counts every dropped delivery across all
+// subscribers, not per-subscriber.
+func (b *Bus) DropCount() int64 {
+	return b.dropCount.Load()
 }

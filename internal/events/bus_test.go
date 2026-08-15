@@ -111,8 +111,35 @@ func TestBus_Publish_DropsWhenSubscriberBufferFull(t *testing.T) {
 	bus := events.NewBus()
 	sub := bus.Subscribe(1)
 
+	if got := bus.DropCount(); got != 0 {
+		t.Fatalf("DropCount() before any drop = %d, want 0", got)
+	}
+
 	bus.Publish(events.Event{ID: "first", Kind: testKindA})
 	bus.Publish(events.Event{ID: "dropped", Kind: testKindA}) // buffer full; Publish must not block
+
+	if got := bus.DropCount(); got != 1 {
+		t.Errorf("DropCount() after 1 forced drop = %d, want 1", got)
+	}
+
+	// Keep the buffer full (do not drain it yet) so every further publish
+	// is forced to drop too, proving DropCount tallies across drops rather
+	// than latching at 1.
+	const extraDrops = 3
+
+	for range extraDrops {
+		bus.Publish(events.Event{ID: "dropped-again", Kind: testKindA})
+	}
+
+	const wantTotalDrops = 1 + extraDrops
+	if got := bus.DropCount(); got != wantTotalDrops {
+		t.Errorf(
+			"DropCount() after %d forced drops = %d, want %d",
+			wantTotalDrops,
+			got,
+			wantTotalDrops,
+		)
+	}
 
 	got, ok := recv(t, sub)
 	if !ok || got.ID != "first" {
