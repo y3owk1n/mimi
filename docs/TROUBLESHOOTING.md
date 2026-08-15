@@ -118,8 +118,10 @@ Notes on this:
   `creating log directory` error if that is not possible — fix `log_file` and
   install again.
 - The paths are baked into the plist at install time. After changing
-  `settings.log_file`, run `mimi services uninstall && mimi services install`
-  to regenerate it — a restart alone keeps the old paths.
+  `settings.log_file`, run `mimi services install` again to regenerate it — a
+  restart alone keeps the old paths. Install is idempotent: it replaces the
+  plist and reloads the service when the rendered plist differs, prints
+  `Service already up to date` and does nothing when it does not.
 - The Nix modules (`nix/darwin.nix`, `nix/home.nix`) write their own plists,
   which always use `/tmp/mimi.log` and `/tmp/mimi.err.log` regardless of
   `settings.log_file`.

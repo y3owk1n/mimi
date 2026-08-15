@@ -192,6 +192,22 @@ The generated plist captures the daemon's stdout and stderr beside
 `log_file` is unset. See
 [Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
 
+The plist is a snapshot of the config taken at install time, so running install
+again is how an installed service is brought back in line with a config that
+has moved since. It is idempotent and reports which of three things it did:
+
+| Output                                       | What happened                                                              |
+| -------------------------------------------- | -------------------------------------------------------------------------- |
+| `Service installed and loaded successfully`  | The service was not loaded; the plist was written and the service loaded.   |
+| `Service plist updated and service reloaded` | The plist disagreed with the config; it was replaced and the service reloaded. |
+| `Service already up to date`                 | The installed plist already matched. Nothing was written or reloaded.       |
+
+Install refuses rather than replaces when what it finds is not a plist it
+wrote: a symlink at `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` — the shape
+home-manager installs — or a loaded `com.y3owk1n.mimi` with no plist of mimi's
+behind it. Both errors name nix-darwin and home-manager, because the fix is in
+their configuration.
+
 ### `mimi services uninstall`
 
 Remove the launchd agent.
