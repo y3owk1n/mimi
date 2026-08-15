@@ -1,5 +1,61 @@
 # Changelog
 
+## [0.10.0](https://github.com/y3owk1n/mimi/compare/v0.9.2...v0.10.0) (2026-08-15)
+
+
+### Features
+
+* **cli:** cancel the running command on Ctrl-C instead of only killing the process ([#182](https://github.com/y3owk1n/mimi/issues/182)) ([bee3ee7](https://github.com/y3owk1n/mimi/commit/bee3ee7f545d95f381d4897d4897d81832a1e406))
+* **config,service:** let settings.service_path set the PATH the installed service runs with ([#167](https://github.com/y3owk1n/mimi/issues/167)) ([d1784ee](https://github.com/y3owk1n/mimi/commit/d1784eef962a2c9ba238fbc2e90582171fdbd3cd))
+* **daemon,config:** report the restart-only settings a reload could not apply ([#149](https://github.com/y3owk1n/mimi/issues/149)) ([818d585](https://github.com/y3owk1n/mimi/commit/818d585a5e3d229773d030a4f00cc71e63cffec2))
+* **daemon,service,cli:** keep the installed service's captured console logs bounded ([#168](https://github.com/y3owk1n/mimi/issues/168)) ([76117fe](https://github.com/y3owk1n/mimi/commit/76117fe659d16a6bd2f725613736d4b3ec5fd98e))
+* **events,daemon:** count event-bus drops and log them on shutdown ([#111](https://github.com/y3owk1n/mimi/issues/111)) ([c5e5e7d](https://github.com/y3owk1n/mimi/commit/c5e5e7df70238d1e46b9b1f48fa948adcc41469a))
+* **service,cli:** tell a running service apart from a merely loaded one ([#162](https://github.com/y3owk1n/mimi/issues/162)) ([c5e9c2f](https://github.com/y3owk1n/mimi/commit/c5e9c2fe12d88c4b132df1b197b37a9b075b4d90))
+* **systray:** show the last config reload's outcome in the tray menu ([#151](https://github.com/y3owk1n/mimi/issues/151)) ([f48b6fe](https://github.com/y3owk1n/mimi/commit/f48b6fe901dab19f7f43d53a57bdce72dd3f23de))
+
+
+### Bug Fixes
+
+* **action,cli:** reject --margin and --no-margin given together ([#143](https://github.com/y3owk1n/mimi/issues/143)) ([b5c1aec](https://github.com/y3owk1n/mimi/commit/b5c1aecaf679ed30c9b2321611c7656f38e70d8b))
+* **action,cli:** reject a negative --width or --height instead of ignoring it ([#110](https://github.com/y3owk1n/mimi/issues/110)) ([550dda6](https://github.com/y3owk1n/mimi/commit/550dda6f0e72c1fc44d780e2a22c697afc2f172a))
+* **action,cli:** trim a resize preset name in the rule, not at the CLI ([#136](https://github.com/y3owk1n/mimi/issues/136)) ([7a97ed7](https://github.com/y3owk1n/mimi/commit/7a97ed71f675f834dc504bd18f11db570339bcd6))
+* **action,ipc:** refresh the systray title on the direct-execution path too ([#100](https://github.com/y3owk1n/mimi/issues/100)) ([fb11325](https://github.com/y3owk1n/mimi/commit/fb11325dceed990879b4744e91e9fb564c91db3d))
+* **cli:** count hooks of every kind in config validate ([#89](https://github.com/y3owk1n/mimi/issues/89)) ([c099358](https://github.com/y3owk1n/mimi/commit/c099358be0922142e69010dc0f05bc2a544f6f34))
+* **cli:** print the usage block only when the command line was wrong ([#181](https://github.com/y3owk1n/mimi/issues/181)) ([e5d6918](https://github.com/y3owk1n/mimi/commit/e5d6918ecb8b1bad8853f8b673b6372213c89137))
+* **cli:** resolve the default config path for every command ([#88](https://github.com/y3owk1n/mimi/issues/88)) ([9f09697](https://github.com/y3owk1n/mimi/commit/9f096978b7bbcde61bb31ddb001851332ed1b2f8))
+* **config,cli,daemon:** reject unrecognised hook keys and unify hook validation errors ([#123](https://github.com/y3owk1n/mimi/issues/123)) ([544410e](https://github.com/y3owk1n/mimi/commit/544410e4b7cc322d7fb513d6ca8226e7025efa85))
+* **config,observe,hooks,systray:** tolerate a nil logger in every constructor that accepts one ([#119](https://github.com/y3owk1n/mimi/issues/119)) ([a889ffb](https://github.com/y3owk1n/mimi/commit/a889ffb38f176e1be66fd57fd973eb4f5c248967))
+* **config:** stop the watcher claiming a reload succeeded before it has ([#114](https://github.com/y3owk1n/mimi/issues/114)) ([6be2a62](https://github.com/y3owk1n/mimi/commit/6be2a62fc43636f91152968c98d69f8782c405c8))
+* **daemon:** report a failed config reload identically on every trigger ([#104](https://github.com/y3owk1n/mimi/issues/104)) ([8b6679f](https://github.com/y3owk1n/mimi/commit/8b6679f173bc1cc510b4eb5a9952f33e70069803))
+* **errors:** correct the IPC error code string and sync the documented list ([#115](https://github.com/y3owk1n/mimi/issues/115)) ([7ae5d00](https://github.com/y3owk1n/mimi/commit/7ae5d00afa6b19ad7edfb3523bcb5616f0763b38))
+* **geometry:** give every flush window edge its full tiled margin ([#77](https://github.com/y3owk1n/mimi/issues/77)) ([2ad9ca1](https://github.com/y3owk1n/mimi/commit/2ad9ca16b6963e86d4c9fcb550299daa4bcd6f71))
+* **geometry:** honor an explicit --anchor given alongside a resize preset ([#74](https://github.com/y3owk1n/mimi/issues/74)) ([ada0ba2](https://github.com/y3owk1n/mimi/commit/ada0ba2ed7a23db85d2fd023d667956d0141ccf8))
+* **geometry:** keep the requested window size when margins would leave nothing ([#76](https://github.com/y3owk1n/mimi/issues/76)) ([b7f680a](https://github.com/y3owk1n/mimi/commit/b7f680a92faada9f4a2ff0e2fe9e6e346768dbbe))
+* **hooks,observe:** stop logging hook commands and window titles at debug level ([#116](https://github.com/y3owk1n/mimi/issues/116)) ([62a44e8](https://github.com/y3owk1n/mimi/commit/62a44e8ca440ae47f864214d3f69ade812fe74c2))
+* **hooks:** stop logging hook commands and failing hook output at the default log level ([#120](https://github.com/y3owk1n/mimi/issues/120)) ([45fde14](https://github.com/y3owk1n/mimi/commit/45fde14591c9f3b674c0280106fd24ac5fe48ba8))
+* **ipc,cli:** detect a daemon on an older wire protocol and say so ([#135](https://github.com/y3owk1n/mimi/issues/135)) ([2dc8eee](https://github.com/y3owk1n/mimi/commit/2dc8eeedf1c63bea992f4c178d4b22323bf2227b))
+* **logging:** honor log_format for the console encoder ([#87](https://github.com/y3owk1n/mimi/issues/87)) ([437c1fe](https://github.com/y3owk1n/mimi/commit/437c1fefa096f67733147fd3e28fa7c92536002c))
+* **nix,daemon:** keep the module-installed service's captured console logs bounded ([#178](https://github.com/y3owk1n/mimi/issues/178)) ([c11ea3c](https://github.com/y3owk1n/mimi/commit/c11ea3c72dc4d483dba42905c55bc8571dfa289c))
+* **paths:** return path unchanged when home directory is unresolvable ([#113](https://github.com/y3owk1n/mimi/issues/113)) ([f21c785](https://github.com/y3owk1n/mimi/commit/f21c785400b8147e84fd10bc418823d115504ad5))
+* **service,cli:** fail services uninstall when a loaded service will not unload ([#163](https://github.com/y3owk1n/mimi/issues/163)) ([4c48a48](https://github.com/y3owk1n/mimi/commit/4c48a48adc8b936c3b292d1dff6ac3e3951cd124))
+* **service,cli:** make services install replace a stale plist instead of refusing ([#159](https://github.com/y3owk1n/mimi/issues/159)) ([21c55be](https://github.com/y3owk1n/mimi/commit/21c55be9f5f4e9477ef61587ea0bedc032048126))
+* **service,cli:** restart the service through launchd instead of a discarded stop ([#174](https://github.com/y3owk1n/mimi/issues/174)) ([e3df34f](https://github.com/y3owk1n/mimi/commit/e3df34f195e012aa3319172f2898e58cd78a67c8))
+* **service,cli:** stop reading a launchctl that cannot run as a service that is not loaded ([#171](https://github.com/y3owk1n/mimi/issues/171)) ([e925922](https://github.com/y3owk1n/mimi/commit/e925922b6bf521dcab65ad656b6ba676db40e7d4))
+* **service,cli:** wait for the old service to unload before loading the new plist ([#165](https://github.com/y3owk1n/mimi/issues/165)) ([b322a9f](https://github.com/y3owk1n/mimi/commit/b322a9fb049434dcd3476c55c8f8d99eb4a0b2fb))
+* **service,cli:** write the installed service's console log beside log_file ([#121](https://github.com/y3owk1n/mimi/issues/121)) ([e9a3d30](https://github.com/y3owk1n/mimi/commit/e9a3d30a2fa0a9364249e9933abf955214a13d02))
+* **service:** escape every value substituted into the launchd plist ([#176](https://github.com/y3owk1n/mimi/issues/176)) ([39f8297](https://github.com/y3owk1n/mimi/commit/39f82978d18599aa47f866b1fd1241d07c4fcf98))
+* **service:** stop the install refusal naming installs it never checked for ([#180](https://github.com/y3owk1n/mimi/issues/180)) ([693669f](https://github.com/y3owk1n/mimi/commit/693669f3a4d61c01984e9e5b5ffd013ecec4b1f2))
+* **service:** stop the installed plist mangling a path named after one of its placeholders ([#179](https://github.com/y3owk1n/mimi/issues/179)) ([00ea4fc](https://github.com/y3owk1n/mimi/commit/00ea4fc4b7dca7144963b2b6fba7347fda5ebf9b))
+* **space,native:** restore space switching on macOS 27 ([#150](https://github.com/y3owk1n/mimi/issues/150)) ([8443800](https://github.com/y3owk1n/mimi/commit/8443800e3259bd19fcfdfd99ddd1ce0bb87578cf))
+* **systray:** report a requested reload, not a completed one ([#148](https://github.com/y3owk1n/mimi/issues/148)) ([2521318](https://github.com/y3owk1n/mimi/commit/2521318464132097af970a9f58fb64a0776a2448))
+
+
+### Documentation
+
+* **architecture:** name both conditions that fall back to direct execution ([#141](https://github.com/y3owk1n/mimi/issues/141)) ([34fb1a6](https://github.com/y3owk1n/mimi/commit/34fb1a67f58d05a82836f9dc1313a5c3d803bfcf))
+* record reinstall-only as a third reloadability ([#158](https://github.com/y3owk1n/mimi/issues/158)) ([b421fc1](https://github.com/y3owk1n/mimi/commit/b421fc1d09e3f239dce1be9002c72423410a73e8))
+* record the domain glossary and the typed daemon wire decision ([995f6b7](https://github.com/y3owk1n/mimi/commit/995f6b78573a5374b7c3caa1b1bc2aaa5a8933a1))
+
 ## [0.9.2](https://github.com/y3owk1n/mimi/compare/v0.9.1...v0.9.2) (2026-07-16)
 
 
