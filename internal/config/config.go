@@ -2,6 +2,7 @@ package config
 
 import (
 	"fmt"
+	"slices"
 	"strings"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -12,6 +13,14 @@ type Config struct {
 	Settings SettingsConfig `json:"settings" toml:"settings"`
 	Hooks    HooksConfig    `json:"hooks"    toml:"hooks"`
 	Systray  SystrayConfig  `json:"systray"  toml:"systray"`
+
+	// UnknownHookKeys lists the keys found under [hooks] that name no hook
+	// kind, sorted. Loading records them rather than reporting them so each
+	// caller can decide: the daemon warns and carries on with the hooks it did
+	// understand, while `mimi config validate` names them and fails. It is not
+	// part of the config file, so it carries no toml tag, and it is excluded
+	// from JSON so `mimi config dump` keeps printing the config as written.
+	UnknownHookKeys []string `json:"-" toml:"-"`
 }
 
 // SettingsConfig holds the [settings] section of the config.
@@ -81,7 +90,14 @@ type rawSystrayConfig struct {
 	ShowWorkspaceNumber *bool `json:"showWorkspaceNumber" toml:"show_workspace_number"`
 }
 
-func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
+// decodeHooks turns the raw [hooks] table into a HooksConfig, and also returns
+// the keys it did not recognize so the caller can decide what to do about them.
+//
+// It reports only structural problems -- a key that is not a list, an entry
+// that is neither a string nor a table. Whether a decoded entry actually says
+// what to run is validate's business, so that a hook with no command reads the
+// same however it was written.
+func decodeHooks(raw rawHooksConfig) (HooksConfig, []string, error) {
 	var (
 		hooksCfg HooksConfig
 		errs     []string
@@ -108,20 +124,21 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 					entry.Async = async
 				}
 
-				if entry.Run == "" {
-					errs = append(errs, fmt.Sprintf("%s[%d]: 'run' field is required", field, idx))
-				}
-
 				entries = append(entries, entry)
 			default:
 				errs = append(
 					errs,
-					fmt.Sprintf("%s[%d]: expected string or table, got %T", field, idx, item),
+					fmt.Sprintf("hooks.%s[%d]: expected string or table, got %T", field, idx, item),
 				)
 			}
 		}
 
 		return entries
+	}
+
+	recognized := make(map[string]struct{}, len(HookKinds))
+	for _, name := range HookKindNames() {
+		recognized[name] = struct{}{}
 	}
 
 	for _, kind := range HookKinds {
@@ -130,7 +147,7 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 			errs = append(
 				errs,
 				fmt.Sprintf(
-					"%s: expected an array of hooks, got %T",
+					"hooks.%s: expected an array of hooks, got %T",
 					kind.TOMLKey,
 					raw[kind.TOMLKey],
 				),
@@ -142,15 +159,27 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, error) {
 		*kind.Entries(&hooksCfg) = decodeField(kind.TOMLKey, items)
 	}
 
+	var unknown []string
+
+	for key := range raw {
+		if _, ok := recognized[key]; !ok {
+			unknown = append(unknown, key)
+		}
+	}
+
+	// Map iteration order is random; sort so a config with several typos
+	// reports them the same way on every run.
+	slices.Sort(unknown)
+
 	if len(errs) > 0 {
-		return hooksCfg, derrors.Newf(
+		return hooksCfg, unknown, derrors.Newf(
 			derrors.CodeInvalidConfig,
 			"hook decode errors:\n  - %s",
 			strings.Join(errs, "\n  - "),
 		)
 	}
 
-	return hooksCfg, nil
+	return hooksCfg, unknown, nil
 }
 
 // rawHookItems normalizes the two shapes the TOML decoder produces for a hook

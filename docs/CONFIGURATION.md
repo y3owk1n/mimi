@@ -118,6 +118,11 @@ show_workspace_number = true   # show active space number in menu bar — restar
 
 ## Hooks
 
+The hook kinds below are the complete set — `[hooks]` accepts no other keys. A
+key that is not one of them is a hook that can never fire, so `mimi config
+validate` rejects it and the daemon logs a warning at startup and on reload
+while running the hooks it did understand.
+
 ### Application Lifecycle
 
 | Hook | Fires when |

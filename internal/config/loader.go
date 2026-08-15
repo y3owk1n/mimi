@@ -88,6 +88,17 @@ func WriteDefault(path string) error {
 }
 
 // Load parses and validates the config from a TOML file.
+//
+// A validation failure returns the config it managed to build alongside the
+// error, so a caller whose job is reporting problems -- `mimi config validate`
+// -- can show everything wrong in one pass instead of one problem per run.
+// That matters for unrecognized hook keys in particular: they are recorded on
+// the config rather than raised as errors, so a config that also fails
+// validation would otherwise hide them until the other error was fixed.
+//
+// Callers that want a usable config must check the error first, as all of them
+// do. Failures before validation -- an unreadable file, malformed TOML, a hook
+// key holding something that is not a list -- return a nil config.
 func Load(path string) (*Config, error) {
 	path = paths.ExpandHome(path)
 
@@ -103,14 +114,15 @@ func Load(path string) (*Config, error) {
 		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "parsing config")
 	}
 
-	hooks, err := decodeHooks(raw.Hooks)
+	hooks, unknownHookKeys, err := decodeHooks(raw.Hooks)
 	if err != nil {
-		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "decoding hooks")
+		return nil, derrors.Wrapf(err, derrors.CodeInvalidConfig, "decoding hooks")
 	}
 
 	cfg := &Config{
-		Settings: raw.Settings,
-		Hooks:    hooks,
+		Settings:        raw.Settings,
+		Hooks:           hooks,
+		UnknownHookKeys: unknownHookKeys,
 	}
 
 	systrayEnabledSet := raw.Systray.Enabled != nil
@@ -126,7 +138,7 @@ func Load(path string) (*Config, error) {
 
 	err = validate(cfg)
 	if err != nil {
-		return nil, err
+		return cfg, err
 	}
 
 	expandPaths(cfg)
@@ -190,10 +202,19 @@ func validate(cfg *Config) error {
 	// HookKinds is a slice, so these errors come out in its declared order.
 	// The map this replaced meant validate reported the same broken config in
 	// a different order on every run.
+	//
+	// Entries are named by the key the user typed, not by the event kind they
+	// publish as, so the error points at a line they can find in their file.
+	// This is the only check on a hook's command: decoding deliberately leaves
+	// it alone so that a hook written as a bare string and one written as a
+	// table report the same way.
 	for _, kind := range HookKinds {
 		for i, e := range *kind.Entries(&cfg.Hooks) {
 			if e.Run == "" {
-				errs = append(errs, fmt.Sprintf("hooks.%s[%d]: run command is empty", kind.Kind, i))
+				errs = append(
+					errs,
+					fmt.Sprintf("hooks.%s[%d]: run command is empty", kind.TOMLKey, i),
+				)
 			}
 		}
 	}

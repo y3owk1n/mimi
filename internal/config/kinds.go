@@ -127,6 +127,18 @@ var HookKinds = []HookKind{
 	},
 }
 
+// HookKindNames lists every recognized hook key, in the order HookKinds
+// declares them, which is the order docs/CONFIGURATION.md and the default
+// config use. It is what mimi shows a user who typed a key it does not know.
+func HookKindNames() []string {
+	names := make([]string, 0, len(HookKinds))
+	for _, kind := range HookKinds {
+		names = append(names, kind.TOMLKey)
+	}
+
+	return names
+}
+
 // HasGroup reports whether at least one hook is defined in group.
 func (h *HooksConfig) HasGroup(group HookGroup) bool {
 	for _, kind := range HookKinds {
