@@ -14,7 +14,9 @@ type launcher interface {
 	// it could be asked at all. Its stdout is never surfaced — the answer is
 	// in the exit status — but a launchctl that never ran is not an answer:
 	// only an error returns one, and a false with no error means launchctl
-	// ran and did not find the job.
+	// ran and did not find the job. A call cut short by ctx is an error too,
+	// however far it got: an implementation that stops early knows nothing
+	// about the job.
 	list(ctx context.Context, label string) (bool, error)
 	// printJob runs `launchctl print` against target (e.g.
 	// "gui/501/com.y3owk1n.mimi") and returns what it said. Alone among these
@@ -50,10 +52,21 @@ type execLauncher struct{}
 // with nothing wrong with it. So a launchctl that ran and failed for a reason
 // of its own still reads as "job absent" here — the same answer it gave
 // before, for the one case a process exit cannot separate.
+//
+// The context is the one thing that has to be consulted before any of that.
+// CommandContext kills the process on cancellation, and a killed process
+// exits like any other: without asking the context first, every canceled call
+// would read as launchd saying the job is not there, which is the whole of what
+// this classification exists to prevent.
 func (execLauncher) list(ctx context.Context, label string) (bool, error) {
 	err := exec.CommandContext(ctx, "launchctl", "list", label).Run()
 	if err == nil {
 		return true, nil
+	}
+
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return false, ctxErr
 	}
 
 	var exitErr *exec.ExitError

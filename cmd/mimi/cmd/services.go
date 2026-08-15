@@ -61,7 +61,12 @@ func newServicesInstallCmd(state *cliState) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			logFile, servicePath := state.plistSettings()
 
-			outcome, err := defaultService.Install(state.configPath, logFile, servicePath)
+			outcome, err := defaultService.Install(
+				cmd.Context(),
+				state.configPath,
+				logFile,
+				servicePath,
+			)
 			if err != nil {
 				return err
 			}
@@ -79,7 +84,7 @@ func newServicesUninstallCmd() *cobra.Command {
 		Short: "Unload and remove the system service",
 		Long:  "Unload the Mimi launchd service and remove its plist file. Mimi will no longer start automatically on login.\n\nA service that is not loaded is uninstalled without complaint. When a loaded service cannot be unloaded, the plist is left in place and this fails, so the uninstall can be retried once whatever blocked the unload is fixed.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Uninstall()
+			err := defaultService.Uninstall(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -97,7 +102,7 @@ func newServicesStartCmd() *cobra.Command {
 		Short: "Start the system service",
 		Long:  "Start the Mimi launchd service. The daemon will begin running in the background.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Start()
+			err := defaultService.Start(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -115,7 +120,7 @@ func newServicesStopCmd() *cobra.Command {
 		Short: "Stop the system service",
 		Long:  "Stop the Mimi launchd service. The daemon process will be terminated.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Stop()
+			err := defaultService.Stop(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -133,7 +138,7 @@ func newServicesRestartCmd() *cobra.Command {
 		Short: "Restart the system service",
 		Long:  "Stop then immediately start the Mimi launchd service. Useful after configuration changes or to recover from an unresponsive state.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Restart()
+			err := defaultService.Restart(cmd.Context())
 			if err != nil {
 				return err
 			}
@@ -151,7 +156,7 @@ func newServicesStatusCmd() *cobra.Command {
 		Short: "Check the status of the system service",
 		Long:  "Check whether the Mimi launchd service is currently loaded, and whether it is actually running.\n\nThe two are not the same: the installed plist sets KeepAlive, so a daemon that crashes at startup is relaunched every ten seconds and stays loaded the whole time. A running service reports the pid it runs under; a loaded one that is not running reports the status it last exited with — a repeated non-zero status there is a daemon in a crash loop, and the captured stderr beside settings.log_file says why.\n\nUnder that line come the captured stdout and stderr the installed plist names, with how large each has grown. A daemon launchd started empties both at startup, so each size is one run's console output.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			cmd.Println(formatStatus(defaultService.Status()))
+			cmd.Println(formatStatus(defaultService.Status(cmd.Context())))
 
 			return nil
 		},
