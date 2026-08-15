@@ -136,7 +136,7 @@ func newServicesRestartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "restart",
 		Short: "Restart the system service",
-		Long:  "Stop then immediately start the Mimi launchd service. Useful after configuration changes or to recover from an unresponsive state.",
+		Long:  "Restart the Mimi launchd service in one launchctl call: launchd kills the running daemon and spawns it again. Useful after configuration changes or to recover from an unresponsive state.\n\nThere has to be a loaded service to restart. When there is none, this says so and points at `mimi services install`, rather than reporting a failure to start whatever was not there. When launchctl cannot be run at all, that is reported as itself — nothing here knows whether a service is installed, so nothing here recommends installing one.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			err := defaultService.Restart(cmd.Context())
 			if err != nil {

@@ -248,7 +248,7 @@ func (s *Service) Install(
 // it stops the uninstall where a failed unload does, with the plist still on
 // disk and a retry all it takes.
 func (s *Service) Uninstall(ctx context.Context) error {
-	domain, err := guiDomain()
+	target, err := serviceTarget()
 	if err != nil {
 		return err
 	}
@@ -265,7 +265,7 @@ func (s *Service) Uninstall(ctx context.Context) error {
 	// both halves of this run through.
 	state, _ := s.loadState(ctx)
 
-	err = s.launcher.bootout(ctx, domain+"/"+Label)
+	err = s.launcher.bootout(ctx, target)
 
 	// A canceled uninstall stops here, whatever the bootout reported. Removing
 	// the plist below would finish the very command the caller called off, and
@@ -322,12 +322,51 @@ func (s *Service) Stop(ctx context.Context) error {
 	return nil
 }
 
-// Restart stops then starts the service. A failure to stop (e.g. it was not
-// running) does not prevent the start that follows.
+// Restart restarts the loaded service in a single launchd call.
+//
+// It used to be a stop whose error was discarded followed by a start, and the
+// discard was not the worst of it: on a machine with nothing installed both
+// halves fail at nothing, and the one failure that survived reported "starting
+// service" — the symptom of the absent service rather than the absent service.
+// A kickstart is the whole restart, so there is no first error left to throw
+// away and no way to name the second one's problem instead of the real one.
+//
+// That is also why the loaded check comes first and refuses on anything but a
+// loaded job. launchd will not kickstart a job it does not hold, so the check
+// costs a command that would have failed anyway and buys the one thing the
+// failure could never say: that the fix is `mimi services install` and not
+// anything about restarting. [LoadStateUnknown] is not that answer — a
+// launchctl that could not run has said nothing about whether a service is
+// installed, and it is returned as itself rather than turned into advice to
+// install over a service that may be running perfectly well.
+//
+// Start and Stop are left as they are. Each is a command of its own, and a
+// launchctl start on an unloaded job is a different thing from a restart of
+// one.
 func (s *Service) Restart(ctx context.Context) error {
-	_ = s.Stop(ctx)
+	state, err := s.loadState(ctx)
+	if err != nil {
+		return err
+	}
 
-	return s.Start(ctx)
+	if state == LoadStateNotLoaded {
+		return derrors.New(
+			derrors.CodeServiceFailed,
+			"there is no loaded service to restart; run `mimi services install` first",
+		)
+	}
+
+	target, err := serviceTarget()
+	if err != nil {
+		return err
+	}
+
+	err = s.launcher.kickstart(ctx, target)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "restarting service")
+	}
+
+	return nil
 }
 
 // Status reports whether the service is currently loaded, and — when it is —
@@ -359,12 +398,12 @@ func (s *Service) Status(ctx context.Context) Status {
 		return status
 	}
 
-	domain, err := guiDomain()
+	target, err := serviceTarget()
 	if err != nil {
 		return status
 	}
 
-	output, err := s.launcher.printJob(ctx, domain+"/"+Label)
+	output, err := s.launcher.printJob(ctx, target)
 	if err != nil {
 		return status
 	}
@@ -436,7 +475,7 @@ func (s *Service) apply(
 	if loaded {
 		outcome = InstallOutcomeReplaced
 
-		err = s.launcher.bootout(ctx, domain+"/"+Label)
+		err = s.launcher.bootout(ctx, targetIn(domain))
 		if err != nil {
 			return 0, derrors.Wrapf(
 				err,
@@ -707,6 +746,28 @@ func guiDomain() (string, error) {
 	}
 
 	return "gui/" + currentUser.Uid, nil
+}
+
+// targetIn is mimi's job as launchctl names it, under a domain already in
+// hand. Every call that takes a domain target — bootout, print, kickstart —
+// names the same job, so none of them spells it out for itself.
+//
+// It is not what launchctl start and stop take: those two predate domain
+// targets and take the bare label.
+func targetIn(domain string) string {
+	return domain + "/" + Label
+}
+
+// serviceTarget is [targetIn] for the caller that has no domain yet, which is
+// every one of them but [Service.apply] — that one holds the domain already,
+// because bootstrap is the one call that takes it bare.
+func serviceTarget() (string, error) {
+	domain, err := guiDomain()
+	if err != nil {
+		return "", err
+	}
+
+	return targetIn(domain), nil
 }
 
 // binaryPath resolves the real, symlink-free path to the running mimi

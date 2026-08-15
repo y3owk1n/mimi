@@ -254,6 +254,21 @@ job either way, and the uninstall finishes.
 
 Control the launchd service directly.
 
+`restart` restarts the loaded job with a single `launchctl kickstart -k`, in
+place of the `stop` whose failure was thrown away followed by a `start`. launchd
+only kickstarts a job it holds, so the restart is preceded by a check that there
+is one — and when there is not, that is what the command says:
+
+```
+$ mimi services restart
+Error: [SERVICE_FAILED] there is no loaded service to restart; run `mimi services install` first
+```
+
+It used to report that same machine as a failure to start the service that was
+not there. `launchctl` failing to run at all is reported as itself and gets no
+such advice — nothing there knows whether a service is installed, and the
+install it would recommend runs through the same `launchctl`.
+
 `status` separates a loaded service from a running one — the installed plist
 sets `KeepAlive`, so a daemon that crashes at startup is relaunched forever
 while staying loaded:
