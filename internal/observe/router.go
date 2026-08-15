@@ -119,7 +119,7 @@ func (r *Router) handle(evt events.Event) {
 		"app", evt.AppName,
 		"bundle", evt.BundleID,
 		"pid", evt.PID,
-		"title", evt.WindowTitle,
+		"title_present", evt.WindowTitle != "",
 	)
 	r.bus.Publish(evt)
 }
@@ -186,7 +186,7 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 			"app", resizeEvt.AppName,
 			"bundle", resizeEvt.BundleID,
 			"pid", resizeEvt.PID,
-			"title", resizeEvt.WindowTitle,
+			"title_present", resizeEvt.WindowTitle != "",
 		)
 		r.bus.Publish(resizeEvt)
 	})

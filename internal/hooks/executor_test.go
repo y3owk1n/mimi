@@ -14,6 +14,8 @@ import (
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -283,5 +285,101 @@ func TestExecutorMergesBaseAndEventEnv(t *testing.T) {
 
 	if !strings.Contains(got, string(events.WindowCreated)) {
 		t.Errorf("hook output missing event env value %q\noutput: %q", events.WindowCreated, got)
+	}
+}
+
+// TestHandle_LogsHookIndexNotCommand pins the contract that "hook skipped"
+// and "hook matched" log the hook's index within its kind (enough to tell
+// two hooks of the same kind apart), never the literal shell command from
+// hook.Entry.Run. See AGENTS.md's logging contract and issue #112.
+func TestHandle_LogsHookIndexNotCommand(t *testing.T) {
+	t.Parallel()
+
+	const secretCmd = "curl -H 'Authorization: Bearer sk-should-not-appear' https://example.internal"
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			AppActivate: []config.HookEntry{
+				{Run: "true"}, // index 0: matches
+				{Run: secretCmd, App: "SomeOtherAppThatWontMatch"}, // index 1: skipped
+			},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	logger := zap.New(core).Sugar()
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 5,
+		MaxHookWorkers:  1,
+	}
+	exec := NewExecutor(reg, cfg, logger)
+
+	exec.Handle(events.Event{
+		Kind:    events.AppActivate,
+		ID:      "index-test",
+		AppName: "TestApp",
+	})
+
+	matchedEntries := logs.FilterMessage("hook matched").All()
+	if len(matchedEntries) != 1 {
+		t.Fatalf("got %d \"hook matched\" entries, want 1", len(matchedEntries))
+	}
+
+	matchedFields := matchedEntries[0].ContextMap()
+
+	if _, hasCmd := matchedFields["cmd"]; hasCmd {
+		t.Errorf("\"hook matched\" entry logged \"cmd\": %+v", matchedFields)
+	}
+
+	gotIndex, hasIndex := matchedFields["index"]
+	if !hasIndex {
+		t.Fatalf("\"hook matched\" entry missing \"index\" field: %+v", matchedFields)
+	}
+
+	if gotIndex != int64(0) {
+		t.Errorf("\"hook matched\" index = %v, want 0", gotIndex)
+	}
+
+	skippedEntries := logs.FilterMessage("hook skipped").All()
+	if len(skippedEntries) != 1 {
+		t.Fatalf("got %d \"hook skipped\" entries, want 1", len(skippedEntries))
+	}
+
+	skippedFields := skippedEntries[0].ContextMap()
+
+	if _, hasCmd := skippedFields["cmd"]; hasCmd {
+		t.Errorf("\"hook skipped\" entry logged \"cmd\": %+v", skippedFields)
+	}
+
+	gotSkippedIndex, hasSkippedIndex := skippedFields["index"]
+	if !hasSkippedIndex {
+		t.Fatalf("\"hook skipped\" entry missing \"index\" field: %+v", skippedFields)
+	}
+
+	if gotSkippedIndex != int64(1) {
+		t.Errorf("\"hook skipped\" index = %v, want 1", gotSkippedIndex)
+	}
+
+	if gotReason, ok := skippedFields["reason"]; !ok || gotReason != "app filter mismatch" {
+		t.Errorf("\"hook skipped\" reason = %v, want %q", gotReason, "app filter mismatch")
+	}
+
+	for _, entry := range logs.All() {
+		if strings.Contains(entry.Message, secretCmd) {
+			t.Fatalf("log entry leaked secret command in message: %q", entry.Message)
+		}
+
+		for key, val := range entry.ContextMap() {
+			if s, ok := val.(string); ok && strings.Contains(s, secretCmd) {
+				t.Fatalf("log field %q leaked secret command: %q", key, s)
+			}
+		}
 	}
 }

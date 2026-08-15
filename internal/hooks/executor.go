@@ -100,15 +100,15 @@ func (ex *Executor) Handle(evt events.Event) {
 		len(hooks),
 	)
 
-	for _, hook := range hooks {
+	for hookIndex, hook := range hooks {
 		matched, reason := hook.Matches(evt)
 		if !matched {
 			ex.logger.Debugw(
 				"hook skipped",
 				"kind",
 				evt.Kind,
-				"cmd",
-				hook.Entry.Run,
+				"index",
+				hookIndex,
 				"reason",
 				reason,
 			)
@@ -120,8 +120,8 @@ func (ex *Executor) Handle(evt events.Event) {
 			"hook matched",
 			"kind",
 			evt.Kind,
-			"cmd",
-			hook.Entry.Run,
+			"index",
+			hookIndex,
 			"async",
 			hook.Entry.Async,
 		)
