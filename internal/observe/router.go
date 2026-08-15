@@ -33,7 +33,8 @@ type resizeState struct {
 }
 
 // NewRouter creates an event router for the hook daemon with the default
-// resize debounce window (250ms).
+// resize debounce window (250ms). A nil logger is tolerated; the fallback to
+// zap.NewNop() lives in NewRouterWithDebounce, which this delegates to.
 func NewRouter(bus *events.Bus, tracker *AXTracker, logger *zap.SugaredLogger) *Router {
 	return NewRouterWithDebounce(bus, tracker, logger, defaultResizeDebounceDuration)
 }
@@ -46,6 +47,10 @@ func NewRouterWithDebounce(
 	logger *zap.SugaredLogger,
 	debounceWindow time.Duration,
 ) *Router {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	if debounceWindow <= 0 {
 		debounceWindow = defaultResizeDebounceDuration
 	}
