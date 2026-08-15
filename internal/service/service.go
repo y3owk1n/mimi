@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/user"
 	"path/filepath"
+	"time"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
@@ -13,6 +14,25 @@ import (
 const (
 	dirPerm  = 0o755
 	filePerm = 0o644
+)
+
+// How long an install waits for the service it booted out to actually be gone,
+// and how often it looks.
+//
+// launchctl bootout returns once launchd has accepted the request, not once
+// the job has finished exiting, so the wait is for the daemon's own shutdown:
+// mimi's closes an observer, a socket and a log, and a second is already
+// generous for that. Five is wide enough to cover a machine under load without
+// being long enough that a wedged daemon reads as a hung terminal. The
+// interval is short because the common case ends on the first poll, and every
+// poll is one cheap `launchctl list`.
+const (
+	unloadTimeout      = 5 * time.Second
+	unloadPollInterval = 50 * time.Millisecond
+	// unloadPollAttempts is the timeout counted in polls, since polls are what
+	// the wait actually spends. The first is taken before any pause, so the
+	// last one lands an interval short of the timeout rather than past it.
+	unloadPollAttempts = int(unloadTimeout / unloadPollInterval)
 )
 
 // foreignInstallAdvice is the tail of every refusal to touch a service mimi
@@ -65,6 +85,10 @@ const (
 // through the launcher it holds.
 type Service struct {
 	launcher launcher
+	// sleep is how the pause between unload polls is spent. Only tests set
+	// it; a nil sleep is [time.Sleep], so the poll loop can be driven without
+	// spending the wall-clock time its bound is written in.
+	sleep func(time.Duration)
 }
 
 // New returns a Service backed by the real launchctl binary on PATH.
@@ -241,6 +265,9 @@ func (s *Service) Status() Status {
 // install would find the file it wanted and report the service up to date,
 // forever. Unloading first means a failure leaves the old plist untouched, so
 // the next install sees the same disagreement this one did and retries it.
+//
+// The wait between the two is the same argument in time rather than order:
+// see [Service.waitForUnload].
 func (s *Service) apply(
 	ctx context.Context,
 	loaded bool,
@@ -264,6 +291,11 @@ func (s *Service) apply(
 				"unloading the previous service",
 			)
 		}
+
+		err = s.waitForUnload(ctx)
+		if err != nil {
+			return 0, err
+		}
 	}
 
 	err = writePlist(path, content)
@@ -273,10 +305,61 @@ func (s *Service) apply(
 
 	err = s.launcher.bootstrap(ctx, domain, path)
 	if err != nil {
-		return 0, derrors.Wrapf(err, derrors.CodeServiceFailed, "loading service")
+		// The plist is already the new one by now, so this failed with the
+		// config change made and only the load left undone — the one failure
+		// here that a plain re-run fixes, and the user is the only one who
+		// can order it.
+		return 0, derrors.Wrapf(
+			err,
+			derrors.CodeServiceFailed,
+			"loading service; the new plist is already in place, so running install again retries the load",
+		)
 	}
 
 	return outcome, nil
+}
+
+// waitForUnload blocks until launchctl stops listing the service, or until
+// the poll bound above runs out.
+//
+// A bootout is a request, not a result: launchd takes it, sends the daemon on
+// its way and answers immediately, so the job can still be there for as long
+// as it takes that process to exit. Bootstrapping in that window fails with
+// "Operation now in progress" — a real failure, over a service that was only
+// slow. Waiting here is what turns the common case of a daemon taking a
+// moment back into an install that simply works.
+func (s *Service) waitForUnload(ctx context.Context) error {
+	for attempt := range unloadPollAttempts {
+		if attempt > 0 {
+			s.pause(unloadPollInterval)
+		}
+
+		// Same reading of a failed list as everywhere else here: launchctl
+		// could not find the job, so it is gone.
+		loaded := s.launcher.list(ctx, Label) == nil
+		if !loaded {
+			return nil
+		}
+	}
+
+	return derrors.Newf(
+		derrors.CodeServiceFailed,
+		"the previous service was still loaded %s after it was unloaded; "+
+			"stop whatever is holding it and run install again",
+		unloadTimeout,
+	)
+}
+
+// pause spends the interval between two unload polls. A Service with no sleep
+// of its own — every one outside this package's tests — spends it for real.
+func (s *Service) pause(interval time.Duration) {
+	if s.sleep == nil {
+		time.Sleep(interval)
+
+		return
+	}
+
+	s.sleep(interval)
 }
 
 // installedPlist is what sits at mimi's plist path when an install starts.
