@@ -56,6 +56,48 @@ func TestCLIState_LogFilePath(t *testing.T) {
 	}
 }
 
+// TestFormatInstallOutcome pins that each of the three things `mimi services
+// install` can do gets its own line. They are distinguishable on purpose: a
+// replace and a no-op both exit 0, and only the wording separates a service
+// that was just brought in line with the config from one that never needed it.
+func TestFormatInstallOutcome(t *testing.T) {
+	tests := []struct {
+		name    string
+		outcome service.InstallOutcome
+		want    string
+	}{
+		{
+			name:    "installed",
+			outcome: service.InstallOutcomeInstalled,
+			want:    "Service installed and loaded successfully",
+		},
+		{
+			name:    "replaced",
+			outcome: service.InstallOutcomeReplaced,
+			want:    "Service plist updated and service reloaded",
+		},
+		{
+			name:    "unchanged",
+			outcome: service.InstallOutcomeUnchanged,
+			want:    "Service already up to date",
+		},
+		{
+			name:    "an outcome with no line of its own",
+			outcome: service.InstallOutcome(0),
+			want:    "Service install completed",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			got := formatInstallOutcome(tt.outcome)
+			if got != tt.want {
+				t.Errorf("formatInstallOutcome(%v) = %q, want %q", tt.outcome, got, tt.want)
+			}
+		})
+	}
+}
+
 func TestFormatStatus(t *testing.T) {
 	tests := []struct {
 		name   string

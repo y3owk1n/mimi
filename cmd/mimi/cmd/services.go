@@ -48,14 +48,14 @@ func newServicesInstallCmd(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "install",
 		Short: "Install and load the system service",
-		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.",
+		Long:  "Install the Mimi launchd service so it starts automatically on login. Creates the plist file and loads it with launchctl.\n\nThe plist is a snapshot of the config taken at install time, so run install again after changing a setting it bakes in — it replaces the plist and reloads the service, and does nothing at all when the plist already matches.\n\nThe daemon's stdout and stderr are captured beside settings.log_file, as <name>.out.log and <name>.err.log, and that directory is created if missing. When log_file is unset — or is not an absolute path, which launchd cannot open — they fall back to /tmp/mimi.log and /tmp/mimi.err.log.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
-			err := defaultService.Install(state.configPath, state.logFilePath())
+			outcome, err := defaultService.Install(state.configPath, state.logFilePath())
 			if err != nil {
 				return err
 			}
 
-			cmd.Println("Service installed and loaded successfully")
+			cmd.Println(formatInstallOutcome(outcome))
 
 			return nil
 		},
@@ -144,6 +144,25 @@ func newServicesStatusCmd() *cobra.Command {
 
 			return nil
 		},
+	}
+}
+
+// formatInstallOutcome renders what `mimi services install` did. Install is
+// idempotent, so the line has to say which of the three things happened —
+// "installed successfully" printed over an untouched service is how a stale
+// plist stays believed-current.
+func formatInstallOutcome(outcome service.InstallOutcome) string {
+	switch outcome {
+	case service.InstallOutcomeInstalled:
+		return "Service installed and loaded successfully"
+	case service.InstallOutcomeReplaced:
+		return "Service plist updated and service reloaded"
+	case service.InstallOutcomeUnchanged:
+		return "Service already up to date"
+	default:
+		// An outcome added without a line of its own. The install returned
+		// no error, so say only that much.
+		return "Service install completed"
 	}
 }
 
