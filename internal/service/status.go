@@ -1,6 +1,9 @@
 package service
 
 import (
+	"encoding/xml"
+	"errors"
+	"io"
 	"os"
 	"strconv"
 	"strings"
@@ -141,6 +144,11 @@ func describeCapturedLog(path string) CapturedLog {
 // pinned byte for byte by a golden test. A key whose next element is not a
 // <string> — or that another key gets in front of — reads as absent, so a plist
 // of some other shape costs the detail rather than inventing one.
+//
+// What it does not skimp on is the escaping, because renderPlist escapes every
+// path it writes: a directory named with XML markup sits in the file as markup,
+// and handing that straight back would name a file that does not exist and
+// report it missing. The value is resolved back to the path it stands for.
 func plistString(content, key string) string {
 	_, after, found := strings.Cut(content, "<key>"+key+"</key>")
 	if !found {
@@ -157,5 +165,36 @@ func plistString(content, key string) string {
 		return ""
 	}
 
-	return value
+	return unescapeXMLText(value)
+}
+
+// unescapeXMLText resolves the text of a <string> back to the value it stands
+// for, undoing escapeXMLText. It is encoding/xml doing it, so that the two
+// sides cannot drift: whatever the escaper learns to write, this reads.
+//
+// A value it cannot resolve comes back exactly as it was read. That is a plist
+// mimi did not write — home-manager's, or a hand-edited one — and this reader's
+// bargain everywhere else is to degrade the detail rather than invent one, so
+// the text on disk is a better answer than a partially decoded path.
+func unescapeXMLText(value string) string {
+	var (
+		decoder = xml.NewDecoder(strings.NewReader("<v>" + value + "</v>"))
+		decoded strings.Builder
+	)
+
+	for {
+		token, err := decoder.Token()
+		if errors.Is(err, io.EOF) {
+			return decoded.String()
+		}
+
+		if err != nil {
+			return value
+		}
+
+		chars, isText := token.(xml.CharData)
+		if isText {
+			decoded.Write(chars)
+		}
+	}
 }

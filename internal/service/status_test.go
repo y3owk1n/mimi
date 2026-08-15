@@ -186,6 +186,26 @@ func TestPlistString(t *testing.T) {
 			key:     testStandardOutKey,
 			want:    "",
 		},
+		{
+			// renderPlist escapes every path it writes, so a directory named
+			// with XML markup arrives here as markup. Handing that back
+			// unresolved would print a path no such file has and size it as
+			// missing — the confident wrong answer this reader exists to avoid.
+			name: "a value carrying the escapes renderPlist writes",
+			content: "<key>StandardOutPath</key>\n" +
+				"    <string>/Users/test/logs &amp; &lt;x&gt;/mi&#xD;mi.out.log</string>",
+			key:  testStandardOutKey,
+			want: "/Users/test/logs & <x>/mi\rmi.out.log",
+		},
+		{
+			// A plist mimi did not write may hold anything. One this cannot
+			// resolve comes back exactly as it was read, which is what this
+			// reader did before it resolved anything at all.
+			name:    "a value that is not resolvable comes back unchanged",
+			content: "<key>StandardOutPath</key>\n    <string>/tmp/mi&nosuch;mi.log</string>",
+			key:     testStandardOutKey,
+			want:    "/tmp/mi&nosuch;mi.log",
+		},
 		{name: "nothing to read at all", content: "", key: testStandardOutKey, want: ""},
 	}
 
