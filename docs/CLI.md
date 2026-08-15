@@ -224,9 +224,11 @@ and running install again retries just the load.
 
 Install refuses rather than replaces when what it finds is not a plist it
 wrote: a symlink at `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` — the shape
-home-manager installs — or a loaded `com.y3owk1n.mimi` with no plist of mimi's
-behind it. Both errors name nix-darwin and home-manager, because the fix is in
-their configuration.
+a plist linked out of the Nix store has — or a loaded `com.y3owk1n.mimi` with
+no plist of mimi's behind it. Both look at that one label and nothing else, and
+both errors say so. An installation under any other label is invisible to them,
+and the nix-darwin and home-manager modules each register one of their own —
+[INSTALLATION.md](INSTALLATION.md#post-installation) has what to check by hand.
 
 It also refuses when `launchctl` itself cannot be run at all — missing from
 `PATH`, or unable to be spawned. Both of the checks above
