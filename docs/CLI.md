@@ -7,6 +7,7 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 ## Table of Contents
 
 - [Global Flags](#global-flags)
+- [Interrupting a Command](#interrupting-a-command)
 - [Window & Space Actions](#window--space-actions)
 - [Hook Daemon](#hook-daemon)
 - [Service Management](#service-management)
@@ -21,6 +22,44 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 | `--config, -c`  |           | auto    | Path to config file    |
 | `--verbose, -v` |           | `false` | Verbose output         |
 | `--version`     |           |         | Print version and exit |
+
+---
+
+## Interrupting a Command
+
+Ctrl-C ends any mimi command. What the **first** one does depends on the
+command; the **second** always ends the process immediately, with exit status
+130.
+
+| Command                      | First Ctrl-C                                                                    |
+| ---------------------------- | ------------------------------------------------------------------------------- |
+| `mimi services install`      | Stops the work in progress and says where it stopped.                           |
+| `mimi services uninstall`    | Stops, keeping the plist, exactly as a failed unload does.                      |
+| `mimi services start`/`stop`/`restart` | Stops before or during the `launchctl` call, and says so.             |
+| `mimi services status`       | Stops asking `launchctl` and prints the unknown state. Exits 0.                 |
+| `mimi start`                 | Shuts the daemon down gracefully, as it always has.                             |
+| `mimi action *`              | Does not reach the action; it finishes. Press Ctrl-C again to end the process.   |
+| `mimi config *`              | Does not reach the command; it finishes. Each is one local file read or write.   |
+| `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
+
+A command in the bottom three rows that the first Ctrl-C did not reach still
+succeeds and exits 0, because it did in fact finish — `mimi config init`
+interrupted once has still written the file. Press Ctrl-C twice to be sure a
+command did not run.
+
+[`mimi services install`](#mimi-services-install) is the command where this is
+worth knowing about: it is the only one that waits, and the only one that
+replaces a file another program reads. An interrupt leaves it exactly where a
+failure does, on either side of that replacement and never in between.
+
+`mimi start` is unchanged in the case that matters: the daemon has always
+watched `SIGINT` itself and still does, so one Ctrl-C shuts it down gracefully.
+Two exceptions are worth knowing. Before the daemon reaches that watch — while
+the first-run config alert is up, say — the first Ctrl-C does nothing and the
+second is what ends it. And a second Ctrl-C during a shutdown that has stalled
+now ends the process where it used to be ignored; that skips the daemon's own
+cleanup, so a PID file may be left behind. `mimi status` reports such a file as
+stale, and the next `mimi start` overwrites it.
 
 ---
 
@@ -217,6 +256,16 @@ at five seconds, after which the install fails with the old plist untouched —
 stop whatever is holding the service and run it again. It ends the same way,
 without waiting out the bound, if `launchctl` stops answering while it waits:
 an unload nothing can confirm is not an unload.
+
+Ctrl-C is the third way out of that wait, and the only one a user chooses. It
+ends at the next poll rather than at the bound, and leaves the install exactly
+where the other two do: old plist untouched, service unloaded, nothing to undo
+before running it again. The same holds anywhere else in the install — every
+`launchctl` call is cut short with it, and the context is checked once more
+immediately before the new plist is written, so an interrupted install never
+replaces a plist on its way out. An interrupted `mimi services uninstall`
+likewise keeps the plist, which is what a failed unload does, and what makes
+the uninstall re-runnable.
 
 A load that fails for any other reason leaves the new plist on disk, so the
 config change is already made and only the load is missing; that error says so,
