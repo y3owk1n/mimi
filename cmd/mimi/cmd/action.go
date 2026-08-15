@@ -1,8 +1,6 @@
 package cmd
 
 import (
-	"strings"
-
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -214,9 +212,13 @@ Examples:
   mimi action resize_window center --width-percent 80 --height-percent 90`,
 		Args: cobra.MaximumNArgs(1),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			// The preset name is forwarded exactly as it was given. This used
+			// to trim it, which is why a padded name named a preset here and
+			// was rejected on every other path (mimi#132); the trim now lives
+			// in action.ParseResizePreset, which every path runs.
 			preset := ""
 			if len(args) > 0 {
-				preset = strings.TrimSpace(args[0])
+				preset = args[0]
 			}
 
 			resizeCmd, err := action.NewResizeWindowCommand(

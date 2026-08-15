@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"strconv"
 	"strings"
 	"testing"
 
@@ -32,6 +33,10 @@ const (
 	// nonNumericArg names no space and no preset — the argument every
 	// "that is not a number or a keyword" case is written against.
 	nonNumericArg = "foo"
+
+	// whitespaceOnlyArg is made of nothing but whitespace, which is part of
+	// no argument's spelling: it names no space, and names no preset either.
+	whitespaceOnlyArg = "   "
 )
 
 // TestParseSpaceArg_AcceptedForms covers the accepted half of the one space
@@ -87,7 +92,7 @@ func TestParseSpaceArg_MalformedNamesTheAction(t *testing.T) {
 		args []string
 	}{
 		{name: "empty", args: []string{""}},
-		{name: "whitespace only", args: []string{"   "}},
+		{name: "whitespace only", args: []string{whitespaceOnlyArg}},
 		{name: "non-numeric", args: []string{nonNumericArg}},
 		{name: "zero", args: []string{"0"}},
 		{name: "negative", args: []string{"-1"}},
@@ -171,23 +176,53 @@ func assertListsEveryPreset(t *testing.T, err error) {
 // TestResizePreset covers mimi#125: one rule decides whether a name is a
 // preset, and it hands back the preset itself rather than a boolean beside it,
 // so a caller cannot carry an unrecognized name past the check.
+//
+// Each preset is run as it is written and with padding around it, because
+// mimi#132 makes surrounding whitespace this rule's business rather than the
+// CLI's: both spellings name the same preset, whoever asks.
 func TestResizePreset(t *testing.T) {
 	t.Parallel()
 
 	for _, name := range everyPreset() {
-		t.Run(name, func(t *testing.T) {
-			t.Parallel()
+		spellings := map[string]string{
+			"as written": name,
+			"padded":     "  " + name + "\t",
+		}
 
-			got, err := action.ParseResizePreset(name)
-			if err != nil {
-				t.Fatalf("ParseResizePreset(%q) error = %v", name, err)
-			}
+		for label, given := range spellings {
+			t.Run(name+"/"+label, func(t *testing.T) {
+				t.Parallel()
 
-			if got != presetFor(t, name) {
-				t.Fatalf("ParseResizePreset(%q) = %q, want %q", name, got, name)
-			}
-		})
+				got, err := action.ParseResizePreset(given)
+				if err != nil {
+					t.Fatalf("ParseResizePreset(%q) error = %v", given, err)
+				}
+
+				if got != presetFor(t, name) {
+					t.Fatalf("ParseResizePreset(%q) = %q, want %q", given, got, name)
+				}
+			})
+		}
 	}
+
+	t.Run("whitespace only", func(t *testing.T) {
+		t.Parallel()
+
+		_, err := action.ParseResizePreset(whitespaceOnlyArg)
+		if err == nil {
+			t.Fatalf("ParseResizePreset(%q) expected error", whitespaceOnlyArg)
+		}
+
+		if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+			t.Fatalf("expected CodeInvalidInput, got %v", err)
+		}
+
+		// The rejection quotes the argument as it was given, so it never
+		// reports an empty name for something the user did type.
+		if !strings.Contains(err.Error(), strconv.Quote(whitespaceOnlyArg)) {
+			t.Errorf("rejection does not quote %q as given: %v", whitespaceOnlyArg, err)
+		}
+	})
 
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()

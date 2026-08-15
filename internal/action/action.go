@@ -166,12 +166,22 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 // daemon runs again on a command it decoded — so an unknown name is rejected
 // in the same words wherever it arrives from.
 //
+// Surrounding whitespace is not part of the name and is trimmed here, the way
+// ParseSpaceArg trims a space argument, so " left-half " names the same preset
+// wherever it arrives from — a shell that padded it, a hook that built the
+// argument, or a command the daemon decoded off the socket. The CLI used to
+// trim instead, which is what made a padded name work on the direct path and
+// be rejected on every other one (mimi#132); this is now the only place it
+// happens.
+//
 // The rejection lists the ten valid names, read from the geometry's own table
 // rather than restated here, since mistyping one is the likely way to get
-// here. The empty name is not a preset either: a command that names no preset
-// never asks for one.
+// here, and quotes the name as it was given rather than as it was trimmed, so
+// padding the user did type is visible in it. A name that is empty, or is
+// nothing but whitespace, is not a preset either: a command that names no
+// preset never asks for one.
 func ParseResizePreset(name string) (geometry.Preset, error) {
-	preset, ok := geometry.ParsePreset(name)
+	preset, ok := geometry.ParsePreset(strings.TrimSpace(name))
 	if !ok {
 		return geometry.Preset{}, derrors.Newf(
 			derrors.CodeInvalidInput,
