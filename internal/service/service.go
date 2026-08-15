@@ -170,9 +170,15 @@ func New() *Service {
 // "not loaded" would bootstrap over a service that may well be up. Refusing
 // costs nothing that a re-run does not recover: it happens before anything is
 // written, and install is idempotent.
-func (s *Service) Install(configPath, logFile, servicePath string) (InstallOutcome, error) {
-	ctx := context.Background()
-
+//
+// Canceling ctx ends the install, and where it ends is the same place any
+// other failure does: either before the new plist is written, leaving the old
+// one for the next install to disagree with, or after the plist is in place
+// with only the load left to retry. There is no third state.
+func (s *Service) Install(
+	ctx context.Context,
+	configPath, logFile, servicePath string,
+) (InstallOutcome, error) {
 	state, err := s.loadState(ctx)
 	if err != nil {
 		return 0, err
@@ -238,10 +244,10 @@ func (s *Service) Install(configPath, logFile, servicePath string) (InstallOutco
 // Tolerating that failure takes a positive answer that there was nothing to
 // unload, not merely the absence of one. A launchctl that could not run leaves
 // the same question open as a loaded service does, and the safe reading of an
-// open question here is the one that keeps the plist.
-func (s *Service) Uninstall() error {
-	ctx := context.Background()
-
+// open question here is the one that keeps the plist. So does a canceled ctx:
+// it stops the uninstall where a failed unload does, with the plist still on
+// disk and a retry all it takes.
+func (s *Service) Uninstall(ctx context.Context) error {
 	domain, err := guiDomain()
 	if err != nil {
 		return err
@@ -260,6 +266,21 @@ func (s *Service) Uninstall() error {
 	state, _ := s.loadState(ctx)
 
 	err = s.launcher.bootout(ctx, domain+"/"+Label)
+
+	// A canceled uninstall stops here, whatever the bootout reported. Removing
+	// the plist below would finish the very command the caller called off, and
+	// a bootout that a cancellation cut short says nothing about the service
+	// either — both readings below would be about a launchctl that was never
+	// allowed to answer.
+	ctxErr := ctx.Err()
+	if ctxErr != nil {
+		return derrors.Wrapf(
+			ctxErr,
+			derrors.CodeServiceFailed,
+			"uninstall canceled; the plist is kept, so running uninstall again finishes it",
+		)
+	}
+
 	if err != nil && state == LoadStateUnknown {
 		return derrors.Wrapf(
 			err,
@@ -282,8 +303,8 @@ func (s *Service) Uninstall() error {
 }
 
 // Start starts the already-installed service.
-func (s *Service) Start() error {
-	err := s.launcher.start(context.Background(), Label)
+func (s *Service) Start(ctx context.Context) error {
+	err := s.launcher.start(ctx, Label)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeServiceFailed, "starting service")
 	}
@@ -292,8 +313,8 @@ func (s *Service) Start() error {
 }
 
 // Stop stops the running service.
-func (s *Service) Stop() error {
-	err := s.launcher.stop(context.Background(), Label)
+func (s *Service) Stop(ctx context.Context) error {
+	err := s.launcher.stop(ctx, Label)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeServiceFailed, "stopping service")
 	}
@@ -303,10 +324,10 @@ func (s *Service) Stop() error {
 
 // Restart stops then starts the service. A failure to stop (e.g. it was not
 // running) does not prevent the start that follows.
-func (s *Service) Restart() error {
-	_ = s.Stop()
+func (s *Service) Restart(ctx context.Context) error {
+	_ = s.Stop(ctx)
 
-	return s.Start()
+	return s.Start(ctx)
 }
 
 // Status reports whether the service is currently loaded, and — when it is —
@@ -325,9 +346,7 @@ func (s *Service) Restart() error {
 // The captured streams are read whether or not the service is loaded: they are
 // files on disk, and the run that wrote them is over either way — an unloaded
 // service is one of the states in which their contents matter most.
-func (s *Service) Status() Status {
-	ctx := context.Background()
-
+func (s *Service) Status(ctx context.Context) Status {
 	// The reason launchctl could not answer is not carried out of here: this
 	// returns no error by design, and [LoadStateUnknown] is already the whole
 	// of what a caller can do about it.
@@ -432,6 +451,20 @@ func (s *Service) apply(
 		}
 	}
 
+	// The write is the point of no return: everything above it can be undone by
+	// running install again, and nothing below it leaves the old plist behind.
+	// An interrupt that arrived while the unload was being waited on has to
+	// stop on this side of it, or a command the user called off is the one that
+	// replaced their plist.
+	err = ctx.Err()
+	if err != nil {
+		return 0, derrors.Wrapf(
+			err,
+			derrors.CodeServiceFailed,
+			"install canceled before the new plist was written; the previous plist is untouched",
+		)
+	}
+
 	err = writePlist(path, content)
 	if err != nil {
 		return 0, err
@@ -469,10 +502,22 @@ func (s *Service) apply(
 // it gives up instead, and says why. Waiting out the rest of the bound would
 // only spend the timeout to reach the same place with a vaguer reason: the
 // answer failed to arrive, and it is not the daemon that is slow.
+//
+// A canceled ctx ends it too, at the next pause rather than at the bound: this
+// is the one place an install blocks, so a caller who has given up is a caller
+// waiting on this and nothing else.
 func (s *Service) waitForUnload(ctx context.Context) error {
 	for attempt := range unloadPollAttempts {
 		if attempt > 0 {
-			s.pause(unloadPollInterval)
+			err := s.pause(ctx, unloadPollInterval)
+			if err != nil {
+				return derrors.Wrapf(
+					err,
+					derrors.CodeServiceFailed,
+					"canceled while waiting for the previous service to unload; "+
+						"the previous plist is untouched",
+				)
+			}
 		}
 
 		state, err := s.loadState(ctx)
@@ -497,16 +542,31 @@ func (s *Service) waitForUnload(ctx context.Context) error {
 	)
 }
 
-// pause spends the interval between two unload polls. A Service with no sleep
-// of its own — every one outside this package's tests — spends it for real.
-func (s *Service) pause(interval time.Duration) {
-	if s.sleep == nil {
-		time.Sleep(interval)
+// pause spends the interval between two unload polls, and returns why it
+// stopped early when the caller canceled during it. A Service with no sleep of
+// its own — every one outside this package's tests — spends it for real, and
+// gives up on the interval the moment ctx is done rather than at the end of it.
+//
+// The injected sleep is the tests' and costs nothing, so the context is asked
+// after it rather than raced against it: a test that cancels from inside its
+// sleep is describing an interrupt that arrived during the pause, and gets the
+// same answer a real one would.
+func (s *Service) pause(ctx context.Context, interval time.Duration) error {
+	if s.sleep != nil {
+		s.sleep(interval)
 
-		return
+		return ctx.Err()
 	}
 
-	s.sleep(interval)
+	timer := time.NewTimer(interval)
+	defer timer.Stop()
+
+	select {
+	case <-ctx.Done():
+		return ctx.Err()
+	case <-timer.C:
+		return nil
+	}
 }
 
 // installedPlist is what sits at mimi's plist path when an install starts.
