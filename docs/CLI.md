@@ -202,6 +202,17 @@ has moved since. It is idempotent and reports which of three things it did:
 | `Service plist updated and service reloaded` | The plist disagreed with the config; it was replaced and the service reloaded. |
 | `Service already up to date`                 | The installed plist already matched. Nothing was written or reloaded.       |
 
+Replacing the plist unloads the running service first, and waits for it to
+actually be gone before handing launchd the new one: `launchctl bootout`
+returns as soon as launchd accepts the request, not once the daemon has
+finished exiting, and a load fired into that window fails. The wait is bounded
+at five seconds, after which the install fails with the old plist untouched —
+stop whatever is holding the service and run it again.
+
+A load that fails for any other reason leaves the new plist on disk, so the
+config change is already made and only the load is missing; that error says so,
+and running install again retries just the load.
+
 Install refuses rather than replaces when what it finds is not a plist it
 wrote: a symlink at `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` — the shape
 home-manager installs — or a loaded `com.y3owk1n.mimi` with no plist of mimi's

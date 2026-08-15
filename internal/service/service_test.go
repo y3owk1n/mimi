@@ -8,6 +8,7 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
@@ -22,6 +23,20 @@ const testConfigPath = "/Users/test/.config/mimi/config.toml"
 // a test can set up in advance.
 type fakeLauncher struct {
 	loaded bool
+
+	// unloadLag is how many launchctl list calls after a successful bootout
+	// still report the job loaded. A real bootout returns once launchd has
+	// accepted the request, not once the daemon has finished exiting, so a
+	// job that is gone by the time bootout returns — lag zero — is the lucky
+	// case rather than the only one.
+	unloadLag int
+	// neverUnloads is the daemon that will not go: it stays loaded through
+	// every poll, however many there are.
+	neverUnloads bool
+	// bootstrappedWhileLoaded records a bootstrap that arrived while the job
+	// was still loaded, which is the mistake launchd answers with "Operation
+	// now in progress".
+	bootstrappedWhileLoaded bool
 
 	// calls names the state-changing launchctl calls in the order they
 	// arrived, for the tests where "which, and in what order" is the
@@ -46,11 +61,21 @@ type fakeLauncher struct {
 }
 
 func (f *fakeLauncher) list(_ context.Context, _ string) error {
-	if f.loaded {
-		return nil
+	if !f.loaded {
+		return derrors.New(derrors.CodeServiceFailed, "not loaded")
 	}
 
-	return derrors.New(derrors.CodeServiceFailed, "not loaded")
+	// A job on its way out is still a loaded job to launchctl: each list
+	// brings it one closer to gone, and this one still finds it there.
+	if f.booted && f.unloadLag > 0 {
+		f.unloadLag--
+
+		if f.unloadLag == 0 && !f.neverUnloads {
+			f.loaded = false
+		}
+	}
+
+	return nil
 }
 
 func (f *fakeLauncher) printJob(_ context.Context, target string) (string, error) {
@@ -61,6 +86,7 @@ func (f *fakeLauncher) printJob(_ context.Context, target string) (string, error
 
 func (f *fakeLauncher) bootstrap(_ context.Context, _, _ string) error {
 	f.bootstrapped = true
+	f.bootstrappedWhileLoaded = f.loaded
 	f.calls = append(f.calls, "bootstrap")
 
 	return f.bootstrapErr
@@ -70,7 +96,17 @@ func (f *fakeLauncher) bootout(_ context.Context, _ string) error {
 	f.booted = true
 	f.calls = append(f.calls, "bootout")
 
-	return f.bootoutErr
+	if f.bootoutErr != nil {
+		return f.bootoutErr
+	}
+
+	// The job that was already gone when bootout returned. Anything with a
+	// lag left to run down goes on listing as loaded until it does.
+	if f.unloadLag == 0 && !f.neverUnloads {
+		f.loaded = false
+	}
+
+	return nil
 }
 
 func (f *fakeLauncher) start(_ context.Context, _ string) error {
@@ -85,6 +121,14 @@ func (f *fakeLauncher) stop(_ context.Context, _ string) error {
 	f.calls = append(f.calls, "stop")
 
 	return f.stopErr
+}
+
+// newTestService is a [Service] whose waiting costs nothing. The interval
+// between unload polls is wall-clock time no test may spend: what a test can
+// say something about is how many polls happened and what the launcher
+// answered, never how long they took.
+func newTestService(fake *fakeLauncher) *Service {
+	return &Service{launcher: fake, sleep: func(time.Duration) {}}
 }
 
 // TestService_Status_ReportsWhatTheLauncherSees covers the distinction the
@@ -143,7 +187,7 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 				printOutput: testCase.printOutput,
 				printErr:    testCase.printErr,
 			}
-			svc := &Service{launcher: fake}
+			svc := newTestService(fake)
 
 			got := svc.Status()
 			if got != testCase.want {
@@ -169,7 +213,7 @@ func TestService_Status_ReportsWhatTheLauncherSees(t *testing.T) {
 
 func TestService_Start_RunsLaunchctlStart(t *testing.T) {
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	err := svc.Start()
 	if err != nil {
@@ -183,7 +227,7 @@ func TestService_Start_RunsLaunchctlStart(t *testing.T) {
 
 func TestService_Start_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
 	fake := &fakeLauncher{startErr: derrors.New(derrors.CodeServiceFailed, "boom")}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	err := svc.Start()
 	if err == nil {
@@ -197,7 +241,7 @@ func TestService_Start_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
 
 func TestService_Stop_RunsLaunchctlStop(t *testing.T) {
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	err := svc.Stop()
 	if err != nil {
@@ -211,7 +255,7 @@ func TestService_Stop_RunsLaunchctlStop(t *testing.T) {
 
 func TestService_Restart_StopsThenStartsEvenWhenStopFails(t *testing.T) {
 	fake := &fakeLauncher{stopErr: derrors.New(derrors.CodeServiceFailed, "wasn't running")}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	err := svc.Restart()
 	if err != nil {
@@ -232,6 +276,11 @@ var (
 	errBootoutRefused  = errors.New("operation not permitted")
 	errBootoutNotFound = errors.New("not loaded")
 )
+
+// errBootstrapInProgress is what launchd answers a bootstrap over a label it
+// has not finished letting go of, in the same plain shape a real launchctl
+// failure arrives in.
+var errBootstrapInProgress = errors.New("operation now in progress")
 
 // TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService pins
 // the difference [Service.Uninstall] draws between the two reasons a bootout
@@ -286,7 +335,7 @@ func TestService_Uninstall_TellsAFailedUnloadFromAnAlreadyUnloadedService(t *tes
 			}
 
 			fake := &fakeLauncher{loaded: testCase.loaded, bootoutErr: testCase.bootoutErr}
-			svc := &Service{launcher: fake}
+			svc := newTestService(fake)
 
 			err = svc.Uninstall()
 			if (err != nil) != testCase.wantErr {
@@ -335,7 +384,7 @@ func TestService_Install_WritesThePlistAndBootstraps(t *testing.T) {
 	logFile := filepath.Join(logDir, "mimi.log")
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	outcome, err := svc.Install(testConfigPath, logFile)
 	if err != nil {
@@ -394,7 +443,7 @@ func TestService_Install_IsANoOpWhenTheLoadedServiceAlreadyMatches(t *testing.T)
 	logFile := filepath.Join(dir, "state", "mimi", "mimi.log")
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, logFile)
 	if err != nil {
@@ -434,7 +483,7 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 	newLogFile := filepath.Join(dir, "new", "mimi.log")
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, oldLogFile)
 	if err != nil {
@@ -493,7 +542,7 @@ func TestService_Install_FailsWhenLoadedByAnotherInstaller(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	fake := &fakeLauncher{loaded: true}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
 	if err == nil {
@@ -544,7 +593,7 @@ func TestService_Install_FailsWhenThePlistIsNotAFileMimiWrote(t *testing.T) {
 	}
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err = svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
 	if err == nil {
@@ -599,7 +648,7 @@ func TestService_Install_LoadsAPlistLeftBehindByAPreviousInstall(t *testing.T) {
 	}
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
 	if err != nil {
@@ -640,7 +689,7 @@ func TestService_Install_NeverLeavesAPartialPlist(t *testing.T) {
 	t.Setenv("HOME", dir)
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
 	if err != nil {
@@ -709,7 +758,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	t.Setenv("HOME", dir)
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
 	if err != nil {
@@ -767,6 +816,186 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	}
 }
 
+// TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping
+// covers the daemon that takes a moment to exit. launchctl bootout returns
+// once launchd has accepted the request, not once the job is gone, so a
+// bootstrap fired straight after it lands on a label launchd still holds and
+// comes back as "Operation now in progress" — with the new plist already on
+// disk, which is a half-done install reported as a hard failure.
+func TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	if err != nil {
+		t.Fatalf("first Install() = %v, want nil", err)
+	}
+
+	// The service install just loaded, with a daemon that is still listed for
+	// a couple of polls after the bootout that unloaded it.
+	fake.loaded = true
+	fake.unloadLag = 2
+	fake.calls = nil
+
+	outcome, err := svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"))
+	if err != nil {
+		t.Fatalf("second Install() = %v, want nil", err)
+	}
+
+	if outcome != InstallOutcomeReplaced {
+		t.Errorf("second Install() outcome = %v, want %v", outcome, InstallOutcomeReplaced)
+	}
+
+	if got := strings.Join(fake.calls, ","); got != "bootout,bootstrap" {
+		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+	}
+
+	if fake.bootstrappedWhileLoaded {
+		t.Error("second Install() bootstrapped while the previous service was still loaded")
+	}
+}
+
+// TestService_Install_FailsWhenThePreviousServiceNeverUnloads pins the bound
+// on that wait. A daemon that ignores its termination would otherwise hold the
+// install open forever, so the wait gives up and says what it was waiting for
+// — and, having written nothing, leaves the machine as it found it.
+func TestService_Install_FailsWhenThePreviousServiceNeverUnloads(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("HOME", dir)
+
+	fake := &fakeLauncher{}
+	svc := newTestService(fake)
+
+	_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+	if err != nil {
+		t.Fatalf("first Install() = %v, want nil", err)
+	}
+
+	plistPath := filepath.Join(dir, "Library", "LaunchAgents", Label+".plist")
+
+	stale, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading installed plist: %v", err)
+	}
+
+	// The wait it asks for, rather than the wait it takes: the bound is a
+	// promise about wall-clock time, and this is the only way to hold the
+	// suite to it without spending any.
+	var asked time.Duration
+
+	svc.sleep = func(interval time.Duration) { asked += interval }
+
+	fake.loaded = true
+	fake.neverUnloads = true
+	fake.calls = nil
+
+	_, err = svc.Install(testConfigPath, filepath.Join(dir, "new", "mimi.log"))
+	if err == nil {
+		t.Fatal("Install() = nil, want the unload to time out")
+	}
+
+	if derrors.GetCode(err) != derrors.CodeServiceFailed {
+		t.Errorf("Install() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	}
+
+	if !strings.Contains(err.Error(), "unload") {
+		t.Errorf("Install() error %q does not say what it was waiting for", err)
+	}
+
+	if asked == 0 || asked > unloadTimeout {
+		t.Errorf("Install() waited %s, want a wait in (0, %s]", asked, unloadTimeout)
+	}
+
+	// Never bootstrapped over a job launchd still holds, and — as with any
+	// other failure to unload — the old plist is still the one on disk for
+	// the next install to disagree with.
+	if got := strings.Join(fake.calls, ","); got != "bootout" {
+		t.Errorf("Install() calls = %v, want [bootout]", fake.calls)
+	}
+
+	after, err := os.ReadFile(plistPath)
+	if err != nil {
+		t.Fatalf("reading the plist after the timed-out unload: %v", err)
+	}
+
+	if string(after) != string(stale) {
+		t.Errorf("a timed-out unload replaced the plist:\ngot\n%s\nwant\n%s", after, stale)
+	}
+}
+
+// TestService_Install_SaysAFailedLoadCanBeRetried covers the half-done
+// install. By the time launchd is handed the plist, that plist is already the
+// file on disk — so a bootstrap that fails leaves the config change made and
+// only the load missing, and running install again is all it takes. Reported
+// as a bare failure, it reads like a machine that needs fixing first.
+func TestService_Install_SaysAFailedLoadCanBeRetried(t *testing.T) {
+	tests := []struct {
+		name   string
+		loaded bool
+	}{
+		{name: "loading a service that was not loaded", loaded: false},
+		{name: "loading the replacement for a service that was", loaded: true},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			dir := t.TempDir()
+			t.Setenv("HOME", dir)
+
+			fake := &fakeLauncher{}
+			svc := newTestService(fake)
+
+			_, err := svc.Install(testConfigPath, filepath.Join(dir, "old", "mimi.log"))
+			if err != nil {
+				t.Fatalf("first Install() = %v, want nil", err)
+			}
+
+			fake.loaded = testCase.loaded
+			fake.bootstrapErr = errBootstrapInProgress
+
+			newLogFile := filepath.Join(dir, "new", "mimi.log")
+
+			_, err = svc.Install(testConfigPath, newLogFile)
+			if err == nil {
+				t.Fatal("Install() = nil, want the failed load")
+			}
+
+			if derrors.GetCode(err) != derrors.CodeServiceFailed {
+				t.Errorf(
+					"Install() code = %v, want %v",
+					derrors.GetCode(err),
+					derrors.CodeServiceFailed,
+				)
+			}
+
+			if !errors.Is(err, errBootstrapInProgress) {
+				t.Errorf("Install() = %v, want it to carry the bootstrap failure", err)
+			}
+
+			if !strings.Contains(err.Error(), "install again") {
+				t.Errorf("Install() error %q does not say the install can be re-run", err)
+			}
+
+			// And re-running is genuinely the fix: the plist on disk is
+			// already the new one, so the retry has only the load left to do.
+			fake.bootstrapErr = nil
+			fake.calls = nil
+
+			_, err = svc.Install(testConfigPath, newLogFile)
+			if err != nil {
+				t.Fatalf("retried Install() = %v, want nil", err)
+			}
+
+			if got := strings.Join(fake.calls, ","); !strings.Contains(got, "bootstrap") {
+				t.Errorf("retried Install() calls = %v, want the load among them", fake.calls)
+			}
+		})
+	}
+}
+
 // TestService_Install_DoesNotUseTheSystemTempDirectory pins the "same
 // directory" half of the atomic write. A temporary file anywhere else risks a
 // rename across filesystems, which is not atomic and can fail outright — and
@@ -777,7 +1006,7 @@ func TestService_Install_DoesNotUseTheSystemTempDirectory(t *testing.T) {
 	t.Setenv("TMPDIR", filepath.Join(dir, "no-such-temp-dir"))
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err := svc.Install(testConfigPath, filepath.Join(dir, "state", "mimi", "mimi.log"))
 	if err != nil {
@@ -831,7 +1060,7 @@ func TestService_Install_FailsWhenTheCapturedStreamDirectoryCannotBeCreated(t *t
 	}
 
 	fake := &fakeLauncher{}
-	svc := &Service{launcher: fake}
+	svc := newTestService(fake)
 
 	_, err = svc.Install(testConfigPath, filepath.Join(blocker, "mimi", "mimi.log"))
 	if err == nil {
