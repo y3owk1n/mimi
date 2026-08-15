@@ -4,6 +4,8 @@ import (
 	"context"
 	"os/exec"
 	"strconv"
+	"sync"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -20,12 +22,23 @@ type Component struct {
 	ctx    context.Context //nolint:containedctx // Ties menu event goroutine to tray lifecycle.
 	cancel context.CancelFunc
 
+	// now reads the wall clock a reload is stamped with. A field so a test can
+	// pin the rendered time without waiting for one.
+	now func() time.Time
+
+	// reloadMu guards the last reload and the item that shows it. The daemon
+	// reports from its reload goroutine while Cocoa builds the menu on the
+	// main thread, so both are written from either side.
+	reloadMu   sync.Mutex
+	lastReload *reloadStatus
+
 	mVersion      *MenuItem
 	mHelp         *MenuItem
 	mSourceCode   *MenuItem
 	mConfigDocs   *MenuItem
 	mCLI          *MenuItem
 	mReloadConfig *MenuItem
+	mReloadStatus *MenuItem
 	mQuit         *MenuItem
 }
 
@@ -53,6 +66,7 @@ func NewComponent(
 		logger:              logger,
 		ctx:                 ctx,
 		cancel:              cancel,
+		now:                 time.Now,
 	}
 }
 
@@ -69,6 +83,13 @@ func (c *Component) OnReady() {
 	AddSeparator()
 
 	c.mReloadConfig = AddMenuItem("Reload Config")
+
+	// The outcome of the daemon's last reload, whichever trigger fired it.
+	// The item starts on the line for a daemon that has not reloaded and is
+	// then handed to the component, which renders whatever outcome has already
+	// arrived: the core starts before Cocoa is ready, so a reload can land
+	// before this line exists.
+	c.adoptReloadStatusItem(AddMenuItem(formatReloadStatus(nil)))
 
 	AddSeparator()
 
