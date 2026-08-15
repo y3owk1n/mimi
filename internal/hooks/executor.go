@@ -71,6 +71,10 @@ type Executor struct {
 
 // NewExecutor creates an executor with the given registry and settings.
 func NewExecutor(reg *Registry, cfg *config.SettingsConfig, logger *zap.SugaredLogger) *Executor {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	return &Executor{
 		registry: reg,
 		cfg:      cfg,

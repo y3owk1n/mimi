@@ -38,6 +38,10 @@ func NewComponent(
 	showWorkspaceNumber bool,
 	logger *zap.SugaredLogger,
 ) *Component {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	ctx, cancel := context.WithCancel(context.Background())
 
 	return &Component{

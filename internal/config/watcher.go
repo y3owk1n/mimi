@@ -22,6 +22,10 @@ type Watcher struct {
 
 // NewWatcher creates a new config file watcher.
 func NewWatcher(path string, onChange func(*Config), logger *zap.SugaredLogger) *Watcher {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	return &Watcher{path: paths.ExpandHome(path), onChange: onChange, logger: logger}
 }
 
