@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/systray"
 )
 
 // reloadReportMarker is a value only a user's config file would contain. It
@@ -87,6 +88,10 @@ func entryText(entry observer.LoggedEntry) string {
 	return text.String()
 }
 
+// discardReloadOutcome stands in for the tray's callback in tests that assert
+// about the log rather than the outcome.
+func discardReloadOutcome(systray.ReloadOutcome) {}
+
 func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 	t.Parallel()
 
@@ -96,24 +101,28 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 		wantLevel   zapcore.Level
 		wantMessage string
 		wantInEntry []string
+		wantOutcome systray.ReloadOutcome
 	}{
 		{
 			name:        "a config that does not parse",
 			contents:    "not valid toml [[[",
 			wantLevel:   zapcore.WarnLevel,
 			wantMessage: reloadFailedMessage,
+			wantOutcome: systray.ReloadOutcomeFailed,
 		},
 		{
 			name:        "a config that parses but cannot be applied",
 			contents:    "[[hooks.on_window_focus]]\nrun = \"echo new\"\ntitle = \"[\"\n",
 			wantLevel:   zapcore.WarnLevel,
 			wantMessage: reloadFailedMessage,
+			wantOutcome: systray.ReloadOutcomeFailed,
 		},
 		{
 			name:        "only reloadable settings changed",
 			contents:    "[settings]\nlog_level = \"info\"\nhook_shell = \"/bin/bash\"\n",
 			wantLevel:   zapcore.InfoLevel,
 			wantMessage: reloadedMessage,
+			wantOutcome: systray.ReloadOutcomeApplied,
 		},
 		{
 			name:        "a restart-only setting changed",
@@ -121,6 +130,7 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 			wantLevel:   zapcore.WarnLevel,
 			wantMessage: reloadRestartRequiredMessage,
 			wantInEntry: []string{keyLogLevel},
+			wantOutcome: systray.ReloadOutcomeRestartRequired,
 		},
 		{
 			name:        "several restart-only settings changed",
@@ -128,6 +138,7 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 			wantLevel:   zapcore.WarnLevel,
 			wantMessage: reloadRestartRequiredMessage,
 			wantInEntry: []string{keyLogLevel, keyMaxHookWorkers},
+			wantOutcome: systray.ReloadOutcomeRestartRequired,
 		},
 	}
 
@@ -139,7 +150,21 @@ func TestReloadConfig_ReportsTheOutcome(t *testing.T) {
 
 			writeReloadTestConfig(t, path, testCase.contents)
 
-			reloadConfig(path, cfgReloader, reloadTriggerSighup, logger)
+			var reported []systray.ReloadOutcome
+
+			report := func(outcome systray.ReloadOutcome) {
+				reported = append(reported, outcome)
+			}
+
+			reloadConfig(path, cfgReloader, reloadTriggerSighup, report, logger)
+
+			if len(reported) != 1 {
+				t.Fatalf("reported %d outcomes, want 1: %v", len(reported), reported)
+			}
+
+			if reported[0] != testCase.wantOutcome {
+				t.Errorf("reported outcome = %v, want %v", reported[0], testCase.wantOutcome)
+			}
 
 			entries := logs.All()
 			if len(entries) != 1 {
@@ -181,7 +206,7 @@ func TestReloadConfig_KeepsUserConfigValuesOutOfTheLog(t *testing.T) {
 
 	writeReloadTestConfig(t, path, "[settings]\nlog_file = \""+reloadReportMarker+"\"\n")
 
-	reloadConfig(path, cfgReloader, reloadTriggerFsnotify, logger)
+	reloadConfig(path, cfgReloader, reloadTriggerFsnotify, discardReloadOutcome, logger)
 
 	entries := logs.All()
 	if len(entries) != 1 {
@@ -197,4 +222,20 @@ func TestReloadConfig_KeepsUserConfigValuesOutOfTheLog(t *testing.T) {
 	if strings.Contains(text, reloadReportMarker) {
 		t.Errorf("log entry %q carries the user's config value", text)
 	}
+}
+
+// TestReloadReporter_WithoutATrayReportsNowhere pins that the reload path does
+// not depend on the tray existing. With [systray] enabled = false there is no
+// component to hold an outcome, and a reload still has to report through
+// something — so the reporter is a no-op rather than a nil the reload path
+// would have to remember to check.
+func TestReloadReporter_WithoutATrayReportsNowhere(t *testing.T) {
+	t.Parallel()
+
+	report := reloadReporter(nil)
+	if report == nil {
+		t.Fatal("reloadReporter(nil) = nil, want a callback the reload path can call")
+	}
+
+	report(systray.ReloadOutcomeApplied)
 }

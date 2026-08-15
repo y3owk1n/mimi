@@ -72,8 +72,13 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 		)
 	}
 
+	// The component, when there is one, is built above and outlives the core,
+	// so a reload that lands before Cocoa has drawn the menu still has
+	// somewhere to be recorded.
+	reportReload := reloadReporter(component)
+
 	go func() {
-		err := runCore(cfg, logger, configPath, quitCh)
+		err := runCore(cfg, logger, configPath, quitCh, reportReload)
 
 		systray.Quit()
 
@@ -95,6 +100,7 @@ func runCore(
 	logger *zap.SugaredLogger,
 	configPath string,
 	quitCh <-chan struct{},
+	reportReload func(systray.ReloadOutcome),
 ) error {
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
@@ -126,7 +132,7 @@ func runCore(
 	)
 
 	onChange := func() {
-		reloadConfig(configPath, cfgReloader, reloadTriggerFsnotify, logger)
+		reloadConfig(configPath, cfgReloader, reloadTriggerFsnotify, reportReload, logger)
 	}
 
 	watcher := config.NewWatcher(configPath, onChange, logger)
@@ -142,7 +148,7 @@ func runCore(
 		}
 	}()
 
-	runSignalLoop(cancel, quitCh, cfgReloader, pipeline, logger, configPath)
+	runSignalLoop(cancel, quitCh, cfgReloader, pipeline, logger, configPath, reportReload)
 
 	return nil
 }
@@ -285,10 +291,16 @@ const (
 // daemon has applied everything it can and is still running the old value for
 // the rest, so it says so and names them. The names are mimi's own; the
 // values the user gave them stay out of the log.
+// The outcome also goes to reportReload, which is how a surface with no log in front
+// of it — the systray menu — can show what the last reload did. It travels one
+// way and carries the outcome alone: reporting is the daemon telling, never a
+// caller asking, and no config content rides along
+// (docs/adr/0002-reload-is-signal-mediated.md).
 func reloadConfig(
 	configPath string,
 	cfgReloader *reloader,
 	trigger reloadTrigger,
+	reportReload func(systray.ReloadOutcome),
 	logger *zap.SugaredLogger,
 ) {
 	newCfg, err := config.Load(configPath)
@@ -301,6 +313,7 @@ func reloadConfig(
 
 	if err != nil {
 		logger.Warnw(reloadFailedMessage, "trigger", trigger, "err", err)
+		reportReload(systray.ReloadOutcomeFailed)
 
 		return
 	}
@@ -313,11 +326,26 @@ func reloadConfig(
 			"trigger", trigger,
 			"restart_only", restartOnly,
 		)
+		reportReload(systray.ReloadOutcomeRestartRequired)
 
 		return
 	}
 
 	logger.Infow(reloadedMessage, "trigger", trigger)
+	reportReload(systray.ReloadOutcomeApplied)
+}
+
+// reloadReporter is where a reload's outcome goes. With a tray, that is the
+// component, which holds the outcome and shows it in the menu; with
+// [systray] enabled = false there is no component and the outcome is dropped.
+// Every reload reports through one of these two, so the reload path never has
+// to know which of them it has.
+func reloadReporter(component *systray.Component) func(systray.ReloadOutcome) {
+	if component == nil {
+		return func(systray.ReloadOutcome) {}
+	}
+
+	return component.ReportReload
 }
 
 // warnUnknownHookKeys notes that the config asked for hook kinds mimi does not
@@ -347,6 +375,7 @@ func runSignalLoop(
 	pipeline *eventPipeline,
 	logger *zap.SugaredLogger,
 	configPath string,
+	reportReload func(systray.ReloadOutcome),
 ) {
 	sigCh := make(chan os.Signal, 1)
 
@@ -362,7 +391,7 @@ func runSignalLoop(
 			return
 		case sig := <-sigCh:
 			if sig == syscall.SIGHUP {
-				reloadConfig(configPath, cfgReloader, reloadTriggerSighup, logger)
+				reloadConfig(configPath, cfgReloader, reloadTriggerSighup, reportReload, logger)
 
 				continue
 			}

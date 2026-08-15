@@ -57,6 +57,13 @@ edit, so the notice keeps appearing on every reload for as long as the file and
 the running daemon disagree — and stops on its own if you put the old value
 back.
 
+With `systray.enabled = true`, the menu shows the same outcome to someone who
+has no log in front of them: a disabled line under **Reload Config** reading
+`Reloaded 14:32`, `Reloaded 14:32 — restart required`, or
+`Reload failed 14:32`, and `No config reload yet` until the daemon has reloaded
+once. It reports the daemon's own reload, so every route above updates it, not
+just the menu item.
+
 These two lists are not maintained by hand: each config field is classified on
 the type itself, and a test fails if this document and that classification
 disagree.
