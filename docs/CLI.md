@@ -117,6 +117,8 @@ bl  bc  br       (bottom-left, bottom-center, bottom-right)
 | `--margin`    | Enable tiled margins (overrides system setting) |
 | `--no-margin` | Disable tiled margins                           |
 
+Give one or neither: omitting both defers to the system tiled-window-margins setting, and giving both is rejected rather than resolved by picking one of them.
+
 **Examples:**
 
 ```bash

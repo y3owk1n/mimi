@@ -201,7 +201,8 @@ Custom flags allow precise control using an anchor system:
   margin on internal (split) edges so adjacent windows share a
   single gap. A window too small to give up its margins is sized
   exactly as asked for instead, with no margins on either axis.
-  Use --margin or --no-margin to override.
+  Use --margin or --no-margin to override — one or the other,
+  never both.
 
 Examples:
   mimi action resize_window left-half
