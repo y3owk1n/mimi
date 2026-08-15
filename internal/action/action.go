@@ -74,18 +74,29 @@ type SpaceArg struct {
 	Direction int // +1 for next, -1 for prev; 0 means absolute index
 }
 
-// ParseSpaceArg parses the one argument the space actions take.
-func ParseSpaceArg(args []string) (SpaceArg, error) {
+// ParseSpaceArg parses the one argument the space actions take. It is the
+// only place the rule lives — a space argument is a 1-based number, "next",
+// "prev", or "previous" — so every path that takes one, direct or daemon,
+// rejects a malformed argument in the same words.
+//
+// name is the action the argument was given to, and appears in those words;
+// it is the only part of them that differs between the two actions.
+func ParseSpaceArg(name Name, args []string) (SpaceArg, error) {
 	if len(args) != 1 {
 		return SpaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"space requires exactly one argument: a 1-based number, \"next\", or \"prev\"",
+			"%s requires exactly one argument: a 1-based space number, \"next\", or \"prev\"",
+			name,
 		)
 	}
 
 	raw := strings.TrimSpace(args[0])
 	if raw == "" {
-		return SpaceArg{}, derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
+		return SpaceArg{}, derrors.Newf(
+			derrors.CodeInvalidInput,
+			"%s argument cannot be empty: give a 1-based space number, \"next\", or \"prev\"",
+			name,
+		)
 	}
 
 	switch raw {
@@ -99,7 +110,8 @@ func ParseSpaceArg(args []string) (SpaceArg, error) {
 	if parseErr != nil || index < 1 {
 		return SpaceArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"space must be a positive integer, \"next\", or \"prev\", got %q",
+			"%s argument must be a positive integer, \"next\", or \"prev\", got %q",
+			name,
 			raw,
 		)
 	}
@@ -109,8 +121,8 @@ func ParseSpaceArg(args []string) (SpaceArg, error) {
 
 // resolveSpaceArg parses the one argument the space actions take and turns it
 // into the 1-based space number it names.
-func (e *Executor) resolveSpaceArg(args []string) (int, error) {
-	parsed, err := ParseSpaceArg(args)
+func (e *Executor) resolveSpaceArg(name Name, args []string) (int, error) {
+	parsed, err := ParseSpaceArg(name, args)
 	if err != nil {
 		return 0, err
 	}
@@ -363,14 +375,14 @@ func (e *Executor) Execute(name string, args []string) error {
 
 		return e.FocusWindow(parsed.Backward, parsed.Direction)
 	case NameSpace:
-		index, err := e.resolveSpaceArg(args)
+		index, err := e.resolveSpaceArg(NameSpace, args)
 		if err != nil {
 			return err
 		}
 
 		return e.FocusSpace(index)
 	case NameMoveWindowToSpace:
-		index, err := e.resolveSpaceArg(args)
+		index, err := e.resolveSpaceArg(NameMoveWindowToSpace, args)
 		if err != nil {
 			return err
 		}
