@@ -1,7 +1,6 @@
 package cmd
 
 import (
-	"strconv"
 	"strings"
 
 	"github.com/spf13/cobra"
@@ -129,9 +128,9 @@ Examples:
   mimi action space 1        Focus the first Mission Control space
   mimi action space next     Cycle to the next space (with wrap)
   mimi action space prev     Cycle to the previous space (with wrap)`,
-		Args: validateActionSpaceArgs,
+		Args: validateSpaceArg(action.NameSpace),
 		RunE: func(_ *cobra.Command, args []string) error {
-			spaceArg, err := action.ParseSpaceArg([]string{strings.TrimSpace(args[0])})
+			spaceArg, err := action.ParseSpaceArg(action.NameSpace, args)
 			if err != nil {
 				return err
 			}
@@ -162,9 +161,9 @@ Examples:
   mimi action move_window_to_space 2        Move current window to space 2
   mimi action move_window_to_space next     Move window to next space (with wrap)
   mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
-		Args: validateActionMoveWindowToSpaceArgs,
+		Args: validateSpaceArg(action.NameMoveWindowToSpace),
 		RunE: func(_ *cobra.Command, args []string) error {
-			spaceArg, err := action.ParseSpaceArg([]string{strings.TrimSpace(args[0])})
+			spaceArg, err := action.ParseSpaceArg(action.NameMoveWindowToSpace, args)
 			if err != nil {
 				return err
 			}
@@ -297,71 +296,14 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 	}
 }
 
-func validateActionSpaceArgs(_ *cobra.Command, args []string) error {
-	if len(args) != 1 {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"space requires exactly one positional argument: a 1-based number, \"next\", or \"prev\" (e.g., mimi action space 1, mimi action space next)",
-		)
+// validateSpaceArg builds the Args validator for an action that takes one
+// space argument. Cobra keeps rejecting the argument before RunE runs — that
+// is what produces the usage output and the exit code — but the rule it
+// rejects with is action.ParseSpaceArg, the one place that rule lives.
+func validateSpaceArg(name action.Name) cobra.PositionalArgs {
+	return func(_ *cobra.Command, args []string) error {
+		_, err := action.ParseSpaceArg(name, args)
+
+		return err
 	}
-
-	raw := strings.TrimSpace(args[0])
-	if raw == "" {
-		return derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
-	}
-
-	keywords := map[string]bool{"next": true, "prev": true, "previous": true}
-	if keywords[raw] {
-		return nil
-	}
-
-	return validateActionIndexArgs(args, "space")
-}
-
-func validateActionMoveWindowToSpaceArgs(_ *cobra.Command, args []string) error {
-	if len(args) != 1 {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"move_window_to_space requires exactly one positional argument: a 1-based number, \"next\", or \"prev\" (e.g., mimi action move_window_to_space 1, mimi action move_window_to_space next)",
-		)
-	}
-
-	raw := strings.TrimSpace(args[0])
-	if raw == "" {
-		return derrors.New(derrors.CodeInvalidInput, "space argument cannot be empty")
-	}
-
-	keywords := map[string]bool{"next": true, "prev": true, "previous": true}
-	if keywords[raw] {
-		return nil
-	}
-
-	return validateActionIndexArgs(args, "move_window_to_space")
-}
-
-func validateActionIndexArgs(args []string, actionName string) error {
-	if len(args) != 1 {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"%s requires exactly one positional argument: the 1-based space number (e.g., mimi action %s 1)",
-			actionName,
-			actionName,
-		)
-	}
-
-	raw := strings.TrimSpace(args[0])
-	if raw == "" {
-		return derrors.New(derrors.CodeInvalidInput, "space number cannot be empty")
-	}
-
-	index, parseErr := strconv.Atoi(raw)
-	if parseErr != nil || index < 1 {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"space number must be a positive integer, got %q",
-			args[0],
-		)
-	}
-
-	return nil
 }

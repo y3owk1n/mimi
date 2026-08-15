@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -70,6 +71,103 @@ func TestExecute_InvalidAction(t *testing.T) {
 
 	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
 		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+}
+
+// TestParseSpaceArg_AcceptedForms covers the accepted half of the one space
+// argument rule: a 1-based number, "next", "prev", or "previous", surrounding
+// whitespace included.
+func TestParseSpaceArg_AcceptedForms(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		arg  string
+		want action.SpaceArg
+	}{
+		{name: "first space", arg: "1", want: action.SpaceArg{Index: 1}},
+		{name: "padded number", arg: " 2 ", want: action.SpaceArg{Index: 2}},
+		{name: nextKeyword, arg: nextKeyword, want: action.SpaceArg{Direction: 1}},
+		{name: prevKeyword, arg: prevKeyword, want: action.SpaceArg{Direction: -1}},
+		{name: previousKeyword, arg: previousKeyword, want: action.SpaceArg{Direction: -1}},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, name := range []action.Name{action.NameSpace, action.NameMoveWindowToSpace} {
+				got, err := action.ParseSpaceArg(name, []string{testCase.arg})
+				if err != nil {
+					t.Fatalf("ParseSpaceArg(%s, %q) error = %v, want nil", name, testCase.arg, err)
+				}
+
+				if got != testCase.want {
+					t.Errorf(
+						"ParseSpaceArg(%s, %q) = %+v, want %+v",
+						name,
+						testCase.arg,
+						got,
+						testCase.want,
+					)
+				}
+			}
+		})
+	}
+}
+
+// TestParseSpaceArg_MalformedNamesTheAction checks a rejected argument is
+// reported as invalid input and names the action it was given to — the only
+// part of the wording that differs between the two space actions.
+func TestParseSpaceArg_MalformedNamesTheAction(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		args []string
+	}{
+		{name: "empty", args: []string{""}},
+		{name: "whitespace only", args: []string{"   "}},
+		{name: "non-numeric", args: []string{"foo"}},
+		{name: "zero", args: []string{"0"}},
+		{name: "negative", args: []string{"-1"}},
+		{name: "no argument", args: nil},
+		{name: "two arguments", args: []string{"1", "2"}},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			for _, name := range []action.Name{action.NameSpace, action.NameMoveWindowToSpace} {
+				_, err := action.ParseSpaceArg(name, testCase.args)
+				if err == nil {
+					t.Fatalf(
+						"ParseSpaceArg(%s, %v) error = nil, want an error",
+						name,
+						testCase.args,
+					)
+				}
+
+				if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+					t.Errorf(
+						"ParseSpaceArg(%s, %v) got %v, want CodeInvalidInput",
+						name,
+						testCase.args,
+						err,
+					)
+				}
+
+				if !strings.Contains(err.Error(), string(name)) {
+					t.Errorf(
+						"ParseSpaceArg(%s, %v) did not name the action: %v",
+						name,
+						testCase.args,
+						err,
+					)
+				}
+			}
+		})
 	}
 }
 
