@@ -100,6 +100,19 @@ func baseSettings() config.SettingsConfig {
 	}
 }
 
+// axTrackerEnabled reads AXTracker's unexported enabled field via
+// reflection. AXTracker exposes no getter for it (internal/observe/ax.go),
+// and comparing a freshly built comparison tracker against the real one with
+// whole-struct reflect.DeepEqual no longer works: AXTracker carries
+// unexported installAX/removeAX func fields (the cgo-free test seam), and Go
+// only treats two func values as deeply equal when both are nil — so two
+// independently constructed trackers are never DeepEqual regardless of
+// their enabled state. Reading the field directly sidesteps that without
+// needing a getter on AXTracker.
+func axTrackerEnabled(tracker *observe.AXTracker) bool {
+	return reflect.ValueOf(tracker).Elem().FieldByName("enabled").Bool()
+}
+
 func TestSetupEventPipeline_AXTrackerEnabledState(t *testing.T) {
 	scenarios := []struct {
 		name                 string
@@ -138,13 +151,8 @@ func TestSetupEventPipeline_AXTrackerEnabledState(t *testing.T) {
 
 			result := mustSetupPipeline(t, cfg, logger, scenario.accessibilityGranted)
 
-			// AXTracker exposes no getter for its enabled state, so compare
-			// the returned tracker against a freshly constructed one: both
-			// are unused (empty tracked map, zero-value mutex), so the
-			// comparison isolates the enabled flag setupEventPipeline chose.
-			want := observe.NewAXTracker(scenario.wantEnabled)
-			if !reflect.DeepEqual(want, result.axTracker) {
-				t.Errorf("AX tracker enabled state mismatch: want enabled=%v", scenario.wantEnabled)
+			if got := axTrackerEnabled(result.axTracker); got != scenario.wantEnabled {
+				t.Errorf("AX tracker enabled state = %v, want %v", got, scenario.wantEnabled)
 			}
 		})
 	}

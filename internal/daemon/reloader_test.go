@@ -87,9 +87,20 @@ func TestReloader_Apply_ValidConfigReloadsHooksAndDependencies(t *testing.T) {
 		t.Errorf("expected router debounce window to be updated to 750ms")
 	}
 
-	wantTracker := observe.NewAXTracker(true)
-	if !reflect.DeepEqual(wantTracker, cfgReloader.axTracker) {
-		t.Errorf("expected AX tracker enabled state to follow the new config's window hooks")
+	// A whole-struct reflect.DeepEqual against a freshly built
+	// observe.NewAXTracker(true) doesn't work here: AXTracker carries
+	// unexported installAX/removeAX func fields, and Go only treats two func
+	// values as deeply equal when both are nil, so two independently
+	// constructed trackers are never DeepEqual regardless of their enabled
+	// state. axTrackerEnabled (setup_event_pipeline_test.go) reads the
+	// unexported field directly instead.
+	const wantEnabled = true
+	if got := axTrackerEnabled(cfgReloader.axTracker); got != wantEnabled {
+		t.Errorf(
+			"expected AX tracker enabled state to follow the new config's window hooks, got enabled=%v want %v",
+			got,
+			wantEnabled,
+		)
 	}
 }
 
@@ -107,7 +118,7 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 		logger,
 		250*time.Millisecond,
 	)
-	wantTrackerBefore := observe.NewAXTracker(false)
+	wantEnabledBefore := axTrackerEnabled(cfgReloader.axTracker)
 
 	newCfg := &config.Config{Settings: baseSettings()}
 	newCfg.Settings.ResizeDebounceMS = 999
@@ -133,7 +144,16 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 		t.Error("expected router debounce window to be left untouched by a failed reload")
 	}
 
-	if !reflect.DeepEqual(wantTrackerBefore, cfgReloader.axTracker) {
-		t.Error("expected AX tracker state to be left untouched by a failed reload")
+	// See the comment on the first axTrackerEnabled call above: AXTracker's
+	// unexported func fields make whole-struct reflect.DeepEqual against a
+	// freshly built tracker always false, so compare the enabled flag
+	// directly instead — captured before Apply so this asserts "unchanged",
+	// not a hardcoded value.
+	if got := axTrackerEnabled(cfgReloader.axTracker); got != wantEnabledBefore {
+		t.Errorf(
+			"expected AX tracker state to be left untouched by a failed reload, got enabled=%v want %v",
+			got,
+			wantEnabledBefore,
+		)
 	}
 }

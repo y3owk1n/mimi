@@ -11,13 +11,21 @@ type AXTracker struct {
 	mu      sync.Mutex
 	tracked map[int]struct{}
 	enabled bool
+
+	// installAX and removeAX default to the native cgo bridge and are
+	// reassigned directly by in-package tests so they can exercise
+	// Install/Remove without calling into cgo.
+	installAX func(pid int) bool
+	removeAX  func(pid int)
 }
 
 // NewAXTracker creates a tracker with the enabled flag.
 func NewAXTracker(enabled bool) *AXTracker {
 	return &AXTracker{
-		tracked: make(map[int]struct{}),
-		enabled: enabled,
+		tracked:   make(map[int]struct{}),
+		enabled:   enabled,
+		installAX: native.InstallAXObserver,
+		removeAX:  native.RemoveAXObserver,
 	}
 }
 
@@ -29,7 +37,7 @@ func (t *AXTracker) Update(enabled bool) {
 	t.enabled = enabled
 	if !enabled {
 		for pid := range t.tracked {
-			native.RemoveAXObserver(pid)
+			t.removeAX(pid)
 			delete(t.tracked, pid)
 		}
 	}
@@ -48,7 +56,7 @@ func (t *AXTracker) Install(pid int) bool {
 		return true
 	}
 
-	if ok := native.InstallAXObserver(pid); ok {
+	if ok := t.installAX(pid); ok {
 		t.tracked[pid] = struct{}{}
 
 		return true
@@ -66,6 +74,6 @@ func (t *AXTracker) Remove(pid int) {
 		return
 	}
 
-	native.RemoveAXObserver(pid)
+	t.removeAX(pid)
 	delete(t.tracked, pid)
 }
