@@ -219,9 +219,15 @@ Notes on this:
   `Service already up to date` and does nothing when it does not.
 - The Nix modules (`nix/darwin.nix`, `nix/home.nix`) write their own plists,
   which always use `/tmp/mimi.log` and `/tmp/mimi.err.log` regardless of
-  `settings.log_file`. They carry no `MIMI_CAPTURED_*` entries either, so a
-  daemon from one of those modules appends to both files forever and never
-  empties them.
+  `settings.log_file`. Both carry the two `MIMI_CAPTURED_*` entries, filled
+  from the paths their own job writes to, so a module-installed daemon empties
+  those files at startup exactly as an installed one does. A service from a
+  module version before this behaviour existed keeps appending until the next
+  `darwin-rebuild switch` or `home-manager switch` — that is what rewrites the
+  plist. Overriding the job's `StandardOutPath` or `StandardErrorPath` moves
+  the matching environment entry with it; setting either entry through
+  `services.mimi.extraEnvironment` has no effect, since one naming a file the
+  job does not write to would empty the wrong log.
 
 ## Permission prompt keeps appearing
 

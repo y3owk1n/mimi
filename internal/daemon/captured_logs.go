@@ -10,18 +10,21 @@ import (
 // The environment entries the installed launchd plist carries the daemon's
 // captured stdout and stderr in.
 //
-// They are set by the plist `mimi services install` renders, and by nothing
-// else. The daemon deliberately does not ask internal/service to derive these
-// paths for it: that package is the install-time surface, and a daemon that
-// derived them itself would truncate files it was never told it owns — every
-// hand-started `mimi start` would empty the previous launchd run's crash log,
-// which is the one artifact the captured streams exist to preserve. Learning
-// them from the environment is what makes "launchd started me" the condition,
-// with no way to get it wrong.
+// They are set by the plist `mimi services install` renders and by the agents
+// the Nix modules render, and by nothing else — every one of them a launchd
+// job of mimi's. The daemon deliberately does not ask internal/service to
+// derive these paths for it: that package is the install-time surface, and a
+// daemon that derived them itself would truncate files it was never told it
+// owns — every hand-started `mimi start` would empty the previous launchd
+// run's crash log, which is the one artifact the captured streams exist to
+// preserve. Learning them from the environment is what makes "launchd started
+// me" the condition, with no way to get it wrong.
 //
 // internal/service spells these same two names in its plist template. Nothing
 // but the names holds the two sides together, so the test on each side spells
-// the literals and a rename fails a test there.
+// the literals and a rename fails a test there. nix/darwin.nix and
+// nix/home.nix spell them a third time, out of reach of any Go test — a rename
+// has to be carried into both by hand.
 const (
 	envCapturedStdout = "MIMI_CAPTURED_STDOUT"
 	envCapturedStderr = "MIMI_CAPTURED_STDERR"

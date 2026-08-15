@@ -8,10 +8,28 @@ let
   cfg = config.services.mimi;
   configFile =
     if cfg.configFile != null then cfg.configFile else pkgs.writeText "config.toml" cfg.config;
+  # The two console streams launchd captures for this job, named for the daemon.
+  #
+  # Nothing rotates them, so the daemon empties both once at startup, and these
+  # two entries are the whole of what tells it which files those are —
+  # internal/daemon/captured_logs.go has the why.
+  #
+  # Both paths are read back out of the job's own `serviceConfig` rather than
+  # written here as a second pair of literals. The daemon empties exactly what
+  # it is pointed at, so an entry naming a file the job does not write to would
+  # destroy one log and leave the real one growing forever. Taking the strings
+  # from the option launchd itself is given means an override of either path
+  # moves its environment entry with it, and the two cannot come to name
+  # different files.
+  capturedStreams = {
+    MIMI_CAPTURED_STDOUT = config.launchd.user.agents.mimi.serviceConfig.StandardOutPath;
+    MIMI_CAPTURED_STDERR = config.launchd.user.agents.mimi.serviceConfig.StandardErrorPath;
+  };
   effectiveEnv = {
     PATH = "/run/current-system/sw/bin:/nix/var/nix/profiles/default/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin";
   }
-  // cfg.extraEnvironment;
+  // cfg.extraEnvironment
+  // capturedStreams;
 in
 {
   options = {
@@ -49,6 +67,14 @@ in
           These are merged with defaults such as a {env}`PATH`
           that includes common Nix binary directories.
           Setting {env}`PATH` here will override the default entirely.
+
+          Setting {env}`MIMI_CAPTURED_STDOUT` or {env}`MIMI_CAPTURED_STDERR`
+          here has no effect. The module always fills those two from the paths
+          launchd writes the captured streams to, which is what tells the daemon
+          which files to empty at each start. Move a stream with
+          {option}`launchd.user.agents.mimi.serviceConfig.StandardOutPath` or
+          {option}`launchd.user.agents.mimi.serviceConfig.StandardErrorPath` and
+          its environment entry follows.
 
           To extend the default PATH with additional directories:
           ```nix
