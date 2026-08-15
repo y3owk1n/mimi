@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -93,6 +94,31 @@ func TestResizeRequestFromArgs_MapsArgumentsOntoTheGeometryRequest(t *testing.T)
 
 			assertRequest(t, got, testCase.want)
 		})
+	}
+}
+
+// TestResizeRequestFromArgs_RejectsBothMarginFlagsAtOnce covers mimi#138,
+// against the conversion because that is what every path runs — the
+// constructor for its rejection, and the daemon after decoding a command off
+// the socket. marginPreferenceOf is where the rule and its history live.
+func TestResizeRequestFromArgs_RejectsBothMarginFlagsAtOnce(t *testing.T) {
+	t.Parallel()
+
+	args := action.ResizeWindowArgs{UseMargin: true, NoMargin: true}
+
+	_, err := action.ResizeRequestFromArgs(args)
+	if err == nil {
+		t.Fatal("ResizeRequestFromArgs(--margin --no-margin) error = nil, want an error")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("expected CodeInvalidInput, got %v", err)
+	}
+
+	for _, flag := range []string{"--margin", "--no-margin"} {
+		if !strings.Contains(err.Error(), flag) {
+			t.Errorf("%q does not name %s", err, flag)
+		}
 	}
 }
 

@@ -332,17 +332,41 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 		req.Anchor = &anchor
 	}
 
-	if args.UseMargin {
-		useMargins := true
-		req.UseMargins = &useMargins
+	useMargins, err := marginPreferenceOf(args.UseMargin, args.NoMargin)
+	if err != nil {
+		return geometry.Request{}, err
 	}
 
-	if args.NoMargin {
-		useMargins := false
-		req.UseMargins = &useMargins
-	}
+	req.UseMargins = useMargins
 
 	return req, nil
+}
+
+// marginPreferenceOf turns resize_window's two margin flags into the margin
+// preference they express: forced on, forced off, or — for the pair nobody
+// gave — none at all, the nil that defers to the system tiled-window-margins
+// setting.
+//
+// Asking for both at once expresses no preference either, but it is a
+// contradiction rather than a silence, so it is refused (mimi#138). The
+// conversion used to apply one flag and then the other, which made the
+// assignment written second in the code the answer regardless of what was
+// asked for.
+func marginPreferenceOf(useMargin, noMargin bool) (*bool, error) {
+	if useMargin && noMargin {
+		return nil, derrors.New(
+			derrors.CodeInvalidInput,
+			"--margin cannot be combined with --no-margin",
+		)
+	}
+
+	if !useMargin && !noMargin {
+		return nil, nil //nolint:nilnil // intentional: signals "no preference"
+	}
+
+	useMargins := useMargin
+
+	return &useMargins, nil
 }
 
 // ExecuteCommand runs cmd against the desktop mimi is running on.

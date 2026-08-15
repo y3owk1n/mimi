@@ -360,6 +360,12 @@ func TestNewResizeWindowCommand_RejectsWhatTheConversionRejects(t *testing.T) {
 			name: "unknown preset",
 			args: action.ResizeWindowArgs{Preset: unknownPreset},
 		},
+		{
+			// mimi#138: the pair asks for opposite things, so the conversion
+			// refuses it and the constructor inherits that.
+			name: "both margin flags at once",
+			args: action.ResizeWindowArgs{UseMargin: true, NoMargin: true},
+		},
 	}
 
 	for _, testCase := range tests {
@@ -569,6 +575,16 @@ func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
 			cmd: action.Command{
 				Name:         action.NameResizeWindow,
 				ResizeWindow: action.ResizeWindowArgs{Width: -5, WidthSet: true},
+			},
+		},
+		{
+			// mimi#138: the conflicting pair reaching the daemon off the
+			// socket, with nothing having looked at it — the CLI is not the
+			// only place the rule runs.
+			name: "resize_window asking for margins and for no margins",
+			cmd: action.Command{
+				Name:         action.NameResizeWindow,
+				ResizeWindow: action.ResizeWindowArgs{UseMargin: true, NoMargin: true},
 			},
 		},
 	}

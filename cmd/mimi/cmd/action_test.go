@@ -163,6 +163,41 @@ func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
 	}
 }
 
+// TestResizeWindowCommand_RejectsBothMarginFlags covers mimi#138 at the CLI:
+// the conflicting pair is refused with the conversion's own wording rather
+// than a second copy of the rule living in this layer — which is what makes
+// the sentence identical to the one the same pair gets over the socket. No
+// cobra flag group stands in front of it, deliberately: that would be the
+// second copy.
+//
+// This fails while the command is being built, not while it runs, so it is safe
+// to run through the real command tree.
+func TestResizeWindowCommand_RejectsBothMarginFlags(t *testing.T) {
+	t.Parallel()
+
+	_, err := runCommand(
+		t,
+		actionCommandName,
+		resizeWindowCommandName,
+		"--margin",
+		"--no-margin",
+	)
+	if err == nil {
+		t.Fatal("expected an error combining --margin with --no-margin")
+	}
+
+	_, wantErr := action.ResizeRequestFromArgs(
+		action.ResizeWindowArgs{UseMargin: true, NoMargin: true},
+	)
+	if wantErr == nil {
+		t.Fatal("ResizeRequestFromArgs(--margin --no-margin): expected an error")
+	}
+
+	if err.Error() != wantErr.Error() {
+		t.Errorf("rejected with its own wording:\n got: %s\nwant: %s", err, wantErr)
+	}
+}
+
 // TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder is
 // the evidence mimi#133 asks for: what a command line with more than one thing
 // wrong is rejected for, now that resize_window's preset is validated in the
@@ -454,6 +489,12 @@ func malformedActionArgv() []malformedAction {
 			// than quietly resizing nothing.
 			name: "whitespace-only preset",
 			argv: []string{resizeWindowCommandName, whitespaceOnlyArg},
+		},
+		{
+			// mimi#138: the conflicting margin pair, refused by the rule the
+			// constructor runs rather than by anything in this layer.
+			name: "both margin flags at once",
+			argv: []string{resizeWindowCommandName, "--margin", "--no-margin"},
 		},
 		{
 			name: "a direction combined with --backward",
