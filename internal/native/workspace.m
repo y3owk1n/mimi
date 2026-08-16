@@ -34,8 +34,7 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	return CFBridgingRelease(windowList);
 }
 
-- (NSString *)windowInfoJSON {
-	NSArray *windows = [self currentWindowList];
+- (NSString *)windowInfoJSONFromWindows:(NSArray *)windows {
 	if (!windows)
 		return @"";
 
@@ -154,9 +153,13 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 - (void)handleNotification:(NSNotification *)note {
 	int kind = [self kindForNotificationName:note.name];
 	if (kind == MIMI_KIND_WORKSPACE_CHANGED) {
+		// Enumerate the on-screen window list once and derive both the count
+		// and the JSON payload from it. CGWindowListCopyWindowInfo is a
+		// system call, and the previous code ran it twice per space change —
+		// once here for the count and again inside the JSON builder.
 		NSArray *windows = [self currentWindowList];
 		int windowCount = windows ? (int)[windows count] : 0;
-		NSString *infoJSON = [self windowInfoJSON];
+		NSString *infoJSON = [self windowInfoJSONFromWindows:windows];
 		goWorkspaceChangeEvent(kind, windowCount, (char *)[infoJSON UTF8String]);
 
 		return;
