@@ -58,6 +58,56 @@ static bool axElementHasWindowRole(AXUIElementRef element) {
 	return isWindow;
 }
 
+// axElementIsRealWindow reports whether the element is a "true" top-level
+// window the user perceives as standalone: AXWindow role, the app element
+// as its AX parent, and a close button. Transient AXWindow-role elements
+// fail at least one check — Safari's tab-hover preview popup (subrole
+// AXUnknown) has the app as parent but no close button; tabs have a tab
+// group as parent; URL bar autocomplete has no close button. On
+// unreadable parent or close button we drop conservatively: a real
+// top-level window has both, so the unreadable cases are rare in
+// practice and not worth risking a false positive. Only valid while the
+// element is alive — at destroy time its attributes are unreadable (see
+// knownRealWindows).
+static bool axElementIsRealWindow(AXUIElementRef element, AXUIElementRef appElement) {
+	if (!axElementHasWindowRole(element)) {
+		return false;
+	}
+
+	CFTypeRef parentRef = NULL;
+	AXError parentErr = AXUIElementCopyAttributeValue(element, kAXParentAttribute, &parentRef);
+	if (parentErr != kAXErrorSuccess || !parentRef) {
+		return false;
+	}
+	bool parentIsApp = CFEqual(parentRef, appElement);
+	CFRelease(parentRef);
+	if (!parentIsApp) {
+		return false;
+	}
+
+	CFTypeRef closeButtonRef = NULL;
+	AXError closeErr = AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute, &closeButtonRef);
+	bool hasCloseButton = (closeErr == kAXErrorSuccess && closeButtonRef != NULL);
+	if (closeButtonRef) {
+		CFRelease(closeButtonRef);
+	}
+
+	return hasCloseButton;
+}
+
+// axRealWindowEntry returns the pid's AXEntry when the element passes the
+// full real-window check, and nil otherwise (untracked pid, or a transient
+// AXWindow-role element). Shared guard for the create, title-change, and
+// resize paths.
+static AXEntry *axRealWindowEntry(pid_t pid, AXUIElementRef element) {
+	AXEntry *entry = gEntries[@(pid)];
+	if (!entry || !axElementIsRealWindow(element, entry.appElement)) {
+		return nil;
+	}
+
+	return entry;
+}
+
 static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	CFTypeRef titleRef = NULL;
 	AXUIElementCopyAttributeValue(element, kAXTitleAttribute, &titleRef);
@@ -95,25 +145,9 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// even though you perceive them as sub-windows of a
 			// larger Safari window.
 			//
-			// We layer multiple signals:
-			//
-			//   - role == AXWindow                  (fast-path filter)
-			//   - element in kAXWindowsAttribute    (catches most)
-			//   - element's parent is the app element (catches
-			//                                       tabs that have a
-			//                                       tab group as
-			//                                       their parent in
-			//                                       the AX tree)
-			//   - element has a close button        (catches transient
-			//                                       overlays like URL
-			//                                       bar autocomplete
-			//                                       that have the app
-			//                                       as parent)
-			//
-			// On unreadable parent or close button we drop
-			// conservatively. A real top-level window has both, so
-			// the unreadable cases are rare in practice and not
-			// worth risking a false positive.
+			// axElementIsRealWindow layers the signals that tell
+			// them apart (role, parent is the app element, has a
+			// close button).
 			//
 			// Once all three checks pass, we add the element's
 			// AXUIElementRef to entry.knownRealWindows. The destroy
@@ -121,45 +155,14 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// by the time the destroy notification fires, the
 			// element's role, parent, and close button are all
 			// unreadable (the element has been torn down).
-			AXEntry *entry = gEntries[@(pid)];
+			AXEntry *entry = axRealWindowEntry(pid, element);
 			if (!entry) {
 				return;
 			}
 
-			if (!axElementHasWindowRole(element)) {
-				return;
-			}
-
-			CFTypeRef parentRef = NULL;
-			AXError parentErr = AXUIElementCopyAttributeValue(element, kAXParentAttribute, &parentRef);
-			if (parentErr != kAXErrorSuccess || !parentRef) {
-				return;
-			}
-			bool parentIsApp = CFEqual(parentRef, entry.appElement);
-			CFRelease(parentRef);
-			if (!parentIsApp) {
-				// Parent is something other than the app — a tab
-				// group, sheet, drawer, popover, sub-view. Drop.
-				return;
-			}
-
-			CFTypeRef closeButtonRef = NULL;
-			AXError closeErr = AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute, &closeButtonRef);
-			bool hasCloseButton = (closeErr == kAXErrorSuccess && closeButtonRef != NULL);
-			if (closeButtonRef) {
-				CFRelease(closeButtonRef);
-			}
-			if (!hasCloseButton) {
-				// AXWindow role, parent is the app, but no close
-				// button — a transient overlay (URL bar
-				// autocomplete). Drop.
-				return;
-			}
-
-			// All three signals confirm this is a real top-level
-			// window. Record it so the destroy handler can fire
-			// window_closed for it (at destroy time, the
-			// element's own attributes are gone).
+			// This is a real top-level window. Record it so the
+			// destroy handler can fire window_closed for it (at
+			// destroy time, the element's own attributes are gone).
 			if (entry.knownRealWindows) {
 				CFSetAddValue(entry.knownRealWindows, element);
 			}
@@ -231,9 +234,11 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 		}
 
 		if (CFEqual(notification, kAXTitleChangedNotification)) {
-			// Title changes fan out to descendants. Filter to real
-			// top-level windows by role.
-			if (!axElementHasWindowRole(element)) {
+			// Title changes fan out to descendants, and a role-only
+			// filter is not enough: transient overlays like Safari's
+			// tab-hover preview popup have AXWindow role too. Apply
+			// the full real-window check.
+			if (!axRealWindowEntry(pid, element)) {
 				return;
 			}
 			dispatchAXEvent(MIMI_KIND_WINDOW_TITLE_CHANGE, pid, element);
@@ -242,8 +247,13 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 		}
 
 		if (CFEqual(notification, kAXWindowResizedNotification)) {
-			// Same fan-out; filter by role.
-			if (!axElementHasWindowRole(element)) {
+			// Same fan-out, and role alone is not enough here
+			// either: Safari keeps a single tab-hover preview popup
+			// (AXWindow role, no close button) alive while the
+			// cursor slides along the tab bar and resizes it per
+			// tab, which fired a window_resize hook for every tab
+			// the cursor crossed. Apply the full real-window check.
+			if (!axRealWindowEntry(pid, element)) {
 				return;
 			}
 			dispatchAXEvent(MIMI_KIND_WINDOW_RESIZING, pid, element);
