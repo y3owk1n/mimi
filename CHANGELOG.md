@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.10.1](https://github.com/y3owk1n/mimi/compare/v0.10.0...v0.10.1) (2026-08-16)
+
+
+### Bug Fixes
+
+* **hooks:** quote event values substituted into hook commands ([#186](https://github.com/y3owk1n/mimi/issues/186)) ([1f289d4](https://github.com/y3owk1n/mimi/commit/1f289d4ebed5f924b00f56ff7e34c53803abb6e5))
+* **native:** filter window resize/title events to real top-level windows ([#184](https://github.com/y3owk1n/mimi/issues/184)) ([f7751bb](https://github.com/y3owk1n/mimi/commit/f7751bb4b2b6d79601502411df26eaa543bd7069))
+* **observe:** key the resize debounce on window id, not title ([#188](https://github.com/y3owk1n/mimi/issues/188)) ([b229d09](https://github.com/y3owk1n/mimi/commit/b229d09b70b73291f566ef9a8fc4822b18f00b82))
+
+
+### Performance Improvements
+
+* **native:** enumerate the window list once per space change ([#187](https://github.com/y3owk1n/mimi/issues/187)) ([0bcf5ae](https://github.com/y3owk1n/mimi/commit/0bcf5ae7c292ceca6ee489603d9977db0752a989))
+
 ## [0.10.0](https://github.com/y3owk1n/mimi/compare/v0.9.2...v0.10.0) (2026-08-15)
 
 
