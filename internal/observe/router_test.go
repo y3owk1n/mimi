@@ -262,6 +262,44 @@ func TestDebounceResize_DifferentWindows(t *testing.T) {
 	}
 }
 
+// TestDebounceResize_SameTitleDistinctWindows guards the collision fix: two
+// windows of one app that share a title but carry different window ids must
+// debounce into separate buckets and both fire, rather than one coalescing
+// into the other and being lost.
+func TestDebounceResize_SameTitleDistinctWindows(t *testing.T) {
+	router, sub := newTestRouter(t)
+
+	router.debounceResize(events.Event{
+		Kind:        events.WindowResizing,
+		PID:         7,
+		WindowTitle: "Untitled",
+		AppName:     "App",
+		WindowID:    1001,
+	})
+	router.debounceResize(events.Event{
+		Kind:        events.WindowResizing,
+		PID:         7,
+		WindowTitle: "Untitled",
+		AppName:     "App",
+		WindowID:    2002,
+	})
+
+	received := make(map[uint64]bool)
+
+	for range 2 {
+		select {
+		case e := <-sub:
+			received[e.WindowID] = true
+		case <-time.After(testFireTimeout):
+			t.Fatalf("timed out; got events for windows: %v", received)
+		}
+	}
+
+	if !received[1001] || !received[2002] {
+		t.Errorf("expected a debounced resize for each window id, got: %v", received)
+	}
+}
+
 func TestDebounceResize_CancelTimersForPID(t *testing.T) {
 	router, sub := newTestRouter(t)
 

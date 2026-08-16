@@ -125,7 +125,13 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	const char *appName = app ? [app.localizedName UTF8String] : "";
 	const char *bundleID = app ? [app.bundleIdentifier UTF8String] : "";
 
-	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title);
+	// The element's pointer identity is stable across a window's lifetime
+	// (the same reason knownRealWindows can key on it), so it serves as a
+	// per-window id. The Go side keys the resize debounce on it, so two
+	// windows of one app that happen to share a title no longer collide.
+	unsigned long long windowID = (unsigned long long)(uintptr_t)element;
+
+	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID);
 }
 
 static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {

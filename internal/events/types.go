@@ -55,12 +55,19 @@ var AllKinds = []EventKind{
 
 // Event carries information about a system event through the bus.
 type Event struct {
-	ID          string            `json:"id"`
-	Kind        EventKind         `json:"kind"`
-	AppName     string            `json:"appName,omitempty"`
-	BundleID    string            `json:"bundleId,omitempty"`
-	PID         int               `json:"pid,omitempty"`
-	WindowTitle string            `json:"windowTitle,omitempty"`
-	At          time.Time         `json:"at"`
-	Extra       map[string]string `json:"extra,omitempty"`
+	ID          string    `json:"id"`
+	Kind        EventKind `json:"kind"`
+	AppName     string    `json:"appName,omitempty"`
+	BundleID    string    `json:"bundleId,omitempty"`
+	PID         int       `json:"pid,omitempty"`
+	WindowTitle string    `json:"windowTitle,omitempty"`
+	// WindowID identifies the window an AX event came from, stable across
+	// that window's lifetime. It is the accessibility element's pointer
+	// identity — meaningful only within this process run, so it is not
+	// serialized — and is used to key the resize debounce per window rather
+	// than per title. Zero for events that do not originate from a specific
+	// window (app lifecycle, workspace).
+	WindowID uint64            `json:"-"`
+	At       time.Time         `json:"at"`
+	Extra    map[string]string `json:"extra,omitempty"`
 }
