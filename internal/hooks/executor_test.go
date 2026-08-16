@@ -614,3 +614,119 @@ func TestRun_HookOkLogsIndexNotCommandAndKeepsOutput(t *testing.T) {
 
 	assertNoLeak(t, logs, secretCmd)
 }
+
+// TestReplaceEventVars_QuotesValues pins that substituted values are wrapped
+// as a single inert shell token, including the escaping of an embedded single
+// quote, and that legitimate values still round-trip through the shell.
+func TestReplaceEventVars_QuotesValues(t *testing.T) {
+	t.Parallel()
+
+	const notifyTitle = "notify-send $mimi_WINDOW_TITLE"
+
+	cases := []struct {
+		name  string
+		run   string
+		title string
+		want  string
+	}{
+		{
+			name:  "plain value is single-quoted",
+			run:   notifyTitle,
+			title: "Inbox",
+			want:  "notify-send 'Inbox'",
+		},
+		{
+			name:  "embedded single quote is escaped",
+			run:   notifyTitle,
+			title: "it's here",
+			want:  `notify-send 'it'\''s here'`,
+		},
+		{
+			name:  "injection payload is neutralized",
+			run:   notifyTitle,
+			title: "'; rm -rf ~; '",
+			want:  `notify-send ''\''; rm -rf ~; '\'''`,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := replaceEventVars(testCase.run, events.Event{
+				Kind:        events.WindowTitleChange,
+				WindowTitle: testCase.title,
+			})
+			if got != testCase.want {
+				t.Errorf("replaceEventVars = %q, want %q", got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestHandle_TitleInjectionDoesNotExecute is the end-to-end guard: a window
+// title crafted to break out of the hook command must not run as its own
+// shell statement. The hook writes the title to a legit file; the payload
+// tries to create a sentinel file. After the hook runs, the legit file must
+// hold the raw title verbatim and the sentinel must not exist.
+func TestHandle_TitleInjectionDoesNotExecute(t *testing.T) {
+	t.Parallel()
+
+	dir := t.TempDir()
+	legit := filepath.Join(dir, "legit.txt")
+	sentinel := filepath.Join(dir, "pwned.txt")
+
+	// The payload closes the printf's quoting and appends a command that
+	// would create the sentinel file if substitution were not quoted.
+	payload := fmt.Sprintf(`'; touch %s; '`, sentinel)
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			WindowTitleChange: []config.HookEntry{{
+				Run: "printf '%s' $mimi_WINDOW_TITLE > " + legit,
+			}},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 5,
+		MaxHookWorkers:  1,
+	}
+	exec := NewExecutor(reg, cfg, zap.NewNop().Sugar())
+
+	exec.Handle(events.Event{
+		Kind:        events.WindowTitleChange,
+		ID:          "inject-test",
+		WindowTitle: payload,
+		At:          time.Now(),
+	})
+
+	var content []byte
+
+	deadline := time.Now().Add(2 * time.Second)
+	for time.Now().Before(deadline) {
+		var readErr error
+
+		content, readErr = os.ReadFile(legit) //nolint:gosec // test-controlled path
+		if readErr == nil {
+			break
+		}
+
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if got := string(content); got != payload {
+		t.Errorf("legit file = %q, want the raw title %q", got, payload)
+	}
+
+	_, statErr := os.Stat(sentinel)
+	if statErr == nil {
+		t.Fatalf("injection executed: sentinel file %s was created", sentinel)
+	}
+}

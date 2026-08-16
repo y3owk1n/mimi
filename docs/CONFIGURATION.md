@@ -242,7 +242,7 @@ while running the hooks it did understand.
 
 ```toml
 [hooks]
-on_window_focus = ["echo 'focus: $mimi_APP_NAME'"]
+on_window_focus = ["echo focus: $mimi_APP_NAME"]
 
 on_window_focus = [
   { run = "notify-send focus", app = "Slack", async = true }
@@ -276,7 +276,21 @@ Every hook receives:
 | `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
 | `mimi_INFO` | JSON workspace info (workspace events only) |
 
-Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands.
+Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands. Each value is
+substituted as a single, self-quoted shell token, so write the reference
+**without** wrapping it in your own quotes:
+
+```toml
+# Correct — the value quotes itself:
+on_window_title_change = [{ run = "notify-send $mimi_WINDOW_TITLE" }]
+```
+
+This matters because a value can contain anything — a window title is chosen by
+whatever web page or document is open — and mimi runs the command through a
+shell. Self-quoting stops a crafted title from breaking out and running as its
+own command. One consequence: a reference placed inside your own double quotes
+(`"... $mimi_WINDOW_TITLE ..."`) will show the wrapping quotes literally; leave
+it unquoted instead.
 
 ---
 
@@ -285,7 +299,7 @@ Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands.
 ```toml
 [hooks]
 on_app_activate = [
-  { run = "echo 'active: $mimi_APP_NAME'", async = true }
+  { run = "echo active: $mimi_APP_NAME", async = true }
 ]
 
 on_window_focus = [

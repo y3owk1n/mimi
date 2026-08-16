@@ -243,6 +243,13 @@ var mimiVarRegex = regexp.MustCompile(`\${mimi_[A-Za-z0-9_]+}|\$mimi_[A-Za-z0-9_
 // with the values from evt. Uses a per-event lookup closure (no map allocation
 // in the common case) and only falls back to a per-event scan for keys not
 // produced by eventEnv (i.e. user-provided Extra keys).
+//
+// Each substituted value is wrapped by shellQuote so it lands as a single,
+// inert shell token. The values carry untrusted, attacker-influenced text —
+// a window title is whatever a web page or document chose to call itself —
+// and this string is handed straight to `sh -c`. Without quoting, a title
+// like `'; rm -rf ~; '` would break out of the command and run as its own
+// statement.
 func replaceEventVars(runCmd string, evt events.Event) string {
 	return mimiVarRegex.ReplaceAllStringFunc(runCmd, func(match string) string {
 		var varName string
@@ -253,11 +260,21 @@ func replaceEventVars(runCmd string, evt events.Event) string {
 		}
 
 		if val, ok := lookupEventVar(varName, evt); ok {
-			return val
+			return shellQuote(val)
 		}
 
 		return match
 	})
+}
+
+// shellQuote wraps s in single quotes so `sh -c` treats it as one literal
+// token, escaping any embedded single quote with the standard POSIX
+// '\” idiom (close the quote, emit an escaped quote, reopen). The result is
+// safe in every unquoted or single-quoted context; a value substituted inside
+// the user's own double quotes will show its wrapping quotes literally, which
+// is the documented trade-off for closing the injection hole.
+func shellQuote(s string) string {
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
 }
 
 // lookupEventVar resolves a mimi_* environment variable name (including the
