@@ -145,7 +145,13 @@ func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
 }
 
 //export goAXEvent
-func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.char) {
+func goAXEvent(
+	kind C.int,
+	appName, bundleID *C.char,
+	pid C.int,
+	windowTitle *C.char,
+	windowID C.ulonglong,
+) {
 	trySend(events.Event{
 		ID:          uuid.NewString(),
 		Kind:        kindFromInt(int(kind)),
@@ -153,6 +159,7 @@ func goAXEvent(kind C.int, appName, bundleID *C.char, pid C.int, windowTitle *C.
 		BundleID:    C.GoString(bundleID),
 		PID:         int(pid),
 		WindowTitle: C.GoString(windowTitle),
+		WindowID:    uint64(windowID),
 		At:          time.Now(),
 	})
 }

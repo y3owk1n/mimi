@@ -129,12 +129,20 @@ func (r *Router) handle(evt events.Event) {
 	r.bus.Publish(evt)
 }
 
-func resizeKey(pid int, title string) string {
-	return fmt.Sprintf("%d:%s", pid, title)
+// resizeKey identifies the debounce bucket a resize event coalesces into.
+// It keys on the window id when the native layer supplied one, so two
+// windows of the same app with identical titles debounce independently;
+// it falls back to the title only when no id is available.
+func resizeKey(evt events.Event) string {
+	if evt.WindowID != 0 {
+		return fmt.Sprintf("%d:%d", evt.PID, evt.WindowID)
+	}
+
+	return fmt.Sprintf("%d:%s", evt.PID, evt.WindowTitle)
 }
 
 func (r *Router) debounceResize(evt events.Event) {
-	key := resizeKey(evt.PID, evt.WindowTitle)
+	key := resizeKey(evt)
 
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -184,6 +192,7 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 			BundleID:    snapshot.BundleID,
 			PID:         snapshot.PID,
 			WindowTitle: snapshot.WindowTitle,
+			WindowID:    snapshot.WindowID,
 			At:          time.Now(),
 		}
 		r.logger.Debugw("event",
