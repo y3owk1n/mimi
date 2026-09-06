@@ -33,6 +33,7 @@ func newRootCmd() *cobra.Command {
 		Long: `mimi provides macOS-native window and space management without disabling SIP.
 
 Use "mimi action" for immediate commands (focus window, switch space, move window).
+Use "mimi query" to read the active space or the frontmost window as JSON.
 Use "mimi start" to run the background daemon and react to window/space events via hooks.`,
 		Version: Version,
 		// Cobra runs the nearest persistent pre-run it finds walking up from the
@@ -72,6 +73,7 @@ Use "mimi start" to run the background daemon and react to window/space events v
 	root.AddCommand(newConfigCmd(state))
 	root.AddCommand(newServicesCmd(state))
 	root.AddCommand(newActionCmd(state))
+	root.AddCommand(newQueryCmd())
 
 	return root
 }

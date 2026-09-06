@@ -51,7 +51,7 @@ type Desktop interface {
 	// FrontmostWindow is the window in front, which is the one the window
 	// actions that take no window act on. It reports an error when there is
 	// none.
-	FrontmostWindow() (WindowID, error)
+	FrontmostWindow() (Window, error)
 
 	// SetWindowFrame moves and resizes one window.
 	SetWindowFrame(id WindowID, frame geometry.Rect) error

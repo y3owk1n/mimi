@@ -66,10 +66,18 @@ func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
 }
 
 // FrontmostWindow returns the window currently in front.
-func (d *nativeDesktop) FrontmostWindow() (WindowID, error) {
+func (d *nativeDesktop) FrontmostWindow() (Window, error) {
 	element := native.FrontmostWindow()
 	if element == nil {
-		return 0, derrors.New(derrors.CodeActionFailed, "no active window found")
+		return Window{}, derrors.New(derrors.CodeActionFailed, "no active window found")
+	}
+
+	// As in FocusableWindows, a window whose owning process cannot be read is
+	// still the window in front; the pid is reported as 0 rather than the
+	// window refused.
+	pid, pidErr := element.PID()
+	if pidErr != nil {
+		pid = 0
 	}
 
 	d.mu.Lock()
@@ -77,7 +85,7 @@ func (d *nativeDesktop) FrontmostWindow() (WindowID, error) {
 
 	d.releaseLocked()
 
-	return d.registerLocked(element), nil
+	return Window{ID: d.registerLocked(element), PID: pid}, nil
 }
 
 // WindowFrame reads one window's frame.

@@ -139,7 +139,7 @@ func (e *Executor) ResizeWindow(req geometry.Request) error {
 		return err
 	}
 
-	current, err := e.desktop.WindowFrame(win)
+	current, err := e.desktop.WindowFrame(win.ID)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get window frame")
 	}
@@ -151,7 +151,7 @@ func (e *Executor) ResizeWindow(req geometry.Request) error {
 		return err
 	}
 
-	return e.desktop.SetWindowFrame(win, geometry.Resize(current, screen, req))
+	return e.desktop.SetWindowFrame(win.ID, geometry.Resize(current, screen, req))
 }
 
 // ensureSpaceExists is the one range check both space actions share. A space
