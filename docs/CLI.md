@@ -76,6 +76,7 @@ mimi action focus_window --left
 mimi action focus_window --right
 mimi action focus_window --up
 mimi action focus_window --down
+mimi action focus_window --same-app
 mimi action space 1
 mimi action space next
 mimi action space prev
@@ -100,6 +101,9 @@ Cycle keyboard focus through all focusable windows on the current space, or move
 | `--down`     | Move focus to the nearest window below the current one           |
 | `--left`     | Move focus to the nearest window to the left of the current one  |
 | `--right`    | Move focus to the nearest window to the right of the current one |
+| `--same-app` | Stay within the focused window's application, cycling or directional |
+
+`--same-app` is the keyboard's Cmd-backtick: it cycles through the windows of the frontmost application only, and combines with `--backward` or a direction flag. It needs a focused window to take the application from, and reports so when there is none.
 
 ### `mimi action space <number|next|prev>`
 

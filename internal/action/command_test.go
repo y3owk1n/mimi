@@ -16,7 +16,7 @@ import (
 func focusCommandFor(t *testing.T, backward, up, down, left, right bool) action.Command {
 	t.Helper()
 
-	cmd, err := action.NewFocusWindowCommand(backward, up, down, left, right)
+	cmd, err := action.NewFocusWindowCommand(backward, up, down, left, right, false)
 	if err != nil {
 		t.Fatalf("building %s: %v", action.NameFocusWindow, err)
 	}
@@ -77,8 +77,12 @@ func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 		{name: "backward only", backward: true, want: action.FocusWindowArgs{Backward: true}},
 		{name: "up", up: true, want: action.FocusWindowArgs{Direction: "up"}},
 		{name: "down", down: true, want: action.FocusWindowArgs{Direction: "down"}},
-		{name: "left", left: true, want: action.FocusWindowArgs{Direction: "left"}},
-		{name: "right", right: true, want: action.FocusWindowArgs{Direction: "right"}},
+		{name: directionLeft, left: true, want: action.FocusWindowArgs{Direction: directionLeft}},
+		{
+			name:  directionRight,
+			right: true,
+			want:  action.FocusWindowArgs{Direction: directionRight},
+		},
 	}
 
 	for _, testCase := range tests {
@@ -91,6 +95,7 @@ func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 				testCase.down,
 				testCase.left,
 				testCase.right,
+				false,
 			)
 			if err != nil {
 				t.Fatalf("NewFocusWindowCommand() error = %v, want nil", err)
@@ -110,7 +115,7 @@ func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 func TestNewFocusWindowCommand_RejectsMoreThanOneDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowCommand(false, true, true, false, false)
+	_, err := action.NewFocusWindowCommand(false, true, true, false, false, false)
 	if err == nil {
 		t.Fatal("NewFocusWindowCommand(up, down) expected error")
 	}
@@ -123,7 +128,7 @@ func TestNewFocusWindowCommand_RejectsMoreThanOneDirection(t *testing.T) {
 func TestNewFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowCommand(true, true, false, false, false)
+	_, err := action.NewFocusWindowCommand(true, true, false, false, false, false)
 	if err == nil {
 		t.Fatal("NewFocusWindowCommand(backward, up) expected error")
 	}

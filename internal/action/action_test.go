@@ -30,6 +30,10 @@ const (
 	// one: the input every rejection case below is written against.
 	unknownPreset = "left-quarter"
 
+	// The two directions the focus tests reach for by name.
+	directionLeft  = "left"
+	directionRight = "right"
+
 	// nonNumericArg names no space and no preset — the argument every
 	// "that is not a number or a keyword" case is written against.
 	nonNumericArg = "foo"

@@ -54,6 +54,9 @@ type FocusWindowArgs struct {
 	Backward bool `json:"backward"`
 	// Direction is "", "up", "down", "left", or "right".
 	Direction string `json:"direction"`
+	// SameApp confines the cycle, or the directional move, to the windows of
+	// the application that owns the focused window.
+	SameApp bool `json:"sameApp"`
 }
 
 // NewFocusWindowCommand builds focus_window's command directly from the CLI's
@@ -62,14 +65,14 @@ type FocusWindowArgs struct {
 // validateFocusWindowArgs, the same check ExecuteCommand applies to a payload
 // that arrived off the socket.
 func NewFocusWindowCommand(
-	backward, focusUp, focusDown, focusLeft, focusRight bool,
+	backward, focusUp, focusDown, focusLeft, focusRight, sameApp bool,
 ) (Command, error) {
 	direction, err := focusDirectionOf(focusUp, focusDown, focusLeft, focusRight)
 	if err != nil {
 		return Command{}, err
 	}
 
-	args := FocusWindowArgs{Backward: backward, Direction: direction}
+	args := FocusWindowArgs{Backward: backward, Direction: direction, SameApp: sameApp}
 
 	err = validateFocusWindowArgs(args)
 	if err != nil {
@@ -452,7 +455,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 			return err
 		}
 
-		return e.FocusWindow(cmd.FocusWindow.Backward, cmd.FocusWindow.Direction)
+		return e.FocusWindow(cmd.FocusWindow)
 	case NameSpace:
 		index, err := e.resolveSpaceArg(NameSpace, cmd.Space)
 		if err != nil {

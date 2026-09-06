@@ -23,6 +23,7 @@ Available subcommands:
 Examples:
   mimi action focus_window
   mimi action focus_window --backward
+  mimi action focus_window --same-app
   mimi action space 1
   mimi action space next
   mimi action space prev
@@ -66,6 +67,7 @@ func buildFocusWindowCommand(state *cliState) *cobra.Command {
 		focusDown  bool
 		focusLeft  bool
 		focusRight bool
+		sameApp    bool
 	)
 
 	cmd := &cobra.Command{
@@ -79,7 +81,9 @@ Cycles forward (or backward with --backward), wrapping at the end. Use
 in that direction based on screen position.
 
 Only windows that are focusable (not minimized, not hidden) and on the
-current space are included.`,
+current space are included. With --same-app, only the windows of the
+application that owns the focused window take part, whether cycling or
+moving in a direction.`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			focusCmd, err := action.NewFocusWindowCommand(
 				backward,
@@ -87,6 +91,7 @@ current space are included.`,
 				focusDown,
 				focusLeft,
 				focusRight,
+				sameApp,
 			)
 			if err != nil {
 				return err
@@ -106,6 +111,8 @@ current space are included.`,
 		BoolVar(&focusLeft, "left", false, "Move focus to the nearest window on the left")
 	cmd.Flags().
 		BoolVar(&focusRight, "right", false, "Move focus to the nearest window on the right")
+	cmd.Flags().
+		BoolVar(&sameApp, "same-app", false, "Stay within the focused window's application")
 
 	return cmd
 }

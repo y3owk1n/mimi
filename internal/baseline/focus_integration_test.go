@@ -128,6 +128,7 @@ func (h *harness) runFocus(t *testing.T, center *native.Element, dir string) bas
 		dir == dirDown,
 		dir == dirLeft,
 		dir == dirRight,
+		false,
 	)
 	if err != nil {
 		t.Fatalf("focus_window --%s is not a command: %v", dir, err)
