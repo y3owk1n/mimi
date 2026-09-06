@@ -13,7 +13,7 @@ import (
 //
 // macOS stores window frames in whole points: every frame in the recording was
 // read back after the Accessibility API had truncated the one it was handed.
-// Forty-seven of the forty-nine recorded cases are whole points already and
+// Fifty-seven of the fifty-nine recorded cases are whole points already and
 // match exactly; the two percentage ones are fractional, and the truncation
 // moves them by less than a point. Nothing the geometry itself could get wrong
 // is that small — the margin rules move an edge by four points, the anchors

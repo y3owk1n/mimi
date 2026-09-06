@@ -315,12 +315,13 @@ func (h *harness) runResize(
 }
 
 // resizeSpecs enumerates every resize_window invocation the baseline covers:
-// all ten presets in both margin states, all nine anchors in both margin
+// all fifteen presets in both margin states, all nine anchors in both margin
 // states, and the explicit-flag combinations.
 func (h *harness) resizeSpecs() []resizeSpec {
 	presets := []string{
 		presetLeftHalf, "right-half", "top-half", "bottom-half",
 		"top-left", "top-right", "bottom-left", "bottom-right",
+		"left-third", "center-third", "right-third", "left-two-thirds", "right-two-thirds",
 		"center", "fill",
 	}
 	anchors := []string{"tl", "tc", "tr", "cl", "cc", "cr", "bl", "bc", "br"}
