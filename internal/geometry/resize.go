@@ -49,6 +49,11 @@ type Request struct {
 	// UseMargins overrides the system tiled-window-margins setting. A nil
 	// preference follows the system.
 	UseMargins *bool
+	// Cycle steps the preset through its cycle instead of applying it as it
+	// is: a window already at one of the cycle's frames moves to the next,
+	// and any other window starts at the first. Only a preset that Cycles
+	// has one; for any other it is ignored.
+	Cycle bool
 }
 
 // dimensionKind is how a requested dimension is expressed.
@@ -100,12 +105,29 @@ func (d Dimension) resolve(current, available float64) float64 {
 	case absoluteKind:
 		return d.value
 	case percentKind:
-		return available * d.value / percentageWhole
+		return snapToPoint(available * d.value / percentageWhole)
 	case keepKind:
 		return current
 	default:
 		return current
 	}
+}
+
+// pointNoise is how far a length may sit from a whole point and still be
+// that point: a third of 1920 is 640, and the floating-point product that
+// says 640.0000000000001 is not asking for anything else.
+const pointNoise = 1e-6
+
+// snapToPoint removes floating-point noise from a length that is a whole
+// number of points. A genuinely fractional length is left as it is; what
+// macOS makes of that is its own business, as it always was.
+func snapToPoint(length float64) float64 {
+	whole := math.Round(length)
+	if math.Abs(length-whole) < pointNoise {
+		return whole
+	}
+
+	return length
 }
 
 // Resize returns the frame a window at cur should be moved to on scr to
@@ -119,6 +141,11 @@ func (d Dimension) resolve(current, available float64) float64 {
 // primary display's top-left — while scr.Visible is in screen coordinates.
 // Resize converts between the two.
 func Resize(cur Rect, scr Screen, req Request) Rect {
+	if req.Cycle {
+		req.Preset = nextInCycle(cur, scr, req)
+		req.Cycle = false
+	}
+
 	req = expandPreset(req)
 
 	width := req.Width.resolve(cur.W, scr.Visible.W)
@@ -431,10 +458,23 @@ type preset struct {
 
 // The shares of the visible frame the presets are defined in.
 const (
-	wholeScreen  = percentageWhole
-	halfScreen   = 50.0
-	centerWidth  = 60.0
-	centerHeight = 80.0
+	wholeScreen     = percentageWhole
+	halfScreen      = 50.0
+	thirdScreen     = percentageWhole / 3
+	twoThirdsScreen = 2 * percentageWhole / 3
+	centerWidth     = 60.0
+	centerHeight    = 80.0
+)
+
+// The preset names that appear in more than one table: the halves and the
+// thirds they cycle through.
+const (
+	leftHalfName       = "left-half"
+	rightHalfName      = "right-half"
+	leftThirdName      = "left-third"
+	rightThirdName     = "right-third"
+	leftTwoThirdsName  = "left-two-thirds"
+	rightTwoThirdsName = "right-two-thirds"
 )
 
 // namedPreset pairs a preset with the name resize_window takes it by.
@@ -445,12 +485,12 @@ type namedPreset struct {
 
 // presets are the named tiling shortcuts resize_window accepts as its
 // positional argument, in the order the CLI's help and docs/CLI.md list them:
-// the halves, then the quadrants, then the two that need neither word. The
-// order is user-visible through PresetNames, which is what an unknown name is
-// rejected with, so this is the one place it is decided.
+// the halves, the quadrants, the thirds, then the two that need none of those
+// words. The order is user-visible through PresetNames, which is what an
+// unknown name is rejected with, so this is the one place it is decided.
 var presets = []namedPreset{
-	{"left-half", preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopLeft}},
-	{"right-half", preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopRight}},
+	{leftHalfName, preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopLeft}},
+	{rightHalfName, preset{widthPercent: halfScreen, heightPercent: wholeScreen, anchor: TopRight}},
 	{"top-half", preset{widthPercent: wholeScreen, heightPercent: halfScreen, anchor: TopLeft}},
 	{
 		"bottom-half",
@@ -465,6 +505,23 @@ var presets = []namedPreset{
 	{
 		"bottom-right",
 		preset{widthPercent: halfScreen, heightPercent: halfScreen, anchor: BottomRight},
+	},
+	{leftThirdName, preset{widthPercent: thirdScreen, heightPercent: wholeScreen, anchor: TopLeft}},
+	{
+		"center-third",
+		preset{widthPercent: thirdScreen, heightPercent: wholeScreen, anchor: TopCenter},
+	},
+	{
+		rightThirdName,
+		preset{widthPercent: thirdScreen, heightPercent: wholeScreen, anchor: TopRight},
+	},
+	{
+		leftTwoThirdsName,
+		preset{widthPercent: twoThirdsScreen, heightPercent: wholeScreen, anchor: TopLeft},
+	},
+	{
+		rightTwoThirdsName,
+		preset{widthPercent: twoThirdsScreen, heightPercent: wholeScreen, anchor: TopRight},
 	},
 	{"center", preset{widthPercent: centerWidth, heightPercent: centerHeight, anchor: Center}},
 	{"fill", preset{widthPercent: wholeScreen, heightPercent: wholeScreen, anchor: TopLeft}},
@@ -519,7 +576,7 @@ func PresetNames() []string {
 }
 
 // presetNamed returns the preset the given name asks for, and reports whether
-// there is one. The table is ten entries long and its order is what
+// there is one. The table is fifteen entries long and its order is what
 // PresetNames reports, so it is scanned by name the way ParseAnchor scans
 // anchorNames.
 func presetNamed(name string) (preset, bool) {

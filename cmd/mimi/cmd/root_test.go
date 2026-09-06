@@ -243,7 +243,7 @@ func TestNewRootCmd_AnArgumentFailureStillPrintsUsage(t *testing.T) {
 			actionCommandName, focusWindowCommandName, "--not-a-flag",
 		}},
 		{name: "an unparsable flag value", argv: []string{
-			actionCommandName, resizeWindowCommandName, "--width", "abc",
+			actionCommandName, resizeWindowCommandName, widthFlag, "abc",
 		}},
 		{name: "a missing argument", argv: []string{
 			actionCommandName, string(action.NameSpace),

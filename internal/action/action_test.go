@@ -28,7 +28,7 @@ const (
 
 	// unknownPreset is a name that is not one of the ten, and never becomes
 	// one: the input every rejection case below is written against.
-	unknownPreset = "left-third"
+	unknownPreset = "left-quarter"
 
 	// nonNumericArg names no space and no preset — the argument every
 	// "that is not a number or a keyword" case is written against.
@@ -144,6 +144,7 @@ func everyPreset() []string {
 	return []string{
 		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
 		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
+		"left-third", "center-third", "right-third", "left-two-thirds", "right-two-thirds",
 		presetCenter, presetFill,
 	}
 }
@@ -161,7 +162,7 @@ func presetFor(t *testing.T, name string) geometry.Preset {
 	return preset
 }
 
-// assertListsEveryPreset checks a rejection names all ten presets, which is
+// assertListsEveryPreset checks a rejection names every preset, which is
 // what makes it useful to whoever mistyped one.
 func assertListsEveryPreset(t *testing.T, err error) {
 	t.Helper()

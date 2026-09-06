@@ -107,6 +107,7 @@ func everyPayloadSet() []payloadCase {
 					AnchorSet:        true,
 					UseMargin:        true,
 					NoMargin:         true,
+					Cycle:            true,
 				},
 			},
 		},
@@ -174,7 +175,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(true, false, false, false, false)
 			},
-			want: `{"version":3,"command":{"name":"focus_window",` +
+			want: `{"version":4,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":true,"direction":""}}}`,
 		},
 		{
@@ -182,14 +183,14 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false)
 			},
-			want: `{"version":3,"command":{"name":"focus_window"}}`,
+			want: `{"version":4,"command":{"name":"focus_window"}}`,
 		},
 		{
 			name: "mimi action space 3",
 			build: func() (action.Command, error) {
 				return action.NewSpaceCommand([]string{"3"})
 			},
-			want: `{"version":3,"command":{"name":"space",` +
+			want: `{"version":4,"command":{"name":"space",` +
 				`"space":{"index":3,"direction":0}}}`,
 		},
 		{
@@ -197,7 +198,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToSpaceCommand([]string{"next"}, true)
 			},
-			want: `{"version":3,"command":{"name":"move_window_to_space",` +
+			want: `{"version":4,"command":{"name":"move_window_to_space",` +
 				`"moveWindowToSpace":{"space":{"index":0,"direction":1},"follow":true}}}`,
 		},
 		{
@@ -205,7 +206,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToDisplayCommand([]string{"prev"})
 			},
-			want: `{"version":3,"command":{"name":"move_window_to_display",` +
+			want: `{"version":4,"command":{"name":"move_window_to_display",` +
 				`"moveWindowToDisplay":{"index":0,"direction":-1}}}`,
 		},
 		{
@@ -220,7 +221,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					NoMargin:  true,
 				})
 			},
-			want: `{"version":3,"command":{"name":"resize_window",` +
+			want: `{"version":4,"command":{"name":"resize_window",` +
 				`"resizeWindow":{"preset":"left-half",` +
 				`"width":800,"widthSet":true,` +
 				`"height":0,"heightSet":false,` +
@@ -229,7 +230,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 				`"x":0,"xSet":false,` +
 				`"y":0,"ySet":false,` +
 				`"anchor":"cc","anchorSet":true,` +
-				`"useMargin":false,"noMargin":true}}}`,
+				`"useMargin":false,"noMargin":true,"cycle":false}}}`,
 		},
 	}
 

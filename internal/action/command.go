@@ -1,6 +1,8 @@
 package action
 
 import (
+	"strings"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
@@ -246,6 +248,10 @@ type ResizeWindowArgs struct {
 
 	UseMargin bool `json:"useMargin"`
 	NoMargin  bool `json:"noMargin"`
+
+	// Cycle steps the preset through its cycle: left-half to left-two-thirds
+	// to left-third and back, and the same on the right.
+	Cycle bool `json:"cycle"`
 }
 
 // ResizeRequestFromArgs turns resize_window's arguments into the geometry
@@ -310,7 +316,14 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 		)
 	}
 
-	req := geometry.Request{Preset: preset}
+	if args.Cycle {
+		err = validateCycle(args, preset)
+		if err != nil {
+			return geometry.Request{}, err
+		}
+	}
+
+	req := geometry.Request{Preset: preset, Cycle: args.Cycle}
 
 	width, widthPercent := 0.0, 0.0
 	if args.WidthSet {
@@ -365,6 +378,29 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 	req.UseMargins = useMargins
 
 	return req, nil
+}
+
+// validateCycle holds --cycle's two rules: it needs a preset that has a cycle,
+// and the cycle decides the size and the place, so no flag may set either.
+// Margins are the one thing left to ask for, since every step honors them.
+func validateCycle(args ResizeWindowArgs, preset geometry.Preset) error {
+	if !preset.Cycles() {
+		return derrors.Newf(
+			derrors.CodeInvalidInput,
+			"--cycle needs a preset that cycles (%s)",
+			strings.Join(geometry.CyclingPresetNames(), ", "),
+		)
+	}
+
+	if args.WidthSet || args.HeightSet || args.WidthPercentSet || args.HeightPercentSet ||
+		args.XSet || args.YSet || args.AnchorSet {
+		return derrors.New(
+			derrors.CodeInvalidInput,
+			"--cycle cannot be combined with a size, position or anchor flag",
+		)
+	}
+
+	return nil
 }
 
 // marginPreferenceOf turns resize_window's two margin flags into the margin

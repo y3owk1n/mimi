@@ -110,6 +110,8 @@ type ResizeArgs struct {
 
 	UseMargin bool `json:"useMargin,omitempty"`
 	NoMargin  bool `json:"noMargin,omitempty"`
+
+	Cycle bool `json:"cycle,omitempty"`
 }
 
 // ResizeCase is one recorded resize_window invocation: the arguments, the frame

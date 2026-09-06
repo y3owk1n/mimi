@@ -22,16 +22,21 @@ var singleDisplay = geometry.Screen{
 
 // The preset names the tests below reach for by name.
 const (
-	presetLeftHalf    = "left-half"
-	presetRightHalf   = "right-half"
-	presetTopHalf     = "top-half"
-	presetBottomHalf  = "bottom-half"
-	presetTopLeft     = "top-left"
-	presetTopRight    = "top-right"
-	presetBottomLeft  = "bottom-left"
-	presetBottomRight = "bottom-right"
-	presetCenter      = "center"
-	presetFill        = "fill"
+	presetLeftHalf       = "left-half"
+	presetRightHalf      = "right-half"
+	presetTopHalf        = "top-half"
+	presetBottomHalf     = "bottom-half"
+	presetTopLeft        = "top-left"
+	presetTopRight       = "top-right"
+	presetBottomLeft     = "bottom-left"
+	presetBottomRight    = "bottom-right"
+	presetLeftThird      = "left-third"
+	presetCenterThird    = "center-third"
+	presetRightThird     = "right-third"
+	presetLeftTwoThirds  = "left-two-thirds"
+	presetRightTwoThirds = "right-two-thirds"
+	presetCenter         = "center"
+	presetFill           = "fill"
 )
 
 // The presets the cases below place windows with, in the form a request holds
@@ -45,7 +50,7 @@ var (
 )
 
 // presetFor is ParsePreset for the names this file spells out as constants,
-// which TestParsePreset pins as ten of the ten. A name that somehow stopped
+// which TestParsePreset pins as fifteen of the fifteen. A name that somehow stopped
 // being one yields the zero preset, and the frame the case expects then fails
 // to match.
 func presetFor(name string) geometry.Preset {
@@ -217,6 +222,11 @@ func TestResize_ExpandsEveryPreset(t *testing.T) {
 		{preset: presetTopRight, want: geometry.Rect{X: 960, Y: 30, W: 960, H: 525}},
 		{preset: presetBottomLeft, want: geometry.Rect{X: 0, Y: 555, W: 960, H: 525}},
 		{preset: presetBottomRight, want: geometry.Rect{X: 960, Y: 555, W: 960, H: 525}},
+		{preset: presetLeftThird, want: geometry.Rect{X: 0, Y: 30, W: 640, H: 1050}},
+		{preset: presetCenterThird, want: geometry.Rect{X: 640, Y: 30, W: 640, H: 1050}},
+		{preset: presetRightThird, want: geometry.Rect{X: 1280, Y: 30, W: 640, H: 1050}},
+		{preset: presetLeftTwoThirds, want: geometry.Rect{X: 0, Y: 30, W: 1280, H: 1050}},
+		{preset: presetRightTwoThirds, want: geometry.Rect{X: 640, Y: 30, W: 1280, H: 1050}},
 		{preset: presetCenter, want: geometry.Rect{X: 384, Y: 135, W: 1152, H: 840}},
 		{preset: presetFill, want: geometry.Rect{X: 0, Y: 30, W: 1920, H: 1050}},
 	}
@@ -890,9 +900,14 @@ func TestParsePreset(t *testing.T) {
 		{name: presetTopRight, want: true},
 		{name: presetBottomLeft, want: true},
 		{name: presetBottomRight, want: true},
+		{name: presetLeftThird, want: true},
+		{name: presetCenterThird, want: true},
+		{name: presetRightThird, want: true},
+		{name: presetLeftTwoThirds, want: true},
+		{name: presetRightTwoThirds, want: true},
 		{name: presetCenter, want: true},
 		{name: presetFill, want: true},
-		{name: "left-third", want: false},
+		{name: "left-quarter", want: false},
 		{name: "", want: false},
 	}
 
@@ -931,6 +946,8 @@ func TestPresetNames_ListsEveryPresetInTheDocumentedOrder(t *testing.T) {
 	want := []string{
 		presetLeftHalf, presetRightHalf, presetTopHalf, presetBottomHalf,
 		presetTopLeft, presetTopRight, presetBottomLeft, presetBottomRight,
+		presetLeftThird, presetCenterThird, presetRightThird,
+		presetLeftTwoThirds, presetRightTwoThirds,
 		presetCenter, presetFill,
 	}
 
