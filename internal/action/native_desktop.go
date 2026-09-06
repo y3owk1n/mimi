@@ -153,6 +153,36 @@ func (d *nativeDesktop) ScreenAt(window geometry.Rect) (geometry.Screen, error) 
 	}, nil
 }
 
+// Displays lists the connected displays in the order macOS reports them.
+func (d *nativeDesktop) Displays() ([]Display, error) {
+	found, err := native.Displays()
+	if err != nil {
+		return nil, err
+	}
+
+	displays := make([]Display, len(found))
+	for index, display := range found {
+		displays[index] = Display{
+			ID:      display.ID,
+			Frame:   rectOf(display.Frame),
+			Visible: rectOf(display.Visible),
+		}
+	}
+
+	return displays, nil
+}
+
+// ActivateDisplay makes the display the active one for the menu bar and
+// event routing.
+func (d *nativeDesktop) ActivateDisplay(id uint32) {
+	native.ActivateDisplay(id)
+}
+
+// rectOf is a native frame as the geometry holds it.
+func rectOf(frame native.Frame) geometry.Rect {
+	return geometry.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
+}
+
 // MissionControlActive reports whether Mission Control is open.
 func (d *nativeDesktop) MissionControlActive() bool {
 	return native.MissionControlActive()

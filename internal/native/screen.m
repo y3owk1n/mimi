@@ -136,6 +136,42 @@ double *MimiGetScreenVisibleFrameForPoint(double x, double y) {
 	}
 }
 
+double *MimiCopyScreenFrames(int *count) {
+	@autoreleasepool {
+		NSArray<NSScreen *> *screens = [NSScreen screens];
+		int screenCount = (int)screens.count;
+		*count = 0;
+		if (screenCount == 0) {
+			return NULL;
+		}
+
+		double *result = (double *)malloc((size_t)screenCount * MIMI_SCREEN_DOUBLES * sizeof(double));
+		if (!result) {
+			return NULL;
+		}
+
+		for (int i = 0; i < screenCount; i++) {
+			NSScreen *screen = screens[i];
+			NSRect frame = [screen frame];
+			NSRect visible = [screen visibleFrame];
+			double *row = result + i * MIMI_SCREEN_DOUBLES;
+
+			row[0] = (double)[screen.deviceDescription[@"NSScreenNumber"] unsignedIntValue];
+			row[1] = frame.origin.x;
+			row[2] = frame.origin.y;
+			row[3] = frame.size.width;
+			row[4] = frame.size.height;
+			row[5] = visible.origin.x;
+			row[6] = visible.origin.y;
+			row[7] = visible.size.width;
+			row[8] = visible.size.height;
+		}
+
+		*count = screenCount;
+		return result;
+	}
+}
+
 bool MimiTiledWindowMarginsEnabled(void) {
 	@autoreleasepool {
 		// CFPreferences is the most reliable way to read other app's preferences

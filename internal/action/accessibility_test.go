@@ -53,6 +53,12 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 			},
 		},
 		{
+			name: string(action.NameMoveWindowToDisplay),
+			run: func(e *action.Executor) error {
+				return e.ExecuteCommand(displayCommandFor(t, nextKeyword))
+			},
+		},
+		{
 			name: string(action.NameResizeWindow),
 			run: func(e *action.Executor) error {
 				return e.ExecuteCommand(resizeCommandFor(t, action.ResizeWindowArgs{
@@ -87,6 +93,7 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 			desktop.screenErr = denied
 			desktop.focusSpaceErr = denied
 			desktop.moveErr = denied
+			desktop.displaysErr = denied
 
 			before := desktop.windows[0].frame
 

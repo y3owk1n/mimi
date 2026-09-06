@@ -16,7 +16,7 @@ import (
 // older daemon would read wrongly — a renamed or removed field, or a field
 // whose meaning changed. TestRequest_EncodesTheGoldenBytes is what makes such
 // a change visible.
-const ProtocolVersion = 2
+const ProtocolVersion = 3
 
 // Request is the envelope one command travels in over the daemon's Unix
 // socket.

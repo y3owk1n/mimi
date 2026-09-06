@@ -9,8 +9,8 @@ import (
 // field matching Name is read; the others sit at their zero value.
 //
 // Build one through the constructor its action carries —
-// NewFocusWindowCommand, NewSpaceCommand, NewMoveWindowToSpaceCommand or
-// NewResizeWindowCommand. Each validates as it builds, so a command's
+// NewFocusWindowCommand, NewSpaceCommand, NewMoveWindowToSpaceCommand,
+// NewMoveWindowToDisplayCommand or NewResizeWindowCommand. Each validates as it builds, so a command's
 // arguments are checked once, in one implementation, at the moment the command
 // comes into existence: the direct path and the daemon path then reject the
 // same argument in the same words, and neither reaches a socket to do it.
@@ -31,10 +31,11 @@ import (
 type Command struct {
 	Name Name `json:"name"`
 
-	FocusWindow       FocusWindowArgs       `json:"focusWindow,omitzero"`
-	Space             SpaceArg              `json:"space,omitzero"`
-	MoveWindowToSpace MoveWindowToSpaceArgs `json:"moveWindowToSpace,omitzero"`
-	ResizeWindow      ResizeWindowArgs      `json:"resizeWindow,omitzero"`
+	FocusWindow         FocusWindowArgs       `json:"focusWindow,omitzero"`
+	Space               SpaceArg              `json:"space,omitzero"`
+	MoveWindowToSpace   MoveWindowToSpaceArgs `json:"moveWindowToSpace,omitzero"`
+	MoveWindowToDisplay DisplayArg            `json:"moveWindowToDisplay,omitzero"`
+	ResizeWindow        ResizeWindowArgs      `json:"resizeWindow,omitzero"`
 }
 
 // MoveWindowToSpaceArgs is move_window_to_space's typed payload: the space the
@@ -102,6 +103,18 @@ func NewMoveWindowToSpaceCommand(args []string, follow bool) (Command, error) {
 		Name:              NameMoveWindowToSpace,
 		MoveWindowToSpace: MoveWindowToSpaceArgs{Space: spaceArg, Follow: follow},
 	}, nil
+}
+
+// NewMoveWindowToDisplayCommand builds move_window_to_display's command from
+// the one positional argument the action takes. The rule is ParseDisplayArg's,
+// called rather than restated.
+func NewMoveWindowToDisplayCommand(args []string) (Command, error) {
+	displayArg, err := ParseDisplayArg(args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameMoveWindowToDisplay, MoveWindowToDisplay: displayArg}, nil
 }
 
 // NewResizeWindowCommand builds resize_window's command from the CLI's raw
@@ -418,6 +431,8 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		return e.MoveWindowToSpace(index, cmd.MoveWindowToSpace.Follow)
+	case NameMoveWindowToDisplay:
+		return e.MoveWindowToDisplay(cmd.MoveWindowToDisplay)
 	case NameResizeWindow:
 		req, err := ResizeRequestFromArgs(cmd.ResizeWindow)
 		if err != nil {
@@ -428,7 +443,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, space, move_window_to_space, resize_window)",
+			"unknown action %q (supported: focus_window, space, move_window_to_space, move_window_to_display, resize_window)",
 			cmd.Name,
 		)
 	}

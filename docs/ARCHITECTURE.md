@@ -53,6 +53,8 @@ it is what checks that the real desktop behaves the way the fake pretends to.
 | `focus_window` | Accessibility (`AXUIElement`) |
 | `space` | Synthetic dock-swipe gesture via `CGEvent` |
 | `move_window_to_space` | Private SkyLight (`SLSMoveWindowsToManagedSpace`) |
+| `move_window_to_display` | Accessibility (`AXUIElement`), `NSScreen` for the display list |
+| `resize_window` | Accessibility (`AXUIElement`), `NSScreen` for the visible frame |
 
 CLI actions pump the run loop briefly after posting events so gestures complete before the process exits.
 
@@ -102,8 +104,8 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 cmd/mimi/           CLI entry point and commands
 internal/
   action/           Action dispatch (focus_window, space, move_window_to_space,
-                    resize_window), the queries, the Desktop seam and its
-                    native adapter
+                    move_window_to_display, resize_window), the queries, the
+                    Desktop seam and its native adapter
   native/           All Objective-C + CGO: AX window wrappers, Mission Control
                     space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing

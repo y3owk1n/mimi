@@ -22,9 +22,16 @@ int MimiGetWindowPID(void *window);
 
 #pragma mark - Screen Functions
 
+/// Doubles per display in MimiCopyScreenFrames' result.
+#define MIMI_SCREEN_DOUBLES 9
+
 bool MimiIsMissionControlActive(void);
 double *MimiGetScreenFrameForPoint(double x, double y);
 double *MimiGetScreenVisibleFrameForPoint(double x, double y);
+/// Copy every connected display as nine doubles each: the CGDirectDisplayID,
+/// then the frame and the visible frame as x, y, w, h in NSScreen coordinates.
+/// Sets *count; the caller frees the result. NULL when there are none.
+double *MimiCopyScreenFrames(int *count);
 
 #pragma mark - Window Frame Functions
 

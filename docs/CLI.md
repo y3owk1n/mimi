@@ -83,6 +83,7 @@ mimi action move_window_to_space 2
 mimi action move_window_to_space next
 mimi action move_window_to_space prev
 mimi action move_window_to_space next --follow
+mimi action move_window_to_display next
 mimi action resize_window left-half
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor cc
@@ -104,6 +105,8 @@ Cycle keyboard focus through all focusable windows on the current space, or move
 
 Focus a Mission Control space by its 1-based index, or cycle to the next/previous space with wrapping. Uses a synthetic dock-swipe gesture (no public macOS API exists for direct space switching).
 
+When the destination space sits on another display, the mouse pointer is warped to the center of that display first so the gesture lands on the right screen, and it stays there afterwards. The same applies to `move_window_to_space --follow`.
+
 ### `mimi action move_window_to_space <number|next|prev>`
 
 Move the frontmost window to a space by its 1-based index, or cycle to the next/previous space with wrapping. Uses private SkyLight APIs; does not require disabling SIP.
@@ -113,6 +116,18 @@ Move the frontmost window to a space by its 1-based index, or cycle to the next/
 | `--follow` | Switch to the destination space once the window is there         |
 
 Without `--follow` the window leaves and the current space stays in front. With it, the switch is the same dock-swipe gesture `mimi action space` makes, so it is subject to the same timing. If the move lands but the switch fails, the error says the window moved and the window stays on its new space.
+
+### `mimi action move_window_to_display <number|next|prev>`
+
+Move the frontmost window to another display by its 1-based index, or cycle to the next/previous display with wrapping. Displays are counted left to right, then top to bottom, across every connected display. Goes through Accessibility, so the window lands on the destination's active space and the display becomes the active one. **Accessibility permission is required.**
+
+The window keeps the share of the display it had: a window filling the left half of one display fills the left half of the other, whatever their sizes or resolutions. A window already on the destination stays where it is, which is also what `next` does with a single display.
+
+```bash
+mimi action move_window_to_display 2
+mimi action move_window_to_display next
+mimi action move_window_to_display prev
+```
 
 ### `mimi action resize_window [preset] [flags]`
 

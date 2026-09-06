@@ -37,7 +37,7 @@ func spaceCommandFor(t *testing.T, name action.Name, arg string) action.Command 
 		cmd, err = action.NewSpaceCommand([]string{arg})
 	case action.NameMoveWindowToSpace:
 		cmd, err = action.NewMoveWindowToSpaceCommand([]string{arg}, false)
-	case action.NameFocusWindow, action.NameResizeWindow:
+	case action.NameFocusWindow, action.NameResizeWindow, action.NameMoveWindowToDisplay:
 		t.Fatalf("%s takes no space argument", name)
 	default:
 		t.Fatalf("unknown action %q", name)
@@ -491,6 +491,26 @@ func TestExecuteCommand_ReachesEveryAction(t *testing.T) {
 		wantRefreshCalls(t, desktop, 1)
 	})
 
+	t.Run("move_window_to_display", func(t *testing.T) {
+		t.Parallel()
+
+		desktop := desktopWithDisplays()
+
+		err := action.NewExecutor(desktop).ExecuteCommand(action.Command{
+			Name:                action.NameMoveWindowToDisplay,
+			MoveWindowToDisplay: action.DisplayArg{Direction: 1},
+		})
+		if err != nil {
+			t.Fatalf("ExecuteCommand(move_window_to_display) error = %v, want nil", err)
+		}
+
+		if desktop.activatedDisplay != rightDisplayID {
+			t.Fatalf("activated display = %d, want %d", desktop.activatedDisplay, rightDisplayID)
+		}
+
+		wantRefreshCalls(t, desktop, 1)
+	})
+
 	t.Run("resize_window", func(t *testing.T) {
 		t.Parallel()
 
@@ -568,6 +588,17 @@ func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
 				MoveWindowToSpace: action.MoveWindowToSpaceArgs{
 					Space: action.SpaceArg{Index: 2, Direction: -1},
 				},
+			},
+		},
+		{
+			name: "move_window_to_display naming no display at all",
+			cmd:  action.Command{Name: action.NameMoveWindowToDisplay},
+		},
+		{
+			name: "move_window_to_display naming an index and a direction at once",
+			cmd: action.Command{
+				Name:                action.NameMoveWindowToDisplay,
+				MoveWindowToDisplay: action.DisplayArg{Index: 1, Direction: 1},
 			},
 		},
 		{

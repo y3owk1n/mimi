@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"slices"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -36,6 +37,11 @@ type fakeDesktop struct {
 	screenErr error
 
 	missionControlActive bool
+
+	displays    []action.Display
+	displaysErr error
+	// activatedDisplay is the display last made active, or 0 for none.
+	activatedDisplay uint32
 
 	spaceCount     int
 	activeSpace    int // 1-based
@@ -131,6 +137,18 @@ func (d *fakeDesktop) ScreenAt(_ geometry.Rect) (geometry.Screen, error) {
 	}
 
 	return d.screen, nil
+}
+
+func (d *fakeDesktop) Displays() ([]action.Display, error) {
+	if d.displaysErr != nil {
+		return nil, d.displaysErr
+	}
+
+	return slices.Clone(d.displays), nil
+}
+
+func (d *fakeDesktop) ActivateDisplay(id uint32) {
+	d.activatedDisplay = id
 }
 
 func (d *fakeDesktop) MissionControlActive() bool {

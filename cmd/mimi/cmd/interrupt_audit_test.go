@@ -66,7 +66,7 @@ func audited(command string, response interruptResponse, why string) auditEntry 
 // no longer reaches the work, is invisible from the command's own code.
 //
 // What the audit found: six commands honor the context, one runs its own
-// signal handler, and fourteen ignore it. Twelve of those fourteen are local
+// signal handler, and fifteen ignore it. Thirteen of those fifteen are local
 // file work, one-shot syscalls or desktop reads, over before an interrupt could
 // be typed. The two that are not are in the action family — `action space` on the direct path
 // pumps the run loop for a stretch proportional to the spaces it crosses, and
@@ -94,6 +94,8 @@ var interruptAudit = []auditEntry{
 			"shorten even if runAction read one"),
 	audited("action move_window_to_space", interruptRunsOn,
 		"as space; the SkyLight move likewise runs to completion"),
+	audited("action move_window_to_display", interruptRunsOn,
+		"as resize_window; the Accessibility frame write runs to completion"),
 	audited("action resize_window", interruptRunsOn,
 		"as focus_window; the Accessibility resize runs to completion"),
 	audited("config dump", interruptRunsOn,

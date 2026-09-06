@@ -20,6 +20,15 @@ const (
 	NameSpace             Name = "space"
 	NameMoveWindowToSpace Name = "move_window_to_space"
 	NameResizeWindow      Name = "resize_window"
+
+	NameMoveWindowToDisplay Name = "move_window_to_display"
+)
+
+// Nouns the index-argument rule reports in: what a space argument and a
+// display argument each name.
+const (
+	spaceNoun   = "space"
+	displayNoun = "display"
 )
 
 // SpaceArg is the parsed form of the one argument space and
@@ -30,66 +39,107 @@ type SpaceArg struct {
 	Direction int `json:"direction"` // +1 for next, -1 for prev; 0 means absolute index
 }
 
+// DisplayArg is the parsed form of the one argument move_window_to_display
+// takes: either an absolute 1-based Index, counted left to right, or a
+// relative Direction (+1 for next, -1 for prev), never both. It is SpaceArg's
+// shape under another noun, and held to the same rule.
+type DisplayArg struct {
+	Index     int `json:"index"`
+	Direction int `json:"direction"` // +1 for next, -1 for prev; 0 means absolute index
+}
+
+// indexArg is the shape a space argument and a display argument share, which
+// is what lets one rule read and check both.
+type indexArg struct {
+	index     int
+	direction int
+}
+
 // ParseSpaceArg is the only place the written form of a space argument is
 // read — a 1-based number, "next", "prev", or "previous" — so every path that
 // takes one from a user rejects a malformed argument in the same words.
 //
 // It answers "what does this string mean"; validateSpaceArg answers "does this
 // value name a space", which is the question left once the string is gone and
-// a SpaceArg arrives off the socket instead. This runs that check on what it
-// parsed rather than restating it, so the two cannot come to disagree about
+// a SpaceArg arrives off the socket instead. The rule itself is parseIndexArg,
+// shared with the display argument, so the two cannot come to disagree about
 // which values are well-formed.
 //
 // name is the action the argument was given to, and appears in those words;
-// it is the only part of them that differs between the two actions.
+// it is the only part of them that differs between the two space actions.
 func ParseSpaceArg(name Name, args []string) (SpaceArg, error) {
+	arg, err := parseIndexArg(name, spaceNoun, args)
+	if err != nil {
+		return SpaceArg{}, err
+	}
+
+	return SpaceArg{Index: arg.index, Direction: arg.direction}, nil
+}
+
+// ParseDisplayArg is ParseSpaceArg for the display argument: the same
+// spellings, reported against move_window_to_display and the word "display".
+func ParseDisplayArg(args []string) (DisplayArg, error) {
+	arg, err := parseIndexArg(NameMoveWindowToDisplay, displayNoun, args)
+	if err != nil {
+		return DisplayArg{}, err
+	}
+
+	return DisplayArg{Index: arg.index, Direction: arg.direction}, nil
+}
+
+// parseIndexArg reads the one written form both index arguments take, and is
+// the only place that form is read. noun is what the argument names, "space"
+// or "display", and appears in the rejection alongside the action's name.
+func parseIndexArg(name Name, noun string, args []string) (indexArg, error) {
 	if len(args) != 1 {
-		return SpaceArg{}, derrors.Newf(
+		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s requires exactly one argument: a 1-based space number, \"next\", or \"prev\"",
+			"%s requires exactly one argument: a 1-based %s number, \"next\", or \"prev\"",
 			name,
+			noun,
 		)
 	}
 
 	raw := strings.TrimSpace(args[0])
 	if raw == "" {
-		return SpaceArg{}, derrors.Newf(
+		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s argument cannot be empty: give a 1-based space number, \"next\", or \"prev\"",
+			"%s argument cannot be empty: give a 1-based %s number, \"next\", or \"prev\"",
 			name,
+			noun,
 		)
 	}
 
-	arg, err := spaceArgOf(name, raw)
+	arg, err := indexArgOf(name, raw)
 	if err != nil {
-		return SpaceArg{}, err
+		return indexArg{}, err
 	}
 
-	// The value the spelling denotes still has to name a space. It always
+	// The value the spelling denotes still has to name something. It always
 	// does today, so this never fires — which is the point: it is what stops
 	// a new spelling from being added here that the daemon would then reject
 	// on a command the CLI happily built.
-	err = validateSpaceArg(name, arg)
+	err = validateIndexArg(name, noun, arg)
 	if err != nil {
-		return SpaceArg{}, err
+		return indexArg{}, err
 	}
 
 	return arg, nil
 }
 
-// spaceArgOf is the spelling half of ParseSpaceArg: which SpaceArg a written
-// space argument denotes, with raw already trimmed and known non-empty.
-func spaceArgOf(name Name, raw string) (SpaceArg, error) {
+// indexArgOf is the spelling half of parseIndexArg: which value a written
+// argument denotes, with raw already trimmed and known non-empty.
+func indexArgOf(name Name, raw string) (indexArg, error) {
 	switch raw {
 	case "next":
-		return SpaceArg{Direction: 1}, nil
+		return indexArg{direction: 1}, nil
 	case "prev", "previous":
-		return SpaceArg{Direction: -1}, nil
+		return indexArg{direction: -1}, nil
 	}
 
 	index, parseErr := strconv.Atoi(raw)
 	if parseErr != nil || index < 1 {
-		return SpaceArg{}, derrors.Newf(
+		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
 			"%s argument must be a positive integer, \"next\", or \"prev\", got %q",
 			name,
@@ -97,20 +147,35 @@ func spaceArgOf(name Name, raw string) (SpaceArg, error) {
 		)
 	}
 
-	return SpaceArg{Index: index}, nil
+	return indexArg{index: index}, nil
 }
 
 // validateSpaceArg rejects a SpaceArg that names no space.
 //
-// It is the typed half of the one space argument rule: ParseSpaceArg decides
+// It is the typed half of the one index argument rule: ParseSpaceArg decides
 // what a string means, and this decides whether the value is one the actions
 // can act on. Both the parser and every space action run it, so a SpaceArg the
 // CLI built and one the daemon decoded are held to the same rule.
 //
 // name is the action the argument was given to, and appears in the rejection.
 func validateSpaceArg(name Name, arg SpaceArg) error {
-	absolute := arg.Direction == 0 && arg.Index >= 1
-	relative := (arg.Direction == 1 || arg.Direction == -1) && arg.Index == 0
+	return validateIndexArg(name, spaceNoun, indexArg{index: arg.Index, direction: arg.Direction})
+}
+
+// validateDisplayArg is validateSpaceArg for the display argument.
+func validateDisplayArg(arg DisplayArg) error {
+	return validateIndexArg(
+		NameMoveWindowToDisplay,
+		displayNoun,
+		indexArg{index: arg.Index, direction: arg.Direction},
+	)
+}
+
+// validateIndexArg rejects a value that names nothing: neither an absolute
+// index nor a single step in one direction.
+func validateIndexArg(name Name, noun string, arg indexArg) error {
+	absolute := arg.direction == 0 && arg.index >= 1
+	relative := (arg.direction == 1 || arg.direction == -1) && arg.index == 0
 
 	if absolute || relative {
 		return nil
@@ -118,8 +183,10 @@ func validateSpaceArg(name Name, arg SpaceArg) error {
 
 	return derrors.Newf(
 		derrors.CodeInvalidInput,
-		"%s must name exactly one space: a 1-based space number, \"next\", or \"prev\"",
+		"%s must name exactly one %s: a 1-based %s number, \"next\", or \"prev\"",
 		name,
+		noun,
+		noun,
 	)
 }
 

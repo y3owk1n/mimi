@@ -124,18 +124,9 @@ func Resize(cur Rect, scr Screen, req Request) Rect {
 	width := req.Width.resolve(cur.W, scr.Visible.W)
 	height := req.Height.resolve(cur.H, scr.Visible.H)
 
-	// The visible frame in window coordinates. Its top edge is the one line
-	// that converts between the two systems:
-	//
-	//	y-down top = primaryHeight - visibleFrameY - visibleFrameHeight
-	//
-	// Everything below this point is in window coordinates.
-	bounds := Rect{
-		X: scr.Visible.X,
-		Y: scr.PrimaryHeight - scr.Visible.Y - scr.Visible.H,
-		W: scr.Visible.W,
-		H: scr.Visible.H,
-	}
+	// The visible frame in window coordinates. Everything below this point is
+	// in window coordinates.
+	bounds := windowBounds(scr.Visible, scr.PrimaryHeight)
 
 	anchor := Center
 	if req.Anchor != nil {
