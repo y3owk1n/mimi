@@ -175,9 +175,9 @@ func TestExecutor_FocusApp_AWindowOnEverySpaceNeedsNoSwitch(t *testing.T) {
 	}
 }
 
-// TestExecutor_FocusApp_NoWindowsActivatesTheApplication: an application with
-// nothing to raise is still brought to the front.
-func TestExecutor_FocusApp_NoWindowsActivatesTheApplication(t *testing.T) {
+// TestExecutor_FocusApp_NoWindowsReopensTheApplication: an application with
+// nothing to raise is reopened instead.
+func TestExecutor_FocusApp_NoWindowsReopensTheApplication(t *testing.T) {
 	t.Parallel()
 
 	desktop := desktopWithApp(0)
@@ -185,8 +185,8 @@ func TestExecutor_FocusApp_NoWindowsActivatesTheApplication(t *testing.T) {
 
 	focusApp(t, desktop)
 
-	if desktop.activatedApp != appPID {
-		t.Fatalf("activated application = %d, want %d", desktop.activatedApp, appPID)
+	if desktop.reopenedApp != appPID {
+		t.Fatalf("reopened application = %d, want %d", desktop.reopenedApp, appPID)
 	}
 
 	wantFocused(t, desktop, otherWindow)

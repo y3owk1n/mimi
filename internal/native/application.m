@@ -323,12 +323,35 @@ int MimiRaiseWindowNumber(int pid, uint32_t number) {
 	}
 }
 
-int MimiActivateApplication(int pid) {
+/// How long a reopen may take before plain activation stands in for it.
+static const int64_t kMimiReopenTimeout = 2 * NSEC_PER_SEC;
+
+int MimiReopenApplication(int pid) {
 	@autoreleasepool {
 		NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:(pid_t)pid];
 		if (!app)
 			return 0;
 
+		// Launch Services sends a running application the same reopen event
+		// a Dock click does, and the application answers by opening a window
+		// when it has none. Plain activation does not, which is how Finder
+		// used to end up in front with nothing to show.
+		NSURL *bundleURL = app.bundleURL;
+		if (!bundleURL)
+			return [app activateWithOptions:0] ? 1 : 0;
+
+		dispatch_semaphore_t sem = dispatch_semaphore_create(0);
+		__block int reopened = 0;
+		[[NSWorkspace sharedWorkspace] openApplicationAtURL:bundleURL
+		                                      configuration:[NSWorkspaceOpenConfiguration configuration]
+		                                  completionHandler:^(NSRunningApplication *running, NSError *error) {
+			                                  reopened = running != nil && error == nil;
+			                                  dispatch_semaphore_signal(sem);
+		                                  }];
+		if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, kMimiReopenTimeout)) == 0 && reopened)
+			return 1;
+
+		MIMI_LOG("reopen of pid %d did not complete, activating instead", pid);
 		return [app activateWithOptions:0] ? 1 : 0;
 	}
 }

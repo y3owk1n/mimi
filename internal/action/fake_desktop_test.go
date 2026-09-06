@@ -51,8 +51,8 @@ type fakeDesktop struct {
 	// appWindows lists each application's windows front to back, as
 	// ApplicationWindows reports them; every id is one of windows'.
 	appWindows map[int][]action.AppWindow
-	// activatedApp is the last application activated without a window.
-	activatedApp int
+	// reopenedApp is the last application reopened for having no window.
+	reopenedApp int
 
 	displays    []action.Display
 	displaysErr error
@@ -177,8 +177,8 @@ func (d *fakeDesktop) RaiseWindow(pid int, number uint32) error {
 	return derrors.Newf(derrors.CodeAccessibilityFailed, "window %d is not listed", number)
 }
 
-func (d *fakeDesktop) ActivateApplication(pid int) error {
-	d.activatedApp = pid
+func (d *fakeDesktop) ReopenApplication(pid int) error {
+	d.reopenedApp = pid
 
 	return nil
 }

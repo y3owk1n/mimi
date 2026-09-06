@@ -82,11 +82,11 @@ func RaiseWindowNumber(pid int, number uint32) error {
 	return nil
 }
 
-// ActivateApplication brings an application to the front without naming a
-// window, which is what activating an application with no windows means.
-func ActivateApplication(pid int) error {
-	if C.MimiActivateApplication(C.int(pid)) == 0 {
-		return derrors.Newf(derrors.CodeActionFailed, "failed to activate application %d", pid)
+// ReopenApplication reopens an application as a Dock click would. An
+// application with no window opens one and comes to the front.
+func ReopenApplication(pid int) error {
+	if C.MimiReopenApplication(C.int(pid)) == 0 {
+		return derrors.Newf(derrors.CodeActionFailed, "failed to reopen application %d", pid)
 	}
 
 	return nil

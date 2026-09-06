@@ -111,9 +111,9 @@ type Desktop interface {
 	// error for one that is not: the caller switches first.
 	RaiseWindow(pid int, number uint32) error
 
-	// ActivateApplication brings an application to the front without naming
-	// a window, which is what focusing an application with no windows means.
-	ActivateApplication(pid int) error
+	// ReopenApplication reopens an application as a Dock click would. An
+	// application with no window opens one and comes to the front.
+	ReopenApplication(pid int) error
 
 	// MissionControlActive reports whether Mission Control is open, which is
 	// the state the space actions refuse to run in.

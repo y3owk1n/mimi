@@ -42,8 +42,9 @@ MimiAppWindow *MimiCopyApplicationWindows(int pid, int *count);
 /// Bring one of an application's windows to the front by number. The window
 /// has to be on the active space, which is when Accessibility lists it.
 int MimiRaiseWindowNumber(int pid, uint32_t number);
-/// Bring an application to the front without naming a window.
-int MimiActivateApplication(int pid);
+/// Reopen an application as a Dock click would. An application with no window
+/// opens one and comes to the front.
+int MimiReopenApplication(int pid);
 
 #pragma mark - Screen Functions
 

@@ -119,7 +119,7 @@ Which window is chosen depends on where focus is:
 - When the application is **not in front**, its most recently used window is chosen, wherever it is.
 - When it **is already in front**, running the command again moves on to its next window. Windows are visited by space, left to right, and by age within a space, wrapping at the end, so repeated presses reach every window the application has, and the order never depends on which window was used last.
 
-Minimized windows are skipped. A window assigned to every space is raised without a switch. An application with no window is brought to the front as it is. The switch across spaces is the same dock-swipe gesture as `space`, including the pointer warp when the window is on another display. **Accessibility permission is required.**
+Minimized windows are skipped. A window assigned to every space is raised without a switch. An application with no window is reopened, as if its Dock icon were clicked, so it opens a fresh window and comes to the front. Finder is the one you will notice, since it is always running and used to end up in front with nothing to show. The switch across spaces is the same dock-swipe gesture as `space`, including the pointer warp when the window is on another display. **Accessibility permission is required.**
 
 ### `mimi action space <number|next|prev>`
 
