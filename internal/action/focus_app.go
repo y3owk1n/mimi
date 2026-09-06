@@ -19,8 +19,8 @@ import (
 // depends on which window was used last; see
 // docs/adr/0004-focus-app-cycles-in-desktop-order.md.
 //
-// An application with no window is brought to the front as it is, which is
-// what activating it means.
+// An application with no window is reopened, as a Dock click would, so it
+// opens one and comes to the front.
 func (e *Executor) FocusApp(query string) error {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
@@ -48,9 +48,9 @@ func (e *Executor) FocusApp(query string) error {
 	}
 
 	if len(windows) == 0 {
-		err = e.desktop.ActivateApplication(pid)
+		err = e.desktop.ReopenApplication(pid)
 		if err != nil {
-			return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to activate application")
+			return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to reopen application")
 		}
 
 		return nil

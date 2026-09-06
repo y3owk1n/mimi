@@ -134,7 +134,8 @@ chosen. When it is already in front, running the command again moves on to
 its next window: windows are visited by space, left to right, and by age
 within a space, wrapping at the end, so repeated presses reach every window
 the application has. Minimized windows are skipped. An application with no
-window is brought to the front as it is.
+window is reopened, as if its Dock icon were clicked, so it opens a fresh
+window and comes to the front.
 
 The application has to be running; pair with open for the other case:
   mimi action focus_app Safari || open -a Safari

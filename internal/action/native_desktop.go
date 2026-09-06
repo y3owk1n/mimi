@@ -97,9 +97,9 @@ func (d *nativeDesktop) RaiseWindow(pid int, number uint32) error {
 	return native.RaiseWindowNumber(pid, number)
 }
 
-// ActivateApplication brings an application to the front.
-func (d *nativeDesktop) ActivateApplication(pid int) error {
-	return native.ActivateApplication(pid)
+// ReopenApplication reopens an application as a Dock click does.
+func (d *nativeDesktop) ReopenApplication(pid int) error {
+	return native.ReopenApplication(pid)
 }
 
 // FrontmostWindow returns the window currently in front.
