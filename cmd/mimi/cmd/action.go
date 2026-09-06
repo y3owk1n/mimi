@@ -17,6 +17,7 @@ func newActionCmd(state *cliState) *cobra.Command {
 
 Available subcommands:
   Window control:   focus_window, resize_window
+  Application:      focus_app
   Space control:    space, move_window_to_space
   Display control:  move_window_to_display
 
@@ -24,6 +25,7 @@ Examples:
   mimi action focus_window
   mimi action focus_window --backward
   mimi action focus_window --same-app
+  mimi action focus_app Safari
   mimi action space 1
   mimi action space next
   mimi action space prev
@@ -52,6 +54,7 @@ Examples:
 	}
 
 	cmd.AddCommand(buildFocusWindowCommand(state))
+	cmd.AddCommand(buildFocusAppCommand(state))
 	cmd.AddCommand(buildSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToDisplayCommand(state))
@@ -115,6 +118,40 @@ moving in a direction.`,
 		BoolVar(&sameApp, "same-app", false, "Stay within the focused window's application")
 
 	return cmd
+}
+
+func buildFocusAppCommand(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "focus_app <name|bundle-id>",
+		Short: "Bring an application's window to the front, switching space first",
+		Long: `Bring an application's window to the front, switching to the space it is on
+first with the same instant gesture "mimi action space" uses, so macOS has
+nothing left to animate. The application is named by its name (case does not
+matter) or its bundle identifier.
+
+When the application is not in front, its most recently used window is
+chosen. When it is already in front, running the command again moves on to
+its next window: windows are visited by space, left to right, and by age
+within a space, wrapping at the end, so repeated presses reach every window
+the application has. Minimized windows are skipped. An application with no
+window is brought to the front as it is.
+
+The application has to be running; pair with open for the other case:
+  mimi action focus_app Safari || open -a Safari
+
+Examples:
+  mimi action focus_app Safari
+  mimi action focus_app com.apple.Safari`,
+		Args: validateFocusAppArg,
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			focusCmd, err := action.NewFocusAppCommand(args)
+			if err != nil {
+				return err
+			}
+
+			return state.runAction(cobraCmd, focusCmd)
+		},
+	}
 }
 
 func buildSpaceCommand(state *cliState) *cobra.Command {
@@ -421,6 +458,15 @@ func validateSpaceArg(name action.Name) cobra.PositionalArgs {
 
 		return err
 	}
+}
+
+// validateFocusAppArg is validateSpaceArg for focus_app: cobra rejects the
+// argument before RunE runs, with action.ParseFocusAppArg as the rule, which
+// is the rule the constructor in RunE calls.
+func validateFocusAppArg(_ *cobra.Command, args []string) error {
+	_, err := action.ParseFocusAppArg(args)
+
+	return err
 }
 
 // validateDisplayArg is validateSpaceArg for move_window_to_display: cobra

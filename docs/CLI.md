@@ -77,6 +77,7 @@ mimi action focus_window --right
 mimi action focus_window --up
 mimi action focus_window --down
 mimi action focus_window --same-app
+mimi action focus_app Safari
 mimi action space 1
 mimi action space next
 mimi action space prev
@@ -104,6 +105,21 @@ Cycle keyboard focus through all focusable windows on the current space, or move
 | `--same-app` | Stay within the focused window's application, cycling or directional |
 
 `--same-app` is the keyboard's Cmd-backtick: it cycles through the windows of the frontmost application only, and combines with `--backward` or a direction flag. It needs a focused window to take the application from, and reports so when there is none.
+
+### `mimi action focus_app <name|bundle-id>`
+
+Bring an application's window to the front, switching to the space it is on first with the same instant gesture `mimi action space` uses, so macOS has nothing left to animate. This is the fast replacement for `open -a Safari` when Safari's window is on another space. The application is named by its name (case does not matter) or its bundle identifier, and has to be running: pair with `open` for the other case.
+
+```bash
+mimi action focus_app Safari || open -a Safari
+```
+
+Which window is chosen depends on where focus is:
+
+- When the application is **not in front**, its most recently used window is chosen, wherever it is.
+- When it **is already in front**, running the command again moves on to its next window. Windows are visited by space, left to right, and by age within a space, wrapping at the end, so repeated presses reach every window the application has, and the order never depends on which window was used last.
+
+Minimized windows are skipped. A window assigned to every space is raised without a switch. An application with no window is brought to the front as it is. The switch across spaces is the same dock-swipe gesture as `space`, including the pointer warp when the window is on another display. **Accessibility permission is required.**
 
 ### `mimi action space <number|next|prev>`
 

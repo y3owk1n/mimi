@@ -9,6 +9,8 @@
 #import <Cocoa/Cocoa.h>
 #import <CoreGraphics/CoreGraphics.h>
 
+extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
+
 /// Process identifiers of every process owning an on-screen, layer-0 window,
 /// in ascending order. This is the source of the applications to enumerate, so
 /// it is deliberately fetched fresh on every call.
@@ -518,6 +520,17 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 
 		return (posError == kAXErrorSuccess && sizeError == kAXErrorSuccess) ? 1 : 0;
 	}
+}
+
+uint32_t MimiGetWindowNumber(void *window) {
+	if (!window)
+		return 0;
+
+	CGWindowID number = 0;
+	if (_AXUIElementGetWindow((AXUIElementRef)window, &number) != kAXErrorSuccess)
+		return 0;
+
+	return (uint32_t)number;
 }
 
 int MimiActivateWindow(void *window) {

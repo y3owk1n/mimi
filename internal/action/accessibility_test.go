@@ -59,6 +59,12 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 			},
 		},
 		{
+			name: string(action.NameFocusApp),
+			run: func(e *action.Executor) error {
+				return e.FocusApp(appQuery)
+			},
+		},
+		{
 			name: string(action.NameResizeWindow),
 			run: func(e *action.Executor) error {
 				return e.ExecuteCommand(resizeCommandFor(t, action.ResizeWindowArgs{
@@ -94,6 +100,7 @@ func TestExecutor_DeniedAccessibilityLeavesTheDesktopAlone(t *testing.T) {
 			desktop.focusSpaceErr = denied
 			desktop.moveErr = denied
 			desktop.displaysErr = denied
+			desktop.apps = map[string]int{appQuery: appPID}
 
 			before := desktop.windows[0].frame
 

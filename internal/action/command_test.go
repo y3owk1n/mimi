@@ -37,7 +37,8 @@ func spaceCommandFor(t *testing.T, name action.Name, arg string) action.Command 
 		cmd, err = action.NewSpaceCommand([]string{arg})
 	case action.NameMoveWindowToSpace:
 		cmd, err = action.NewMoveWindowToSpaceCommand([]string{arg}, false)
-	case action.NameFocusWindow, action.NameResizeWindow, action.NameMoveWindowToDisplay:
+	case action.NameFocusWindow, action.NameResizeWindow, action.NameMoveWindowToDisplay,
+		action.NameFocusApp:
 		t.Fatalf("%s takes no space argument", name)
 	default:
 		t.Fatalf("unknown action %q", name)
@@ -516,6 +517,24 @@ func TestExecuteCommand_ReachesEveryAction(t *testing.T) {
 		wantRefreshCalls(t, desktop, 1)
 	})
 
+	t.Run("focus_app", func(t *testing.T) {
+		t.Parallel()
+
+		desktop := desktopWithApp(0)
+
+		err := action.NewExecutor(desktop).ExecuteCommand(action.Command{
+			Name:     action.NameFocusApp,
+			FocusApp: action.FocusAppArgs{App: appQuery},
+		})
+		if err != nil {
+			t.Fatalf("ExecuteCommand(focus_app) error = %v, want nil", err)
+		}
+
+		// The application was not in front, so its most recently used
+		// window, the first the desktop lists, is the one raised.
+		wantFocused(t, desktop, appWindowOnSpaceOne)
+	})
+
 	t.Run("resize_window", func(t *testing.T) {
 		t.Parallel()
 
@@ -604,6 +623,17 @@ func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
 			cmd: action.Command{
 				Name:                action.NameMoveWindowToDisplay,
 				MoveWindowToDisplay: action.DisplayArg{Index: 1, Direction: 1},
+			},
+		},
+		{
+			name: "focus_app naming no application",
+			cmd:  action.Command{Name: action.NameFocusApp},
+		},
+		{
+			name: "focus_app naming only whitespace",
+			cmd: action.Command{
+				Name:     action.NameFocusApp,
+				FocusApp: action.FocusAppArgs{App: "  "},
 			},
 		},
 		{
