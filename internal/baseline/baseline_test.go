@@ -6,11 +6,11 @@ import (
 	"github.com/y3owk1n/mimi/internal/baseline"
 )
 
-// The counts the recorder covers: ten presets in two margin states plus one
-// system-default case, nine anchors in two margin states, ten explicit-flag
-// combinations, and four focus directions.
+// The counts the recorder covers: fifteen presets in two margin states plus
+// one system-default case, nine anchors in two margin states, ten
+// explicit-flag combinations, and four focus directions.
 const (
-	wantResizeCases = 10*2 + 1 + 9*2 + 10
+	wantResizeCases = 15*2 + 1 + 9*2 + 10
 	wantFocusCases  = 4
 )
 
