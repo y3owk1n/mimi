@@ -3,6 +3,7 @@ package config
 import (
 	"fmt"
 	"slices"
+	"strconv"
 	"strings"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -80,11 +81,17 @@ type HooksConfig struct {
 }
 
 // HookEntry defines a single hook command and its optional filters.
+//
+// App, BundleID, Title and Space may each begin with "!" to match everything
+// the pattern does not; see SplitNegation. Space is a 1-based space number
+// kept as a string so that the negated form has somewhere to live, and is
+// accepted as a bare number in TOML as well.
 type HookEntry struct {
 	Run         string `json:"run"         toml:"run"`
 	App         string `json:"app"         toml:"app"`
 	BundleID    string `json:"bundleId"    toml:"bundle_id"`
 	Title       string `json:"title"       toml:"title"`
+	Space       string `json:"space"       toml:"space"`
 	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
 	Async       bool   `json:"async"       toml:"async"`
 }
@@ -137,6 +144,22 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, []string, error) {
 					BundleID: getString(val, "bundle_id"),
 					Title:    getString(val, "title"),
 				}
+
+				space, ok := getSpace(val)
+				if !ok {
+					errs = append(
+						errs,
+						fmt.Sprintf(
+							"hooks.%s[%d]: space must be a number or a string, got %T",
+							field,
+							idx,
+							val["space"],
+						),
+					)
+				}
+
+				entry.Space = space
+
 				if timeout, ok := getInt(val, "timeout_secs"); ok {
 					entry.TimeoutSecs = timeout
 				}
@@ -236,6 +259,28 @@ func getString(m map[string]any, key string) string {
 	}
 
 	return ""
+}
+
+// getSpace reads a hook's space filter, which TOML delivers as a number when
+// written bare (space = 2) and as a string when negated (space = "!2"). Both
+// spell the same filter. An absent key is the empty filter; a value of any
+// other type is reported as false.
+func getSpace(m map[string]any) (string, bool) {
+	value, ok := m["space"]
+	if !ok {
+		return "", true
+	}
+
+	switch space := value.(type) {
+	case string:
+		return space, true
+	case int64:
+		return strconv.FormatInt(space, 10), true
+	case float64:
+		return strconv.Itoa(int(space)), true
+	default:
+		return "", false
+	}
 }
 
 func getInt(m map[string]any, key string) (int, bool) {

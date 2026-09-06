@@ -19,6 +19,9 @@ const (
 	testBundleGlob   = "org.example.*"
 	testBundleIDHit  = "org.example.App"
 	testBundleIDMiss = "com.other.App"
+	// testSpaceIndexKey is the Extra key a workspace event carries its space
+	// under, which the space filter reads.
+	testSpaceIndexKey = "space_index"
 )
 
 // allHookableKinds mirrors the twelve entries buildMap's literal map wires
@@ -213,6 +216,72 @@ func TestHookMatches(t *testing.T) {
 			entry: config.HookEntry{Run: testHookRun, BundleID: testBundleGlob},
 			evt:   events.Event{BundleID: testBundleIDMiss},
 			want:  false,
+		},
+		{
+			name:  "negated app glob admits every other app",
+			entry: config.HookEntry{Run: testHookRun, App: "!" + testAppGlob},
+			evt:   events.Event{AppName: testAppNameMiss},
+			want:  true,
+		},
+		{
+			name:  "negated app glob refuses the app it names",
+			entry: config.HookEntry{Run: testHookRun, App: "!" + testAppGlob},
+			evt:   events.Event{AppName: testAppName},
+			want:  false,
+		},
+		{
+			name:  "negated title regexp refuses a title it matches",
+			entry: config.HookEntry{Run: testHookRun, Title: "!" + testTitleRegex},
+			evt:   events.Event{WindowTitle: testWindowTitle},
+			want:  false,
+		},
+		{
+			name:  "negated bundle_id glob admits another bundle",
+			entry: config.HookEntry{Run: testHookRun, BundleID: "!" + testBundleGlob},
+			evt:   events.Event{BundleID: testBundleIDMiss},
+			want:  true,
+		},
+		{
+			name:  "negated catch-all admits nothing",
+			entry: config.HookEntry{Run: testHookRun, App: "!*"},
+			evt:   events.Event{AppName: testAppName},
+			want:  false,
+		},
+		{
+			name:  "space filter hit",
+			entry: config.HookEntry{Run: testHookRun, Space: "2"},
+			evt:   events.Event{Extra: map[string]string{testSpaceIndexKey: "2"}},
+			want:  true,
+		},
+		{
+			name:  "space filter miss",
+			entry: config.HookEntry{Run: testHookRun, Space: "2"},
+			evt:   events.Event{Extra: map[string]string{testSpaceIndexKey: "3"}},
+			want:  false,
+		},
+		{
+			name:  "space filter written with a leading zero still names the space",
+			entry: config.HookEntry{Run: testHookRun, Space: "02"},
+			evt:   events.Event{Extra: map[string]string{testSpaceIndexKey: "2"}},
+			want:  true,
+		},
+		{
+			name:  "negated space filter admits another space",
+			entry: config.HookEntry{Run: testHookRun, Space: "!2"},
+			evt:   events.Event{Extra: map[string]string{testSpaceIndexKey: "3"}},
+			want:  true,
+		},
+		{
+			name:  "an event carrying no space misses a space filter",
+			entry: config.HookEntry{Run: testHookRun, Space: "2"},
+			evt:   events.Event{},
+			want:  false,
+		},
+		{
+			name:  "an event carrying no space passes a negated space filter",
+			entry: config.HookEntry{Run: testHookRun, Space: "!2"},
+			evt:   events.Event{},
+			want:  true,
 		},
 		{
 			name:  "app and title filters both match",

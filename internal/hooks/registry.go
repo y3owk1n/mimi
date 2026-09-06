@@ -12,13 +12,33 @@ import (
 // Hook wraps a HookEntry with its compiled title regex and any precomputed
 // filter regexes so that per-event matching is allocation-free.
 type Hook struct {
-	Entry       config.HookEntry
-	titleRegexp *regexp.Regexp
-	// appRegexp is the compiled glob from Entry.App, or nil when not set.
-	appRegexp *regexp.Regexp
-	// bundleRegexp is the compiled glob from Entry.BundleID, or nil when
-	// not set. Glob is used for symmetry with Entry.App.
-	bundleRegexp *regexp.Regexp
+	Entry config.HookEntry
+	title filter
+	app   filter
+	// bundle is the compiled glob from Entry.BundleID. Glob is used for
+	// symmetry with Entry.App.
+	bundle filter
+	// space is the space index the hook is filtered to, in the form
+	// workspace events carry it, or "" for no filter.
+	space        string
+	spaceNegated bool
+}
+
+// filter is one compiled pattern filter: nil when the entry set none, and
+// inverted when the entry negated it.
+type filter struct {
+	re      *regexp.Regexp
+	negated bool
+}
+
+// matches reports whether the filter admits value. An unset filter, or the
+// catch-all "*", admits everything; negated, the catch-all admits nothing.
+func (f filter) matches(value string) bool {
+	if f.re == nil {
+		return !f.negated
+	}
+
+	return f.re.MatchString(value) != f.negated
 }
 
 // Registry maps event kinds to their registered hooks.
@@ -67,18 +87,28 @@ func (r *Registry) KindFilter() events.KindFilter {
 	}
 }
 
-// Matches checks whether a hook's filters (app, bundle_id, title) match an event.
+// Matches checks whether a hook's filters (app, bundle_id, title, space)
+// match an event.
+//
+// The space filter reads the index a workspace event carries. An event that
+// carries none, because Mission Control could not be enumerated when it was
+// published, matches no positive space filter and every negated one: the
+// event does not say it is on that space.
 func (h *Hook) Matches(evt events.Event) (bool, string) {
-	if h.appRegexp != nil && !h.appRegexp.MatchString(evt.AppName) {
+	if !h.app.matches(evt.AppName) {
 		return false, "app filter mismatch"
 	}
 
-	if h.bundleRegexp != nil && !h.bundleRegexp.MatchString(evt.BundleID) {
+	if !h.bundle.matches(evt.BundleID) {
 		return false, "bundle_id filter mismatch"
 	}
 
-	if h.titleRegexp != nil && !h.titleRegexp.MatchString(evt.WindowTitle) {
+	if !h.title.matches(evt.WindowTitle) {
 		return false, "title filter mismatch"
+	}
+
+	if h.space != "" && (evt.Extra["space_index"] == h.space) == h.spaceNegated {
+		return false, "space filter mismatch"
 	}
 
 	return true, ""
@@ -96,31 +126,29 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 		var hooks []Hook
 		for _, entry := range *kind.Entries(&cfg.Hooks) {
 			hook := Hook{Entry: entry}
-			if entry.Title != "" {
-				re, err := regexp.Compile(entry.Title)
-				if err != nil {
-					return nil, err
-				}
 
-				hook.titleRegexp = re
+			var err error
+
+			hook.title, err = compileFilter(entry.Title, regexp.Compile)
+			if err != nil {
+				return nil, err
 			}
 
-			if entry.App != "" {
-				re, err := compileGlob(entry.App)
-				if err != nil {
-					return nil, err
-				}
-
-				hook.appRegexp = re
+			hook.app, err = compileFilter(entry.App, compileGlob)
+			if err != nil {
+				return nil, err
 			}
 
-			if entry.BundleID != "" {
-				re, err := compileGlob(entry.BundleID)
+			hook.bundle, err = compileFilter(entry.BundleID, compileGlob)
+			if err != nil {
+				return nil, err
+			}
+
+			if entry.Space != "" {
+				hook.space, hook.spaceNegated, err = config.ParseSpaceFilter(entry.Space)
 				if err != nil {
 					return nil, err
 				}
-
-				hook.bundleRegexp = re
 			}
 
 			hooks = append(hooks, hook)
@@ -132,6 +160,26 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 	}
 
 	return hookMap, nil
+}
+
+// compileFilter compiles one pattern filter with the given compiler, reading
+// the negation prefix off it first. An empty pattern is no filter.
+func compileFilter(
+	pattern string,
+	compile func(string) (*regexp.Regexp, error),
+) (filter, error) {
+	if pattern == "" {
+		return filter{}, nil
+	}
+
+	rest, negated := config.SplitNegation(pattern)
+
+	re, err := compile(rest)
+	if err != nil {
+		return filter{}, err
+	}
+
+	return filter{re: re, negated: negated}, nil
 }
 
 // compileGlob converts a glob-style pattern (with `*` wildcards) to an
