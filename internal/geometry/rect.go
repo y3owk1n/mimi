@@ -12,6 +12,14 @@ type Rect struct {
 	H float64
 }
 
+// SameFrame reports whether two frames are the same to within the slack a
+// display can show: macOS stores window frames in whole points, so two frames
+// half a point apart are one frame.
+func SameFrame(first, second Rect) bool {
+	return adjacent(first.X, second.X) && adjacent(first.Y, second.Y) &&
+		adjacent(first.W, second.W) && adjacent(first.H, second.H)
+}
+
 // Right returns the x coordinate of the rectangle's right edge.
 func (r Rect) Right() float64 {
 	return r.X + r.W

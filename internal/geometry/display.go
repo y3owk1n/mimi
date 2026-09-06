@@ -1,5 +1,7 @@
 package geometry
 
+import "math"
+
 // windowBounds is a visible frame in window coordinates. The top edge is the
 // one line that converts between the two systems:
 //
@@ -19,16 +21,19 @@ func windowBounds(visible Rect, primaryHeight float64) Rect {
 // half of one display fills the left half of the other, whatever their sizes.
 //
 // cur and the returned frame are in window coordinates; from and to are in
-// screen coordinates, as macOS reports them.
+// screen coordinates, as macOS reports them. The frame comes back in whole
+// points, which is how macOS stores it: rounding here rather than leaving it
+// to the application keeps a window that goes there and back from drifting a
+// point each way.
 func MoveToScreen(cur Rect, primaryHeight float64, from, to Rect) Rect {
 	src := windowBounds(from, primaryHeight)
 	dst := windowBounds(to, primaryHeight)
 
 	return Rect{
-		X: dst.X + (cur.X-src.X)/src.W*dst.W,
-		Y: dst.Y + (cur.Y-src.Y)/src.H*dst.H,
-		W: cur.W / src.W * dst.W,
-		H: cur.H / src.H * dst.H,
+		X: math.Round(dst.X + (cur.X-src.X)/src.W*dst.W),
+		Y: math.Round(dst.Y + (cur.Y-src.Y)/src.H*dst.H),
+		W: math.Round(cur.W / src.W * dst.W),
+		H: math.Round(cur.H / src.H * dst.H),
 	}
 }
 

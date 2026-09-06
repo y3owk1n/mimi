@@ -18,6 +18,13 @@ type fakeWindow struct {
 	frameErr    error
 	activateErr error
 	setFrameErr error
+	// setFrameWrites counts how many frames were written to the window.
+	setFrameWrites int
+	// clampsFirstWrite makes the first frame written land one point
+	// narrower than asked, the way an application does when it applies a
+	// size while it still counts the window as being on the display it just
+	// left. Later writes land as asked.
+	clampsFirstWrite bool
 }
 
 // fakeDesktop is a desktop made of plain values. Every action's effect lands
@@ -124,6 +131,11 @@ func (d *fakeDesktop) SetWindowFrame(windowID action.WindowID, frame geometry.Re
 
 	if d.windows[index].setFrameErr != nil {
 		return d.windows[index].setFrameErr
+	}
+
+	d.windows[index].setFrameWrites++
+	if d.windows[index].clampsFirstWrite && d.windows[index].setFrameWrites == 1 {
+		frame.W--
 	}
 
 	d.windows[index].frame = frame
