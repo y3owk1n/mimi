@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.11.1](https://github.com/y3owk1n/mimi/compare/v0.11.0...v0.11.1) (2026-09-06)
+
+
+### Bug Fixes
+
+* **action,native:** open a window when focus_app reaches a windowless application ([#202](https://github.com/y3owk1n/mimi/issues/202)) ([a867531](https://github.com/y3owk1n/mimi/commit/a86753161d4ddfa214ab1c9c11477a7699442b15))
+
 ## [0.11.0](https://github.com/y3owk1n/mimi/compare/v0.10.1...v0.11.0) (2026-09-06)
 
 
