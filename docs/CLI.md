@@ -82,6 +82,7 @@ mimi action space prev
 mimi action move_window_to_space 2
 mimi action move_window_to_space next
 mimi action move_window_to_space prev
+mimi action move_window_to_space next --follow
 mimi action resize_window left-half
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor cc
@@ -106,6 +107,12 @@ Focus a Mission Control space by its 1-based index, or cycle to the next/previou
 ### `mimi action move_window_to_space <number|next|prev>`
 
 Move the frontmost window to a space by its 1-based index, or cycle to the next/previous space with wrapping. Uses private SkyLight APIs; does not require disabling SIP.
+
+| Flag       | Description                                                      |
+| ---------- | ---------------------------------------------------------------- |
+| `--follow` | Switch to the destination space once the window is there         |
+
+Without `--follow` the window leaves and the current space stays in front. With it, the switch is the same dock-swipe gesture `mimi action space` makes, so it is subject to the same timing. If the move lands but the switch fails, the error says the window moved and the window stays on its new space.
 
 ### `mimi action resize_window [preset] [flags]`
 

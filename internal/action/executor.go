@@ -95,8 +95,12 @@ func (e *Executor) FocusSpace(index int) error {
 }
 
 // MoveWindowToSpace moves the frontmost window to the space at the given
-// 1-based index.
-func (e *Executor) MoveWindowToSpace(index int) error {
+// 1-based index, and with follow set switches to that space afterwards.
+//
+// The switch is the same one the space action makes, so a window that was
+// moved but could not be followed is reported as such and stays where it was
+// moved to: the move landed, and undoing it would be a second surprise.
+func (e *Executor) MoveWindowToSpace(index int, follow bool) error {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
 		return err
@@ -117,6 +121,20 @@ func (e *Executor) MoveWindowToSpace(index int) error {
 	err = e.desktop.MoveWindowToSpace(index)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
+	}
+
+	if follow {
+		err = e.desktop.FocusSpace(index)
+		if err != nil {
+			e.desktop.RefreshWorkspaceTitle()
+
+			return derrors.Wrapf(
+				err,
+				derrors.CodeActionFailed,
+				"window moved, but failed to follow it to space %d",
+				index,
+			)
+		}
 	}
 
 	e.desktop.RefreshWorkspaceTitle()

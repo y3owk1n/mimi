@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -125,7 +126,7 @@ func TestExecutor_Space_MissionControlRefusesBothActions(t *testing.T) {
 		desktop := desktopWithSpaces(2)
 		desktop.missionControlActive = true
 
-		err := action.NewExecutor(desktop).MoveWindowToSpace(3)
+		err := action.NewExecutor(desktop).MoveWindowToSpace(3, false)
 		if err == nil {
 			t.Fatal("MoveWindowToSpace() error = nil, want an error")
 		}
@@ -145,7 +146,7 @@ func TestExecutor_MoveWindowToSpace_MovesTheWindow(t *testing.T) {
 
 	desktop := desktopWithSpaces(1)
 
-	err := action.NewExecutor(desktop).MoveWindowToSpace(3)
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, false)
 	if err != nil {
 		t.Fatalf("MoveWindowToSpace() error = %v, want nil", err)
 	}
@@ -220,7 +221,7 @@ func TestExecutor_Space_DoesNotRefreshWorkspaceTitleOnFailure(t *testing.T) {
 			t.Fatal("FocusSpace() error = nil, want an error")
 		}
 
-		err = action.NewExecutor(desktop).MoveWindowToSpace(3)
+		err = action.NewExecutor(desktop).MoveWindowToSpace(3, false)
 		if err == nil {
 			t.Fatal("MoveWindowToSpace() error = nil, want an error")
 		}
@@ -240,11 +241,117 @@ func TestExecutor_Space_DoesNotRefreshWorkspaceTitleOnFailure(t *testing.T) {
 			t.Fatal("FocusSpace() error = nil, want an error")
 		}
 
-		err = action.NewExecutor(desktop).MoveWindowToSpace(3)
+		err = action.NewExecutor(desktop).MoveWindowToSpace(3, false)
 		if err == nil {
 			t.Fatal("MoveWindowToSpace() error = nil, want an error")
 		}
 
 		wantRefreshCalls(t, desktop, 0)
 	})
+}
+
+// TestExecutor_MoveWindowToSpace_FollowSwitchesToTheDestination pins what
+// --follow adds: the window lands on the destination and so does focus,
+// through the same switch the space action makes.
+func TestExecutor_MoveWindowToSpace_FollowSwitchesToTheDestination(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, true)
+	if err != nil {
+		t.Fatalf("MoveWindowToSpace(3, follow) error = %v, want nil", err)
+	}
+
+	if desktop.windowSpace != 3 {
+		t.Fatalf("window space = %d, want 3", desktop.windowSpace)
+	}
+
+	if desktop.activeSpace != 3 {
+		t.Fatalf("active space = %d, want 3", desktop.activeSpace)
+	}
+
+	wantRefreshCalls(t, desktop, 1)
+}
+
+// TestExecutor_MoveWindowToSpace_WithoutFollowStaysPut is the behavior every
+// existing hotkey relies on: the window leaves, the current space stays in
+// front.
+func TestExecutor_MoveWindowToSpace_WithoutFollowStaysPut(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, false)
+	if err != nil {
+		t.Fatalf("MoveWindowToSpace(3) error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 1 {
+		t.Fatalf("active space = %d, want it left on 1", desktop.activeSpace)
+	}
+}
+
+// TestExecutor_MoveWindowToSpace_AFailedFollowReportsTheWindowAsMoved: the
+// move landed before the switch failed, so the error says so and the window
+// is not pulled back, and the systray still learns the window's new space.
+func TestExecutor_MoveWindowToSpace_AFailedFollowReportsTheWindowAsMoved(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+	desktop.focusSpaceErr = derrors.New(derrors.CodeActionFailed, "swipe failed")
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, true)
+	if err == nil {
+		t.Fatal("MoveWindowToSpace(3, follow) error = nil, want the follow failure")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeActionFailed) {
+		t.Fatalf("error = %v, want an action failure", err)
+	}
+
+	if !strings.Contains(err.Error(), "window moved") {
+		t.Fatalf("error = %q, want it to say the window moved", err.Error())
+	}
+
+	if desktop.windowSpace != 3 {
+		t.Fatalf("window space = %d, want it left on 3", desktop.windowSpace)
+	}
+
+	if desktop.activeSpace != 1 {
+		t.Fatalf("active space = %d, want it left on 1", desktop.activeSpace)
+	}
+
+	wantRefreshCalls(t, desktop, 1)
+}
+
+// TestExecuteCommand_MoveWindowToSpace_CarriesFollowOverTheWire checks the
+// flag survives the trip a decoded payload makes: a command built with follow
+// and run through ExecuteCommand, as the daemon runs it, follows.
+func TestExecuteCommand_MoveWindowToSpace_CarriesFollowOverTheWire(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+
+	cmd, err := action.NewMoveWindowToSpaceCommand([]string{nextKeyword}, true)
+	if err != nil {
+		t.Fatalf("NewMoveWindowToSpaceCommand(next, follow) error = %v, want nil", err)
+	}
+
+	if !cmd.MoveWindowToSpace.Follow {
+		t.Fatal("the command does not carry follow")
+	}
+
+	err = action.NewExecutor(desktop).ExecuteCommand(cmd)
+	if err != nil {
+		t.Fatalf("ExecuteCommand(move_window_to_space next --follow) error = %v, want nil", err)
+	}
+
+	if desktop.windowSpace != 2 || desktop.activeSpace != 2 {
+		t.Fatalf(
+			"window space = %d, active space = %d, want both 2",
+			desktop.windowSpace,
+			desktop.activeSpace,
+		)
+	}
 }

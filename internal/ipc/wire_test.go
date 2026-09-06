@@ -63,8 +63,11 @@ func everyPayloadSet() []payloadCase {
 		{
 			name: "move_window_to_space with every field set",
 			cmd: action.Command{
-				Name:              action.NameMoveWindowToSpace,
-				MoveWindowToSpace: action.SpaceArg{Index: 7, Direction: 1},
+				Name: action.NameMoveWindowToSpace,
+				MoveWindowToSpace: action.MoveWindowToSpaceArgs{
+					Space:  action.SpaceArg{Index: 7, Direction: 1},
+					Follow: true,
+				},
 			},
 		},
 		{
@@ -160,7 +163,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(true, false, false, false, false)
 			},
-			want: `{"version":1,"command":{"name":"focus_window",` +
+			want: `{"version":2,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":true,"direction":""}}}`,
 		},
 		{
@@ -168,23 +171,23 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false)
 			},
-			want: `{"version":1,"command":{"name":"focus_window"}}`,
+			want: `{"version":2,"command":{"name":"focus_window"}}`,
 		},
 		{
 			name: "mimi action space 3",
 			build: func() (action.Command, error) {
 				return action.NewSpaceCommand([]string{"3"})
 			},
-			want: `{"version":1,"command":{"name":"space",` +
+			want: `{"version":2,"command":{"name":"space",` +
 				`"space":{"index":3,"direction":0}}}`,
 		},
 		{
-			name: "mimi action move_window_to_space next",
+			name: "mimi action move_window_to_space next --follow",
 			build: func() (action.Command, error) {
-				return action.NewMoveWindowToSpaceCommand([]string{"next"})
+				return action.NewMoveWindowToSpaceCommand([]string{"next"}, true)
 			},
-			want: `{"version":1,"command":{"name":"move_window_to_space",` +
-				`"moveWindowToSpace":{"index":0,"direction":1}}}`,
+			want: `{"version":2,"command":{"name":"move_window_to_space",` +
+				`"moveWindowToSpace":{"space":{"index":0,"direction":1},"follow":true}}}`,
 		},
 		{
 			name: "mimi action resize_window left-half --width 800 --anchor cc --no-margin",
@@ -198,7 +201,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					NoMargin:  true,
 				})
 			},
-			want: `{"version":1,"command":{"name":"resize_window",` +
+			want: `{"version":2,"command":{"name":"resize_window",` +
 				`"resizeWindow":{"preset":"left-half",` +
 				`"width":800,"widthSet":true,` +
 				`"height":0,"heightSet":false,` +

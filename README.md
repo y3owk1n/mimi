@@ -51,6 +51,7 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Jump to a specific space         | `mimi action space <n>`                                                   |
 | Jump to next / previous space    | `mimi action space next` / `prev`                                         |
 | Move frontmost window to a space | `mimi action move_window_to_space <n\|next\|prev>`                        |
+| Move a window and go with it     | `mimi action move_window_to_space next --follow`                          |
 | Cycle focus between windows      | `mimi action focus_window`                                                |
 | Cycle focus backward             | `mimi action focus_window --backward`                                     |
 | Focus window to the left         | `mimi action focus_window --left`                                         |

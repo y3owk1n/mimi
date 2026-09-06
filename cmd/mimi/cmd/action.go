@@ -28,6 +28,7 @@ Examples:
   mimi action move_window_to_space 2
   mimi action move_window_to_space next
   mimi action move_window_to_space prev
+  mimi action move_window_to_space next --follow
   mimi action resize_window left-half
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
@@ -143,7 +144,9 @@ Examples:
 }
 
 func buildMoveWindowToSpaceCommand(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	var follow bool
+
+	cmd := &cobra.Command{
 		Use:   "move_window_to_space <number|next|prev>",
 		Short: "Move current focused window to a Mission Control space by index or cycle next/prev",
 		Long: `Move the currently focused window to a Mission Control space by its 1-based
@@ -159,13 +162,18 @@ last space.
 This command uses private APIs (SkyLight) to move the window instantly
 without scripting additions or disabling SIP on macOS.
 
+With --follow, focus switches to the destination space once the window is
+there, the same way "mimi action space" switches. Without it the window
+leaves and the current space stays in front.
+
 Examples:
-  mimi action move_window_to_space 2        Move current window to space 2
-  mimi action move_window_to_space next     Move window to next space (with wrap)
-  mimi action move_window_to_space prev     Move window to previous space (with wrap)`,
+  mimi action move_window_to_space 2             Move current window to space 2
+  mimi action move_window_to_space next          Move window to next space (with wrap)
+  mimi action move_window_to_space prev          Move window to previous space (with wrap)
+  mimi action move_window_to_space next --follow Move window to next space and go with it`,
 		Args: validateSpaceArg(action.NameMoveWindowToSpace),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
-			moveCmd, err := action.NewMoveWindowToSpaceCommand(args)
+			moveCmd, err := action.NewMoveWindowToSpaceCommand(args, follow)
 			if err != nil {
 				return err
 			}
@@ -173,6 +181,11 @@ Examples:
 			return state.runAction(cobraCmd, moveCmd)
 		},
 	}
+
+	cmd.Flags().
+		BoolVar(&follow, "follow", false, "Switch to the destination space after moving the window")
+
+	return cmd
 }
 
 func buildResizeWindowCommand(state *cliState) *cobra.Command {
