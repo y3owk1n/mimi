@@ -60,6 +60,13 @@ When the daemon is running, `mimi action` first tries the Unix socket at `settin
 
 Each action builds its command through the constructor `internal/action` gives it (`NewFocusWindowCommand`, `NewSpaceCommand`, `NewMoveWindowToSpaceCommand`, `NewResizeWindowCommand`), and those constructors validate as they build. A malformed argument is therefore rejected before either path is chosen — no socket is opened, and the message reads the same whether or not a daemon is listening.
 
+### Queries
+
+`mimi query` reads the desktop through the same seam and prints one line of
+JSON. A query runs on the direct path only: it has no side effect to serialize
+with the daemon's actions, so routing it over the socket would cost a wire
+change and buy nothing.
+
 ---
 
 ## Hook Daemon
@@ -95,7 +102,8 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 cmd/mimi/           CLI entry point and commands
 internal/
   action/           Action dispatch (focus_window, space, move_window_to_space,
-                    resize_window), the Desktop seam and its native adapter
+                    resize_window), the queries, the Desktop seam and its
+                    native adapter
   native/           All Objective-C + CGO: AX window wrappers, Mission Control
                     space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing
@@ -113,9 +121,10 @@ internal/
 **Accessibility** is required for:
 
 - All `mimi action` commands
+- `mimi query window`
 - Window hooks (`on_window_*`)
 
-App lifecycle hooks (`on_app_*`) and workspace hooks (`on_workspace_changed`) do not require Accessibility.
+App lifecycle hooks (`on_app_*`), workspace hooks (`on_workspace_changed`) and `mimi query space` do not require Accessibility.
 
 ---
 

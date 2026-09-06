@@ -66,9 +66,9 @@ func audited(command string, response interruptResponse, why string) auditEntry 
 // no longer reaches the work, is invisible from the command's own code.
 //
 // What the audit found: six commands honor the context, one runs its own
-// signal handler, and eleven ignore it. Nine of those eleven are local file
-// work or one-shot syscalls, over before an interrupt could be typed. The two
-// that are not are in the action family — `action space` on the direct path
+// signal handler, and fourteen ignore it. Twelve of those fourteen are local
+// file work, one-shot syscalls or desktop reads, over before an interrupt could
+// be typed. The two that are not are in the action family — `action space` on the direct path
 // pumps the run loop for a stretch proportional to the spaces it crosses, and
 // any action on the daemon path waits for a reply that ipc.TryExecute reads
 // with no deadline, so a daemon that accepts the connection and then goes quiet
@@ -105,6 +105,13 @@ var interruptAudit = []auditEntry{
 			"nothing here waits for the daemon to finish reloading"),
 	audited("config validate", interruptRunsOn,
 		"reads and parses one local file and reports on it"),
+	audited("query", interruptRunsOn,
+		"as action: the body only reports the missing subcommand and returns"),
+	audited("query space", interruptRunsOn,
+		"two SkyLight reads and one line of output; nothing blocks"),
+	audited("query window", interruptRunsOn,
+		"one Accessibility round trip to the frontmost application for its "+
+			"window and frame, which runs to completion, then one line of output"),
 	audited("services install", interruptStopsTheWork,
 		"Service.Install threads the context through every launchctl call "+
 			"and checks it again before the plist is written, so a canceled "+

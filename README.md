@@ -61,6 +61,8 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Center at specific size          | `mimi action resize_window center --width-percent 80 --height-percent 90` |
 | Resize to exact pixels           | `mimi action resize_window --width 1024 --height 768`                     |
 | Resize anchored to a corner      | `mimi action resize_window --width 1024 --height 768 --anchor br`         |
+| Read the active space as JSON    | `mimi query space`                                                        |
+| Read the frontmost window's frame| `mimi query window`                                                       |
 
 Full reference → [CLI Guide](docs/CLI.md)
 
@@ -118,7 +120,7 @@ show_workspace_number = true   # current space number in your menu bar
 
 [hooks]
 on_window_focus      = ['echo "$mimi_APP_NAME — $mimi_WINDOW_TITLE"']
-on_workspace_changed = ['~/.config/sketchybar/plugins/space.sh']
+on_workspace_changed = ['sketchybar --trigger space_change INDEX=$mimi_SPACE_INDEX']
 on_app_launch        = ['osascript -e "display notification \"$mimi_APP_NAME launched\""']
 ```
 

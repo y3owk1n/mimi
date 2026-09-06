@@ -73,3 +73,10 @@ The category of desktop change a hook subscribes to — window focused, space
 changed, app launched, and so on. One table defines the set; every other list
 of kinds is derived from that table rather than restated alongside it.
 _Avoid_: event type, event name
+
+**Query**:
+A read of desktop state that mimi reports without changing anything: the
+active space, the frontmost window. A query always runs on the direct path and
+never travels the socket.
+_Avoid_: action (an action changes the desktop), get, info, status (that is the
+daemon's health report)

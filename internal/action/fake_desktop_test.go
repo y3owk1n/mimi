@@ -97,12 +97,17 @@ func (d *fakeDesktop) ActivateWindow(windowID action.WindowID) error {
 	return nil
 }
 
-func (d *fakeDesktop) FrontmostWindow() (action.WindowID, error) {
+func (d *fakeDesktop) FrontmostWindow() (action.Window, error) {
 	if d.frontmostErr != nil {
-		return 0, d.frontmostErr
+		return action.Window{}, d.frontmostErr
 	}
 
-	return d.frontmost, nil
+	index, err := d.indexOf(d.frontmost)
+	if err != nil {
+		return action.Window{}, err
+	}
+
+	return action.Window{ID: d.frontmost, PID: d.windows[index].pid}, nil
 }
 
 func (d *fakeDesktop) SetWindowFrame(windowID action.WindowID, frame geometry.Rect) error {

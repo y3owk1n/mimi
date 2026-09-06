@@ -9,6 +9,7 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 - [Global Flags](#global-flags)
 - [Interrupting a Command](#interrupting-a-command)
 - [Window & Space Actions](#window--space-actions)
+- [Queries](#queries)
 - [Hook Daemon](#hook-daemon)
 - [Service Management](#service-management)
 - [Configuration Management](#configuration-management)
@@ -41,8 +42,9 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi action *`              | Does not reach the action; it finishes. Press Ctrl-C again to end the process.   |
 | `mimi config *`              | Does not reach the command; it finishes. Each is one local file read or write.   |
 | `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
+| `mimi query *`               | Does not reach the command; it finishes. Each is a few desktop reads and one line of output. |
 
-A command in the bottom three rows that the first Ctrl-C did not reach still
+A command in the bottom four rows that the first Ctrl-C did not reach still
 succeeds and exits 0, because it did in fact finish — `mimi config init`
 interrupted once has still written the file. Press Ctrl-C twice to be sure a
 command did not run.
@@ -181,6 +183,53 @@ mimi action resize_window left-half --no-margin
 
 # Mix preset with custom size
 mimi action resize_window center --width-percent 80 --height-percent 90
+```
+
+---
+
+## Queries
+
+Queries read the desktop and print what they find as one line of JSON on
+stdout. They never move focus, a window, or a space, and they always run in the
+CLI's own process. A running daemon is neither consulted nor required.
+
+```bash
+mimi query space
+mimi query window
+```
+
+A query that fails prints nothing on stdout and reports the error the way every
+other command does, so a script can read stdout as the answer or nothing.
+
+### `mimi query space`
+
+Report the active Mission Control space and how many there are, in the same
+1-based ordering `mimi action space` takes. Needs no Accessibility permission.
+
+```
+$ mimi query space
+{"index":2,"count":5}
+```
+
+`index` is the space in front on the display holding the cursor, which is the
+one `space next` and `space prev` step from.
+
+### `mimi query window`
+
+Report the frontmost window, the one `resize_window` would act on, with the
+process ID of its owner and its frame. The frame is in window coordinates: the
+origin is the top-left corner of the primary display and y grows downward,
+which is what `--x` and `--y` take. **Accessibility permission is required.**
+
+```
+$ mimi query window
+{"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}
+```
+
+Pipe through `jq` to pick one field:
+
+```bash
+mimi query space | jq .index
 ```
 
 ---

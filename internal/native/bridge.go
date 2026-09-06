@@ -127,21 +127,55 @@ func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 
 //export goWorkspaceChangeEvent
 func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
+	info := ""
+	if infoJSON != nil {
+		info = C.GoString(infoJSON)
+	}
+
+	trySend(workspaceChangeEvent(kindFromInt(int(kind)), int(windowCount), info, activeSpace))
+}
+
+// activeSpace is the read a workspace change carries to its hooks: the 1-based
+// index of the space now in front and how many spaces there are. ok is false
+// when Mission Control could not be enumerated, in which case the event says
+// nothing about the space rather than naming a wrong one.
+func activeSpace() (int, int, bool) {
+	index, err := ActiveSpaceIndex()
+	if err != nil {
+		return 0, 0, false
+	}
+
+	return index, SpaceCount(), true
+}
+
+// workspaceChangeEvent builds the event one space change publishes. space is
+// the read behind mimi_SPACE_INDEX and mimi_SPACE_COUNT, passed in so the
+// shape of the event can be pinned without a desktop under it.
+func workspaceChangeEvent(
+	kind events.EventKind,
+	windowCount int,
+	infoJSON string,
+	space func() (int, int, bool),
+) events.Event {
 	evt := events.Event{
 		ID:   uuid.NewString(),
-		Kind: kindFromInt(int(kind)),
+		Kind: kind,
 		At:   time.Now(),
 		Extra: map[string]string{
-			"windows_count": strconv.Itoa(int(windowCount)),
+			"windows_count": strconv.Itoa(windowCount),
 		},
 	}
-	if infoJSON != nil {
-		jsonStr := C.GoString(infoJSON)
-		if jsonStr != "" {
-			evt.Extra["info"] = jsonStr
-		}
+
+	if infoJSON != "" {
+		evt.Extra["info"] = infoJSON
 	}
-	trySend(evt)
+
+	if index, count, ok := space(); ok {
+		evt.Extra["space_index"] = strconv.Itoa(index)
+		evt.Extra["space_count"] = strconv.Itoa(count)
+	}
+
+	return evt
 }
 
 //export goAXEvent

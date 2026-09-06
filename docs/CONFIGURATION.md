@@ -275,6 +275,8 @@ Every hook receives:
 | `mimi_TIMESTAMP` | RFC3339 timestamp |
 | `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
 | `mimi_INFO` | JSON workspace info (workspace events only) |
+| `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
+| `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
 
 Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands. Each value is
 substituted as a single, self-quoted shell token, so write the reference
@@ -307,6 +309,6 @@ on_window_focus = [
 ]
 
 on_workspace_changed = [
-  "echo 'switched space' >> ~/space.log"
+  "echo switched to space $mimi_SPACE_INDEX >> ~/space.log"
 ]
 ```
