@@ -30,9 +30,11 @@ func TestMoveToScreen_KeepsTheShareOfTheVisibleFrame(t *testing.T) {
 			want: geometry.Rect{X: 1920, Y: -335, W: 1280, H: 1415},
 		},
 		{
-			name: "a centered quarter stays centered",
-			cur:  geometry.Rect{X: 480, Y: 25 + 1055/4.0, W: 960, H: 1055 / 2.0},
-			want: geometry.Rect{X: 1920 + 640, Y: -335 + 1415/4.0, W: 1280, H: 1415 / 2.0},
+			// The shares here do not divide evenly, so this is also the case
+			// that pins the frame coming back in whole points.
+			name: "a centered window stays centered, in whole points",
+			cur:  geometry.Rect{X: 480, Y: 289, W: 960, H: 527},
+			want: geometry.Rect{X: 2560, Y: 19, W: 1280, H: 707},
 		},
 	}
 
@@ -114,5 +116,19 @@ func TestScreenContaining_DecidesByTheWindowsCenter(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+func TestSameFrame_ToleratesHalfAPoint(t *testing.T) {
+	t.Parallel()
+
+	base := geometry.Rect{X: 10, Y: 20, W: 300, H: 400}
+
+	if !geometry.SameFrame(base, geometry.Rect{X: 10.4, Y: 19.6, W: 300.4, H: 400}) {
+		t.Fatal("SameFrame() = false for frames under half a point apart, want true")
+	}
+
+	if geometry.SameFrame(base, geometry.Rect{X: 10, Y: 20, W: 299, H: 400}) {
+		t.Fatal("SameFrame() = true for frames a point apart, want false")
 	}
 }

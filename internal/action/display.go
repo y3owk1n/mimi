@@ -93,6 +93,22 @@ func (e *Executor) MoveWindowToDisplay(target DisplayArg) error {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
 	}
 
+	// A frame written across displays can land short. The application
+	// applies the new size while it still counts the window as being on the
+	// display it just left, and clamps the size to that display's edge, so a
+	// window moving from a small display to a large one comes up narrow.
+	// Writing the same frame once more, now that the window is where the
+	// size was measured for, lands it. A frame that cannot be read back is
+	// left as the first write put it: that write succeeded, and this is a
+	// correction, not the move.
+	landed, err := e.desktop.WindowFrame(win.ID)
+	if err == nil && !geometry.SameFrame(landed, frame) {
+		err = e.desktop.SetWindowFrame(win.ID, frame)
+		if err != nil {
+			return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
+		}
+	}
+
 	e.desktop.ActivateDisplay(displays[toIndex].ID)
 	e.desktop.RefreshWorkspaceTitle()
 

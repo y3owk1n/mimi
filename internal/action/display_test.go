@@ -102,6 +102,45 @@ func TestExecutor_MoveWindowToDisplay_KeepsTheWindowsShareOfTheDisplay(t *testin
 	}
 }
 
+// TestExecutor_MoveWindowToDisplay_WritesAgainWhenTheFrameLandsShort pins the
+// correction for a frame written across displays: the application clamps the
+// first size to the display the window is leaving, so the frame is read back
+// and written once more, and only when it landed somewhere else.
+func TestExecutor_MoveWindowToDisplay_WritesAgainWhenTheFrameLandsShort(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name       string
+		clamps     bool
+		wantWrites int
+	}{
+		{name: "lands short and is written again", clamps: true, wantWrites: 2},
+		{name: "lands as asked and is left alone", clamps: false, wantWrites: 1},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := desktopWithDisplays()
+			desktop.windows[0].clampsFirstWrite = testCase.clamps
+
+			err := action.NewExecutor(desktop).ExecuteCommand(displayCommandFor(t, nextKeyword))
+			if err != nil {
+				t.Fatalf("ExecuteCommand(move_window_to_display next) error = %v, want nil", err)
+			}
+
+			if got := desktop.windows[0].frame; got != leftHalfOfRight {
+				t.Fatalf("window frame = %+v, want %+v", got, leftHalfOfRight)
+			}
+
+			if got := desktop.windows[0].setFrameWrites; got != testCase.wantWrites {
+				t.Fatalf("frame writes = %d, want %d", got, testCase.wantWrites)
+			}
+		})
+	}
+}
+
 // TestExecutor_MoveWindowToDisplay_StaysPutOnTheDestination covers a window
 // already where it was asked to go: by number, and by "next" on a machine
 // with one display. Nothing is written and nothing is activated.
