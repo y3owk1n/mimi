@@ -141,5 +141,7 @@ show_workspace_number = true
 
 # Active Space / Desktop changed (Mission Control).
 # on_workspace_changed = [
-#     "echo 'workspace changed'"
+#     "echo 'workspace changed'",
+#     { run = "echo on the second space", space = 2 },
+#     { run = "echo on any other space", space = "!2" },
 # ]

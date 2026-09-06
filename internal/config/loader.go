@@ -209,11 +209,18 @@ func validate(cfg *Config) error {
 	// it alone so that a hook written as a bare string and one written as a
 	// table report the same way.
 	for _, kind := range HookKinds {
-		for i, e := range *kind.Entries(&cfg.Hooks) {
-			if e.Run == "" {
+		for index, entry := range *kind.Entries(&cfg.Hooks) {
+			if entry.Run == "" {
 				errs = append(
 					errs,
-					fmt.Sprintf("hooks.%s[%d]: run command is empty", kind.TOMLKey, i),
+					fmt.Sprintf("hooks.%s[%d]: run command is empty", kind.TOMLKey, index),
+				)
+			}
+
+			for _, problem := range validateFilters(kind, entry) {
+				errs = append(
+					errs,
+					fmt.Sprintf("hooks.%s[%d]: %s", kind.TOMLKey, index, problem),
 				)
 			}
 		}

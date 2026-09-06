@@ -255,8 +255,24 @@ on_window_focus = [
 | `app` | Filter by app name (glob) |
 | `bundle_id` | Filter by bundle ID (exact) |
 | `title` | Filter by window title (regex) |
+| `space` | Filter by the space now in front, as a 1-based number. Workspace hooks only |
 | `timeout_secs` | Override global timeout |
 | `async` | Run in background (default: false) |
+
+**Negating a filter:** an `app`, `bundle_id`, `title` or `space` filter that begins with `!` matches everything the pattern does not. `app = "!Safari"` fires for every application but Safari; `space = "!2"` fires for every space but the second. A filter that is only `!` is rejected. The space filter is written as a bare number (`space = 2`) or, when negated, as a string.
+
+```toml
+[hooks]
+on_workspace_changed = [
+  { run = "sketchybar --trigger work_mode", space = 2 },
+  { run = "sketchybar --trigger normal_mode", space = "!2" },
+]
+on_window_focus = [
+  { run = "echo focus", app = "!Terminal" }
+]
+```
+
+A workspace event that could not resolve its space (Mission Control could not be enumerated) carries no space number; it fails every `space` filter and passes every negated one.
 
 ---
 

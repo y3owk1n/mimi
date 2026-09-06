@@ -146,7 +146,7 @@ The `[systray]` block shows the active space number in your menu bar while the d
 | Window resized         | `on_window_resize`                       | Yes                 |
 | Active space changed   | `on_workspace_changed`                   | No                  |
 
-Hooks support app/title filters, async execution, and per-hook timeouts.
+Hooks support app, bundle, title and space filters, each negatable with a leading `!`, plus async execution and per-hook timeouts.
 Full details → [Configuration Guide](docs/CONFIGURATION.md)
 
 ### Daemon commands
