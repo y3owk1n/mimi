@@ -241,7 +241,7 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 // be rejected on every other one (mimi#132); this is now the only place it
 // happens.
 //
-// The rejection lists the ten valid names, read from the geometry's own table
+// The rejection lists the fifteen valid names, read from the geometry's own table
 // rather than restated here, since mistyping one is the likely way to get
 // here, and quotes the name as it was given rather than as it was trimmed, so
 // padding the user did type is visible in it. A name that is empty, or is

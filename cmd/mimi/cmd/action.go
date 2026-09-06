@@ -32,6 +32,7 @@ Examples:
   mimi action move_window_to_space next --follow
   mimi action move_window_to_display next
   mimi action resize_window left-half
+  mimi action resize_window left-half --cycle
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
@@ -241,8 +242,18 @@ Presets provide quick tiling:
   top-right      Fill the top-right quadrant
   bottom-left    Fill the bottom-left quadrant
   bottom-right   Fill the bottom-right quadrant
+  left-third     Fill the left third of the screen
+  center-third   Fill the middle third of the screen
+  right-third    Fill the right third of the screen
+  left-two-thirds   Fill the left two thirds of the screen
+  right-two-thirds  Fill the right two thirds of the screen
   center         Center the window at 60% x 80% of screen
   fill           Fill the entire screen (respecting margins)
+
+With --cycle, left-half and right-half step through their sizes on
+repeated presses: half, then two thirds, then a third, then back to
+half. A window at none of those sizes starts at the half. --cycle takes
+no size, position or anchor flag; margins still apply.
 
 Custom flags allow precise control using an anchor system:
   Anchors: tl (top-left), tc (top-center), tr (top-right),
@@ -296,6 +307,8 @@ Examples:
 		StringP("anchor", "a", "", "Anchor point for positioning (tl, tc, tr, cl, cc, cr, bl, bc, br)")
 	cmd.Flags().Bool("margin", false, "Enable tiled window margins (overrides system setting)")
 	cmd.Flags().Bool("no-margin", false, "Disable tiled window margins (overrides system setting)")
+	cmd.Flags().
+		Bool("cycle", false, "Step left-half or right-half through half, two thirds and a third")
 
 	return cmd
 }
@@ -318,6 +331,7 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 	anchor, _ := flags.GetString("anchor")
 	useMargin, _ := flags.GetBool("margin")
 	noMargin, _ := flags.GetBool("no-margin")
+	cycle, _ := flags.GetBool("cycle")
 
 	return action.ResizeWindowArgs{
 		Preset:           preset,
@@ -337,6 +351,7 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 		AnchorSet:        flags.Changed("anchor"),
 		UseMargin:        useMargin,
 		NoMargin:         noMargin,
+		Cycle:            cycle,
 	}
 }
 

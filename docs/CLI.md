@@ -145,8 +145,15 @@ Resize and reposition the frontmost window using presets or custom flags. Respec
 | `top-right`    | Fill the top-right quadrant          |
 | `bottom-left`  | Fill the bottom-left quadrant        |
 | `bottom-right` | Fill the bottom-right quadrant       |
+| `left-third`   | Fill the left third of the screen    |
+| `center-third` | Fill the middle third of the screen  |
+| `right-third`  | Fill the right third of the screen   |
+| `left-two-thirds`  | Fill the left two thirds of the screen  |
+| `right-two-thirds` | Fill the right two thirds of the screen |
 | `center`       | Center window at 60% × 80% of screen |
 | `fill`         | Fill entire screen                   |
+
+**Cycling:** with `--cycle`, `left-half` and `right-half` step through their sizes on repeated presses: half, then two thirds, then a third, then back to half. A window at none of those sizes starts at the half, so one hotkey bound to `resize_window left-half --cycle` covers all three. The step is decided from where the window is now, so it works the same with or without the daemon. `--cycle` takes no size, position or anchor flag, and only those two presets accept it; margins still apply to every step.
 
 **Custom sizing flags:**
 
@@ -202,6 +209,9 @@ mimi action resize_window --width 1024 --height 768 --x 100 --y 50 --anchor tl
 
 # Override margins for a preset
 mimi action resize_window left-half --no-margin
+
+# One hotkey: half, then two thirds, then a third, then half again
+mimi action resize_window left-half --cycle
 
 # Mix preset with custom size
 mimi action resize_window center --width-percent 80 --height-percent 90

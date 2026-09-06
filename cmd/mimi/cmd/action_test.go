@@ -25,13 +25,19 @@ const (
 	focusWindowCommandName  = string(action.NameFocusWindow)
 	resizeWindowCommandName = string(action.NameResizeWindow)
 
-	// unknownPreset is a name that is not one of the ten presets, and never
+	// unknownPreset is a name that is not one of the fifteen presets, and never
 	// becomes one.
-	unknownPreset = "left-third"
+	unknownPreset = "left-quarter"
 
 	// whitespaceOnlyArg is a positional argument made of nothing but
 	// whitespace, which names neither a preset nor a space.
 	whitespaceOnlyArg = "   "
+
+	// leftHalfPreset is the preset the cycle tests bind, spelled once.
+	leftHalfPreset = "left-half"
+
+	// widthFlag is the size flag the malformed-argument cases reach for.
+	widthFlag = "--width"
 )
 
 // resizeFlags parses args against a fresh resize_window flag set and returns
@@ -61,7 +67,7 @@ func TestResizeWindowArgsFromFlags_UsesChangedForEveryDimensionFlag(t *testing.T
 	t.Run("width 0 is forwarded when given", func(t *testing.T) {
 		t.Parallel()
 
-		got := resizeFlags(t, "", "--width", "0")
+		got := resizeFlags(t, "", widthFlag, "0")
 
 		if !got.WidthSet {
 			t.Fatal("WidthSet = false, want true for an explicit --width 0")
@@ -112,10 +118,20 @@ func TestResizeWindowArgsFromFlags_UsesChangedForEveryDimensionFlag(t *testing.T
 		}
 	})
 
+	t.Run("cycle is forwarded when given", func(t *testing.T) {
+		t.Parallel()
+
+		got := resizeFlags(t, leftHalfPreset, "--cycle")
+
+		if !got.Cycle || got.Preset != leftHalfPreset {
+			t.Fatalf("got %+v, want Cycle=true Preset=left-half", got)
+		}
+	})
+
 	t.Run("a positive width is still forwarded, as before", func(t *testing.T) {
 		t.Parallel()
 
-		got := resizeFlags(t, "", "--width", "800")
+		got := resizeFlags(t, "", widthFlag, "800")
 
 		if !got.WidthSet || got.Width != 800 {
 			t.Fatalf("got %+v, want WidthSet=true Width=800", got)
@@ -126,10 +142,10 @@ func TestResizeWindowArgsFromFlags_UsesChangedForEveryDimensionFlag(t *testing.T
 func TestResizeWindowArgsFromFlags_CarriesThePresetAndTheOtherFlags(t *testing.T) {
 	t.Parallel()
 
-	got := resizeFlags(t, "left-half", "--x", "10", "--y", "20", "--anchor", "cc", "--margin")
+	got := resizeFlags(t, leftHalfPreset, "--x", "10", "--y", "20", "--anchor", "cc", "--margin")
 
 	want := action.ResizeWindowArgs{
-		Preset:    "left-half",
+		Preset:    leftHalfPreset,
 		X:         10,
 		XSet:      true,
 		Y:         20,
@@ -392,7 +408,7 @@ func TestResizeWindowArgValidation_AcceptsWhatItAlwaysAccepted(t *testing.T) {
 	}{
 		{name: "no argument", args: nil},
 		{name: "the empty argument", args: []string{""}},
-		{name: "a preset", args: []string{"left-half"}},
+		{name: "a preset", args: []string{leftHalfPreset}},
 		{name: "a padded preset", args: []string{" left-half "}},
 		{name: "a preset beside its flags", args: []string{"center", "--x", "10"}},
 		{name: "flags with no preset", args: []string{"--margin"}},
@@ -465,7 +481,7 @@ type malformedAction struct {
 // constructor calls. None of them can reach the desktop.
 func malformedActionArgv() []malformedAction {
 	return []malformedAction{
-		{name: "negative width", argv: []string{resizeWindowCommandName, "--width", "-5"}},
+		{name: "negative width", argv: []string{resizeWindowCommandName, widthFlag, "-5"}},
 		{name: "negative height", argv: []string{resizeWindowCommandName, "--height", "-5"}},
 		{
 			name: "width-percent above 100",
@@ -495,6 +511,14 @@ func malformedActionArgv() []malformedAction {
 			// constructor runs rather than by anything in this layer.
 			name: "both margin flags at once",
 			argv: []string{resizeWindowCommandName, "--margin", "--no-margin"},
+		},
+		{
+			name: "cycle on a preset that does not cycle",
+			argv: []string{resizeWindowCommandName, "fill", "--cycle"},
+		},
+		{
+			name: "cycle combined with a size flag",
+			argv: []string{resizeWindowCommandName, leftHalfPreset, "--cycle", widthFlag, "800"},
 		},
 		{
 			name: "a direction combined with --backward",

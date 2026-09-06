@@ -60,6 +60,8 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Focus window above               | `mimi action focus_window --up`                                           |
 | Focus window below               | `mimi action focus_window --down`                                         |
 | Tile window to a preset          | `mimi action resize_window <left-half\|right-half\|center\|fill>`         |
+| Tile to a third                  | `mimi action resize_window <left-third\|center-third\|right-third>`      |
+| Cycle a half through its thirds  | `mimi action resize_window left-half --cycle`                             |
 | Center at specific size          | `mimi action resize_window center --width-percent 80 --height-percent 90` |
 | Resize to exact pixels           | `mimi action resize_window --width 1024 --height 768`                     |
 | Resize anchored to a corner      | `mimi action resize_window --width 1024 --height 768 --anchor br`         |
