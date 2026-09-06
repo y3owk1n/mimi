@@ -20,6 +20,18 @@ type Window struct {
 	PID int
 }
 
+// Display is one connected display as the actions see it: an identifier to
+// hand back to the desktop, and its frames in screen coordinates.
+type Display struct {
+	// ID names the display in later calls to the desktop it came from.
+	ID uint32
+	// Frame is the whole display, in screen (y-up) coordinates.
+	Frame geometry.Rect
+	// Visible is the frame less the menu bar and the Dock, in the same
+	// coordinates: the area a window is placed within.
+	Visible geometry.Rect
+}
+
 // Desktop is everything the actions need from macOS: the permission to drive
 // it, the windows on it, the screens under them, and the Mission Control
 // spaces beside it.
@@ -61,6 +73,14 @@ type Desktop interface {
 	// geometry resizes against. It stands on several reads, and names the one
 	// that failed in its error, so callers pass that error on unwrapped.
 	ScreenAt(window geometry.Rect) (geometry.Screen, error)
+
+	// Displays lists every connected display, in no particular order; the
+	// actions order them themselves.
+	Displays() ([]Display, error)
+
+	// ActivateDisplay makes a display the active one for the menu bar and
+	// event routing, which is what a window landing on it expects.
+	ActivateDisplay(id uint32)
 
 	// MissionControlActive reports whether Mission Control is open, which is
 	// the state the space actions refuse to run in.

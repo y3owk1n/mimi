@@ -501,6 +501,7 @@ func malformedActionArgv() []malformedAction {
 			argv: []string{focusWindowCommandName, "--backward", "--up"},
 		},
 		{name: "space zero", argv: []string{string(action.NameSpace), "0"}},
+		{name: "display zero", argv: []string{string(action.NameMoveWindowToDisplay), "0"}},
 		{
 			name: "move_window_to_space nonsense",
 			argv: []string{string(action.NameMoveWindowToSpace), "nxt"},

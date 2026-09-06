@@ -71,6 +71,17 @@ func everyPayloadSet() []payloadCase {
 			},
 		},
 		{
+			name: "move_window_to_display with nothing set",
+			cmd:  action.Command{Name: action.NameMoveWindowToDisplay},
+		},
+		{
+			name: "move_window_to_display with every field set",
+			cmd: action.Command{
+				Name:                action.NameMoveWindowToDisplay,
+				MoveWindowToDisplay: action.DisplayArg{Index: 2, Direction: -1},
+			},
+		},
+		{
 			name: "resize_window with nothing set",
 			cmd:  action.Command{Name: action.NameResizeWindow},
 		},
@@ -163,7 +174,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(true, false, false, false, false)
 			},
-			want: `{"version":2,"command":{"name":"focus_window",` +
+			want: `{"version":3,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":true,"direction":""}}}`,
 		},
 		{
@@ -171,14 +182,14 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false)
 			},
-			want: `{"version":2,"command":{"name":"focus_window"}}`,
+			want: `{"version":3,"command":{"name":"focus_window"}}`,
 		},
 		{
 			name: "mimi action space 3",
 			build: func() (action.Command, error) {
 				return action.NewSpaceCommand([]string{"3"})
 			},
-			want: `{"version":2,"command":{"name":"space",` +
+			want: `{"version":3,"command":{"name":"space",` +
 				`"space":{"index":3,"direction":0}}}`,
 		},
 		{
@@ -186,8 +197,16 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToSpaceCommand([]string{"next"}, true)
 			},
-			want: `{"version":2,"command":{"name":"move_window_to_space",` +
+			want: `{"version":3,"command":{"name":"move_window_to_space",` +
 				`"moveWindowToSpace":{"space":{"index":0,"direction":1},"follow":true}}}`,
+		},
+		{
+			name: "mimi action move_window_to_display prev",
+			build: func() (action.Command, error) {
+				return action.NewMoveWindowToDisplayCommand([]string{"prev"})
+			},
+			want: `{"version":3,"command":{"name":"move_window_to_display",` +
+				`"moveWindowToDisplay":{"index":0,"direction":-1}}}`,
 		},
 		{
 			name: "mimi action resize_window left-half --width 800 --anchor cc --no-margin",
@@ -201,7 +220,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					NoMargin:  true,
 				})
 			},
-			want: `{"version":2,"command":{"name":"resize_window",` +
+			want: `{"version":3,"command":{"name":"resize_window",` +
 				`"resizeWindow":{"preset":"left-half",` +
 				`"width":800,"widthSet":true,` +
 				`"height":0,"heightSet":false,` +

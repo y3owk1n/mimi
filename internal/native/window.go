@@ -259,6 +259,67 @@ func ScreenVisibleFrame(xCoord, yCoord float64) (float64, float64, float64, floa
 		), nil
 }
 
+// Frame is a rectangle in NSScreen coordinates: y-up, origin at the primary
+// display's bottom-left.
+type Frame struct {
+	X, Y, W, H float64
+}
+
+// Display is one connected display: its identifier, its full frame and its
+// visible frame (the full frame less the menu bar and the Dock).
+type Display struct {
+	ID      uint32
+	Frame   Frame
+	Visible Frame
+}
+
+// Displays lists every connected display, in the order macOS reports them.
+func Displays() ([]Display, error) {
+	var count C.int
+
+	rows := C.MimiCopyScreenFrames(&count)
+	if rows == nil || count == 0 {
+		if rows != nil {
+			C.free(unsafe.Pointer(rows))
+		}
+
+		return nil, derrors.New(derrors.CodeAccessibilityFailed, "failed to enumerate displays")
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	perDisplay := int(C.MIMI_SCREEN_DOUBLES)
+	total := int(count) * perDisplay
+	values := unsafe.Slice((*C.double)(unsafe.Pointer(rows)), total)
+	displays := make([]Display, int(count))
+
+	for index := range displays {
+		row := values[index*perDisplay : (index+1)*perDisplay]
+		displays[index] = Display{
+			ID: uint32(row[0]),
+			Frame: Frame{
+				X: float64(row[1]),
+				Y: float64(row[2]),
+				W: float64(row[3]),
+				H: float64(row[4]),
+			},
+			Visible: Frame{
+				X: float64(row[5]),
+				Y: float64(row[6]),
+				W: float64(row[7]),
+				H: float64(row[8]),
+			},
+		}
+	}
+
+	return displays, nil
+}
+
+// ActivateDisplay makes the given display the active one for the menu bar
+// and event routing, as a window move across displays leaves it.
+func ActivateDisplay(id uint32) {
+	C.MimiActivateDisplay(C.uint32_t(id))
+}
+
 // TiledWindowMarginsEnabled reports whether the system tiled window margins setting is enabled.
 func TiledWindowMarginsEnabled() bool {
 	return bool(C.MimiTiledWindowMarginsEnabled())

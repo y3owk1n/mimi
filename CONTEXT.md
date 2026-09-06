@@ -80,3 +80,9 @@ active space, the frontmost window. A query always runs on the direct path and
 never travels the socket.
 _Avoid_: action (an action changes the desktop), get, info, status (that is the
 daemon's health report)
+
+**Display**:
+One connected screen, identified by its 1-based index counting left to right
+and then top to bottom across every display. A display holds spaces; a space
+belongs to exactly one display.
+_Avoid_: monitor, screen (that is the geometry's word for a display's frames)

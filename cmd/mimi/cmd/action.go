@@ -18,6 +18,7 @@ func newActionCmd(state *cliState) *cobra.Command {
 Available subcommands:
   Window control:   focus_window, resize_window
   Space control:    space, move_window_to_space
+  Display control:  move_window_to_display
 
 Examples:
   mimi action focus_window
@@ -29,6 +30,7 @@ Examples:
   mimi action move_window_to_space next
   mimi action move_window_to_space prev
   mimi action move_window_to_space next --follow
+  mimi action move_window_to_display next
   mimi action resize_window left-half
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
@@ -50,6 +52,7 @@ Examples:
 	cmd.AddCommand(buildFocusWindowCommand(state))
 	cmd.AddCommand(buildSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
+	cmd.AddCommand(buildMoveWindowToDisplayCommand(state))
 	cmd.AddCommand(buildResizeWindowCommand(state))
 
 	return cmd
@@ -186,6 +189,41 @@ Examples:
 		BoolVar(&follow, "follow", false, "Switch to the destination space after moving the window")
 
 	return cmd
+}
+
+func buildMoveWindowToDisplayCommand(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "move_window_to_display <number|next|prev>",
+		Short: "Move the frontmost window to another display by index or cycle next/prev",
+		Long: `Move the frontmost window to a display by its 1-based index, or cycle to the
+next or previous display.
+
+Displays are counted left to right, then top to bottom, across every
+connected display. Index 1 is the leftmost.
+
+The "next" and "prev" keywords cycle through displays with wrapping. A window
+already on the destination stays where it is, which is also what "next" does
+with a single display.
+
+The window keeps the share of the display it had: a window filling the left
+half of one display fills the left half of the other, whatever their sizes.
+The move goes through Accessibility, so it lands on the destination's active
+space with the same animation a drag would.
+
+Examples:
+  mimi action move_window_to_display 2        Move current window to the second display
+  mimi action move_window_to_display next     Move window to the next display (with wrap)
+  mimi action move_window_to_display prev     Move window to the previous display (with wrap)`,
+		Args: validateDisplayArg,
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			moveCmd, err := action.NewMoveWindowToDisplayCommand(args)
+			if err != nil {
+				return err
+			}
+
+			return state.runAction(cobraCmd, moveCmd)
+		},
+	}
 }
 
 func buildResizeWindowCommand(state *cliState) *cobra.Command {
@@ -361,4 +399,13 @@ func validateSpaceArg(name action.Name) cobra.PositionalArgs {
 
 		return err
 	}
+}
+
+// validateDisplayArg is validateSpaceArg for move_window_to_display: cobra
+// rejects the argument before RunE runs, with action.ParseDisplayArg as the
+// rule, which is the rule the constructor in RunE calls.
+func validateDisplayArg(_ *cobra.Command, args []string) error {
+	_, err := action.ParseDisplayArg(args)
+
+	return err
 }

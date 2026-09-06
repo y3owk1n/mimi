@@ -1,0 +1,118 @@
+package geometry_test
+
+import (
+	"testing"
+
+	"github.com/y3owk1n/mimi/internal/geometry"
+)
+
+const displayPrimaryHeight = 1080.0
+
+var (
+	// leftVisible is a 1920x1080 primary display less a 25-point menu bar.
+	leftVisible = geometry.Rect{X: 0, Y: 0, W: 1920, H: 1055}
+	// rightVisible is a 2560x1440 display to its right, bottoms aligned, less
+	// the same menu bar.
+	rightVisible = geometry.Rect{X: 1920, Y: 0, W: 2560, H: 1415}
+)
+
+func TestMoveToScreen_KeepsTheShareOfTheVisibleFrame(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name string
+		cur  geometry.Rect
+		want geometry.Rect
+	}{
+		{
+			name: "left half stays a left half",
+			cur:  geometry.Rect{X: 0, Y: 25, W: 960, H: 1055},
+			want: geometry.Rect{X: 1920, Y: -335, W: 1280, H: 1415},
+		},
+		{
+			name: "a centered quarter stays centered",
+			cur:  geometry.Rect{X: 480, Y: 25 + 1055/4.0, W: 960, H: 1055 / 2.0},
+			want: geometry.Rect{X: 1920 + 640, Y: -335 + 1415/4.0, W: 1280, H: 1415 / 2.0},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := geometry.MoveToScreen(
+				testCase.cur,
+				displayPrimaryHeight,
+				leftVisible,
+				rightVisible,
+			)
+			if got != testCase.want {
+				t.Fatalf("MoveToScreen() = %+v, want %+v", got, testCase.want)
+			}
+
+			// The trip back lands where it started.
+			back := geometry.MoveToScreen(got, displayPrimaryHeight, rightVisible, leftVisible)
+			if back != testCase.cur {
+				t.Fatalf("MoveToScreen() back = %+v, want %+v", back, testCase.cur)
+			}
+		})
+	}
+}
+
+func TestScreenContaining_DecidesByTheWindowsCenter(t *testing.T) {
+	t.Parallel()
+
+	frames := []geometry.Rect{
+		{X: 0, Y: 0, W: 1920, H: 1080},
+		{X: 1920, Y: 0, W: 2560, H: 1440},
+	}
+
+	cases := []struct {
+		name      string
+		cur       geometry.Rect
+		wantIndex int
+		wantFound bool
+	}{
+		{
+			name:      "on the first",
+			cur:       geometry.Rect{X: 100, Y: 100, W: 500, H: 500},
+			wantIndex: 0,
+			wantFound: true,
+		},
+		{
+			name:      "on the second",
+			cur:       geometry.Rect{X: 2000, Y: -300, W: 500, H: 500},
+			wantIndex: 1,
+			wantFound: true,
+		},
+		{
+			name:      "straddling, mostly on the second",
+			cur:       geometry.Rect{X: 1700, Y: 100, W: 600, H: 500},
+			wantIndex: 1,
+			wantFound: true,
+		},
+		{
+			name:      "off every display",
+			cur:       geometry.Rect{X: -900, Y: 100, W: 500, H: 500},
+			wantFound: false,
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			gotIndex, gotFound := geometry.ScreenContaining(
+				testCase.cur,
+				displayPrimaryHeight,
+				frames,
+			)
+			if gotFound != testCase.wantFound || (gotFound && gotIndex != testCase.wantIndex) {
+				t.Fatalf(
+					"ScreenContaining() = %d, %v, want %d, %v",
+					gotIndex, gotFound, testCase.wantIndex, testCase.wantFound,
+				)
+			}
+		})
+	}
+}
