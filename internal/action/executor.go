@@ -25,10 +25,12 @@ func NewExecutor(desktop Desktop) *Executor {
 }
 
 // FocusWindow cycles keyboard focus through focusable windows on the active
-// space. When direction is set ("up", "down", "left", "right"), it moves focus
-// spatially to the nearest window in that direction. Otherwise it cycles
-// forward or backward through the sorted window list.
-func (e *Executor) FocusWindow(backward bool, direction string) error {
+// space. When a direction is set ("up", "down", "left", "right"), it moves
+// focus spatially to the nearest window in that direction. Otherwise it cycles
+// forward or backward through the sorted window list. With SameApp, only the
+// windows of the application owning the focused window take part, in either
+// mode.
+func (e *Executor) FocusWindow(args FocusWindowArgs) error {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
 		return err
@@ -46,8 +48,15 @@ func (e *Executor) FocusWindow(backward bool, direction string) error {
 		)
 	}
 
-	if direction != "" {
-		dir, err := parseFocusDirection(direction)
+	if args.SameApp {
+		windows, focusedIndex, err = sameApplicationOnly(windows, focusedIndex)
+		if err != nil {
+			return err
+		}
+	}
+
+	if args.Direction != "" {
+		dir, err := parseFocusDirection(args.Direction)
 		if err != nil {
 			return err
 		}
@@ -55,7 +64,7 @@ func (e *Executor) FocusWindow(backward bool, direction string) error {
 		return e.focusDirectional(windows, focusedIndex, dir)
 	}
 
-	targetIndex := cycleTarget(focusedIndex, len(windows), backward)
+	targetIndex := cycleTarget(focusedIndex, len(windows), args.Backward)
 
 	err = e.desktop.ActivateWindow(windows[targetIndex].ID)
 	if err != nil {
@@ -170,6 +179,45 @@ func (e *Executor) ResizeWindow(req geometry.Request) error {
 	}
 
 	return e.desktop.SetWindowFrame(win.ID, geometry.Resize(current, screen, req))
+}
+
+// sameApplicationOnly narrows windows to those owned by the same application
+// as windows[focusedIndex], keeping their order, and reports where the focused
+// window now sits. It is the focused window that names the application: with
+// nothing focused there is no application to stay within, and a window whose
+// owner cannot be read (pid 0) names none either.
+func sameApplicationOnly(windows []Window, focusedIndex int) ([]Window, int, error) {
+	if focusedIndex < 0 || focusedIndex >= len(windows) {
+		return nil, -1, derrors.New(
+			derrors.CodeActionFailed,
+			"no focused window, so no application to stay within",
+		)
+	}
+
+	pid := windows[focusedIndex].PID
+	if pid == 0 {
+		return nil, -1, derrors.New(
+			derrors.CodeActionFailed,
+			"cannot tell which application owns the focused window",
+		)
+	}
+
+	kept := make([]Window, 0, len(windows))
+	keptFocused := -1
+
+	for index, win := range windows {
+		if win.PID != pid {
+			continue
+		}
+
+		if index == focusedIndex {
+			keptFocused = len(kept)
+		}
+
+		kept = append(kept, win)
+	}
+
+	return kept, keptFocused, nil
 }
 
 // ensureSpaceExists is the one range check both space actions share. A space

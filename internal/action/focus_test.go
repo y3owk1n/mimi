@@ -26,7 +26,7 @@ func TestExecutor_FocusWindow_ForwardCyclingWrapsToFirst(t *testing.T) {
 
 	desktop := desktopWithWindows(3, 2)
 
-	err := action.NewExecutor(desktop).FocusWindow(false, "")
+	err := action.NewExecutor(desktop).FocusWindow(action.FocusWindowArgs{})
 	if err != nil {
 		t.Fatalf("FocusWindow() error = %v, want nil", err)
 	}
@@ -39,7 +39,7 @@ func TestExecutor_FocusWindow_BackwardCyclingWrapsToLast(t *testing.T) {
 
 	desktop := desktopWithWindows(3, 0)
 
-	err := action.NewExecutor(desktop).FocusWindow(true, "")
+	err := action.NewExecutor(desktop).FocusWindow(action.FocusWindowArgs{Backward: true})
 	if err != nil {
 		t.Fatalf("FocusWindow() error = %v, want nil", err)
 	}
@@ -56,7 +56,7 @@ func TestExecutor_FocusWindow_DoesNotRefreshWorkspaceTitle(t *testing.T) {
 
 	desktop := desktopWithWindows(3, 2)
 
-	err := action.NewExecutor(desktop).FocusWindow(false, "")
+	err := action.NewExecutor(desktop).FocusWindow(action.FocusWindowArgs{})
 	if err != nil {
 		t.Fatalf("FocusWindow() error = %v, want nil", err)
 	}
@@ -81,7 +81,8 @@ func TestExecutor_FocusWindow_UnfocusedDesktopFallsBackToFirstWindow(t *testing.
 
 			desktop := desktopWithWindows(3, -1)
 
-			err := action.NewExecutor(desktop).FocusWindow(testCase.backward, "")
+			err := action.NewExecutor(desktop).
+				FocusWindow(action.FocusWindowArgs{Backward: testCase.backward})
 			if err != nil {
 				t.Fatalf("FocusWindow() error = %v, want nil", err)
 			}
@@ -100,7 +101,8 @@ func TestExecutor_FocusWindow_DirectionalSkipsAWindowWhoseFrameCannotBeRead(t *t
 		"failed to get window frame",
 	)
 
-	err := action.NewExecutor(desktop).FocusWindow(false, "right")
+	err := action.NewExecutor(desktop).
+		FocusWindow(action.FocusWindowArgs{Direction: directionRight})
 	if err != nil {
 		t.Fatalf("FocusWindow() error = %v, want nil", err)
 	}
@@ -113,7 +115,7 @@ func TestExecutor_FocusWindow_DirectionalErrorsWhenNothingLiesThatWay(t *testing
 
 	desktop := rowOfWindows(3, 0)
 
-	err := action.NewExecutor(desktop).FocusWindow(false, "left")
+	err := action.NewExecutor(desktop).FocusWindow(action.FocusWindowArgs{Direction: directionLeft})
 	if err == nil {
 		t.Fatal("FocusWindow() error = nil, want an error")
 	}
@@ -130,7 +132,7 @@ func TestExecutor_FocusWindow_ErrorsWhenTheActiveSpaceHasNoFocusableWindows(t *t
 
 	desktop := desktopWithWindows(0, -1)
 
-	err := action.NewExecutor(desktop).FocusWindow(false, "")
+	err := action.NewExecutor(desktop).FocusWindow(action.FocusWindowArgs{})
 	if err == nil {
 		t.Fatal("FocusWindow() error = nil, want an error")
 	}
