@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.11.0](https://github.com/y3owk1n/mimi/compare/v0.10.1...v0.11.0) (2026-09-06)
+
+
+### Features
+
+* **action,cli:** add thirds presets and a --cycle flag that steps a half through them ([#196](https://github.com/y3owk1n/mimi/issues/196)) ([3f71b05](https://github.com/y3owk1n/mimi/commit/3f71b055089fbddc1729b78ecd9a90d384d4d14d))
+* **action,cli:** follow a window to its new space with move_window_to_space --follow ([#193](https://github.com/y3owk1n/mimi/issues/193)) ([0c06822](https://github.com/y3owk1n/mimi/commit/0c068227827b9c8ae5700c72d548a97169f96e4c))
+* **action,cli:** keep focus_window within the frontmost application with --same-app ([#197](https://github.com/y3owk1n/mimi/issues/197)) ([340622f](https://github.com/y3owk1n/mimi/commit/340622f3d239f7d5c7e4749a7aafe67f78abddad))
+* **action,cli:** move the frontmost window to another display with move_window_to_display ([#194](https://github.com/y3owk1n/mimi/issues/194)) ([a90c40f](https://github.com/y3owk1n/mimi/commit/a90c40fd2448eae3968da94da35c6bf3258f3a5a))
+* **action,native,cli:** bring an application to the front across spaces with focus_app ([#200](https://github.com/y3owk1n/mimi/issues/200)) ([26e5e41](https://github.com/y3owk1n/mimi/commit/26e5e419de6d79fa4c3379944b37bbb40e477af4))
+* **cli,hooks:** add mimi query and pass the active space to workspace hooks ([#191](https://github.com/y3owk1n/mimi/issues/191)) ([399a4e0](https://github.com/y3owk1n/mimi/commit/399a4e03a0576b785a20e27937bc7cd632f2a740))
+* **config,hooks:** filter workspace hooks by space and negate any hook filter with ! ([#199](https://github.com/y3owk1n/mimi/issues/199)) ([c04e2ed](https://github.com/y3owk1n/mimi/commit/c04e2ed58e9b046b10be98d04c3552f0f8f81847))
+
+
+### Bug Fixes
+
+* **action:** land a window moved across displays at the size it was asked for ([#195](https://github.com/y3owk1n/mimi/issues/195)) ([5a3e2ed](https://github.com/y3owk1n/mimi/commit/5a3e2ed92b690f194fed9e10772b9dcf1604fc06))
+
 ## [0.10.1](https://github.com/y3owk1n/mimi/compare/v0.10.0...v0.10.1) (2026-08-16)
 
 
