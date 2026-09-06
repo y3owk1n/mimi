@@ -31,10 +31,19 @@ import (
 type Command struct {
 	Name Name `json:"name"`
 
-	FocusWindow       FocusWindowArgs  `json:"focusWindow,omitzero"`
-	Space             SpaceArg         `json:"space,omitzero"`
-	MoveWindowToSpace SpaceArg         `json:"moveWindowToSpace,omitzero"`
-	ResizeWindow      ResizeWindowArgs `json:"resizeWindow,omitzero"`
+	FocusWindow       FocusWindowArgs       `json:"focusWindow,omitzero"`
+	Space             SpaceArg              `json:"space,omitzero"`
+	MoveWindowToSpace MoveWindowToSpaceArgs `json:"moveWindowToSpace,omitzero"`
+	ResizeWindow      ResizeWindowArgs      `json:"resizeWindow,omitzero"`
+}
+
+// MoveWindowToSpaceArgs is move_window_to_space's typed payload: the space the
+// window goes to, and whether focus goes with it.
+type MoveWindowToSpaceArgs struct {
+	Space SpaceArg `json:"space"`
+	// Follow switches to the destination space once the window is there, so
+	// one hotkey does what "move_window_to_space N" then "space N" would.
+	Follow bool `json:"follow"`
 }
 
 // FocusWindowArgs is focus_window's typed payload.
@@ -80,16 +89,19 @@ func NewSpaceCommand(args []string) (Command, error) {
 }
 
 // NewMoveWindowToSpaceCommand builds move_window_to_space's command from the
-// one positional argument the action takes. It is NewSpaceCommand's
-// counterpart: the same rule, reported against this action's name, landing on
-// the field this action reads.
-func NewMoveWindowToSpaceCommand(args []string) (Command, error) {
+// one positional argument the action takes and its --follow flag. It is
+// NewSpaceCommand's counterpart: the same rule, reported against this action's
+// name, landing on the field this action reads.
+func NewMoveWindowToSpaceCommand(args []string, follow bool) (Command, error) {
 	spaceArg, err := ParseSpaceArg(NameMoveWindowToSpace, args)
 	if err != nil {
 		return Command{}, err
 	}
 
-	return Command{Name: NameMoveWindowToSpace, MoveWindowToSpace: spaceArg}, nil
+	return Command{
+		Name:              NameMoveWindowToSpace,
+		MoveWindowToSpace: MoveWindowToSpaceArgs{Space: spaceArg, Follow: follow},
+	}, nil
 }
 
 // NewResizeWindowCommand builds resize_window's command from the CLI's raw
@@ -400,12 +412,12 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 
 		return e.FocusSpace(index)
 	case NameMoveWindowToSpace:
-		index, err := e.resolveSpaceArg(NameMoveWindowToSpace, cmd.MoveWindowToSpace)
+		index, err := e.resolveSpaceArg(NameMoveWindowToSpace, cmd.MoveWindowToSpace.Space)
 		if err != nil {
 			return err
 		}
 
-		return e.MoveWindowToSpace(index)
+		return e.MoveWindowToSpace(index, cmd.MoveWindowToSpace.Follow)
 	case NameResizeWindow:
 		req, err := ResizeRequestFromArgs(cmd.ResizeWindow)
 		if err != nil {

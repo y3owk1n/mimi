@@ -36,7 +36,7 @@ func spaceCommandFor(t *testing.T, name action.Name, arg string) action.Command 
 	case action.NameSpace:
 		cmd, err = action.NewSpaceCommand([]string{arg})
 	case action.NameMoveWindowToSpace:
-		cmd, err = action.NewMoveWindowToSpaceCommand([]string{arg})
+		cmd, err = action.NewMoveWindowToSpaceCommand([]string{arg}, false)
 	case action.NameFocusWindow, action.NameResizeWindow:
 		t.Fatalf("%s takes no space argument", name)
 	default:
@@ -251,13 +251,13 @@ func TestNewSpaceCommands_ParseTheArgumentIntoTheirOwnField(t *testing.T) {
 				)
 			}
 
-			moveCmd, err := action.NewMoveWindowToSpaceCommand([]string{testCase.arg})
+			moveCmd, err := action.NewMoveWindowToSpaceCommand([]string{testCase.arg}, false)
 			if err != nil {
 				t.Fatalf("NewMoveWindowToSpaceCommand(%q) error = %v, want nil", testCase.arg, err)
 			}
 
 			if moveCmd.Name != action.NameMoveWindowToSpace ||
-				moveCmd.MoveWindowToSpace != testCase.want {
+				moveCmd.MoveWindowToSpace.Space != testCase.want {
 				t.Fatalf(
 					"NewMoveWindowToSpaceCommand(%q) = %+v, want %s carrying %+v",
 					testCase.arg,
@@ -290,7 +290,12 @@ func TestNewSpaceCommands_RejectAMalformedArgument(t *testing.T) {
 		build      func([]string) (action.Command, error)
 	}{
 		{actionName: action.NameSpace, build: action.NewSpaceCommand},
-		{actionName: action.NameMoveWindowToSpace, build: action.NewMoveWindowToSpaceCommand},
+		{
+			actionName: action.NameMoveWindowToSpace,
+			build: func(args []string) (action.Command, error) {
+				return action.NewMoveWindowToSpaceCommand(args, false)
+			},
+		},
 	}
 
 	for _, builder := range builders {
@@ -473,7 +478,7 @@ func TestExecuteCommand_ReachesEveryAction(t *testing.T) {
 
 		err := action.NewExecutor(desktop).ExecuteCommand(action.Command{
 			Name:              action.NameMoveWindowToSpace,
-			MoveWindowToSpace: action.SpaceArg{Direction: 1},
+			MoveWindowToSpace: action.MoveWindowToSpaceArgs{Space: action.SpaceArg{Direction: 1}},
 		})
 		if err != nil {
 			t.Fatalf("ExecuteCommand(move_window_to_space) error = %v, want nil", err)
@@ -559,8 +564,10 @@ func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
 		{
 			name: "move_window_to_space naming an index and a direction at once",
 			cmd: action.Command{
-				Name:              action.NameMoveWindowToSpace,
-				MoveWindowToSpace: action.SpaceArg{Index: 2, Direction: -1},
+				Name: action.NameMoveWindowToSpace,
+				MoveWindowToSpace: action.MoveWindowToSpaceArgs{
+					Space: action.SpaceArg{Index: 2, Direction: -1},
+				},
 			},
 		},
 		{
