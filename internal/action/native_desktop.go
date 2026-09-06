@@ -59,10 +59,47 @@ func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
 			pid = 0
 		}
 
-		windows = append(windows, Window{ID: d.registerLocked(element), PID: pid})
+		windows = append(windows, Window{
+			ID:     d.registerLocked(element),
+			PID:    pid,
+			Number: element.Number(),
+		})
 	}
 
 	return windows, focused, nil
+}
+
+// FindApplication resolves a bundle identifier or a name to a running pid.
+func (d *nativeDesktop) FindApplication(query string) (int, error) {
+	return native.FindApplication(query)
+}
+
+// ApplicationWindows lists an application's real windows on every space,
+// front to back, with each space id resolved to its Mission Control index.
+func (d *nativeDesktop) ApplicationWindows(pid int) ([]AppWindow, error) {
+	found, err := native.ApplicationWindows(pid)
+	if err != nil {
+		return nil, err
+	}
+
+	indexes := native.SpaceIndexes()
+	windows := make([]AppWindow, len(found))
+
+	for index, window := range found {
+		windows[index] = AppWindow{Number: window.Number, SpaceIndex: indexes[window.SpaceID]}
+	}
+
+	return windows, nil
+}
+
+// RaiseWindow brings one of an application's windows to the front by number.
+func (d *nativeDesktop) RaiseWindow(pid int, number uint32) error {
+	return native.RaiseWindowNumber(pid, number)
+}
+
+// ActivateApplication brings an application to the front.
+func (d *nativeDesktop) ActivateApplication(pid int) error {
+	return native.ActivateApplication(pid)
 }
 
 // FrontmostWindow returns the window currently in front.
@@ -85,7 +122,7 @@ func (d *nativeDesktop) FrontmostWindow() (Window, error) {
 
 	d.releaseLocked()
 
-	return Window{ID: d.registerLocked(element), PID: pid}, nil
+	return Window{ID: d.registerLocked(element), PID: pid, Number: element.Number()}, nil
 }
 
 // WindowFrame reads one window's frame.

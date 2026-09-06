@@ -66,7 +66,7 @@ func audited(command string, response interruptResponse, why string) auditEntry 
 // no longer reaches the work, is invisible from the command's own code.
 //
 // What the audit found: six commands honor the context, one runs its own
-// signal handler, and fifteen ignore it. Thirteen of those fifteen are local
+// signal handler, and sixteen ignore it. Fourteen of those sixteen are local
 // file work, one-shot syscalls or desktop reads, over before an interrupt could
 // be typed. The two that are not are in the action family — `action space` on the direct path
 // pumps the run loop for a stretch proportional to the spaces it crosses, and
@@ -87,6 +87,9 @@ var interruptAudit = []auditEntry{
 		"runAction consults no context on either path: the daemon path "+
 			"writes a request and waits for the reply, the direct path calls "+
 			"into Objective-C that runs to completion"),
+	audited("action focus_app", interruptRunsOn,
+		"as space when the window is on another space, the same dock swipe; "+
+			"otherwise as focus_window, an activation that runs to completion"),
 	audited("action space", interruptRunsOn,
 		"as focus_window, and the direct path's synthetic dock swipe "+
 			"pumps the run loop for a stretch proportional to the spaces it "+

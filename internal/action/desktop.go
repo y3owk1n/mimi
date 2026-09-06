@@ -18,6 +18,20 @@ type Window struct {
 	// PID is the process ID of the application the window belongs to, which is
 	// how one application's windows are told from another's.
 	PID int
+	// Number is the window server's number for the window: stable for the
+	// window's lifetime and the same however the window was reached, which is
+	// how a window found one way is recognized when found another. It is 0
+	// when the desktop cannot read it.
+	Number uint32
+}
+
+// AppWindow is one window of an application as the window server lists it:
+// its number, and the 1-based index of the space it is on, or 0 when it is on
+// every space or none. It carries no handle: a window on another space cannot
+// be driven until that space is in front, which is what RaiseWindow needs.
+type AppWindow struct {
+	Number     uint32
+	SpaceIndex int
 }
 
 // Display is one connected display as the actions see it: an identifier to
@@ -81,6 +95,25 @@ type Desktop interface {
 	// ActivateDisplay makes a display the active one for the menu bar and
 	// event routing, which is what a window landing on it expects.
 	ActivateDisplay(id uint32)
+
+	// FindApplication resolves a bundle identifier or an application name to
+	// the pid of the running application it names, reporting an error when
+	// nothing running matches.
+	FindApplication(query string) (int, error)
+
+	// ApplicationWindows lists an application's real windows on every space,
+	// front to back, which is most recently used first. Minimized and
+	// auxiliary windows are left out.
+	ApplicationWindows(pid int) ([]AppWindow, error)
+
+	// RaiseWindow brings one of an application's windows to the front by
+	// number. It works for a window on the active space and reports an
+	// error for one that is not: the caller switches first.
+	RaiseWindow(pid int, number uint32) error
+
+	// ActivateApplication brings an application to the front without naming
+	// a window, which is what focusing an application with no windows means.
+	ActivateApplication(pid int) error
 
 	// MissionControlActive reports whether Mission Control is open, which is
 	// the state the space actions refuse to run in.

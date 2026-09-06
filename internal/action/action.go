@@ -22,6 +22,7 @@ const (
 	NameResizeWindow      Name = "resize_window"
 
 	NameMoveWindowToDisplay Name = "move_window_to_display"
+	NameFocusApp            Name = "focus_app"
 )
 
 // Nouns the index-argument rule reports in: what a space argument and a

@@ -19,6 +19,31 @@ void *MimiGetFrontmostWindow(void);
 int MimiActivateWindow(void *window);
 /// Return the process identifier of the application owning the window, or 0.
 int MimiGetWindowPID(void *window);
+/// Return the window server's number for the window, or 0 when it has none.
+uint32_t MimiGetWindowNumber(void *window);
+
+#pragma mark - Application Functions
+
+/// One window of an application as the window server lists it.
+typedef struct {
+	/// The window server's number for the window.
+	uint32_t number;
+	/// The space the window is on, or 0 when it is on every space or none.
+	uint64_t space;
+} MimiAppWindow;
+
+/// Resolve a running application by bundle identifier or localized name
+/// (case-insensitive). Returns its pid, or 0 when nothing running matches.
+int MimiFindApplication(const char *query);
+/// Copy an application's real, unminimized windows on every space, front to
+/// back. Sets *count; the caller frees the array. Auxiliary windows (popovers,
+/// sheets, tab previews) are left out.
+MimiAppWindow *MimiCopyApplicationWindows(int pid, int *count);
+/// Bring one of an application's windows to the front by number. The window
+/// has to be on the active space, which is when Accessibility lists it.
+int MimiRaiseWindowNumber(int pid, uint32_t number);
+/// Bring an application to the front without naming a window.
+int MimiActivateApplication(int pid);
 
 #pragma mark - Screen Functions
 

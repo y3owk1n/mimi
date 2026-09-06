@@ -1,0 +1,108 @@
+package native
+
+/*
+#include "mimi.h"
+#include <stdlib.h>
+*/
+import "C"
+
+import (
+	"unsafe"
+
+	derrors "github.com/y3owk1n/mimi/internal/errors"
+)
+
+// AppWindow is one window of an application as the window server lists it:
+// its number, and the id of the space it is on, which is 0 when it is on
+// every space or none.
+type AppWindow struct {
+	Number  uint32
+	SpaceID uint64
+}
+
+// FindApplication resolves a bundle identifier or a localized application
+// name, case-insensitively, to the pid of the running application it names.
+func FindApplication(query string) (int, error) {
+	cQuery := C.CString(query)
+	defer C.free(unsafe.Pointer(cQuery)) //nolint:nlreturn
+
+	pid := int(C.MimiFindApplication(cQuery))
+	if pid == 0 {
+		return 0, derrors.Newf(
+			derrors.CodeActionFailed,
+			"no running application named %q",
+			query,
+		)
+	}
+
+	return pid, nil
+}
+
+// ApplicationWindows lists an application's real, unminimized windows on
+// every space, front to back, which is most recently used first.
+func ApplicationWindows(pid int) ([]AppWindow, error) {
+	var count C.int
+
+	rows := C.MimiCopyApplicationWindows(C.int(pid), &count)
+	if rows == nil || count == 0 {
+		if rows != nil {
+			C.free(unsafe.Pointer(rows))
+		}
+
+		return nil, nil
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	values := unsafe.Slice(rows, int(count))
+	windows := make([]AppWindow, int(count))
+
+	for index, row := range values {
+		windows[index] = AppWindow{
+			Number:  uint32(row.number),
+			SpaceID: uint64(row.space),
+		}
+	}
+
+	return windows, nil
+}
+
+// RaiseWindowNumber brings one of an application's windows to the front by
+// its window server number. The window has to be on the active space: that
+// is when its application lists it through Accessibility.
+func RaiseWindowNumber(pid int, number uint32) error {
+	if C.MimiRaiseWindowNumber(C.int(pid), C.uint32_t(number)) == 0 {
+		return derrors.Newf(
+			derrors.CodeAccessibilityFailed,
+			"window %d of application %d could not be raised",
+			number,
+			pid,
+		)
+	}
+
+	return nil
+}
+
+// ActivateApplication brings an application to the front without naming a
+// window, which is what activating an application with no windows means.
+func ActivateApplication(pid int) error {
+	if C.MimiActivateApplication(C.int(pid)) == 0 {
+		return derrors.Newf(derrors.CodeActionFailed, "failed to activate application %d", pid)
+	}
+
+	return nil
+}
+
+// SpaceIndexes maps every Mission Control space id to its 1-based index, in
+// one pass over the enumeration.
+func SpaceIndexes() map[uint64]int {
+	count := SpaceCount()
+	indexes := make(map[uint64]int, count)
+
+	for index := 1; index <= count; index++ {
+		if sid := uint64(C.MimiMissionControlSpaceID(C.int(index))); sid != 0 {
+			indexes[sid] = index
+		}
+	}
+
+	return indexes
+}

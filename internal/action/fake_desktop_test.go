@@ -14,6 +14,7 @@ import (
 type fakeWindow struct {
 	id          action.WindowID
 	pid         int
+	number      uint32
 	frame       geometry.Rect
 	frameErr    error
 	activateErr error
@@ -45,6 +46,14 @@ type fakeDesktop struct {
 
 	missionControlActive bool
 
+	// apps maps a query focus_app may be given to the pid it names.
+	apps map[string]int
+	// appWindows lists each application's windows front to back, as
+	// ApplicationWindows reports them; every id is one of windows'.
+	appWindows map[int][]action.AppWindow
+	// activatedApp is the last application activated without a window.
+	activatedApp int
+
 	displays    []action.Display
 	displaysErr error
 	// activatedDisplay is the display last made active, or 0 for none.
@@ -75,7 +84,7 @@ func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
 
 	windows := make([]action.Window, len(d.windows))
 	for index, win := range d.windows {
-		windows[index] = action.Window{ID: win.id, PID: win.pid}
+		windows[index] = action.Window{ID: win.id, PID: win.pid, Number: win.number}
 	}
 
 	return windows, d.focused, nil
@@ -120,7 +129,58 @@ func (d *fakeDesktop) FrontmostWindow() (action.Window, error) {
 		return action.Window{}, err
 	}
 
-	return action.Window{ID: d.frontmost, PID: d.windows[index].pid}, nil
+	return action.Window{
+		ID:     d.frontmost,
+		PID:    d.windows[index].pid,
+		Number: d.windows[index].number,
+	}, nil
+}
+
+func (d *fakeDesktop) FindApplication(query string) (int, error) {
+	pid, ok := d.apps[query]
+	if !ok {
+		return 0, derrors.Newf(derrors.CodeActionFailed, "no running application named %q", query)
+	}
+
+	return pid, nil
+}
+
+func (d *fakeDesktop) ApplicationWindows(pid int) ([]action.AppWindow, error) {
+	return slices.Clone(d.appWindows[pid]), nil
+}
+
+// RaiseWindow models the one constraint the real desktop has: a window is
+// reachable through Accessibility only while its space is in front.
+func (d *fakeDesktop) RaiseWindow(pid int, number uint32) error {
+	for _, win := range d.appWindows[pid] {
+		if win.Number != number {
+			continue
+		}
+
+		if win.SpaceIndex != 0 && win.SpaceIndex != d.activeSpace {
+			return derrors.Newf(
+				derrors.CodeAccessibilityFailed,
+				"window %d is on space %d, not the active space %d",
+				number,
+				win.SpaceIndex,
+				d.activeSpace,
+			)
+		}
+
+		for _, candidate := range d.windows {
+			if candidate.pid == pid && candidate.number == number {
+				return d.ActivateWindow(candidate.id)
+			}
+		}
+	}
+
+	return derrors.Newf(derrors.CodeAccessibilityFailed, "window %d is not listed", number)
+}
+
+func (d *fakeDesktop) ActivateApplication(pid int) error {
+	d.activatedApp = pid
+
+	return nil
 }
 
 func (d *fakeDesktop) SetWindowFrame(windowID action.WindowID, frame geometry.Rect) error {

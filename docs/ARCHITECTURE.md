@@ -51,6 +51,7 @@ it is what checks that the real desktop behaves the way the fake pretends to.
 | Action | API |
 | ------ | --- |
 | `focus_window` | Accessibility (`AXUIElement`) |
+| `focus_app` | Private SkyLight for the window list and their spaces (`SLSCopyWindowsWithOptionsAndTags`, `SLSCopySpacesForWindows`), the `space` gesture, then Accessibility to raise |
 | `space` | Synthetic dock-swipe gesture via `CGEvent` |
 | `move_window_to_space` | Private SkyLight (`SLSMoveWindowsToManagedSpace`) |
 | `move_window_to_display` | Accessibility (`AXUIElement`), `NSScreen` for the display list |

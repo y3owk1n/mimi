@@ -38,6 +38,61 @@ type Command struct {
 	MoveWindowToSpace   MoveWindowToSpaceArgs `json:"moveWindowToSpace,omitzero"`
 	MoveWindowToDisplay DisplayArg            `json:"moveWindowToDisplay,omitzero"`
 	ResizeWindow        ResizeWindowArgs      `json:"resizeWindow,omitzero"`
+	FocusApp            FocusAppArgs          `json:"focusApp,omitzero"`
+}
+
+// FocusAppArgs is focus_app's typed payload: the application, as a bundle
+// identifier or a name.
+type FocusAppArgs struct {
+	App string `json:"app"`
+}
+
+// NewFocusAppCommand builds focus_app's command from the one positional
+// argument the action takes. The rule is ParseFocusAppArg's, called rather
+// than restated.
+func NewFocusAppCommand(args []string) (Command, error) {
+	app, err := ParseFocusAppArg(args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameFocusApp, FocusApp: FocusAppArgs{App: app}}, nil
+}
+
+// ParseFocusAppArg is the only place focus_app's argument is read: exactly one,
+// naming an application by bundle identifier or name, with surrounding
+// whitespace not part of the name. It runs validateFocusAppArgs on what it
+// read, the check ExecuteCommand applies to a payload off the socket, so the
+// two cannot disagree about what names an application.
+func ParseFocusAppArg(args []string) (string, error) {
+	if len(args) != 1 {
+		return "", derrors.New(
+			derrors.CodeInvalidInput,
+			"focus_app requires exactly one argument: an application name or bundle identifier",
+		)
+	}
+
+	app := strings.TrimSpace(args[0])
+
+	err := validateFocusAppArgs(FocusAppArgs{App: app})
+	if err != nil {
+		return "", err
+	}
+
+	return app, nil
+}
+
+// validateFocusAppArgs holds focus_app's one payload rule: the application
+// has to be named.
+func validateFocusAppArgs(args FocusAppArgs) error {
+	if strings.TrimSpace(args.App) == "" {
+		return derrors.New(
+			derrors.CodeInvalidInput,
+			"focus_app argument cannot be empty: give an application name or bundle identifier",
+		)
+	}
+
+	return nil
 }
 
 // MoveWindowToSpaceArgs is move_window_to_space's typed payload: the space the
@@ -472,6 +527,13 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		return e.MoveWindowToSpace(index, cmd.MoveWindowToSpace.Follow)
 	case NameMoveWindowToDisplay:
 		return e.MoveWindowToDisplay(cmd.MoveWindowToDisplay)
+	case NameFocusApp:
+		err := validateFocusAppArgs(cmd.FocusApp)
+		if err != nil {
+			return err
+		}
+
+		return e.FocusApp(cmd.FocusApp.App)
 	case NameResizeWindow:
 		req, err := ResizeRequestFromArgs(cmd.ResizeWindow)
 		if err != nil {
@@ -482,7 +544,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, space, move_window_to_space, move_window_to_display, resize_window)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window)",
 			cmd.Name,
 		)
 	}

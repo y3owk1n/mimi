@@ -139,6 +139,17 @@ func (e *Element) PID() (int, error) {
 	return pid, nil
 }
 
+// Number returns the window server's number for the window, which is stable
+// for the window's lifetime and the same however the window was reached, or 0
+// when it has none.
+func (e *Element) Number() uint32 {
+	if e.ref == nil {
+		return 0
+	}
+
+	return uint32(C.MimiGetWindowNumber(e.ref)) //nolint:nlreturn // cgo call expansion
+}
+
 // GetFrame returns the window's position and size [x, y, w, h] in screen coordinates.
 func (e *Element) GetFrame() (float64, float64, float64, float64, error) {
 	if e.ref == nil {

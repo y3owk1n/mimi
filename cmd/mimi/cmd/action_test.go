@@ -526,6 +526,7 @@ func malformedActionArgv() []malformedAction {
 		},
 		{name: "space zero", argv: []string{string(action.NameSpace), "0"}},
 		{name: "display zero", argv: []string{string(action.NameMoveWindowToDisplay), "0"}},
+		{name: "focus_app blank", argv: []string{string(action.NameFocusApp), whitespaceOnlyArg}},
 		{
 			name: "move_window_to_space nonsense",
 			argv: []string{string(action.NameMoveWindowToSpace), "nxt"},

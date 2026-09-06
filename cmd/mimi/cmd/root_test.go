@@ -292,6 +292,7 @@ func TestActionCommand_WithoutASubcommandStillListsItsSubcommands(t *testing.T) 
 		string(action.NameSpace),
 		string(action.NameMoveWindowToSpace),
 		string(action.NameMoveWindowToDisplay),
+		string(action.NameFocusApp),
 	} {
 		if !strings.Contains(out, name) {
 			t.Errorf("mimi action never named the %q subcommand, got: %s", name, out)
