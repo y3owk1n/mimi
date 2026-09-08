@@ -258,9 +258,19 @@ the state is per space.
 moved and whether it was a move or a resize.
 
 **Use another language.** Nothing here requires Python. A layout is any
-executable that reads stdin and writes stdout. `examples/tiling/README.md`
-has a complete one in shell and jq in ten lines. `layout` is a command line
-run through `settings.hook_shell`, so arguments are fine.
+executable that reads stdin and writes stdout. `layout` is a command line
+run through `settings.hook_shell`, so arguments are fine. This is a whole
+layout in shell and jq, one column per window:
+
+```sh
+#!/bin/sh
+jq -c '(.display.visible) as $v | (.windows | length) as $n
+  | {frames: [.windows | to_entries[]
+      | {number: .value.number,
+         frame: {x: ($v.x + .key * ($v.width / $n)), y: $v.y,
+                 width: ($v.width / $n), height: $v.height}}],
+     state: null}'
+```
 
 ---
 
