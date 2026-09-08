@@ -184,6 +184,10 @@ relayout_on_drag = true                      # drag an edge to resize a split, d
 
 Five layouts ship as starting points to copy and edit — monocle, equal columns, master and stack, a Hyprland-style dwindle BSP, and a niri-style scrollable strip — plus the commands they answer, which you bind like any other:
 
+https://github.com/user-attachments/assets/90454086-513f-43c4-af58-02efd5ba3390
+
+https://github.com/user-attachments/assets/c24f6537-a4d1-4626-a03a-6e4f0321495a
+
 ```bash
 mimi tiling preview          # what your layout would do, applied to nothing
 mimi tiling cmd swap left    # a name your layout gives meaning to
