@@ -47,6 +47,6 @@ Full detail: `docs/CODING_STANDARDS.md`, plus `docs/go/CONVENTIONS.md`, `docs/go
 
 ## Documentation
 
-Start here, then navigate: `docs/ARCHITECTURE.md` (shape) · `docs/DEVELOPMENT.md` · `docs/CLI.md` · `docs/CONFIGURATION.md` · `docs/TROUBLESHOOTING.md` · `docs/INSTALLATION.md`. Docs drift in places; when they disagree with code, read the code.
+Start here, then navigate: `docs/ARCHITECTURE.md` (shape) · `docs/DEVELOPMENT.md` · `docs/CLI.md` · `docs/CONFIGURATION.md` · `docs/TILING.md` (the user guide to layouts) · `docs/TROUBLESHOOTING.md` · `docs/INSTALLATION.md`. Docs drift in places; when they disagree with code, read the code.
 
 Keep this file lean — it loads into every agent session. Add only contracts an agent cannot infer from the code; workflow depth goes in a skill.

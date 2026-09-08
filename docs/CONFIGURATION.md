@@ -269,7 +269,8 @@ applies nothing; the next event tries again.
 daemon checks at startup and on every reload: without it tiling stays off and
 a warning says so. `mimi tiling preview` runs the layout once against the
 desktop and prints what it would apply, whether or not tiling is enabled.
-`examples/tiling/` in the repository holds layouts to copy and make your own.
+`examples/tiling/` in the repository holds layouts to copy and make your own,
+and [TILING.md](TILING.md) is the guide from first run to writing one.
 
 ---
 

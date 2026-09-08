@@ -352,8 +352,9 @@ mimi query space | jq .index
 ## Tiling
 
 The daemon runs the layout program named in `[tiling]` on window events; see
-`docs/CONFIGURATION.md` for the section and the JSON it speaks. mimi ships no
-layout. `examples/tiling/` in the repository holds programs to copy.
+`docs/TILING.md` for the guide and `docs/CONFIGURATION.md` for the section.
+mimi ships no layout. `examples/tiling/` in the repository holds programs to
+copy.
 
 ### `mimi tiling preview [--input]`
 

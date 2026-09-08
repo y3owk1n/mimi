@@ -1,5 +1,8 @@
 # Tiling with mimi
 
+The guide from first run to writing your own layout is `docs/TILING.md` in
+the repository. This file is the short version that travels with the scripts.
+
 mimi does not tile. It gives your program the windows and applies the frames
 the program returns. Everything else, which windows count, where they go,
 what a hotkey means, is yours, in whatever language you like.
