@@ -25,6 +25,9 @@ Commands the layout answers (mimi gives them no meaning; this file does):
                                         back); set a fraction; or nudge it by
                                         d, as niri's +10%
   mimi tiling cmd center                 scroll the focused column to the middle
+  mimi tiling cmd togglefloat            take the focused window off the strip
+                                        and leave it where it is, or put it
+                                        back in a column of its own
   mimi tiling cmd scroll <left|right> [fraction]
                                         scroll the strip a step that way, a
                                         quarter of the display unless given
@@ -170,13 +173,22 @@ def main():
     box = area(inp, GAP)
     edge = inp["display"]["visible"]
     event = inp["event"]
-    windows = inp["windows"]
+    focused = inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
+
+    # togglefloat first: it changes which windows belong on the strip. The
+    # shared rules never see this list, so it lives in the state.
+    if command(inp, "togglefloat") is not None and focused is not None:
+        floats = set(state.get("floating", []))
+        floats ^= {focused}
+        state["floating"] = sorted(floats)
+    windows = [w for w in inp["windows"] if w["number"] not in state.get("floating", [])]
     by_number = {w["number"]: w for w in windows}
-    focused = windows[inp["focused"]]["number"] if inp["focused"] >= 0 else None
+    if focused not in by_number:
+        focused = None
 
     sync(columns, [w["number"] for w in windows], focused)
     if not columns:
-        write_output([], {"columns": [], "offset": 0})
+        write_output([], {"columns": [], "offset": 0, "floating": state.get("floating", [])})
         return
 
     at = column_of(columns, focused)
