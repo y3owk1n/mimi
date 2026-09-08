@@ -40,10 +40,12 @@ PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
 MIN_WIDTH, MAX_WIDTH = 0.2, 1.0
 # How much of a column that does not fit whole stays visible at the edge, in
-# points: enough to see it is there and to reach it with focus_window
-# --left/--right, no more. A column is shown whole or as this sliver, never
-# cut somewhere across.
-PEEK = 24
+# points. macOS refuses to put a window entirely off screen: asked for this,
+# it leaves about 16 points of a full-height window showing, its floor, so a
+# parked column is as hidden as a window on the space can be. It is reached
+# with the focus command, not by sight. A column is shown whole or as this
+# sliver, never cut somewhere across.
+PEEK = 8
 
 
 # --- the strip ----------------------------------------------------------------
