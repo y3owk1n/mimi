@@ -194,6 +194,22 @@ def main():
     at = column_of(columns, focused)
     focus = None
 
+    if event["kind"] == "command":
+        name, args = event.get("name"), event.get("args", [])
+        if name == "scroll" and args:
+            # A step along the strip, in the direction asked, kept within
+            # the strip's ends. Focus stays where it is: the view floats
+            # until the next event would leave the focused column hidden.
+            # This needs no focused column, so it works while a floating
+            # window has focus too.
+            _, total = starts(columns, box, GAP)
+            step = (float(args[1]) if len(args) > 1 else SCROLL_STEP) * box["width"]
+            offset += step if args[0] == "right" else -step
+            offset = clamp(offset, 0, max(0, total - box["width"]))
+            state.update(columns=columns, offset=offset)
+            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
+            return
+
     if event["kind"] == "command" and at is not None:
         name, args = event.get("name"), event.get("args", [])
         column = columns[at]
@@ -239,18 +255,6 @@ def main():
             state.update(columns=columns, offset=offset)
             write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
             return
-        elif name == "scroll" and args:
-            # A step along the strip, in the direction asked, kept within
-            # the strip's ends. Focus stays where it is: the view floats
-            # until the next event would leave the focused column hidden.
-            _, total = starts(columns, box, GAP)
-            step = (float(args[1]) if len(args) > 1 else SCROLL_STEP) * box["width"]
-            offset += step if args[0] == "right" else -step
-            offset = clamp(offset, 0, max(0, total - box["width"]))
-            state.update(columns=columns, offset=offset)
-            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
-            return
-
     elif event["kind"] == "window_resize":
         placed = state.get("placed", {})
         for number in event.get("windows", []):
