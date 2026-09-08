@@ -139,6 +139,15 @@ def frames_for(columns, box, edge, gap, offset):
     return frames
 
 
+def any_in_view(columns, box, gap, offset):
+    """Whether at least one column is shown whole at this offset."""
+    xs, _ = starts(columns, box, gap)
+    for column, left in zip(columns, xs):
+        if left >= offset - 0.5 and left + col_width(column, box, gap) <= offset + box["width"] + 0.5:
+            return True
+    return False
+
+
 def column_at(columns, box, gap, offset, x):
     """The column under strip-relative screen x, or None."""
     xs, _ = starts(columns, box, gap)
@@ -252,8 +261,25 @@ def main():
                     columns.pop(index)
                 at = column_of(columns, focused)
 
-    # Whatever happened, the focused column ends up in view.
+    # Whatever happened, the focused column ends up in view. And when no
+    # column is in view at all, because the one that was closed or focus
+    # went somewhere untiled, the nearest column comes in and takes focus:
+    # a viewport with everything parked is never what anyone wanted.
     offset = scroll_into_view(columns, at, box, GAP, offset)
+    if not any_in_view(columns, box, GAP, offset):
+        xs, _ = starts(columns, box, GAP)
+        nearest = min(range(len(columns)), key=lambda i: abs(xs[i] - offset))
+        offset = scroll_into_view(columns, nearest, box, GAP, offset)
+
+    # A window that went away leaves focus wherever macOS put it, which may
+    # be nothing tiled at all. Then the first column in view takes it; on any
+    # other event focus outside the strip is the user's choice and stays.
+    if focus is None and at is None and event["kind"] in ("window_closed", "app_quit", "app_hide"):
+        xs, _ = starts(columns, box, GAP)
+        for column, left in zip(columns, xs):
+            if left >= offset - 0.5:
+                focus = column["windows"][0]
+                break
     frames = maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box)
     state.update(columns=columns, offset=offset)
     state["placed"] = {str(n): {k: int(round(v)) for k, v in f.items()} for n, f in frames}
