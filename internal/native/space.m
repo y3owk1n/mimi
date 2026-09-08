@@ -227,6 +227,8 @@ uint32_t MimiSpaceDisplayID(uint64_t sid) {
 /// Get the space ID currently active on the cursor's display.
 uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID()); }
 
+uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
+
 #pragma mark - Gesture-Based Space Focus
 
 // Private Core Graphics event field IDs used to synthesize a high-velocity

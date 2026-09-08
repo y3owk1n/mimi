@@ -32,7 +32,7 @@ const (
 func newTestReloader(
 	t *testing.T,
 	initialCfg *config.Config,
-) (*reloader, *hooks.Registry, *events.Bus) {
+) (*reloader, *hooks.Registry) {
 	t.Helper()
 
 	logger := zap.NewNop().Sugar()
@@ -54,9 +54,9 @@ func newTestReloader(
 	)
 	executor := hooks.NewExecutor(reg, &initialCfg.Settings, logger)
 
-	cfgReloader := newReloader(initialCfg, reg, executor, axTracker, router)
+	cfgReloader := newReloader(initialCfg, reg, executor, axTracker, router, nil)
 
-	return cfgReloader, reg, bus
+	return cfgReloader, reg
 }
 
 // TestReloader_Apply_ReportsSettingsItCouldNotApply pins what a trigger learns
@@ -108,7 +108,7 @@ func TestReloader_Apply_ReportsSettingsItCouldNotApply(t *testing.T) {
 			oldCfg := &config.Config{Settings: baseSettings()}
 			oldCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunOld}}
 
-			cfgReloader, _, _ := newTestReloader(t, oldCfg)
+			cfgReloader, _ := newTestReloader(t, oldCfg)
 
 			newCfg := &config.Config{Settings: baseSettings()}
 			newCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunNew}}
@@ -150,7 +150,7 @@ func TestReloader_Apply_ComparesAgainstTheConfigTheDaemonIsRunning(t *testing.T)
 	oldCfg := &config.Config{Settings: baseSettings()}
 	oldCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunOld}}
 
-	cfgReloader, _, _ := newTestReloader(t, oldCfg)
+	cfgReloader, _ := newTestReloader(t, oldCfg)
 
 	changedCfg := &config.Config{Settings: baseSettings()}
 	changedCfg.Settings.LogLevel = reloaderDebugLogLevel
@@ -216,13 +216,11 @@ func TestReloader_Apply_WaitsForAReloadAlreadyInProgress(t *testing.T) {
 	oldCfg.Settings.ResizeDebounceMS = debounceOld
 	oldCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunOld}}
 
-	cfgReloader, reg, bus := newTestReloader(t, oldCfg)
+	cfgReloader, reg := newTestReloader(t, oldCfg)
 
 	newCfg := &config.Config{Settings: baseSettings()}
 	newCfg.Settings.ResizeDebounceMS = debounceNew
 	newCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunNew}}
-
-	logger := zap.NewNop().Sugar()
 
 	applied := make(chan struct{})
 
@@ -259,13 +257,7 @@ func TestReloader_Apply_WaitsForAReloadAlreadyInProgress(t *testing.T) {
 		t.Errorf("expected the registry to hold the second reload's hook, got %+v", got)
 	}
 
-	wantRouter := observe.NewRouterWithDebounce(
-		bus,
-		cfgReloader.axTracker,
-		logger,
-		debounceNew*time.Millisecond,
-	)
-	if !reflect.DeepEqual(wantRouter, cfgReloader.router) {
+	if cfgReloader.router.DebounceWindow() != debounceNew*time.Millisecond {
 		t.Error(
 			"the second reload applied its hooks but not its debounce window; the reload tore",
 		)
@@ -276,7 +268,7 @@ func TestReloader_Apply_ValidConfigReloadsHooksAndDependencies(t *testing.T) {
 	oldCfg := &config.Config{Settings: baseSettings()}
 	oldCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunOld}}
 
-	cfgReloader, reg, bus := newTestReloader(t, oldCfg)
+	cfgReloader, reg := newTestReloader(t, oldCfg)
 
 	newCfg := &config.Config{Settings: baseSettings()}
 	newCfg.Settings.ResizeDebounceMS = 750
@@ -292,15 +284,7 @@ func TestReloader_Apply_ValidConfigReloadsHooksAndDependencies(t *testing.T) {
 		t.Errorf("expected registry to hold the new hook, got %+v", got)
 	}
 
-	logger := zap.NewNop().Sugar()
-
-	wantRouter := observe.NewRouterWithDebounce(
-		bus,
-		cfgReloader.axTracker,
-		logger,
-		750*time.Millisecond,
-	)
-	if !reflect.DeepEqual(wantRouter, cfgReloader.router) {
+	if cfgReloader.router.DebounceWindow() != 750*time.Millisecond {
 		t.Errorf("expected router debounce window to be updated to 750ms")
 	}
 
@@ -326,15 +310,9 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 	oldCfg.Settings.ResizeDebounceMS = 250
 	oldCfg.Hooks.WindowFocus = []config.HookEntry{{Run: reloaderHookRunOld}}
 
-	cfgReloader, reg, bus := newTestReloader(t, oldCfg)
+	cfgReloader, reg := newTestReloader(t, oldCfg)
 
-	logger := zap.NewNop().Sugar()
-	wantRouterBefore := observe.NewRouterWithDebounce(
-		bus,
-		cfgReloader.axTracker,
-		logger,
-		250*time.Millisecond,
-	)
+	wantDebounceBefore := 250 * time.Millisecond
 	wantEnabledBefore := axTrackerEnabled(cfgReloader.axTracker)
 
 	newCfg := &config.Config{Settings: baseSettings()}
@@ -364,7 +342,7 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 		t.Errorf("expected registry to still hold the old hook after a failed reload, got %+v", got)
 	}
 
-	if !reflect.DeepEqual(wantRouterBefore, cfgReloader.router) {
+	if cfgReloader.router.DebounceWindow() != wantDebounceBefore {
 		t.Error("expected router debounce window to be left untouched by a failed reload")
 	}
 

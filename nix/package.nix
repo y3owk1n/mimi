@@ -64,6 +64,8 @@ if useZip then
             cp -R bin $out
             mkdir -p $out/share/man/man1
             mv share/man/man1/*.1 $out/share/man/man1/
+            mkdir -p $out/share/mimi/examples
+            cp -R ${../examples/tiling} $out/share/mimi/examples/tiling
           ''
         else
           ''
@@ -71,6 +73,8 @@ if useZip then
             mv bin/mimi $out/bin/mimi
             mkdir -p $out/share/man/man1
             mv share/man/man1/*.1 $out/share/man/man1/
+            mkdir -p $out/share/mimi/examples
+            cp -R ${../examples/tiling} $out/share/mimi/examples/tiling
           ''
       }
       runHook postInstall
@@ -155,6 +159,10 @@ else
       # generate man pages
       mkdir -p $out/share/man/man1
       go run ./cmd/genman $out/share/man/man1
+
+      # the tiling layouts, to copy or to run from the store
+      mkdir -p $out/share/mimi/examples
+      cp -R ${../examples/tiling} $out/share/mimi/examples/tiling
 
       # install shell completions
       if ${lib.boolToString (stdenv.buildPlatform.canExecute stdenv.hostPlatform)}; then

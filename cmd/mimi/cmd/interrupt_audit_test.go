@@ -101,6 +101,9 @@ var interruptAudit = []auditEntry{
 		"as resize_window; the Accessibility frame write runs to completion"),
 	audited("action resize_window", interruptRunsOn,
 		"as focus_window; the Accessibility resize runs to completion"),
+	audited("action apply_frames", interruptRunsOn,
+		"as resize_window, once per frame: the payload is read from stdin or "+
+			"a file first, then each Accessibility frame write runs to completion"),
 	audited("config dump", interruptRunsOn,
 		"reads and parses one local file and prints it"),
 	audited("config init", interruptRunsOn,
@@ -117,6 +120,24 @@ var interruptAudit = []auditEntry{
 	audited("query window", interruptRunsOn,
 		"one Accessibility round trip to the frontmost application for its "+
 			"window and frame, which runs to completion, then one line of output"),
+	audited("query windows", interruptRunsOn,
+		"one Accessibility round trip per window on the active space for its "+
+			"frame and title, each of which runs to completion, then one line of output"),
+	audited("query displays", interruptRunsOn,
+		"NSScreen reads and one line of output; nothing blocks"),
+	audited("query margins", interruptRunsOn,
+		"one NSScreen read, two preference reads, and one line of output; nothing blocks"),
+	audited("tiling", interruptRunsOn,
+		"as action: the body only reports the missing subcommand and returns"),
+	audited("tiling preview", interruptRunsOn,
+		"as query windows for the reads, then the layout program runs under its "+
+			"own timeout; the context is handed to it, so a canceled preview "+
+			"kills the program, and nothing is applied either way"),
+	audited("tiling relayout", interruptRunsOn,
+		"as action when a daemon answers: the request is written and the reply "+
+			"awaited; otherwise as tiling preview, and then the frames are applied"),
+	audited("tiling cmd", interruptRunsOn,
+		"as tiling relayout"),
 	audited("services install", interruptStopsTheWork,
 		"Service.Install threads the context through every launchctl call "+
 			"and checks it again before the plist is written, so a canceled "+

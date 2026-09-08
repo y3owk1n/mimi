@@ -32,6 +32,19 @@ const (
 	WindowResizing EventKind = "_window_resizing"
 	// WindowResize fires when a window resize is completed (debounced).
 	WindowResize EventKind = "window_resize"
+	// WindowMoving fires while a window is being moved (raw, internal).
+	WindowMoving EventKind = "_window_moving"
+	// WindowMove fires when a window move is completed (debounced).
+	WindowMove EventKind = "window_move"
+	// Startup is the one event the native bridge sends as the observers come
+	// up (raw, internal). The router attaches to the applications already
+	// running when it arrives.
+	Startup EventKind = "_startup_"
+	// AXAttached fires when the daemon's Accessibility observer reaches an
+	// application it could not observe when the application launched (raw,
+	// internal). Window events from that application flow from this point;
+	// anything the application did before it is unseen.
+	AXAttached EventKind = "_ax_attached"
 
 	// WorkspaceChanged fires when the active macOS Space/Desktop changes.
 	WorkspaceChanged EventKind = "workspace_changed"
@@ -50,6 +63,7 @@ var AllKinds = []EventKind{
 	WindowCreated,
 	WindowClosed,
 	WindowResize,
+	WindowMove,
 	WorkspaceChanged,
 }
 

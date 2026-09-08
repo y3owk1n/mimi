@@ -67,7 +67,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 
 	eventCh <- events.Event{
 		ID:      uuid.NewString(),
-		Kind:    events.EventKind("_startup_"),
+		Kind:    events.Startup,
 		AppName: "mimi",
 		At:      time.Now(),
 	}
@@ -222,6 +222,8 @@ func kindFromInt(kindInt int) events.EventKind {
 		return events.WindowClosed
 	case int(C.MIMI_KIND_WINDOW_RESIZING):
 		return events.WindowResizing
+	case int(C.MIMI_KIND_WINDOW_MOVING):
+		return events.WindowMoving
 	case int(C.MIMI_KIND_WORKSPACE_CHANGED):
 		return events.WorkspaceChanged
 	default:

@@ -16,6 +16,7 @@ type fakeWindow struct {
 	pid         int
 	number      uint32
 	frame       geometry.Rect
+	title       string
 	frameErr    error
 	activateErr error
 	setFrameErr error
@@ -48,6 +49,9 @@ type fakeDesktop struct {
 
 	// apps maps a query focus_app may be given to the pid it names.
 	apps map[string]int
+	// appInfo describes each running application by pid, as the windows
+	// query reports it.
+	appInfo map[int]action.AppInfo
 	// appWindows lists each application's windows front to back, as
 	// ApplicationWindows reports them; every id is one of windows'.
 	appWindows map[int][]action.AppWindow
@@ -59,8 +63,11 @@ type fakeDesktop struct {
 	// activatedDisplay is the display last made active, or 0 for none.
 	activatedDisplay uint32
 
-	spaceCount     int
-	activeSpace    int // 1-based
+	spaceCount  int
+	activeSpace int // 1-based
+	// activeSpaces is the space in front per display, when a test sets it;
+	// otherwise every display shows activeSpace.
+	activeSpaces   map[uint32]int
 	activeSpaceErr error
 	focusSpaceErr  error
 	moveErr        error
@@ -101,6 +108,28 @@ func (d *fakeDesktop) WindowFrame(windowID action.WindowID) (geometry.Rect, erro
 	}
 
 	return d.windows[index].frame, nil
+}
+
+func (d *fakeDesktop) WindowTitle(windowID action.WindowID) (string, error) {
+	index, err := d.indexOf(windowID)
+	if err != nil {
+		return "", err
+	}
+
+	return d.windows[index].title, nil
+}
+
+func (d *fakeDesktop) ApplicationInfo(pid int) (action.AppInfo, error) {
+	info, ok := d.appInfo[pid]
+	if !ok {
+		return action.AppInfo{}, derrors.Newf(
+			derrors.CodeActionFailed,
+			"no running application with pid %d",
+			pid,
+		)
+	}
+
+	return info, nil
 }
 
 func (d *fakeDesktop) ActivateWindow(windowID action.WindowID) error {
@@ -237,6 +266,23 @@ func (d *fakeDesktop) ActiveSpaceIndex() (int, error) {
 	}
 
 	return d.activeSpace, nil
+}
+
+func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
+	if d.activeSpaceErr != nil {
+		return nil, d.activeSpaceErr
+	}
+
+	if d.activeSpaces != nil {
+		return d.activeSpaces, nil
+	}
+
+	spaces := map[uint32]int{}
+	for _, display := range d.displays {
+		spaces[display.ID] = d.activeSpace
+	}
+
+	return spaces, nil
 }
 
 func (d *fakeDesktop) FocusSpace(index int) error {

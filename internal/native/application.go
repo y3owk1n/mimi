@@ -38,6 +38,65 @@ func FindApplication(query string) (int, error) {
 	return pid, nil
 }
 
+// RegularApplicationPIDs lists the running applications a user sees in the
+// Dock and the app switcher, by pid, which are the ones whose windows the
+// daemon observes.
+func RegularApplicationPIDs() []int {
+	var count C.int
+
+	cPIDs := C.MimiCopyRegularApplicationPIDs(&count)
+	if cPIDs == nil || count == 0 {
+		if cPIDs != nil {
+			C.free(unsafe.Pointer(cPIDs))
+		}
+
+		return nil
+	}
+	defer C.free(unsafe.Pointer(cPIDs)) //nolint:nlreturn
+
+	countInt := int(count)
+	cSlice := (*[1 << 20]C.int)(unsafe.Pointer(cPIDs))[:countInt:countInt]
+	pids := make([]int, countInt)
+
+	for index, pid := range cSlice {
+		pids[index] = int(pid)
+	}
+
+	return pids
+}
+
+// ApplicationInfo describes a running application by pid: its localized name
+// and its bundle identifier. Either is "" when macOS does not report it.
+type ApplicationInfo struct {
+	Name     string
+	BundleID string
+}
+
+// LookupApplication describes the running application with the given pid,
+// reporting an error when no application has it.
+func LookupApplication(pid int) (ApplicationInfo, error) {
+	cName := C.MimiCopyApplicationName(C.int(pid))
+	if cName == nil {
+		return ApplicationInfo{}, derrors.Newf(
+			derrors.CodeActionFailed,
+			"no running application with pid %d",
+			pid,
+		)
+	}
+	defer C.free(unsafe.Pointer(cName)) //nolint:nlreturn
+
+	info := ApplicationInfo{Name: C.GoString(cName)}
+
+	cBundle := C.MimiCopyApplicationBundleID(C.int(pid))
+	if cBundle != nil {
+		info.BundleID = C.GoString(cBundle)
+
+		C.free(unsafe.Pointer(cBundle))
+	}
+
+	return info, nil
+}
+
 // ApplicationWindows lists an application's real, unminimized windows on
 // every space, front to back, which is most recently used first.
 func ApplicationWindows(pid int) ([]AppWindow, error) {

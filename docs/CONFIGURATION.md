@@ -26,6 +26,7 @@ rather than applying it partially.
 - `settings.hook_shell`
 - `settings.resize_debounce_ms`
 - `[hooks]` (every hook kind)
+- `[tiling]` (every field)
 
 **Restart-only** — read once at daemon startup and never re-read, so changing
 one takes effect only after the daemon is restarted (`mimi daemon stop &&
@@ -204,6 +205,83 @@ show_workspace_number = true   # show active space number in menu bar — restar
 
 ---
 
+## Tiling
+
+```toml
+[tiling]
+enabled = true
+layout = "~/.config/mimi/tiling/columns.py"
+debounce_ms = 100     # settle a burst of window events into one pass
+timeout_secs = 5      # kill the layout past this
+relayout_on_drag = false     # a window the user moves or resizes runs a pass too
+# gap = 12                   # points between windows; unset follows the macOS tiled-window margin
+```
+
+mimi ships no layout. `layout` is a command line, run through
+`settings.hook_shell`, that reads the tiling input as JSON on stdin and prints
+the frames to apply as JSON on stdout. The daemon runs it whenever a window is
+created, closed or focused, an application hides, unhides or quits, or the
+space changes, waiting `debounce_ms` for the burst to settle so one pass covers
+it.
+
+Moves and resizes are opt-in, with `relayout_on_drag = true`, because every
+frame the engine writes is one and a layout that ran on its own writes would
+never stop. With it set, the engine remembers where each window it placed
+actually landed and treats a move or resize as the user's only when a placed
+window is somewhere else, which is what lets a layout read a dragged edge as a
+new split ratio, or a window dropped on another as a swap. A move or resize
+within a second of the engine's own write is taken as that write settling.
+
+The layout runs once per display that has a window on it. The input is the
+same JSON `mimi query windows` and `mimi query displays` print, narrowed to
+that display's windows, plus the display itself, the event that woke the
+engine, the space in front on that display, the gap to leave (`tiling.gap`
+when set, else the macOS tiled-window margin that `resize_window` honours,
+or 0 when that is off), and the `state` the layout returned last time for
+that display and space, or `null` the first time.
+`event.kind` is the hook event name; `startup` for the pass the daemon runs
+as it starts with tiling enabled; `reload` for the pass a reload runs when it
+switches tiling on or names another layout; or `preview`, `relayout` or
+`command` from the `mimi tiling` subcommands. A `command` carries `name` and
+`args`, and what they mean is the layout's to decide; a `window_resize`
+or a `window_move` carries `windows`, the numbers of the windows the user
+dragged:
+
+```json
+{"version":1,
+ "event":{"kind":"window_created","app":"Safari","bundleId":"com.apple.Safari","pid":501},
+ "display":{"index":1,"id":1,"frame":{...},"visible":{...}},
+ "space":2,
+ "gap":8,
+ "displays":[{"index":1,"id":1,"frame":{...},"visible":{...}}],
+ "focused":0,
+ "windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"...","frame":{...}}],
+ "state":null}
+```
+
+The output is the frames, in the shape `mimi action apply_frames` takes, the
+state to hand back next time, and optionally `focus`, a window number to give
+keyboard focus once the frames are applied. Printing nothing changes nothing:
+
+```json
+{"frames":[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}}],
+ "state":{"master":4242}}
+```
+
+`version` moves when a field is renamed, removed or changes meaning, so a
+layout can refuse an input it was not written for. A layout that exits
+non-zero, times out, or prints something that is not this shape is logged and
+applies nothing; the next event tries again.
+
+`enabled = true` requires `layout`, and Accessibility permission, which the
+daemon checks at startup and on every reload: without it tiling stays off and
+a warning says so. `mimi tiling preview` runs the layout once against the
+desktop and prints what it would apply, whether or not tiling is enabled.
+`examples/tiling/` in the repository holds layouts to copy and make your own,
+and [TILING.md](TILING.md) is the guide from first run to writing one.
+
+---
+
 ## Hooks
 
 The hook kinds below are the complete set — `[hooks]` accepts no other keys. A
@@ -231,6 +309,7 @@ while running the hooks it did understand.
 | `on_window_created` | New window opens |
 | `on_window_closed` | Window closes |
 | `on_window_resize` | Window resize completes (debounced) |
+| `on_window_move` | Window move completes (debounced, same window as resize) |
 
 ### Workspace events
 

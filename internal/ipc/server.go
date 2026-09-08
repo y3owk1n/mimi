@@ -33,13 +33,19 @@ type Server struct {
 	// execute is the per-job action runner; defaults to action.ExecuteCommand
 	// and is exposed as a field so tests can inject panicking/failing runners
 	// to exercise the worker recovery and shutdown paths.
-	execute      func(cmd action.Command) error
+	execute func(cmd action.Command) error
+	// direct holds the actions handled on the connection's own goroutine
+	// instead of the action worker: the ones whose handler drives the desktop
+	// through Serialize itself, and would deadlock waiting for the worker it
+	// was running on.
+	direct       map[action.Name]func(cmd action.Command) error
+	directMu     sync.RWMutex
 	once         sync.Once
 	shutdownOnce sync.Once
 }
 
 type actionJob struct {
-	cmd  action.Command
+	run  func() error
 	done chan error
 }
 
@@ -50,7 +56,17 @@ func NewServer(path string) *Server {
 		actionCh:       make(chan actionJob),
 		enqueueTimeout: actionEnqueueTimeout,
 		execute:        action.ExecuteCommand,
+		direct:         map[action.Name]func(cmd action.Command) error{},
 	}
+}
+
+// HandleDirect routes every request for name to fn, run on the connection's
+// goroutine rather than the action worker. fn may call Serialize.
+func (s *Server) HandleDirect(name action.Name, fn func(cmd action.Command) error) {
+	s.directMu.Lock()
+	defer s.directMu.Unlock()
+
+	s.direct[name] = fn
 }
 
 // Run listens for connections until ctx is canceled.
@@ -108,6 +124,36 @@ func (s *Server) Shutdown() {
 	})
 }
 
+// Serialize runs fn on the action worker, the one OS thread every action
+// arriving over the socket runs on, and returns what it returned. It is how
+// the daemon's own desktop work, the tiling engine's passes, stays in line
+// with the actions the CLI sends: two callers driving the desktop at once
+// would release each other's window references mid-action. It reports an
+// error, without running fn, when the worker does not pick the job up in
+// time.
+func (s *Server) Serialize(fn func() error) error {
+	s.once.Do(s.startActionWorker)
+
+	done := make(chan error, 1)
+	select {
+	case s.actionCh <- actionJob{run: fn, done: done}:
+	case <-time.After(s.enqueueTimeout):
+		return derrors.New(derrors.CodeIPCFailed, "timed out enqueueing desktop work")
+	}
+
+	return <-done
+}
+
+// directHandler is the direct handler for name, if one is registered.
+func (s *Server) directHandler(name action.Name) (func(cmd action.Command) error, bool) {
+	s.directMu.RLock()
+	defer s.directMu.RUnlock()
+
+	fn, ok := s.direct[name]
+
+	return fn, ok
+}
+
 func (s *Server) startActionWorker() {
 	go func() {
 		runtime.LockOSThread()
@@ -120,7 +166,7 @@ func (s *Server) startActionWorker() {
 					}
 				}()
 
-				job.done <- s.execute(job.cmd)
+				job.done <- job.run()
 			}()
 		}
 	}()
@@ -138,9 +184,15 @@ func (s *Server) handleConn(conn net.Conn) {
 		return
 	}
 
+	if handle, ok := s.directHandler(req.Command.Name); ok {
+		_ = writeResponse(conn, responseFromError(handle(req.Command)))
+
+		return
+	}
+
 	done := make(chan error, 1)
 	select {
-	case s.actionCh <- actionJob{cmd: req.Command, done: done}:
+	case s.actionCh <- actionJob{run: func() error { return s.execute(req.Command) }, done: done}:
 	case <-time.After(s.enqueueTimeout):
 		_ = writeResponse(conn, responseFromError(derrors.New(
 			derrors.CodeIPCFailed,

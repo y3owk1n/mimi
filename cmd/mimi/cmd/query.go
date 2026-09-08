@@ -27,10 +27,15 @@ in this process whether or not the daemon is running.
 Available subcommands:
   space     the active Mission Control space and how many there are
   window    the frontmost window's owner and frame
+  windows   every focusable window on the active space, with its frame
+  displays  every connected display, with its frames
+  margins   the system tiled-window margins setting resize_window honors
 
 Examples:
   mimi query space
   mimi query window
+  mimi query windows | jq '.windows[].number'
+  mimi query displays | jq '.[0].visible'
   mimi query space | jq .index`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			// As for "mimi action": nothing ran, the user is missing a
@@ -40,15 +45,81 @@ Examples:
 
 			return derrors.New(
 				derrors.CodeInvalidInput,
-				"query subcommand required (e.g., mimi query space, mimi query window)",
+				"query subcommand required (e.g., mimi query space, mimi query windows)",
 			)
 		},
 	}
 
 	cmd.AddCommand(buildQuerySpaceCommand())
 	cmd.AddCommand(buildQueryWindowCommand())
+	cmd.AddCommand(buildQueryWindowsCommand())
+	cmd.AddCommand(buildQueryDisplaysCommand())
+	cmd.AddCommand(buildQueryMarginsCommand())
 
 	return cmd
+}
+
+func buildQueryMarginsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "margins",
+		Short: "Report the system tiled-window margins setting",
+		Long: `Report the macOS tiled-window margins setting as JSON:
+
+  {"enabled":true,"size":8}
+
+This is the setting "mimi action resize_window" honors, and what a tiling
+layout defaults its gap to. "size" is in points. Accessibility permission is
+not needed.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QueryMargins)
+		},
+	}
+}
+
+func buildQueryWindowsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "windows",
+		Short: "List every focusable window on the active space with its frame",
+		Long: `List the focusable windows on the active space as JSON:
+
+  {"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari",
+   "bundleId":"com.apple.Safari","title":"Start Page",
+   "frame":{"x":0,"y":25,"width":1440,"height":875}}]}
+
+The windows are the ones "mimi action focus_window" cycles, in that order,
+and "focused" is the index of the focused one among them, or -1 when none
+holds focus. "number" is what "mimi action apply_frames" takes to name a
+window. Frames are in window coordinates, the same as "mimi query window"
+reports. A window whose frame cannot be read is left out. Accessibility
+permission is required.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QueryWindows)
+		},
+	}
+}
+
+func buildQueryDisplaysCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "displays",
+		Short: "List every connected display with its frames",
+		Long: `List the connected displays as JSON:
+
+  [{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},
+    "visible":{"x":0,"y":25,"width":1440,"height":875}}]
+
+"index" is the 1-based number "mimi action move_window_to_display" takes,
+counting left to right and then top to bottom. "frame" is the whole display
+and "visible" is the part a window may occupy, less the menu bar and the
+Dock, both in window coordinates so a frame computed from them can be handed
+to "mimi action apply_frames" as it is. Accessibility permission is not
+needed.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QueryDisplays)
+		},
+	}
 }
 
 func buildQuerySpaceCommand() *cobra.Command {

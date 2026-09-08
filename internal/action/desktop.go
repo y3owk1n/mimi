@@ -34,6 +34,14 @@ type AppWindow struct {
 	SpaceIndex int
 }
 
+// AppInfo describes the application behind a pid as the queries report it:
+// its localized name and its bundle identifier, either "" when macOS does not
+// report it.
+type AppInfo struct {
+	Name     string
+	BundleID string
+}
+
 // Display is one connected display as the actions see it: an identifier to
 // hand back to the desktop, and its frames in screen coordinates.
 type Display struct {
@@ -69,6 +77,15 @@ type Desktop interface {
 	// costs a round trip to the owning application, and the cycling path never
 	// needs one.
 	WindowFrame(id WindowID) (geometry.Rect, error)
+
+	// WindowTitle reads one window's title, "" when it has none. Like
+	// WindowFrame it is its own call: it costs a round trip to the owning
+	// application, and only the window listing needs it.
+	WindowTitle(id WindowID) (string, error)
+
+	// ApplicationInfo describes the running application with the given pid,
+	// reporting an error when no application has it.
+	ApplicationInfo(pid int) (AppInfo, error)
 
 	// ActivateWindow raises a window's application and gives the window
 	// keyboard focus.
@@ -125,6 +142,11 @@ type Desktop interface {
 
 	// ActiveSpaceIndex is the 1-based index of the space in front.
 	ActiveSpaceIndex() (int, error)
+
+	// ActiveSpaces is the 1-based index of the space in front on every
+	// connected display, keyed by display id. With displays sharing one
+	// space every entry is the same index.
+	ActiveSpaces() (map[uint32]int, error)
 
 	// FocusSpace switches to the Mission Control space at the given 1-based
 	// index, which the caller has already checked against SpaceCount.

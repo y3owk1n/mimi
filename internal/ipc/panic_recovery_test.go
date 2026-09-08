@@ -26,7 +26,7 @@ func TestActionWorkerRecoversFromPanic(t *testing.T) {
 
 	// 1) First job: expect the panic value wrapped into a non-nil error
 	//    delivered to job.done.
-	first := newJob()
+	first := newJob(server)
 	server.actionCh <- first.job
 
 	select {
@@ -50,7 +50,7 @@ func TestActionWorkerRecoversFromPanic(t *testing.T) {
 	//    job to prove the worker is still alive and consuming.
 	server.execute = func(action.Command) error { return nil }
 
-	second := newJob()
+	second := newJob(server)
 	server.actionCh <- second.job
 
 	select {
@@ -70,11 +70,14 @@ type jobFixture struct {
 	done chan error
 }
 
-func newJob() jobFixture {
+func newJob(server *Server) jobFixture {
 	done := make(chan error, 1)
 
 	return jobFixture{
-		job:  actionJob{cmd: action.Command{Name: action.NameSpace}, done: done},
+		job: actionJob{
+			run:  func() error { return server.execute(action.Command{Name: action.NameSpace}) },
+			done: done,
+		},
 		done: done,
 	}
 }

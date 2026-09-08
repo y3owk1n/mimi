@@ -56,6 +56,7 @@ it is what checks that the real desktop behaves the way the fake pretends to.
 | `move_window_to_space` | Private SkyLight (`SLSMoveWindowsToManagedSpace`) |
 | `move_window_to_display` | Accessibility (`AXUIElement`), `NSScreen` for the display list |
 | `resize_window` | Accessibility (`AXUIElement`), `NSScreen` for the visible frame |
+| `apply_frames` | Accessibility (`AXUIElement`), one frame write per window named by window number |
 
 CLI actions pump the run loop briefly after posting events so gestures complete before the process exits.
 
@@ -69,6 +70,35 @@ Each action builds its command through the constructor `internal/action` gives i
 JSON. A query runs on the direct path only: it has no side effect to serialize
 with the daemon's actions, so routing it over the socket would cost a wire
 change and buy nothing.
+
+### Tiling is the user's program
+
+mimi ships no layout. `query windows` and `query displays` give a program
+everything on the active space with frames in window coordinates, and
+`apply_frames` writes a whole layout back in one action. `internal/tiling`
+is the engine that runs such a program for the daemon: it subscribes to the
+bus for window, application and space events, settles each burst into one
+pass, hands the program the same JSON the queries print plus the event and
+the state the program returned last time for that space, and applies the
+frames it prints. The program is a pure function of its input; the engine
+owns the timing, the state, and the desktop.
+
+Two rules keep it from fighting itself. Resizes never wake it, because every
+frame it writes is one. And its desktop work runs on the IPC server's action
+worker (`ipc.Server.Serialize`), so a pass never interleaves with an action
+arriving over the socket and releases the window references that action is
+holding.
+
+`mimi tiling relayout` and `mimi tiling cmd <name>` reach the engine over
+the same socket as the actions, as the `tiling` action; the server hands
+that one action to the engine on the connection's goroutine
+(`ipc.Server.HandleDirect`) rather than the worker, because the engine will
+queue its own work on the worker. With no daemon the CLI runs an engine of
+its own with no state.
+
+`examples/tiling/` holds programs to copy; they are not loaded by mimi and
+carry no promise beyond the JSON contract (`tiling.Input`, `tiling.Output`,
+versioned by `tiling.InputVersion`).
 
 ---
 
@@ -105,12 +135,14 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 cmd/mimi/           CLI entry point and commands
 internal/
   action/           Action dispatch (focus_window, space, move_window_to_space,
-                    move_window_to_display, resize_window), the queries, the
+                    move_window_to_display, resize_window, apply_frames),
+                    the queries, the
                     Desktop seam and its native adapter
   native/           All Objective-C + CGO: AX window wrappers, Mission Control
                     space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing
   hooks/            Hook registry and executor
+  tiling/           The engine that runs the user's layout program on events
   config/           TOML config loading
   daemon/           Daemon lifecycle
   permissions/      Accessibility permission checks

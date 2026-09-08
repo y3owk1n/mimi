@@ -61,6 +61,13 @@ func everyPayloadSet() []payloadCase {
 			},
 		},
 		{
+			name: "tiling with every field set",
+			cmd: action.Command{
+				Name:   action.NameTiling,
+				Tiling: action.TilingArgs{Kind: "command", Name: "swap", Args: []string{"left"}},
+			},
+		},
+		{
 			name: "move_window_to_space with nothing set",
 			cmd:  action.Command{Name: action.NameMoveWindowToSpace},
 		},
@@ -190,7 +197,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(true, false, false, false, false, false)
 			},
-			want: `{"version":6,"command":{"name":"focus_window",` +
+			want: `{"version":7,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":true,"direction":"","sameApp":false}}}`,
 		},
 		{
@@ -198,14 +205,14 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false, false)
 			},
-			want: `{"version":6,"command":{"name":"focus_window"}}`,
+			want: `{"version":7,"command":{"name":"focus_window"}}`,
 		},
 		{
 			name: "mimi action space 3",
 			build: func() (action.Command, error) {
 				return action.NewSpaceCommand([]string{"3"})
 			},
-			want: `{"version":6,"command":{"name":"space",` +
+			want: `{"version":7,"command":{"name":"space",` +
 				`"space":{"index":3,"direction":0}}}`,
 		},
 		{
@@ -213,7 +220,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToSpaceCommand([]string{"next"}, true)
 			},
-			want: `{"version":6,"command":{"name":"move_window_to_space",` +
+			want: `{"version":7,"command":{"name":"move_window_to_space",` +
 				`"moveWindowToSpace":{"space":{"index":0,"direction":1},"follow":true}}}`,
 		},
 		{
@@ -221,7 +228,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToDisplayCommand([]string{"prev"})
 			},
-			want: `{"version":6,"command":{"name":"move_window_to_display",` +
+			want: `{"version":7,"command":{"name":"move_window_to_display",` +
 				`"moveWindowToDisplay":{"index":0,"direction":-1}}}`,
 		},
 		{
@@ -229,8 +236,27 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusAppCommand([]string{"Safari"})
 			},
-			want: `{"version":6,"command":{"name":"focus_app",` +
+			want: `{"version":7,"command":{"name":"focus_app",` +
 				`"focusApp":{"app":"Safari"}}}`,
+		},
+		{
+			name: "mimi action apply_frames < frames.json",
+			build: func() (action.Command, error) {
+				return action.NewApplyFramesCommand([]action.WindowFrame{
+					{Number: 42, Frame: action.Frame{X: 0, Y: 25, Width: 960, Height: 1055}},
+				})
+			},
+			want: `{"version":7,"command":{"name":"apply_frames",` +
+				`"applyFrames":{"frames":[{"number":42,` +
+				`"frame":{"x":0,"y":25,"width":960,"height":1055}}]}}}`,
+		},
+		{
+			name: "mimi tiling cmd swap left",
+			build: func() (action.Command, error) {
+				return action.NewTilingCommand(action.TilingCommand, "swap", []string{"left"})
+			},
+			want: `{"version":7,"command":{"name":"tiling",` +
+				`"tiling":{"kind":"command","name":"swap","args":["left"]}}}`,
 		},
 		{
 			name: "mimi action resize_window left-half --width 800 --anchor cc --no-margin",
@@ -244,7 +270,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					NoMargin:  true,
 				})
 			},
-			want: `{"version":6,"command":{"name":"resize_window",` +
+			want: `{"version":7,"command":{"name":"resize_window",` +
 				`"resizeWindow":{"preset":"left-half",` +
 				`"width":800,"widthSet":true,` +
 				`"height":0,"heightSet":false,` +
@@ -318,7 +344,7 @@ func TestServer_RunsTheCommandTheClientBuiltUnchanged(t *testing.T) {
 
 		select {
 		case got := <-received:
-			if got != testCase.cmd {
+			if !reflect.DeepEqual(got, testCase.cmd) {
 				t.Errorf(
 					"the daemon ran a different command than the client sent:\n got: %+v\nsent: %+v",
 					got,

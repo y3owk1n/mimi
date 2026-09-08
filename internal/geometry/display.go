@@ -2,11 +2,12 @@ package geometry
 
 import "math"
 
-// windowBounds is a visible frame in window coordinates. The top edge is the
-// one line that converts between the two systems:
+// WindowBounds converts a frame from screen (y-up) coordinates to window
+// (y-down) coordinates. The top edge is the one line that converts between
+// the two systems:
 //
 //	y-down top = primaryHeight - visibleFrameY - visibleFrameHeight
-func windowBounds(visible Rect, primaryHeight float64) Rect {
+func WindowBounds(visible Rect, primaryHeight float64) Rect {
 	return Rect{
 		X: visible.X,
 		Y: primaryHeight - visible.Y - visible.H,
@@ -26,8 +27,8 @@ func windowBounds(visible Rect, primaryHeight float64) Rect {
 // to the application keeps a window that goes there and back from drifting a
 // point each way.
 func MoveToScreen(cur Rect, primaryHeight float64, from, to Rect) Rect {
-	src := windowBounds(from, primaryHeight)
-	dst := windowBounds(to, primaryHeight)
+	src := WindowBounds(from, primaryHeight)
+	dst := WindowBounds(to, primaryHeight)
 
 	return Rect{
 		X: math.Round(dst.X + (cur.X-src.X)/src.W*dst.W),
@@ -45,7 +46,7 @@ func ScreenContaining(cur Rect, primaryHeight float64, frames []Rect) (int, bool
 	centerX, centerY := cur.CenterX(), cur.CenterY()
 
 	for index, frame := range frames {
-		bounds := windowBounds(frame, primaryHeight)
+		bounds := WindowBounds(frame, primaryHeight)
 		if centerX >= bounds.X && centerX < bounds.Right() &&
 			centerY >= bounds.Y && centerY < bounds.Bottom() {
 			return index, true

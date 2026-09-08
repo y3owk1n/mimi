@@ -132,6 +132,13 @@ func TestHasWorkspaceEvents(t *testing.T) {
 			},
 			expected: false,
 		},
+		{
+			// The tiling engine lays a space out when it comes to the
+			// front, which it hears of only from the workspace observer.
+			name:     "tiling enabled counts, with no hooks at all",
+			cfg:      &config.Config{Tiling: config.TilingConfig{Enabled: true}},
+			expected: true,
+		},
 	}
 
 	for _, tt := range tests {

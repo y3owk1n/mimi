@@ -18,7 +18,7 @@ https://github.com/user-attachments/assets/1b21b596-1578-4344-96d3-eaea8a5ab9c0
 
 You already know your way around a terminal. Why are you still reaching for the trackpad just to move a window?
 
-**mimi** gives you one-shot commands to jump spaces, move windows, cycle focus, and resize — bind them to hotkeys, drop them in dotfiles, wire them to shell hooks. No SIP disable. No tiling paradigm to learn. Just commands that do what they say.
+**mimi** gives you one-shot commands to jump spaces, move windows, cycle focus, and resize — bind them to hotkeys, drop them in dotfiles, wire them to shell hooks. No SIP disable. No tiling paradigm imposed: if you want your windows laid out for you, the layout is a small program you write, and mimi runs it. Just commands that do what they say.
 
 ```bash
 mimi action space 2                      # jump to space 2
@@ -69,6 +69,10 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Resize anchored to a corner      | `mimi action resize_window --width 1024 --height 768 --anchor br`         |
 | Read the active space as JSON    | `mimi query space`                                                        |
 | Read the frontmost window's frame| `mimi query window`                                                       |
+| List every window on the space   | `mimi query windows`                                                      |
+| List every display               | `mimi query displays`                                                     |
+| Apply a layout from a script     | `my-layout \| mimi action apply_frames` (see `examples/tiling/`)           |
+| Tile automatically, your way     | `[tiling]` in the config, see `docs/TILING.md`                            |
 
 Full reference → [CLI Guide](docs/CLI.md)
 
@@ -101,9 +105,9 @@ shift + alt - f : mimi action focus_window
 
 ## Fits where you are
 
-mimi doesn't tile your layout, enforce window rules, or replace Mission Control. It's not trying to.
+mimi has no layout of its own, enforces no window rules, and doesn't replace Mission Control. It's not trying to.
 
-[yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https://github.com/nikitabobko/AeroSpace) are excellent — and a significant commitment. If you've tried them and found it was more than you needed, or if you just want to stay on native macOS Spaces and drive them faster, mimi is for you.
+[yabai](https://github.com/koekeishiya/yabai) and [AeroSpace](https://github.com/nikitabobko/AeroSpace) are excellent — and a significant commitment. If you've tried them and found it was more than you needed, or if you just want to stay on native macOS Spaces and drive them faster, mimi is for you. And if you do want tiling, mimi will run yours: see [Optional: tiling, your way](#optional-tiling-your-way).
 
 ---
 
@@ -145,6 +149,7 @@ The `[systray]` block shows the active space number in your menu bar while the d
 | Window title changed   | `on_window_title_change`                 | Yes                 |
 | Window opened / closed | `on_window_created` / `on_window_closed` | Yes                 |
 | Window resized         | `on_window_resize`                       | Yes                 |
+| Window moved           | `on_window_move`                         | Yes                 |
 | Active space changed   | `on_workspace_changed`                   | No                  |
 
 Hooks support app, bundle, title and space filters, each negatable with a leading `!`, plus async execution and per-hook timeouts.
@@ -166,6 +171,29 @@ Auto-start setup → [Installation Guide — launchd](docs/INSTALLATION.md#auto-
 
 ---
 
+## Optional: tiling, your way
+
+mimi ships no layout. With `[tiling]` on, the daemon runs a program you own whenever a window opens, closes, or gains focus — or when you drag one — hands it every window and display as JSON, and applies the frames it prints back. What the layout looks like, which windows it leaves alone, what a hotkey does, and what a drag means are all decided in your file, in any language. State is kept per display and space, so a layout remembers its tree or its ratio without touching disk.
+
+```toml
+[tiling]
+enabled = true
+layout = "~/.config/mimi/tiling/bsp.py"   # copied from examples/tiling/
+relayout_on_drag = true                      # drag an edge to resize a split, drop on a window to swap
+```
+
+Five layouts ship as starting points to copy and edit — monocle, equal columns, master and stack, a Hyprland-style dwindle BSP, and a niri-style scrollable strip — plus the commands they answer, which you bind like any other:
+
+```bash
+mimi tiling preview          # what your layout would do, applied to nothing
+mimi tiling cmd swap left    # a name your layout gives meaning to
+mimi tiling cmd togglemax    # temporary maximise, in every shipped layout
+```
+
+Everything from first run to writing a layout from scratch → [Tiling Guide](docs/TILING.md)
+
+---
+
 ## How it works
 
 Space switching uses a synthetic dock-swipe gesture — the same path Mission Control uses, no hacks. Window-to-space moves use the private SkyLight API for instant, animation-free relocation. Everything else goes through public Accessibility APIs.
@@ -174,6 +202,8 @@ Space switching uses a synthetic dock-swipe gesture — the same path Mission Co
 CLI actions  →  action handler  →  AX API + SkyLight
 
 daemon  →  observe events  →  event bus  →  your shell hooks
+                                    ↓
+                             your layout program (optional)  →  frames  →  AX API
                                     ↓
                              menu bar (optional)
 ```
@@ -189,6 +219,7 @@ daemon  →  observe events  →  event bus  →  your shell hooks
 | [Installation](docs/INSTALLATION.md)       | Homebrew, Nix, source, permissions, launchd |
 | [CLI](docs/CLI.md)                         | Every command and flag                      |
 | [Configuration](docs/CONFIGURATION.md)     | Hooks, env vars, systray, all settings      |
+| [Tiling](docs/TILING.md)                   | Running and writing your own layout         |
 | [Architecture](docs/ARCHITECTURE.md)       | How the pieces fit                          |
 | [Troubleshooting](docs/TROUBLESHOOTING.md) | Common issues and fixes                     |
 | [Contributing](CONTRIBUTING.md)            | PRs and bug reports                         |

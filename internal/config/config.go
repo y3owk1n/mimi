@@ -18,6 +18,7 @@ type Config struct {
 	Settings SettingsConfig `json:"settings" reload:"per-field"  toml:"settings"`
 	Hooks    HooksConfig    `json:"hooks"    reload:"reloadable" toml:"hooks"`
 	Systray  SystrayConfig  `json:"systray"  reload:"per-field"  toml:"systray"`
+	Tiling   TilingConfig   `json:"tiling"   reload:"reloadable" toml:"tiling"`
 
 	// UnknownHookKeys lists the keys found under [hooks] that name no hook
 	// kind, sorted. Loading records them rather than reporting them so each
@@ -64,6 +65,27 @@ type SystrayConfig struct {
 	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" reload:"restart-only" toml:"show_workspace_number"`
 }
 
+// TilingConfig holds the [tiling] section of the config: whether the daemon
+// runs a layout at all, and the program that is the layout.
+//
+// mimi ships no layout. Layout is a command line run through
+// settings.hook_shell; it reads the tiling input as JSON on stdin and prints
+// the frames to apply as JSON on stdout (see docs/CONFIGURATION.md and
+// examples/tiling/). The whole section is reloadable: the engine re-reads it
+// on every reload, and enabling it at runtime is how a layout is tried out.
+type TilingConfig struct {
+	Enabled        bool   `json:"enabled"        toml:"enabled"`
+	Layout         string `json:"layout"         toml:"layout"`
+	DebounceMS     int    `json:"debounceMs"     toml:"debounce_ms"`
+	TimeoutSecs    int    `json:"timeoutSecs"    toml:"timeout_secs"`
+	RelayoutOnDrag bool   `json:"relayoutOnDrag" toml:"relayout_on_drag"`
+	// Gap is the space between tiled windows and at the display's edges, in
+	// points. Left unset, the macOS tiled-window margin applies, the same
+	// setting resize_window honors; set, it replaces that setting for
+	// layouts, 0 included.
+	Gap *int `json:"gap" toml:"gap"`
+}
+
 // HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {
 	AppActivate       []HookEntry `json:"onAppActivate"       toml:"on_app_activate"`
@@ -77,6 +99,7 @@ type HooksConfig struct {
 	WindowCreated     []HookEntry `json:"onWindowCreated"     toml:"on_window_created"`
 	WindowClosed      []HookEntry `json:"onWindowClosed"      toml:"on_window_closed"`
 	WindowResize      []HookEntry `json:"onWindowResize"      toml:"on_window_resize"`
+	WindowMove        []HookEntry `json:"onWindowMove"        toml:"on_window_move"`
 	WorkspaceChanged  []HookEntry `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
 }
 
@@ -111,6 +134,7 @@ type rawConfig struct {
 	Settings SettingsConfig   `json:"settings" toml:"settings"`
 	Hooks    rawHooksConfig   `json:"hooks"    toml:"hooks"`
 	Systray  rawSystrayConfig `json:"systray"  toml:"systray"`
+	Tiling   TilingConfig     `json:"tiling"   toml:"tiling"`
 }
 
 type rawSystrayConfig struct {

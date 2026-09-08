@@ -43,6 +43,8 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi config *`              | Does not reach the command; it finishes. Each is one local file read or write.   |
 | `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
 | `mimi query *`               | Does not reach the command; it finishes. Each is a few desktop reads and one line of output. |
+| `mimi tiling preview`        | Kills the layout program if it is still running; nothing is applied either way. |
+| `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
 
 A command in the bottom four rows that the first Ctrl-C did not reach still
 succeeds and exits 0, because it did in fact finish — `mimi config init`
@@ -89,6 +91,7 @@ mimi action move_window_to_display next
 mimi action resize_window left-half
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor cc
+mimi action apply_frames < frames.json
 ```
 
 ### `mimi action focus_window`
@@ -237,6 +240,36 @@ mimi action resize_window left-half --cycle
 mimi action resize_window center --width-percent 80 --height-percent 90
 ```
 
+### `mimi action apply_frames [--file path]`
+
+Move and resize several windows on the active space in one action. The frames
+come in as a JSON array on stdin, or from a file with `--file`, each naming a
+window by the `number` that `mimi query windows` reported and the frame to give
+it, in window coordinates. **Accessibility permission is required.**
+
+```
+[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}},
+ {"number":4243,"frame":{"x":720,"y":25,"width":720,"height":875}}]
+```
+
+Every frame is attempted in order, whatever happened to the ones before it: a
+layout is more useful mostly applied than abandoned at its first failure. The
+action fails when any frame did not land, naming each window it could not place
+and why. A window that is not on the active space cannot be placed. The payload
+is rejected before anything moves when it is empty, names a window twice, names
+window 0, or gives a frame without a positive width and height.
+
+Together with `mimi query windows` and `mimi query displays` this is the whole
+of what a tiling script needs from mimi: list, decide, apply. mimi ships no
+layout of its own. `examples/tiling/` in the repository holds scripts to copy
+and make your own.
+
+```bash
+mimi action apply_frames < frames.json
+mimi action apply_frames --file frames.json
+my-layout | jq .frames | mimi action apply_frames
+```
+
 ---
 
 ## Queries
@@ -248,6 +281,9 @@ CLI's own process. A running daemon is neither consulted nor required.
 ```bash
 mimi query space
 mimi query window
+mimi query windows
+mimi query displays
+mimi query margins
 ```
 
 A query that fails prints nothing on stdout and reports the error the way every
@@ -278,11 +314,98 @@ $ mimi query window
 {"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}
 ```
 
+### `mimi query windows`
+
+List every focusable window on the active space, the ones `focus_window`
+cycles, in that order. `focused` is the index of the focused window among them,
+or -1 when none holds focus. `number` is the window server's number, stable for
+the window's lifetime, and what `apply_frames` takes to name a window. Frames
+are in window coordinates. A window whose frame cannot be read is left out; a
+window whose title or application cannot be read is kept with those fields
+empty. **Accessibility permission is required.**
+
+```
+$ mimi query windows
+{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875}}]}
+```
+
+### `mimi query displays`
+
+List every connected display, numbered the way `move_window_to_display` counts
+them: left to right, then top to bottom. `frame` is the whole display and
+`visible` is the part a window may occupy, less the menu bar and the Dock. Both
+are in window coordinates, so a frame computed from `visible` can be handed to
+`apply_frames` as it is. Needs no Accessibility permission.
+
+```
+$ mimi query displays
+[{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},"visible":{"x":0,"y":25,"width":1440,"height":875}}]
+```
+
+### `mimi query margins`
+
+Report the macOS tiled-window margins setting, the one `resize_window`
+honours and a tiling layout defaults its gap to. `size` is in points. Needs no
+Accessibility permission.
+
+```
+$ mimi query margins
+{"enabled":true,"size":8}
+```
+
 Pipe through `jq` to pick one field:
 
 ```bash
 mimi query space | jq .index
 ```
+
+---
+
+## Tiling
+
+The daemon runs the layout program named in `[tiling]` on window events; see
+`docs/TILING.md` for the guide and `docs/CONFIGURATION.md` for the section.
+mimi ships no layout. `examples/tiling/` in the repository holds programs to
+copy.
+
+### `mimi tiling preview [--input]`
+
+Run `tiling.layout` once per display against the desktop as it is now, with a
+`preview` event and a null state, and print what each run returned as one line
+of JSON without applying any of it. It runs whether or not `tiling.enabled` is
+set, which is how a layout is tried before it is switched on. With `--input`
+the JSON that would be handed to each run is printed instead, and the layout
+is not run. **Accessibility permission is required.**
+
+```
+$ mimi tiling preview
+[{"display":1,"space":2,"frames":[{"number":4242,"frame":{"x":8,"y":33,"width":1904,"height":1034}}],"state":null}]
+$ mimi tiling preview --input | jq '.[].windows[].app'
+```
+
+### `mimi tiling relayout`
+
+Run the layout once, with a `relayout` event, and apply the frames it returns.
+With the daemon running its engine runs it, with the state it holds for the
+active space, and `tiling.enabled` has to be set. Without a daemon the layout
+runs in the CLI with a null state, whether or not tiling is enabled.
+**Accessibility permission is required.**
+
+### `mimi tiling cmd <name> [args...]`
+
+Send a named command to the layout. mimi gives the name no meaning: the layout
+reads it from the event (`"kind": "command"`, `"name"`, `"args"`) and decides
+what it does, which is how a layout defines its own hotkeys. The example
+master-stack layout answers `swap` and `ratio +0.05`. Routed exactly as
+`relayout` is. **Accessibility permission is required.**
+
+```bash
+mimi tiling cmd swap
+mimi tiling cmd ratio +0.05
+```
+
+A command is rejected in the CLI, before any path is taken, when its name is
+blank.
 
 ---
 

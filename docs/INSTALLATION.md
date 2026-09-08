@@ -340,6 +340,68 @@ nix flake update mimi
 
 ---
 
+### Tiling on Nix
+
+The example layouts ship in the package at
+`${pkgs.mimi}/share/mimi/examples/tiling` (the same for `pkgs.mimi-source`).
+They are Python with the standard library only, so the one thing the daemon
+needs is a `python3` it can find; the module's default `PATH` covers your Nix
+profile, so `pkgs.python3` in your packages is enough. There are two ways to
+run them.
+
+**Run them from the store.** Nothing to copy; a new mimi brings new examples.
+Name the interpreter and the layout by store path so neither depends on
+`PATH`:
+
+```nix
+{ pkgs, ... }:
+{
+  services.mimi = {
+    enable = true;
+    config = ''
+      [tiling]
+      enabled = true
+      layout = "${pkgs.python3}/bin/python3 ${pkgs.mimi}/share/mimi/examples/tiling/bsp.py"
+      relayout_on_drag = true
+    '';
+  };
+}
+```
+
+**Own them.** Copy `examples/tiling` into your dotfiles, edit freely, and let
+Home Manager put the directory in place. The layouts import `rules.py` from
+their own directory, so ship the directory whole:
+
+```nix
+{ config, pkgs, ... }:
+{
+  home.packages = [ pkgs.python3 ];
+
+  xdg.configFile."mimi/tiling" = {
+    source = ./tiling;      # your copy of examples/tiling
+    recursive = true;
+  };
+
+  services.mimi = {
+    enable = true;
+    config = ''
+      [tiling]
+      enabled = true
+      layout = "${config.xdg.configHome}/mimi/tiling/bsp.py"
+      relayout_on_drag = true
+    '';
+  };
+}
+```
+
+With nix-darwin the layouts go wherever you keep per-user files, and the
+config names them the same way. Either way, `mimi tiling preview` shows what
+the layout would do before the daemon applies anything, and hotkeys are the
+same `mimi tiling cmd ...` commands as everywhere else; see the
+[Tiling Guide](TILING.md).
+
+---
+
 ## Method 3: From Source
 
 ### Requirements
