@@ -3,11 +3,12 @@
 
 Windows sit in columns on a strip that is wider than the display. The
 display is a viewport onto it: focusing a window scrolls the strip until its
-column is fully in view. A column is shown whole or not at all: the ones
-beyond the edges, and one that would be cut across, are parked at the edge
-with a sliver peeking in, enough to reach with focus_window --left/--right.
-Nothing is ever squeezed to fit; a new column keeps its width and the strip
-gets longer.
+column is fully in view. A column that overlaps the viewport is shown at its
+place on the strip, cut at the edge if it does not fit, so a neighbour of a
+column wider than half stays partly in sight. The ones wholly beyond the
+edges are parked there with a sliver peeking in, enough to reach with the
+focus command. Nothing is ever squeezed to fit; a new column keeps its width
+and the strip gets longer.
 
 Commands the layout answers (mimi gives them no meaning; this file does):
 
@@ -39,12 +40,11 @@ from rules import area, clamp, command, gap, maximised, read_input, write_output
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
 MIN_WIDTH, MAX_WIDTH = 0.2, 1.0
-# How much of a column that does not fit whole stays visible at the display's
-# edge, in points. macOS refuses to put a window entirely off screen but
-# allows this little, so a parked column is as hidden as a window on the
-# space can be. It is reached with the focus command, not by sight. A column
-# is shown whole or as this sliver, never cut somewhere across. (paneru, the
-# other sliding tiler for macOS, parks at 5 for the same reason.)
+# How much of a column wholly off the strip's visible part stays at the
+# display's edge, in points. macOS refuses to put a window entirely off
+# screen but allows this little, so a parked column is as hidden as a window
+# on the space can be. It is reached with the focus command, not by sight.
+# (paneru, the other sliding tiler for macOS, parks at 5 for the same reason.)
 PEEK = 4
 
 
@@ -110,17 +110,18 @@ def scroll_into_view(columns, index, box, gap, offset):
 
 
 def frames_for(columns, box, edge, gap, offset):
-    """Frames for every column: the ones that fit whole at their place on
-    the strip, the ones that do not parked past the display's edge (not the
-    gap-inset area's, or the gap would show too), as a sliver."""
+    """Frames for every column: the ones that overlap the viewport at their
+    place on the strip, cut at the edge where they do not fit; the ones
+    wholly outside parked past the display's edge (not the gap-inset area's,
+    or the gap would show too), as a sliver."""
     xs, _ = starts(columns, box, gap)
     frames = []
     for column, left in zip(columns, xs):
         width = col_width(column, box, gap)
         x = box["x"] + left - offset
-        if left < offset - 0.5:
+        if left + width <= offset + 0.5:
             x = edge["x"] - width + PEEK
-        elif left + width > offset + box["width"] + 0.5:
+        elif left >= offset + box["width"] - 0.5:
             x = edge["x"] + edge["width"] - PEEK
         n = len(column["windows"])
         height = (box["height"] - gap * (n - 1)) / n
