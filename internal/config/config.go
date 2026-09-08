@@ -18,6 +18,7 @@ type Config struct {
 	Settings SettingsConfig `json:"settings" reload:"per-field"  toml:"settings"`
 	Hooks    HooksConfig    `json:"hooks"    reload:"reloadable" toml:"hooks"`
 	Systray  SystrayConfig  `json:"systray"  reload:"per-field"  toml:"systray"`
+	Tiling   TilingConfig   `json:"tiling"   reload:"reloadable" toml:"tiling"`
 
 	// UnknownHookKeys lists the keys found under [hooks] that name no hook
 	// kind, sorted. Loading records them rather than reporting them so each
@@ -62,6 +63,21 @@ type SettingsConfig struct {
 type SystrayConfig struct {
 	Enabled             bool `json:"enabled"             reload:"restart-only" toml:"enabled"`
 	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" reload:"restart-only" toml:"show_workspace_number"`
+}
+
+// TilingConfig holds the [tiling] section of the config: whether the daemon
+// runs a layout at all, and the program that is the layout.
+//
+// mimi ships no layout. Layout is a command line run through
+// settings.hook_shell; it reads the tiling input as JSON on stdin and prints
+// the frames to apply as JSON on stdout (see docs/CONFIGURATION.md and
+// examples/tiling/). The whole section is reloadable: the engine re-reads it
+// on every reload, and enabling it at runtime is how a layout is tried out.
+type TilingConfig struct {
+	Enabled     bool   `json:"enabled"     toml:"enabled"`
+	Layout      string `json:"layout"      toml:"layout"`
+	DebounceMS  int    `json:"debounceMs"  toml:"debounce_ms"`
+	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.
@@ -111,6 +127,7 @@ type rawConfig struct {
 	Settings SettingsConfig   `json:"settings" toml:"settings"`
 	Hooks    rawHooksConfig   `json:"hooks"    toml:"hooks"`
 	Systray  rawSystrayConfig `json:"systray"  toml:"systray"`
+	Tiling   TilingConfig     `json:"tiling"   toml:"tiling"`
 }
 
 type rawSystrayConfig struct {

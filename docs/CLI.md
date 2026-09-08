@@ -43,6 +43,7 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi config *`              | Does not reach the command; it finishes. Each is one local file read or write.   |
 | `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
 | `mimi query *`               | Does not reach the command; it finishes. Each is a few desktop reads and one line of output. |
+| `mimi tiling preview`        | Kills the layout program if it is still running; nothing is applied either way. |
 
 A command in the bottom four rows that the first Ctrl-C did not reach still
 succeeds and exits 0, because it did in fact finish — `mimi config init`
@@ -343,6 +344,29 @@ Pipe through `jq` to pick one field:
 
 ```bash
 mimi query space | jq .index
+```
+
+---
+
+## Tiling
+
+The daemon runs the layout program named in `[tiling]` on window events; see
+`docs/CONFIGURATION.md` for the section and the JSON it speaks. mimi ships no
+layout. `examples/tiling/` in the repository holds programs to copy.
+
+### `mimi tiling preview [--input]`
+
+Run `tiling.layout` once against the desktop as it is now, with a `preview`
+event and a null state, and print what it returned as one line of JSON without
+applying any of it. It runs whether or not `tiling.enabled` is set, which is
+how a layout is tried before it is switched on. With `--input` the JSON that
+would be handed to the layout is printed instead, and the layout is not run.
+**Accessibility permission is required.**
+
+```
+$ mimi tiling preview
+{"frames":[{"number":4242,"frame":{"x":8,"y":33,"width":1904,"height":1034}}],"state":null}
+$ mimi tiling preview --input | jq '.windows[].app'
 ```
 
 ---

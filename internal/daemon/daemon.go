@@ -23,11 +23,13 @@ import (
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
 	"github.com/y3owk1n/mimi/internal/systray"
+	"github.com/y3owk1n/mimi/internal/tiling"
 )
 
 const (
 	logSubBufSize  = 128
 	hookSubBufSize = 256
+	tileSubBufSize = 64
 )
 
 // Run starts the mimi daemon: window/space observers, hooks executor, and config watcher.
@@ -113,14 +115,30 @@ func runCore(
 		return nil
 	}
 
-	pipeline, ctx, cancel, err := setupEventPipeline(cfg, logger, accessibilityGranted)
+	// The IPC server is built before the pipeline because the tiling engine
+	// drives the desktop through its action worker; it starts listening
+	// below, once the pipeline runs.
+	ipcServer := ipc.NewServer(cfg.Settings.SocketFile)
+	defer ipcServer.Shutdown()
+
+	pipeline, ctx, cancel, err := setupEventPipeline(
+		cfg,
+		logger,
+		accessibilityGranted,
+		ipcServer.Serialize,
+	)
 	if err != nil {
 		return err
 	}
 	defer cancel()
 
+	if cfg.Tiling.Enabled && !accessibilityGranted {
+		logger.Warn("accessibility permission not granted — tiling disabled")
+	}
+
 	go pipeline.router.Run(ctx)
 	go pipeline.executor.Run(ctx, pipeline.hookSub)
+	go pipeline.tiler.Run(ctx, pipeline.tileSub)
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
 	cfgReloader := newReloader(
@@ -129,6 +147,7 @@ func runCore(
 		pipeline.executor,
 		pipeline.axTracker,
 		pipeline.router,
+		pipeline.tiler,
 	)
 
 	onChange := func() {
@@ -137,9 +156,6 @@ func runCore(
 
 	watcher := config.NewWatcher(configPath, onChange, logger)
 	go func() { _ = watcher.Run(ctx) }()
-
-	ipcServer := ipc.NewServer(cfg.Settings.SocketFile)
-	defer ipcServer.Shutdown()
 
 	go func() {
 		err := ipcServer.Run(ctx)
@@ -175,7 +191,7 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 	perm = permissions.Check()
 	accessibilityGranted = perm.Accessibility
 
-	if hasWindowEvents(cfg) && !accessibilityGranted {
+	if cfg.Hooks.HasGroup(config.GroupWindow) && !accessibilityGranted {
 		logger.Warn("accessibility permission not granted — window hooks disabled")
 	}
 
@@ -184,8 +200,8 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 
 // eventPipeline bundles the dependencies setupEventPipeline wires together:
 // the event bus, the hook registry and its executor, the AX tracker and
-// router that react to window state, and the two subscribers that drain the
-// bus. Packaging them here means callers — runCore and, in turn, the
+// router that react to window state, the tiling engine, and the three
+// subscribers that drain the bus. Packaging them here means callers — runCore and, in turn, the
 // reloader — pass the bundle once instead of threading the same handful of
 // pointers by hand through every call site, which is how the fsnotify and
 // SIGHUP reload paths drifted from each other in the first place.
@@ -195,14 +211,20 @@ type eventPipeline struct {
 	router    *observe.Router
 	reg       *hooks.Registry
 	executor  *hooks.Executor
+	tiler     *tiling.Engine
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
+	tileSub   events.Subscriber
 }
 
+// setupEventPipeline wires the pipeline. serialize is where the tiling
+// engine's desktop work runs, the IPC server's action worker in the daemon;
+// nil runs it in the engine's own goroutine, which the tests accept.
 func setupEventPipeline(
 	cfg *config.Config,
 	logger *zap.SugaredLogger,
 	accessibilityGranted bool,
+	serialize tiling.Serializer,
 ) (*eventPipeline, context.Context, context.CancelFunc, error) {
 	axEnabled := accessibilityGranted && hasWindowEvents(cfg)
 
@@ -229,6 +251,15 @@ func setupEventPipeline(
 	// hot path of high-frequency events.
 	hookSub := bus.SubscribeWithFilter(hookSubBufSize, reg.KindFilter())
 
+	// The tiling engine is always built and subscribed, so that enabling
+	// [tiling] on a reload is enough to start it; its filter admits nothing
+	// while it is disabled. Without Accessibility it stays disabled whatever
+	// the config says: it could read no window, and would log a failure on
+	// every event.
+	tiler := tiling.New(tiling.LiveDesktop{}, serialize, logger)
+	tiler.Update(tilingConfigFor(cfg, accessibilityGranted), cfg.Settings.HookShell)
+	tileSub := bus.SubscribeWithFilter(tileSubBufSize, tiler.KindFilter())
+
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
 	// always-false filter prevents the bus from sending into a channel
@@ -254,8 +285,10 @@ func setupEventPipeline(
 		router:    router,
 		reg:       reg,
 		executor:  executor,
+		tiler:     tiler,
 		logSub:    logSub,
 		hookSub:   hookSub,
+		tileSub:   tileSub,
 	}
 
 	return pipeline, ctx, cancel, nil
@@ -445,6 +478,7 @@ func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.Su
 	logEventDropCounts(native.EventDropCount(), pipeline.bus.DropCount(), logger)
 	pipeline.bus.Unsubscribe(pipeline.logSub)
 	pipeline.bus.Unsubscribe(pipeline.hookSub)
+	pipeline.bus.Unsubscribe(pipeline.tileSub)
 }
 
 // logEventDropCounts logs the native observer's and the event bus's drop
@@ -475,8 +509,22 @@ func removePID(path string) {
 	_ = os.Remove(paths.ExpandHome(path))
 }
 
+// hasWindowEvents reports whether anything in cfg needs the AX window
+// observers: a window hook, or the tiling engine, which wakes on the same
+// events.
 func hasWindowEvents(cfg *config.Config) bool {
-	return cfg.Hooks.HasGroup(config.GroupWindow)
+	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled
+}
+
+// tilingConfigFor is the [tiling] section as the engine gets it: as written,
+// except that without Accessibility it is disabled.
+func tilingConfigFor(cfg *config.Config, accessibilityGranted bool) config.TilingConfig {
+	tilingCfg := cfg.Tiling
+	if !accessibilityGranted {
+		tilingCfg.Enabled = false
+	}
+
+	return tilingCfg
 }
 
 func hasAppEvents(cfg *config.Config) bool {

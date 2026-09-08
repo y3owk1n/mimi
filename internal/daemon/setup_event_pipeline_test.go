@@ -47,6 +47,7 @@ func runSetupEventPipeline(
 		cfg,
 		logger,
 		accessibilityGranted,
+		nil,
 	)
 
 	if pipeline == nil {

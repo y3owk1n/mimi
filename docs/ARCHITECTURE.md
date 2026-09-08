@@ -71,14 +71,27 @@ JSON. A query runs on the direct path only: it has no side effect to serialize
 with the daemon's actions, so routing it over the socket would cost a wire
 change and buy nothing.
 
-### Tiling is a script, not a feature
+### Tiling is the user's program
 
-mimi ships no layout engine. `query windows` and `query displays` give a
-script everything on the active space with frames in window coordinates, and
-`apply_frames` writes a whole layout back in one action. What goes in between
-is the user's program, run from a hook or a hotkey. `examples/tiling/` holds
-starting points to copy; they are not loaded by mimi and carry no promise
-beyond the JSON shapes above.
+mimi ships no layout. `query windows` and `query displays` give a program
+everything on the active space with frames in window coordinates, and
+`apply_frames` writes a whole layout back in one action. `internal/tiling`
+is the engine that runs such a program for the daemon: it subscribes to the
+bus for window, application and space events, settles each burst into one
+pass, hands the program the same JSON the queries print plus the event and
+the state the program returned last time for that space, and applies the
+frames it prints. The program is a pure function of its input; the engine
+owns the timing, the state, and the desktop.
+
+Two rules keep it from fighting itself. Resizes never wake it, because every
+frame it writes is one. And its desktop work runs on the IPC server's action
+worker (`ipc.Server.Serialize`), so a pass never interleaves with an action
+arriving over the socket and releases the window references that action is
+holding.
+
+`examples/tiling/` holds programs to copy; they are not loaded by mimi and
+carry no promise beyond the JSON contract (`tiling.Input`, `tiling.Output`,
+versioned by `tiling.InputVersion`).
 
 ---
 
@@ -122,6 +135,7 @@ internal/
                     space operations, screen queries, and the observer bridge
   observe/          Hook daemon event routing
   hooks/            Hook registry and executor
+  tiling/           The engine that runs the user's layout program on events
   config/           TOML config loading
   daemon/           Daemon lifecycle
   permissions/      Accessibility permission checks

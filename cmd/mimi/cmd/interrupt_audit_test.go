@@ -125,6 +125,12 @@ var interruptAudit = []auditEntry{
 			"frame and title, each of which runs to completion, then one line of output"),
 	audited("query displays", interruptRunsOn,
 		"NSScreen reads and one line of output; nothing blocks"),
+	audited("tiling", interruptRunsOn,
+		"as action: the body only reports the missing subcommand and returns"),
+	audited("tiling preview", interruptRunsOn,
+		"as query windows for the reads, then the layout program runs under its "+
+			"own timeout; the context is handed to it, so a canceled preview "+
+			"kills the program, and nothing is applied either way"),
 	audited("services install", interruptStopsTheWork,
 		"Service.Install threads the context through every launchctl call "+
 			"and checks it again before the plist is written, so a canceled "+

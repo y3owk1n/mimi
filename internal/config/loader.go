@@ -122,6 +122,7 @@ func Load(path string) (*Config, error) {
 	cfg := &Config{
 		Settings:        raw.Settings,
 		Hooks:           hooks,
+		Tiling:          raw.Tiling,
 		UnknownHookKeys: unknownHookKeys,
 	}
 
@@ -146,6 +147,13 @@ func Load(path string) (*Config, error) {
 	return cfg, nil
 }
 
+// The [tiling] defaults: how long a burst of window events settles before one
+// relayout runs, and how long the layout program may take.
+const (
+	defaultTilingDebounceMS  = 100
+	defaultTilingTimeoutSecs = 5
+)
+
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 	settings := &cfg.Settings
 	if settings.LogLevel == "" {
@@ -166,6 +174,14 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if settings.MaxHookWorkers == 0 {
 		settings.MaxHookWorkers = 4
+	}
+
+	if cfg.Tiling.DebounceMS == 0 {
+		cfg.Tiling.DebounceMS = defaultTilingDebounceMS
+	}
+
+	if cfg.Tiling.TimeoutSecs == 0 {
+		cfg.Tiling.TimeoutSecs = defaultTilingTimeoutSecs
 	}
 
 	if settings.PIDFile == "" {
@@ -197,6 +213,18 @@ func validate(cfg *Config) error {
 
 	if cfg.Settings.ResizeDebounceMS < 0 {
 		errs = append(errs, "settings.resize_debounce_ms must be >= 0")
+	}
+
+	if cfg.Tiling.Enabled && strings.TrimSpace(cfg.Tiling.Layout) == "" {
+		errs = append(errs, "tiling.layout is required when tiling.enabled is true")
+	}
+
+	if cfg.Tiling.DebounceMS < 0 {
+		errs = append(errs, "tiling.debounce_ms must be >= 0")
+	}
+
+	if cfg.Tiling.TimeoutSecs < 1 {
+		errs = append(errs, "tiling.timeout_secs must be >= 1")
 	}
 
 	// HookKinds is a slice, so these errors come out in its declared order.
@@ -238,6 +266,10 @@ func validate(cfg *Config) error {
 }
 
 func expandPaths(cfg *Config) {
+	// The layout is a command line, not a path, so only a leading "~" is
+	// expanded: the shell it runs through expands nothing in the program
+	// position, which is the one place a user writes one.
+	cfg.Tiling.Layout = paths.ExpandHome(cfg.Tiling.Layout)
 	cfg.Settings.LogFile = paths.ExpandHome(cfg.Settings.LogFile)
 	cfg.Settings.PIDFile = paths.ExpandHome(cfg.Settings.PIDFile)
 	cfg.Settings.SocketFile = paths.ExpandHome(cfg.Settings.SocketFile)

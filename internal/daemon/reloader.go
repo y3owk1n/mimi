@@ -10,6 +10,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/tiling"
 )
 
 // reloader is the single path by which a new config is applied to a running
@@ -40,6 +41,7 @@ type reloader struct {
 	executor  *hooks.Executor
 	axTracker *observe.AXTracker
 	router    *observe.Router
+	tiler     *tiling.Engine
 }
 
 // newReloader bundles the dependencies a reload touches — the config the
@@ -57,6 +59,7 @@ func newReloader(
 	executor *hooks.Executor,
 	axTracker *observe.AXTracker,
 	router *observe.Router,
+	tiler *tiling.Engine,
 ) *reloader {
 	return &reloader{
 		running:   running,
@@ -64,6 +67,7 @@ func newReloader(
 		executor:  executor,
 		axTracker: axTracker,
 		router:    router,
+		tiler:     tiler,
 	}
 }
 
@@ -105,6 +109,10 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 
 	perm := permissions.Check()
 	rl.axTracker.Update(perm.Accessibility && hasWindowEvents(cfg))
+
+	if rl.tiler != nil {
+		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility), cfg.Settings.HookShell)
+	}
 
 	return reloadChanges{
 		restartOnly:   config.RestartOnlyChanges(rl.running, cfg),

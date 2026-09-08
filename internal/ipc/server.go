@@ -39,7 +39,7 @@ type Server struct {
 }
 
 type actionJob struct {
-	cmd  action.Command
+	run  func() error
 	done chan error
 }
 
@@ -108,6 +108,26 @@ func (s *Server) Shutdown() {
 	})
 }
 
+// Serialize runs fn on the action worker, the one OS thread every action
+// arriving over the socket runs on, and returns what it returned. It is how
+// the daemon's own desktop work, the tiling engine's passes, stays in line
+// with the actions the CLI sends: two callers driving the desktop at once
+// would release each other's window references mid-action. It reports an
+// error, without running fn, when the worker does not pick the job up in
+// time.
+func (s *Server) Serialize(fn func() error) error {
+	s.once.Do(s.startActionWorker)
+
+	done := make(chan error, 1)
+	select {
+	case s.actionCh <- actionJob{run: fn, done: done}:
+	case <-time.After(s.enqueueTimeout):
+		return derrors.New(derrors.CodeIPCFailed, "timed out enqueueing desktop work")
+	}
+
+	return <-done
+}
+
 func (s *Server) startActionWorker() {
 	go func() {
 		runtime.LockOSThread()
@@ -120,7 +140,7 @@ func (s *Server) startActionWorker() {
 					}
 				}()
 
-				job.done <- s.execute(job.cmd)
+				job.done <- job.run()
 			}()
 		}
 	}()
@@ -140,7 +160,7 @@ func (s *Server) handleConn(conn net.Conn) {
 
 	done := make(chan error, 1)
 	select {
-	case s.actionCh <- actionJob{cmd: req.Command, done: done}:
+	case s.actionCh <- actionJob{run: func() error { return s.execute(req.Command) }, done: done}:
 	case <-time.After(s.enqueueTimeout):
 		_ = writeResponse(conn, responseFromError(derrors.New(
 			derrors.CodeIPCFailed,

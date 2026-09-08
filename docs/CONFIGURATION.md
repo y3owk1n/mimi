@@ -26,6 +26,7 @@ rather than applying it partially.
 - `settings.hook_shell`
 - `settings.resize_debounce_ms`
 - `[hooks]` (every hook kind)
+- `[tiling]` (every field)
 
 **Restart-only** — read once at daemon startup and never re-read, so changing
 one takes effect only after the daemon is restarted (`mimi daemon stop &&
@@ -201,6 +202,59 @@ and the `"hook failed"` line reports the failure through `exit` alone.
 enabled = true                 # restart-only
 show_workspace_number = true   # show active space number in menu bar — restart-only
 ```
+
+---
+
+## Tiling
+
+```toml
+[tiling]
+enabled = true
+layout = "~/.config/mimi/tiling/columns.sh 8"
+debounce_ms = 100     # settle a burst of window events into one pass
+timeout_secs = 5      # kill the layout past this
+```
+
+mimi ships no layout. `layout` is a command line, run through
+`settings.hook_shell`, that reads the tiling input as JSON on stdin and prints
+the frames to apply as JSON on stdout. The daemon runs it whenever a window is
+created, closed or focused, an application hides, unhides or quits, or the
+space changes, waiting `debounce_ms` for the burst to settle so one pass covers
+it. Resizes never wake it: every frame the engine writes is one, and a layout
+that ran on its own writes would never stop.
+
+The input is the same JSON `mimi query windows` and `mimi query displays`
+print, plus the event that woke the engine, the active space, and the `state`
+the layout returned last time for that space, or `null` the first time:
+
+```json
+{"version":1,
+ "event":{"kind":"window_created","app":"Safari","bundleId":"com.apple.Safari","pid":501},
+ "space":2,
+ "displays":[{"index":1,"id":1,"frame":{...},"visible":{...}}],
+ "focused":0,
+ "windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"...","frame":{...}}],
+ "state":null}
+```
+
+The output is the frames, in the shape `mimi action apply_frames` takes, and
+the state to hand back next time. Printing nothing changes nothing:
+
+```json
+{"frames":[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}}],
+ "state":{"master":4242}}
+```
+
+`version` moves when a field is renamed, removed or changes meaning, so a
+layout can refuse an input it was not written for. A layout that exits
+non-zero, times out, or prints something that is not this shape is logged and
+applies nothing; the next event tries again.
+
+`enabled = true` requires `layout`, and Accessibility permission, which the
+daemon checks at startup and on every reload: without it tiling stays off and
+a warning says so. `mimi tiling preview` runs the layout once against the
+desktop and prints what it would apply, whether or not tiling is enabled.
+`examples/tiling/` in the repository holds layouts to copy and make your own.
 
 ---
 

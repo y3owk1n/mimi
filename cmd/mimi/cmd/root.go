@@ -74,6 +74,7 @@ Use "mimi start" to run the background daemon and react to window/space events v
 	root.AddCommand(newServicesCmd(state))
 	root.AddCommand(newActionCmd(state))
 	root.AddCommand(newQueryCmd())
+	root.AddCommand(newTilingCmd(state))
 
 	return root
 }
