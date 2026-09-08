@@ -29,7 +29,9 @@ Input:
 ```
 
 - `event.kind` is a hook event name (`window_created`, `window_closed`,
-  `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`),
+  `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`,
+  and `window_resize` when `tiling.relayout_on_resize` is set, only for a
+  resize the user made),
   or `startup` when the daemon starts with tiling on, or `reload` when a
   reload switches it on or changes the layout,
   or `preview` from `mimi tiling preview`, or `relayout` from
@@ -111,5 +113,7 @@ next event tries again.
 - `windows` is what `focus_window` cycles: standard windows of regular
   applications, not sheets, popovers, or minimized windows. `float-rules.jq`
   is for what you want to skip beyond that.
-- Resizes never wake the daemon's engine, so a window the user drags stays
-  where it was dragged until the next event.
+- Resizes wake the daemon's engine only with `relayout_on_resize = true`.
+  Without it a window the user drags stays where it was dragged until the
+  next event. With it the master-stack example reads a dragged master edge
+  as the new ratio.

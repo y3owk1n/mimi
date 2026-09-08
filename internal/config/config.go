@@ -74,10 +74,11 @@ type SystrayConfig struct {
 // examples/tiling/). The whole section is reloadable: the engine re-reads it
 // on every reload, and enabling it at runtime is how a layout is tried out.
 type TilingConfig struct {
-	Enabled     bool   `json:"enabled"     toml:"enabled"`
-	Layout      string `json:"layout"      toml:"layout"`
-	DebounceMS  int    `json:"debounceMs"  toml:"debounce_ms"`
-	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
+	Enabled          bool   `json:"enabled"          toml:"enabled"`
+	Layout           string `json:"layout"           toml:"layout"`
+	DebounceMS       int    `json:"debounceMs"       toml:"debounce_ms"`
+	TimeoutSecs      int    `json:"timeoutSecs"      toml:"timeout_secs"`
+	RelayoutOnResize bool   `json:"relayoutOnResize" toml:"relayout_on_resize"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.

@@ -8,7 +8,9 @@
 #   mimi tiling cmd swap           make the focused window the master
 #   mimi tiling cmd ratio +0.05    widen the master (or -0.05 to narrow it)
 #
-# mimi gives those names no meaning; this file does. Add your own.
+# mimi gives those names no meaning; this file does. Add your own. With
+# tiling.relayout_on_resize set, dragging the master's edge sets the ratio
+# too: a window_resize event arrives with the master at its new width.
 #
 # A layout program: reads the tiling input on stdin, prints the output on
 # stdout. Copy, edit, own. Needs jq.
@@ -29,19 +31,23 @@ jq -c -L "$here" --argjson ratio "$ratio" --argjson gap "$gap" '
 	| ($wins | length) as $n
 	| (if .focused >= 0 then $wins[.focused].number else null end) as $focused
 	| if $n == 0 then {frames: [], state: null} else
-	    # The ratio: remembered, nudged by "ratio +0.05", clamped.
-	    ((.state.ratio // $ratio)
-	     + (if .event.kind == "command" and .event.name == "ratio"
-	        then (.event.args[0] // "0" | tonumber) else 0 end)
-	     | [[., 0.2] | max, 0.8] | min) as $r
 	    # The master: "swap" makes the focused window the master; otherwise
 	    # the remembered one while it is still here, else the focused, else
 	    # the first.
-	    | (.state.master as $m
-	       | if .event.kind == "command" and .event.name == "swap" and $focused != null then $focused
-	         elif $m != null and ($numbers | index($m)) != null then $m
-	         elif $focused != null then $focused
-	         else $numbers[0] end) as $master
+	    (.state.master as $m
+	     | if .event.kind == "command" and .event.name == "swap" and $focused != null then $focused
+	       elif $m != null and ($numbers | index($m)) != null then $m
+	       elif $focused != null then $focused
+	       else $numbers[0] end) as $master
+	    # The ratio: remembered, nudged by "ratio +0.05", read off the
+	    # master width after the user dragged it, clamped.
+	    | ([$wins[] | select(.number == $master)][0].frame.width) as $mwNow
+	    | ((if .event.kind == "window_resize" and $n > 1 and $mwNow != null
+	        then $mwNow / ($v.width - 3 * $gap)
+	        else (.state.ratio // $ratio) end)
+	       + (if .event.kind == "command" and .event.name == "ratio"
+	          then (.event.args[0] // "0" | tonumber) else 0 end)
+	       | [[., 0.2] | max, 0.8] | min) as $r
 	    | (if $n == 1 then $v.width - 2 * $gap else (($v.width - 3 * $gap) * $r | floor) end) as $mw
 	    | ($v.width - $mw - 3 * $gap) as $sw
 	    | ($n - 1) as $k

@@ -3,6 +3,7 @@ package tiling
 import (
 	"context"
 	"encoding/json"
+	"math"
 	"sync"
 	"time"
 
@@ -48,6 +49,20 @@ type Engine struct {
 	// states is what the layout returned last time, keyed by space index.
 	states map[int]json.RawMessage
 
+	// onResize is whether a window the user resized runs a pass.
+	onResize bool
+	// applied is where every window the engine last wrote actually landed,
+	// read back rather than as requested, keyed by window number; and
+	// appliedAt is when. Together they tell the engine's own resizes from
+	// the user's.
+	applied   map[uint32]action.Frame
+	appliedAt time.Time
+	// resizeGrace is how long after an apply a resize event is taken to be
+	// the engine's own, and used to refresh applied rather than compared
+	// against it: an application that snaps its frame does so a moment
+	// after the write, and the frame it snapped to is the one to remember.
+	resizeGrace time.Duration
+
 	// wake carries the passes the engine asks of itself, on startup and on
 	// a reload that switches it on; Run drains it alongside the bus. It
 	// holds one, so an Update before Run starts is not lost.
@@ -61,13 +76,23 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 	}
 
 	return &Engine{
-		desktop:   desktop,
-		serialize: serialize,
-		logger:    logger,
-		states:    map[int]json.RawMessage{},
-		wake:      make(chan Event, 1),
+		desktop:     desktop,
+		serialize:   serialize,
+		logger:      logger,
+		states:      map[int]json.RawMessage{},
+		applied:     map[uint32]action.Frame{},
+		resizeGrace: defaultResizeGrace,
+		wake:        make(chan Event, 1),
 	}
 }
+
+// defaultResizeGrace covers the router's resize debounce plus an
+// application's own settling after a write.
+const defaultResizeGrace = time.Second
+
+// samePoint is how far two frames may differ and still be the same
+// placement: macOS stores frames in whole points, and rounds.
+const samePoint = 1.0
 
 // Update applies the [tiling] section and the shell it runs under. It is
 // what the daemon calls at startup and on every reload.
@@ -85,6 +110,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.enabled = cfg.Enabled
 	e.command = cfg.Layout
 	e.configured = true
+	e.onResize = cfg.RelayoutOnResize
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 	e.layout = Program{
 		Shell:   shell,
@@ -134,11 +160,22 @@ var wakingKinds = map[events.EventKind]bool{
 }
 
 // KindFilter is the bus filter for the engine's subscription: the waking
-// kinds, and only while the engine is enabled, so a disabled engine costs the
-// bus no sends.
+// kinds, resizes too when relayout_on_resize is set, and only while the
+// engine is enabled, so a disabled engine costs the bus no sends.
 func (e *Engine) KindFilter() events.KindFilter {
 	return func(kind events.EventKind) bool {
-		return wakingKinds[kind] && e.Enabled()
+		e.mu.Lock()
+		defer e.mu.Unlock()
+
+		if !e.enabled {
+			return false
+		}
+
+		if kind == events.WindowResize {
+			return e.onResize
+		}
+
+		return wakingKinds[kind]
 	}
 }
 
@@ -183,6 +220,10 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 		case evt, ok := <-sub:
 			if !ok {
 				return
+			}
+
+			if evt.Kind == events.WindowResize && !e.userResized() {
+				continue
 			}
 
 			arm(eventOf(evt))
@@ -230,6 +271,17 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 	}
 
 	err = e.run(func() error { return e.desktop.Apply(out.Frames) })
+
+	// Whatever the apply reported, some frames may have landed: remember
+	// them all as requested, then read back where they are.
+	e.applied = make(map[uint32]action.Frame, len(out.Frames))
+	for _, frame := range out.Frames {
+		e.applied[frame.Number] = frame.Frame
+	}
+
+	e.appliedAt = time.Now()
+	e.rememberLocked()
+
 	if err != nil {
 		return err
 	}
@@ -290,6 +342,76 @@ func (e *Engine) settleWindow() time.Duration {
 	defer e.mu.Unlock()
 
 	return e.settle
+}
+
+// userResized decides what a resize event means. Within the grace after an
+// apply it is the engine's own write landing, possibly snapped by the
+// application, so the frames are read back again and remembered and the
+// event dropped. After it, the event is the user's if any window the engine
+// placed is no longer where it was placed.
+func (e *Engine) userResized() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if !e.onResize || len(e.applied) == 0 {
+		return false
+	}
+
+	if time.Since(e.appliedAt) < e.resizeGrace {
+		e.rememberLocked()
+
+		return false
+	}
+
+	windows, err := e.readWindows()
+	if err != nil {
+		return false
+	}
+
+	for _, win := range windows.Windows {
+		placed, ok := e.applied[win.Number]
+		if ok && !sameFrame(placed, win.Frame) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// rememberLocked reads back where the windows the engine placed actually
+// are, and keeps that. The caller holds the lock.
+func (e *Engine) rememberLocked() {
+	windows, err := e.readWindows()
+	if err != nil {
+		return
+	}
+
+	for _, win := range windows.Windows {
+		if _, ok := e.applied[win.Number]; ok {
+			e.applied[win.Number] = win.Frame
+		}
+	}
+}
+
+func (e *Engine) readWindows() (action.WindowsInfo, error) {
+	var windows action.WindowsInfo
+
+	err := e.run(func() error {
+		var err error
+
+		windows, err = e.desktop.Windows()
+
+		return err
+	})
+
+	return windows, err
+}
+
+func sameFrame(first, second action.Frame) bool {
+	return math.Abs(first.X-second.X) <= samePoint &&
+		math.Abs(first.Y-second.Y) <= samePoint &&
+		math.Abs(first.Width-second.Width) <= samePoint &&
+		math.Abs(first.Height-second.Height) <= samePoint
 }
 
 // reduceLocked builds the input, runs the layout, and reports the space the
