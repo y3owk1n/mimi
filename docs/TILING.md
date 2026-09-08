@@ -33,6 +33,11 @@ the contract, write your own, bind hotkeys, and fix it when it goes wrong.
    cp -r examples/tiling ~/.config/mimi/tiling
    ```
 
+   On Nix the same directory ships in the package at
+   `${pkgs.mimi}/share/mimi/examples/tiling`, and the
+   [Installation Guide](INSTALLATION.md#tiling-on-nix) shows both running
+   them from the store and keeping your own copy under Home Manager.
+
 2. Name one in your config. `mimi config init` creates the file if you have
    none.
 
