@@ -8,7 +8,7 @@ shared temporary maximise (mimi tiling cmd togglemax).
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: columns.py [gap]     (gap defaults to the macOS tiled-window margin)
+Usage: columns.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
 from rules import area, gap, maximised, read_input, write_output

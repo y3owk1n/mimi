@@ -42,9 +42,11 @@ type Input struct {
 	Event   Event               `json:"event"`
 	Display action.DisplayEntry `json:"display"`
 	Space   int                 `json:"space"`
-	// Margins is the system tiled-window margins setting resize_window
-	// honors too, for a layout to default its gap to.
-	Margins  action.MarginsInfo    `json:"margins"`
+	// Gap is the space to leave between windows and at the display's
+	// edges, in points: tiling.gap when the config sets it, else the macOS
+	// tiled-window margin resize_window honors too, or 0 when that is
+	// off. Resolved here so every layout uses the one number.
+	Gap      float64               `json:"gap"`
 	Displays []action.DisplayEntry `json:"displays"`
 	Focused  int                   `json:"focused"`
 	Windows  []action.WindowEntry  `json:"windows"`

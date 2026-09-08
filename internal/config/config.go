@@ -79,6 +79,11 @@ type TilingConfig struct {
 	DebounceMS     int    `json:"debounceMs"     toml:"debounce_ms"`
 	TimeoutSecs    int    `json:"timeoutSecs"    toml:"timeout_secs"`
 	RelayoutOnDrag bool   `json:"relayoutOnDrag" toml:"relayout_on_drag"`
+	// Gap is the space between tiled windows and at the display's edges, in
+	// points. Left unset, the macOS tiled-window margin applies, the same
+	// setting resize_window honors; set, it replaces that setting for
+	// layouts, 0 included.
+	Gap *int `json:"gap" toml:"gap"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.

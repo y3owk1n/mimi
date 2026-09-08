@@ -191,7 +191,7 @@ func TestEngine_Preview_RunsWithoutApplying(t *testing.T) {
 
 	if len(inputs) != 1 || inputs[0].Version != tiling.InputVersion || inputs[0].Space != 2 ||
 		len(inputs[0].Windows) != 1 || len(inputs[0].Displays) != 1 || inputs[0].Display.ID != 7 ||
-		inputs[0].Margins != (action.MarginsInfo{Enabled: true, Size: 8}) {
+		inputs[0].Gap != 8 {
 		t.Fatalf(
 			"Preview() inputs = %+v, want one for display 7, version %d, space 2, one window",
 			inputs,
@@ -550,5 +550,47 @@ func TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn(t *testing.T) {
 	if string(inputs[0].State) != want[0] || string(inputs[1].State) != "null" {
 		t.Fatalf("after a switch on display 8: states %s and %s; want %s and null",
 			inputs[0].State, inputs[1].State, want[0])
+	}
+}
+
+// TestEngine_Input_GapFollowsTheConfigThenTheMargin pins where the gap comes
+// from: tiling.gap when set, 0 included, else the macOS margin when it is
+// on, else nothing.
+func TestEngine_Input_GapFollowsTheConfigThenTheMargin(t *testing.T) {
+	t.Parallel()
+
+	zero, twelve := 0, 12
+
+	cases := []struct {
+		name string
+		gap  *int
+		want float64
+	}{
+		{name: "unset follows the margin", gap: nil, want: 8},
+		{name: "set replaces it", gap: &twelve, want: 12},
+		{name: "set to zero removes it", gap: &zero, want: 0},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			engine := tiling.New(newDesktop(), nil, nil)
+			cfg := enabled(echoLayout)
+			cfg.Gap = testCase.gap
+			engine.Update(cfg, shell)
+
+			inputs, _, err := engine.Preview(
+				context.Background(),
+				tiling.Event{Kind: tiling.EventPreview},
+			)
+			if err != nil {
+				t.Fatalf("Preview() error = %v", err)
+			}
+
+			if inputs[0].Gap != testCase.want {
+				t.Fatalf("gap = %v, want %v", inputs[0].Gap, testCase.want)
+			}
+		})
 	}
 }

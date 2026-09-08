@@ -43,6 +43,8 @@ type Engine struct {
 	mu      sync.Mutex
 	enabled bool
 	command string
+	// gap is tiling.gap when set; nil follows the macOS margin.
+	gap *int
 	// configured reports whether Update has run at all, which is what tells
 	// the startup pass from a reload's.
 	configured bool
@@ -116,6 +118,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 
 	e.enabled = cfg.Enabled
 	e.command = cfg.Layout
+	e.gap = cfg.Gap
 	e.configured = true
 	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
@@ -428,6 +431,13 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 		focused = windows.Windows[windows.Focused].Number
 	}
 
+	gap := 0.0
+	if e.gap != nil {
+		gap = float64(*e.gap)
+	} else if margins.Enabled {
+		gap = margins.Size
+	}
+
 	inputs := make([]Input, 0, len(displays))
 
 	for _, display := range displays {
@@ -436,7 +446,7 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 			Event:    event,
 			Display:  display,
 			Space:    spaces[display.ID],
-			Margins:  margins,
+			Gap:      gap,
 			Displays: displays,
 			Focused:  -1,
 			Windows:  []action.WindowEntry{},

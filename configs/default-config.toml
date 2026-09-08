@@ -55,6 +55,33 @@ enabled = true
 show_workspace_number = true
 
 # =============================================================================
+# Tiling
+# =============================================================================
+# mimi ships no layout. With enabled = true the daemon runs the program named
+# by layout whenever a window opens, closes or gains focus, a space comes to
+# the front, or (with relayout_on_drag) a window is dragged. The program gets
+# every window on one display as JSON on stdin and prints the frames to apply
+# on stdout; the daemon keeps whatever state it returns, per display and
+# space. Guide: docs/TILING.md. Layouts to copy: examples/tiling/ (on Nix,
+# share/mimi/examples/tiling in the package). Every key here is reloadable.
+# =============================================================================
+
+[tiling]
+enabled = false
+# A command line, run through hook_shell above. Required when enabled.
+# layout = "~/.config/mimi/tiling/bsp.py"
+# Settle a burst of window events into one run.
+debounce_ms = 100
+# Kill the layout past this.
+timeout_secs = 5
+# A window you move or resize runs the layout too: drag an edge to resize a
+# split, drop a window on another to swap, in the shipped layouts.
+relayout_on_drag = false
+# Points between tiled windows and at the display's edges. Leave unset to
+# follow the macOS tiled-window margin, the setting resize_window honours.
+# gap = 12
+
+# =============================================================================
 # Hooks
 # =============================================================================
 # Each hook is an array of entries. An entry can be either:
@@ -135,6 +162,11 @@ show_workspace_number = true
 # Window finished resizing (debounced, fires once after resize ends).
 # on_window_resize = [
 #     "echo 'window resized: $mimi_APP_NAME — $mimi_WINDOW_TITLE'"
+# ]
+
+# Window finished moving (debounced the same way).
+# on_window_move = [
+#     "echo 'window moved: $mimi_APP_NAME — $mimi_WINDOW_TITLE'"
 # ]
 
 # ── Workspace / Space Events ──────────────────────────────────────────────────

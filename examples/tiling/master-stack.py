@@ -19,7 +19,7 @@ layout where every edge is a split.
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: master-stack.py [ratio] [gap]     (gap defaults to the macOS tiled-window margin)
+Usage: master-stack.py [ratio]     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
 import sys
@@ -31,7 +31,7 @@ RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 
 def main():
     inp = read_input()
-    GAP = gap(inp, argv_index=2)
+    GAP = gap(inp)
     state = inp.get("state") or {}
     windows = inp["windows"]
     if not windows:

@@ -2,7 +2,8 @@
 # Run a layout program once without the daemon, the way the daemon would:
 # once per display that has a window, with that display's windows, then
 # apply everything it printed in one go. State is always null here; the
-# daemon is what remembers state between runs.
+# daemon is what remembers state between runs, and the gap is the macOS
+# tiled-window margin, since no config is read here.
 #
 # Usage: standalone.sh <layout> [args...]
 #   standalone.sh ./columns.py 12
@@ -28,7 +29,8 @@ inputs="$(jq -c -n \
 	| $d[] as $disp
 	| [$w.windows[] | select(on($disp))] as $mine
 	| select(($mine | length) > 0)
-	| {version: 1, event: {kind: "relayout"}, display: $disp, space: $s, margins: $m,
+	| {version: 1, event: {kind: "relayout"}, display: $disp, space: $s,
+	   gap: (if $m.enabled then $m.size else 0 end),
 	   displays: $d, windows: $mine,
 	   focused: (($mine | map(.number) | index($focused)) // -1), state: null}
 ')"

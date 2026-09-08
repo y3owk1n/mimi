@@ -178,7 +178,7 @@ mimi ships no layout. With `[tiling]` on, the daemon runs a program you own when
 ```toml
 [tiling]
 enabled = true
-layout = "~/.config/mimi/tiling/bsp.py 10"   # copied from examples/tiling/
+layout = "~/.config/mimi/tiling/bsp.py"   # copied from examples/tiling/
 relayout_on_drag = true                      # drag an edge to resize a split, drop on a window to swap
 ```
 

@@ -8,7 +8,7 @@ is, and the one to copy when starting your own: no state, no commands.
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: monocle.py [gap]     (gap defaults to the macOS tiled-window margin)
+Usage: monocle.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
 from rules import area, gap, read_input, write_output

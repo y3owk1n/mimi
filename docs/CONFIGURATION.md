@@ -210,10 +210,11 @@ show_workspace_number = true   # show active space number in menu bar — restar
 ```toml
 [tiling]
 enabled = true
-layout = "~/.config/mimi/tiling/columns.py 8"
+layout = "~/.config/mimi/tiling/columns.py"
 debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
+# gap = 12                   # points between windows; unset follows the macOS tiled-window margin
 ```
 
 mimi ships no layout. `layout` is a command line, run through
@@ -234,9 +235,10 @@ within a second of the engine's own write is taken as that write settling.
 The layout runs once per display that has a window on it. The input is the
 same JSON `mimi query windows` and `mimi query displays` print, narrowed to
 that display's windows, plus the display itself, the event that woke the
-engine, the space in front on that display, the macOS tiled-window margins
-setting that `resize_window` honours, and the `state` the layout returned
-last time for that display and space, or `null` the first time.
+engine, the space in front on that display, the gap to leave (`tiling.gap`
+when set, else the macOS tiled-window margin that `resize_window` honours,
+or 0 when that is off), and the `state` the layout returned last time for
+that display and space, or `null` the first time.
 `event.kind` is the hook event name; `startup` for the pass the daemon runs
 as it starts with tiling enabled; `reload` for the pass a reload runs when it
 switches tiling on or names another layout; or `preview`, `relayout` or
@@ -250,7 +252,7 @@ dragged:
  "event":{"kind":"window_created","app":"Safari","bundleId":"com.apple.Safari","pid":501},
  "display":{"index":1,"id":1,"frame":{...},"visible":{...}},
  "space":2,
- "margins":{"enabled":true,"size":8},
+ "gap":8,
  "displays":[{"index":1,"id":1,"frame":{...},"visible":{...}}],
  "focused":0,
  "windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"...","frame":{...}}],

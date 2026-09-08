@@ -25,7 +25,7 @@ window and dropping it on another swaps the two, as Hyprland does.
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: bsp.py [gap]     (gap defaults to the macOS tiled-window margin)
+Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
 import sys
@@ -33,8 +33,8 @@ import sys
 from rules import clamp as clamp_to
 from rules import area, command, gap, maximised, read_input, write_output
 
-# The gap, set from the input once it is read: the argument, else the macOS
-# tiled-window margin. The tree functions below read it as a global.
+# The gap, set from the input once it is read. The tree functions below read
+# it as a global.
 GAP = 0.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
 

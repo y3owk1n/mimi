@@ -25,7 +25,7 @@ Input:
  "display":{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},
             "visible":{"x":0,"y":25,"width":1440,"height":875}},
  "space":2,
- "margins":{"enabled":true,"size":8},
+ "gap":8,
  "displays":[{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},
               "visible":{"x":0,"y":25,"width":1440,"height":875}}],
  "focused":0,
@@ -50,9 +50,10 @@ Input:
   fills and `windows` are the windows on it, as `mimi query windows` prints
   them; `displays` lists every display for reference. `focused` is the
   index into `windows` of the focused one, or -1.
-- `margins` is the macOS tiled-window margins setting, the one
-  `mimi action resize_window` honours. Every layout here defaults its gap to
-  it, so leave the gap argument off to line up with hand-placed windows.
+- `gap` is the space to leave between windows and at the edges, resolved
+  by mimi: `tiling.gap` from the config when set, else the macOS
+  tiled-window margin that `mimi action resize_window` honours. Use it as
+  given and tiled windows line up with hand-placed ones.
 - `state` is whatever your program printed as `state` last time for this
   display and space, or `null`. The daemon keeps it for you; that is how a
   layout remembers a master window or a split ratio without a file.
@@ -79,10 +80,10 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 
 | File | What it does |
 | --- | --- |
-| `monocle.py [gap]` | Every window fills the display; move between them with focus. The smallest layout there is, and the one to copy when starting your own. |
-| `columns.py [gap]` | Equal-width columns. No state, no commands. |
-| `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
-| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
+| `monocle.py` | Every window fills the display; move between them with focus. The smallest layout there is, and the one to copy when starting your own. |
+| `columns.py` | Equal-width columns. No state, no commands. |
+| `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
+| `bsp.py` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
 | `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the area to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |
 | `standalone.sh <layout> [args]` | Run any layout once without the daemon. Shell and `jq`. |
 
@@ -106,7 +107,7 @@ Copy the directory somewhere, say `~/.config/mimi/tiling/`, then:
 ```toml
 [tiling]
 enabled = true
-layout = "~/.config/mimi/tiling/columns.py 8"
+layout = "~/.config/mimi/tiling/columns.py"
 ```
 
 Try it before switching it on:

@@ -223,6 +223,10 @@ func validate(cfg *Config) error {
 		errs = append(errs, "tiling.debounce_ms must be >= 0")
 	}
 
+	if cfg.Tiling.Gap != nil && *cfg.Tiling.Gap < 0 {
+		errs = append(errs, "tiling.gap must be >= 0")
+	}
+
 	if cfg.Tiling.TimeoutSecs < 1 {
 		errs = append(errs, "tiling.timeout_secs must be >= 1")
 	}

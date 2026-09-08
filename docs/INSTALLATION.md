@@ -361,7 +361,7 @@ Name the interpreter and the layout by store path so neither depends on
     config = ''
       [tiling]
       enabled = true
-      layout = "${pkgs.python3}/bin/python3 ${pkgs.mimi}/share/mimi/examples/tiling/bsp.py 10"
+      layout = "${pkgs.python3}/bin/python3 ${pkgs.mimi}/share/mimi/examples/tiling/bsp.py"
       relayout_on_drag = true
     '';
   };
@@ -387,7 +387,7 @@ their own directory, so ship the directory whole:
     config = ''
       [tiling]
       enabled = true
-      layout = "${config.xdg.configHome}/mimi/tiling/bsp.py 10"
+      layout = "${config.xdg.configHome}/mimi/tiling/bsp.py"
       relayout_on_drag = true
     '';
   };
