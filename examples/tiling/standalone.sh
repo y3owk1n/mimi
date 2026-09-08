@@ -4,7 +4,7 @@
 # daemon is what remembers state between passes.
 #
 # Usage: standalone.sh <layout> [args...]
-#   standalone.sh ./columns.sh 12
+#   standalone.sh ./columns.py 12
 set -eu
 
 [ $# -ge 1 ] || { echo "usage: standalone.sh <layout> [args...]" >&2; exit 2; }

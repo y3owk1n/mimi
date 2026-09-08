@@ -25,28 +25,13 @@ stdout. Copy, edit, own. Standard library only.
 Usage: bsp.py [gap]
 """
 
-import json
 import sys
+
+from rules import clamp as clamp_to
+from rules import command, read_input, visible_area, write_output
 
 GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
-
-# Windows the tree leaves alone. Edit to taste.
-FLOATING_BUNDLES = {
-    "com.apple.systempreferences",
-    "com.apple.finder",
-    "com.apple.ActivityMonitor",
-    "com.1password.1password",
-}
-
-
-def floating(win, state):
-    return (
-        win["bundleId"] in FLOATING_BUNDLES
-        or win["title"] in ("Preferences", "Settings")
-        or (win["frame"]["width"] < 400 and win["frame"]["height"] < 300)
-        or win["number"] in state.get("floating", [])
-    )
 
 
 # --- the tree -------------------------------------------------------------
@@ -145,7 +130,7 @@ def split_rects(node, rect, out):
 
 
 def clamp(r):
-    return max(MIN_RATIO, min(MAX_RATIO, r))
+    return clamp_to(r, MIN_RATIO, MAX_RATIO)
 
 
 def apply_drag(tree, number, placed, now, area):
@@ -217,32 +202,22 @@ def neighbour(rects, number, direction):
 # --- one pass -------------------------------------------------------------
 
 
-def display_for(inp):
-    if inp["focused"] >= 0:
-        f = inp["windows"][inp["focused"]]["frame"]
-        cx, cy = f["x"] + f["width"] / 2, f["y"] + f["height"] / 2
-        for d in inp["displays"]:
-            r = d["frame"]
-            if r["x"] <= cx < r["x"] + r["width"] and r["y"] <= cy < r["y"] + r["height"]:
-                return d
-    return inp["displays"][0]
-
-
 def main():
-    inp = json.load(sys.stdin)
+    inp = read_input()
     state = inp.get("state") or {}
     tree = state.get("tree")
     event = inp["event"]
     focused_win = inp["windows"][inp["focused"]] if inp["focused"] >= 0 else None
     focused = focused_win["number"] if focused_win else None
 
-    # togglefloat first: it changes which windows belong in the tree.
-    if event["kind"] == "command" and event.get("name") == "togglefloat" and focused:
+    # togglefloat first: it changes which windows belong in the tree. The
+    # shared rules never see this list, so it lives in the state.
+    if command(inp, "togglefloat") is not None and focused:
         floats = set(state.get("floating", []))
         floats ^= {focused}
         state["floating"] = sorted(floats)
 
-    tiled = [w for w in inp["windows"] if not floating(w, state)]
+    tiled = [w for w in inp["windows"] if w["number"] not in state.get("floating", [])]
     by_number = {w["number"]: w for w in tiled}
     present = set(by_number)
 
@@ -251,13 +226,7 @@ def main():
     for leaf in leaves(tree):
         if leaf["win"] not in present:
             tree = remove(tree, leaf["win"])
-    visible = display_for(inp)["visible"]
-    area = {
-        "x": visible["x"] + GAP,
-        "y": visible["y"] + GAP,
-        "width": visible["width"] - 2 * GAP,
-        "height": visible["height"] - 2 * GAP,
-    }
+    area = visible_area(inp, GAP)
     for number in [w["number"] for w in tiled]:
         if number in {leaf["win"] for leaf in leaves(tree)}:
             continue
@@ -297,13 +266,12 @@ def main():
 
     rects = {}
     layout(tree, area, rects)
-    frames = [
-        {"number": number, "frame": {k: int(round(v)) for k, v in rect.items()}}
-        for number, rect in rects.items()
-    ]
+    frames = [(number, rect) for number, rect in rects.items()]
     state["tree"] = tree
-    state["placed"] = {str(f["number"]): f["frame"] for f in frames}
-    json.dump({"frames": frames, "state": state}, sys.stdout)
+    state["placed"] = {
+        str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
+    }
+    write_output(frames, state)
 
 
 if __name__ == "__main__":

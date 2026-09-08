@@ -267,7 +267,7 @@ and make your own.
 ```bash
 mimi action apply_frames < frames.json
 mimi action apply_frames --file frames.json
-./columns.sh | mimi action apply_frames
+my-layout | jq .frames | mimi action apply_frames
 ```
 
 ---

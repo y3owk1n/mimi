@@ -62,13 +62,30 @@ primary has a negative y. Fill `visible` from a display, never `frame`.
 
 ## Programs
 
-| File | What it does | Needs |
-| --- | --- | --- |
-| `columns.sh [gap]` | Equal-width columns across the display holding the focused window. | `jq` |
-| `master-stack.sh [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, and answers `swap` and `ratio +0.05`. | `jq` |
-| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. Python, standard library only. | `python3` |
-| `float-rules.jq` | jq definitions the two above include: `floating`, `tileable`, `display_for`. Edit the bundle ids and title patterns here. | `jq` |
-| `standalone.sh <layout> [args]` | Run any layout once without the daemon. | `jq` |
+All in Python with the standard library only, so `python3` from the Xcode
+Command Line Tools is enough. Each reads stdin, prints stdout, and imports
+`rules.py` from its own directory, so copy the directory as a whole.
+
+| File | What it does |
+| --- | --- |
+| `columns.py [gap]` | Equal-width columns across the display holding the focused window. No state, no commands: the one to copy when starting your own. |
+| `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, and reads a drag of the split from either side. |
+| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
+| `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the display to fill, reading the input and writing the output. |
+| `standalone.sh <layout> [args]` | Run any layout once without the daemon. Shell and `jq`. |
+
+The contract needs no particular language. This is a whole layout in
+shell and jq, one column per window:
+
+```sh
+#!/bin/sh
+jq -c '(.displays[0].visible) as $v | (.windows | length) as $n
+  | {frames: [.windows | to_entries[]
+      | {number: .value.number,
+         frame: {x: ($v.x + .key * ($v.width / $n)), y: $v.y,
+                 width: ($v.width / $n), height: $v.height}}],
+     state: null}'
+```
 
 ## Wiring it up
 
@@ -77,7 +94,7 @@ Copy the directory somewhere, say `~/.config/mimi/tiling/`, then:
 ```toml
 [tiling]
 enabled = true
-layout = "~/.config/mimi/tiling/columns.sh 8"
+layout = "~/.config/mimi/tiling/columns.py 8"
 ```
 
 Try it before switching it on:
@@ -85,7 +102,7 @@ Try it before switching it on:
 ```bash
 mimi tiling preview --input      # what your program will be given
 mimi tiling preview              # what it returns, applied to nothing
-~/.config/mimi/tiling/standalone.sh ~/.config/mimi/tiling/columns.sh   # apply once
+~/.config/mimi/tiling/standalone.sh ~/.config/mimi/tiling/columns.py   # apply once
 ```
 
 Bind the commands to hotkeys (skhd, Hammerspoon, Karabiner):
@@ -123,8 +140,8 @@ next event tries again.
 - A window on another space is not in `windows` and cannot be placed.
 - Full-screen and native tiled spaces have no windows to tile.
 - `windows` is what `focus_window` cycles: standard windows of regular
-  applications, not sheets, popovers, or minimized windows. `float-rules.jq`
-  is for what you want to skip beyond that.
+  applications, not sheets, popovers, or minimized windows. `rules.py` is
+  for what you want to skip beyond that.
 - Resizes wake the daemon's engine only with `relayout_on_resize = true`.
   Without it a window the user drags stays where it was dragged until the
   next event. With it the master-stack example reads a dragged master edge

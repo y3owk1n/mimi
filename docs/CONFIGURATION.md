@@ -210,7 +210,7 @@ show_workspace_number = true   # show active space number in menu bar — restar
 ```toml
 [tiling]
 enabled = true
-layout = "~/.config/mimi/tiling/columns.sh 8"
+layout = "~/.config/mimi/tiling/columns.py 8"
 debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
 relayout_on_resize = false   # a window the user resizes runs a pass too
