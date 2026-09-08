@@ -256,8 +256,14 @@ them:
 `bsp.py` keeps its whole tree there.
 
 **Use another language.** `layout` is a command line run through
-`settings.hook_shell`, so arguments are fine and nothing requires Python. A
-whole layout in shell and jq, one column per window:
+`settings.hook_shell`, so arguments are fine and nothing requires Python.
+Anything that reads stdin, speaks JSON, and writes stdout will do: Go, Rust,
+Swift, Ruby, Lua, a shell script. Two things matter more than the language.
+Startup time, since the program runs once per display on every window event
+and a compiled binary starts in a few milliseconds where Node takes tens.
+And a JSON codec, since `state` is how a layout remembers anything. The
+examples are Python because it ships with the Xcode Command Line Tools and
+needs no library. A whole layout in shell and jq, one column per window:
 
 ```sh
 #!/bin/sh
