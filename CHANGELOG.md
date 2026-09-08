@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.12.0](https://github.com/y3owk1n/mimi/compare/v0.11.1...v0.12.0) (2026-09-08)
+
+
+### Features
+
+* **tiling:** run a user-supplied layout program on window events ([#204](https://github.com/y3owk1n/mimi/issues/204)) ([379c425](https://github.com/y3owk1n/mimi/commit/379c425e741d086ffeb50f7aefcb4b0fac982ece))
+
+
+### Bug Fixes
+
+* **action,space:** raise the moved window after following it to a space ([#206](https://github.com/y3owk1n/mimi/issues/206)) ([3df2bf6](https://github.com/y3owk1n/mimi/commit/3df2bf6b3abe68b205834cecd41805df9e831ce7))
+
 ## [0.11.1](https://github.com/y3owk1n/mimi/compare/v0.11.0...v0.11.1) (2026-09-06)
 
 
