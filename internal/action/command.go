@@ -39,6 +39,7 @@ type Command struct {
 	MoveWindowToDisplay DisplayArg            `json:"moveWindowToDisplay,omitzero"`
 	ResizeWindow        ResizeWindowArgs      `json:"resizeWindow,omitzero"`
 	FocusApp            FocusAppArgs          `json:"focusApp,omitzero"`
+	ApplyFrames         ApplyFramesArgs       `json:"applyFrames,omitzero"`
 }
 
 // FocusAppArgs is focus_app's typed payload: the application, as a bundle
@@ -541,10 +542,17 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		return e.ResizeWindow(req)
+	case NameApplyFrames:
+		err := validateApplyFramesArgs(cmd.ApplyFrames)
+		if err != nil {
+			return err
+		}
+
+		return e.ApplyFrames(cmd.ApplyFrames)
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, apply_frames)",
 			cmd.Name,
 		)
 	}

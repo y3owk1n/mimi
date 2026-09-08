@@ -234,6 +234,25 @@ int MimiFindApplication(const char *query) {
 	}
 }
 
+static char *mimiCopyUTF8(NSString *string) {
+	const char *utf8 = string ? [string UTF8String] : NULL;
+	return utf8 ? strdup(utf8) : NULL;
+}
+
+char *MimiCopyApplicationName(int pid) {
+	@autoreleasepool {
+		NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:(pid_t)pid];
+		return mimiCopyUTF8(app.localizedName);
+	}
+}
+
+char *MimiCopyApplicationBundleID(int pid) {
+	@autoreleasepool {
+		NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:(pid_t)pid];
+		return mimiCopyUTF8(app.bundleIdentifier);
+	}
+}
+
 MimiAppWindow *MimiCopyApplicationWindows(int pid, int *count) {
 	if (!count)
 		return NULL;

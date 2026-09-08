@@ -16,7 +16,7 @@ func newActionCmd(state *cliState) *cobra.Command {
 		Long: `Perform immediate window and space utility actions.
 
 Available subcommands:
-  Window control:   focus_window, resize_window
+  Window control:   focus_window, resize_window, apply_frames
   Application:      focus_app
   Space control:    space, move_window_to_space
   Display control:  move_window_to_display
@@ -37,7 +37,8 @@ Examples:
   mimi action resize_window left-half
   mimi action resize_window left-half --cycle
   mimi action resize_window --width 800 --height 600 --anchor cc
-  mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl`,
+  mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl
+  mimi action apply_frames < frames.json`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			// The root command silences usage for everything that fails from
 			// its run function, because usage says nothing about a runtime
@@ -59,6 +60,7 @@ Examples:
 	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToDisplayCommand(state))
 	cmd.AddCommand(buildResizeWindowCommand(state))
+	cmd.AddCommand(buildApplyFramesCommand(state))
 
 	return cmd
 }

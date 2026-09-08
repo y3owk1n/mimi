@@ -113,7 +113,7 @@ func TestExecutor_QueryWindow_ErrorPaths(t *testing.T) {
 		wantCode derrors.Code
 	}{
 		{
-			name: "accessibility denied",
+			name: deniedCase,
 			desktop: func() *fakeDesktop {
 				desktop := desktopWithOneWindow()
 				desktop.accessibilityErr = derrors.New(derrors.CodeAccessibilityDenied, "denied")

@@ -69,6 +69,9 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Resize anchored to a corner      | `mimi action resize_window --width 1024 --height 768 --anchor br`         |
 | Read the active space as JSON    | `mimi query space`                                                        |
 | Read the frontmost window's frame| `mimi query window`                                                       |
+| List every window on the space   | `mimi query windows`                                                      |
+| List every display               | `mimi query displays`                                                     |
+| Apply a layout from a script     | `my-layout \| mimi action apply_frames` (see `examples/tiling/`)           |
 
 Full reference → [CLI Guide](docs/CLI.md)
 

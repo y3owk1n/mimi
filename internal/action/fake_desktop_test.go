@@ -16,6 +16,7 @@ type fakeWindow struct {
 	pid         int
 	number      uint32
 	frame       geometry.Rect
+	title       string
 	frameErr    error
 	activateErr error
 	setFrameErr error
@@ -48,6 +49,9 @@ type fakeDesktop struct {
 
 	// apps maps a query focus_app may be given to the pid it names.
 	apps map[string]int
+	// appInfo describes each running application by pid, as the windows
+	// query reports it.
+	appInfo map[int]action.AppInfo
 	// appWindows lists each application's windows front to back, as
 	// ApplicationWindows reports them; every id is one of windows'.
 	appWindows map[int][]action.AppWindow
@@ -101,6 +105,28 @@ func (d *fakeDesktop) WindowFrame(windowID action.WindowID) (geometry.Rect, erro
 	}
 
 	return d.windows[index].frame, nil
+}
+
+func (d *fakeDesktop) WindowTitle(windowID action.WindowID) (string, error) {
+	index, err := d.indexOf(windowID)
+	if err != nil {
+		return "", err
+	}
+
+	return d.windows[index].title, nil
+}
+
+func (d *fakeDesktop) ApplicationInfo(pid int) (action.AppInfo, error) {
+	info, ok := d.appInfo[pid]
+	if !ok {
+		return action.AppInfo{}, derrors.Newf(
+			derrors.CodeActionFailed,
+			"no running application with pid %d",
+			pid,
+		)
+	}
+
+	return info, nil
 }
 
 func (d *fakeDesktop) ActivateWindow(windowID action.WindowID) error {

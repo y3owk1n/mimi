@@ -262,12 +262,12 @@ func TestExecutor_FocusApp_ErrorPaths(t *testing.T) {
 func TestParseFocusAppArg(t *testing.T) {
 	t.Parallel()
 
-	got, err := action.ParseFocusAppArg([]string{"  com.apple.Safari "})
-	if err != nil || got != "com.apple.Safari" {
+	got, err := action.ParseFocusAppArg([]string{"  " + safariBundleID + " "})
+	if err != nil || got != safariBundleID {
 		t.Fatalf("ParseFocusAppArg(padded) = %q, %v, want the trimmed name and nil", got, err)
 	}
 
-	for _, args := range [][]string{nil, {""}, {"   "}, {"Safari", "Mail"}} {
+	for _, args := range [][]string{nil, {""}, {"   "}, {appQuery, "Mail"}} {
 		_, err := action.ParseFocusAppArg(args)
 		if err == nil || !derrors.IsCode(err, derrors.CodeInvalidInput) {
 			t.Errorf("ParseFocusAppArg(%q) error = %v, want invalid input", args, err)

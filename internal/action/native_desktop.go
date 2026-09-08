@@ -143,6 +143,29 @@ func (d *nativeDesktop) WindowFrame(id WindowID) (geometry.Rect, error) {
 	return frame, err
 }
 
+// WindowTitle reads one window's title.
+func (d *nativeDesktop) WindowTitle(id WindowID) (string, error) {
+	var title string
+
+	err := d.withWindow(id, func(element *native.Element) error {
+		title = element.Title()
+
+		return nil
+	})
+
+	return title, err
+}
+
+// ApplicationInfo describes the running application with the given pid.
+func (d *nativeDesktop) ApplicationInfo(pid int) (AppInfo, error) {
+	info, err := native.LookupApplication(pid)
+	if err != nil {
+		return AppInfo{}, err
+	}
+
+	return AppInfo{Name: info.Name, BundleID: info.BundleID}, nil
+}
+
 // SetWindowFrame moves and resizes one window.
 func (d *nativeDesktop) SetWindowFrame(id WindowID, frame geometry.Rect) error {
 	return d.withWindow(id, func(element *native.Element) error {

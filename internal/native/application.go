@@ -38,6 +38,38 @@ func FindApplication(query string) (int, error) {
 	return pid, nil
 }
 
+// ApplicationInfo describes a running application by pid: its localized name
+// and its bundle identifier. Either is "" when macOS does not report it.
+type ApplicationInfo struct {
+	Name     string
+	BundleID string
+}
+
+// LookupApplication describes the running application with the given pid,
+// reporting an error when no application has it.
+func LookupApplication(pid int) (ApplicationInfo, error) {
+	cName := C.MimiCopyApplicationName(C.int(pid))
+	if cName == nil {
+		return ApplicationInfo{}, derrors.Newf(
+			derrors.CodeActionFailed,
+			"no running application with pid %d",
+			pid,
+		)
+	}
+	defer C.free(unsafe.Pointer(cName)) //nolint:nlreturn
+
+	info := ApplicationInfo{Name: C.GoString(cName)}
+
+	cBundle := C.MimiCopyApplicationBundleID(C.int(pid))
+	if cBundle != nil {
+		info.BundleID = C.GoString(cBundle)
+
+		C.free(unsafe.Pointer(cBundle))
+	}
+
+	return info, nil
+}
+
 // ApplicationWindows lists an application's real, unminimized windows on
 // every space, front to back, which is most recently used first.
 func ApplicationWindows(pid int) ([]AppWindow, error) {

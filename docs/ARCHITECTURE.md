@@ -56,6 +56,7 @@ it is what checks that the real desktop behaves the way the fake pretends to.
 | `move_window_to_space` | Private SkyLight (`SLSMoveWindowsToManagedSpace`) |
 | `move_window_to_display` | Accessibility (`AXUIElement`), `NSScreen` for the display list |
 | `resize_window` | Accessibility (`AXUIElement`), `NSScreen` for the visible frame |
+| `apply_frames` | Accessibility (`AXUIElement`), one frame write per window named by window number |
 
 CLI actions pump the run loop briefly after posting events so gestures complete before the process exits.
 
@@ -69,6 +70,15 @@ Each action builds its command through the constructor `internal/action` gives i
 JSON. A query runs on the direct path only: it has no side effect to serialize
 with the daemon's actions, so routing it over the socket would cost a wire
 change and buy nothing.
+
+### Tiling is a script, not a feature
+
+mimi ships no layout engine. `query windows` and `query displays` give a
+script everything on the active space with frames in window coordinates, and
+`apply_frames` writes a whole layout back in one action. What goes in between
+is the user's program, run from a hook or a hotkey. `examples/tiling/` holds
+starting points to copy; they are not loaded by mimi and carry no promise
+beyond the JSON shapes above.
 
 ---
 
@@ -105,7 +115,8 @@ Matches events against configured hooks, applies filters (`app`, `bundle_id`, `t
 cmd/mimi/           CLI entry point and commands
 internal/
   action/           Action dispatch (focus_window, space, move_window_to_space,
-                    move_window_to_display, resize_window), the queries, the
+                    move_window_to_display, resize_window, apply_frames),
+                    the queries, the
                     Desktop seam and its native adapter
   native/           All Objective-C + CGO: AX window wrappers, Mission Control
                     space operations, screen queries, and the observer bridge

@@ -150,6 +150,23 @@ func (e *Element) Number() uint32 {
 	return uint32(C.MimiGetWindowNumber(e.ref)) //nolint:nlreturn // cgo call expansion
 }
 
+// Title returns the window's title, or "" when it has none or it cannot be
+// read: a window without a title is still a window, so there is no error to
+// report.
+func (e *Element) Title() string {
+	if e.ref == nil {
+		return ""
+	}
+
+	cTitle := C.MimiCopyWindowTitle(e.ref) //nolint:nlreturn // cgo call expansion
+	if cTitle == nil {
+		return ""
+	}
+	defer C.free(unsafe.Pointer(cTitle)) //nolint:nlreturn
+
+	return C.GoString(cTitle)
+}
+
 // GetFrame returns the window's position and size [x, y, w, h] in screen coordinates.
 func (e *Element) GetFrame() (float64, float64, float64, float64, error) {
 	if e.ref == nil {

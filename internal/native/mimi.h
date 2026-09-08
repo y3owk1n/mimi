@@ -21,6 +21,9 @@ int MimiActivateWindow(void *window);
 int MimiGetWindowPID(void *window);
 /// Return the window server's number for the window, or 0 when it has none.
 uint32_t MimiGetWindowNumber(void *window);
+/// Copy the window's title as a UTF-8 string the caller frees, or NULL when
+/// the window has none or it cannot be read.
+char *MimiCopyWindowTitle(void *window);
 
 #pragma mark - Application Functions
 
@@ -35,6 +38,12 @@ typedef struct {
 /// Resolve a running application by bundle identifier or localized name
 /// (case-insensitive). Returns its pid, or 0 when nothing running matches.
 int MimiFindApplication(const char *query);
+/// Copy a running application's localized name as a UTF-8 string the caller
+/// frees, or NULL when no application has that pid.
+char *MimiCopyApplicationName(int pid);
+/// Copy a running application's bundle identifier as a UTF-8 string the
+/// caller frees, or NULL when no application has that pid or it has none.
+char *MimiCopyApplicationBundleID(int pid);
 /// Copy an application's real, unminimized windows on every space, front to
 /// back. Sets *count; the caller frees the array. Auxiliary windows (popovers,
 /// sheets, tab previews) are left out.

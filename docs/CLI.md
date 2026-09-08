@@ -89,6 +89,7 @@ mimi action move_window_to_display next
 mimi action resize_window left-half
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor cc
+mimi action apply_frames < frames.json
 ```
 
 ### `mimi action focus_window`
@@ -237,6 +238,36 @@ mimi action resize_window left-half --cycle
 mimi action resize_window center --width-percent 80 --height-percent 90
 ```
 
+### `mimi action apply_frames [--file path]`
+
+Move and resize several windows on the active space in one action. The frames
+come in as a JSON array on stdin, or from a file with `--file`, each naming a
+window by the `number` that `mimi query windows` reported and the frame to give
+it, in window coordinates. **Accessibility permission is required.**
+
+```
+[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}},
+ {"number":4243,"frame":{"x":720,"y":25,"width":720,"height":875}}]
+```
+
+Every frame is attempted in order, whatever happened to the ones before it: a
+layout is more useful mostly applied than abandoned at its first failure. The
+action fails when any frame did not land, naming each window it could not place
+and why. A window that is not on the active space cannot be placed. The payload
+is rejected before anything moves when it is empty, names a window twice, names
+window 0, or gives a frame without a positive width and height.
+
+Together with `mimi query windows` and `mimi query displays` this is the whole
+of what a tiling script needs from mimi: list, decide, apply. mimi ships no
+layout of its own. `examples/tiling/` in the repository holds scripts to copy
+and make your own.
+
+```bash
+mimi action apply_frames < frames.json
+mimi action apply_frames --file frames.json
+./columns.sh | mimi action apply_frames
+```
+
 ---
 
 ## Queries
@@ -248,6 +279,8 @@ CLI's own process. A running daemon is neither consulted nor required.
 ```bash
 mimi query space
 mimi query window
+mimi query windows
+mimi query displays
 ```
 
 A query that fails prints nothing on stdout and reports the error the way every
@@ -276,6 +309,34 @@ which is what `--x` and `--y` take. **Accessibility permission is required.**
 ```
 $ mimi query window
 {"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}
+```
+
+### `mimi query windows`
+
+List every focusable window on the active space, the ones `focus_window`
+cycles, in that order. `focused` is the index of the focused window among them,
+or -1 when none holds focus. `number` is the window server's number, stable for
+the window's lifetime, and what `apply_frames` takes to name a window. Frames
+are in window coordinates. A window whose frame cannot be read is left out; a
+window whose title or application cannot be read is kept with those fields
+empty. **Accessibility permission is required.**
+
+```
+$ mimi query windows
+{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875}}]}
+```
+
+### `mimi query displays`
+
+List every connected display, numbered the way `move_window_to_display` counts
+them: left to right, then top to bottom. `frame` is the whole display and
+`visible` is the part a window may occupy, less the menu bar and the Dock. Both
+are in window coordinates, so a frame computed from `visible` can be handed to
+`apply_frames` as it is. Needs no Accessibility permission.
+
+```
+$ mimi query displays
+[{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},"visible":{"x":0,"y":25,"width":1440,"height":875}}]
 ```
 
 Pipe through `jq` to pick one field:

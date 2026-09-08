@@ -533,6 +533,25 @@ uint32_t MimiGetWindowNumber(void *window) {
 	return (uint32_t)number;
 }
 
+char *MimiCopyWindowTitle(void *window) {
+	if (!window)
+		return NULL;
+
+	CFTypeRef value = NULL;
+	if (AXUIElementCopyAttributeValue((AXUIElementRef)window, kAXTitleAttribute, &value) != kAXErrorSuccess || !value)
+		return NULL;
+
+	char *title = NULL;
+	if (CFGetTypeID(value) == CFStringGetTypeID()) {
+		const char *utf8 = [(__bridge NSString *)value UTF8String];
+		if (utf8)
+			title = strdup(utf8);
+	}
+	CFRelease(value);
+
+	return title;
+}
+
 int MimiActivateWindow(void *window) {
 	if (!window)
 		return 0;
