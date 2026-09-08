@@ -78,6 +78,35 @@ func validateApplyFramesArgs(args ApplyFramesArgs) error {
 	return nil
 }
 
+// FocusWindowNumber gives keyboard focus to the window with the given
+// number on the active space, the way a layout asks for it after moving
+// focus along its own structure.
+func (e *Executor) FocusWindowNumber(number uint32) error {
+	err := e.desktop.EnsureAccessible()
+	if err != nil {
+		return err
+	}
+
+	windows, _, err := e.desktop.FocusableWindows()
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
+	}
+
+	for _, win := range windows {
+		if win.Number == number {
+			return e.desktop.ActivateWindow(win.ID)
+		}
+	}
+
+	return derrors.Newf(derrors.CodeActionFailed, "window %d is not on the active space", number)
+}
+
+// FocusWindowNumber focuses a window by number on the desktop mimi is
+// running on.
+func FocusWindowNumber(number uint32) error {
+	return defaultExecutor.FocusWindowNumber(number)
+}
+
 // ApplyFrames moves and resizes several windows on the active space in one
 // action. Every frame is attempted, in order, whatever happened to the ones
 // before it: a layout is more useful mostly applied than abandoned at its

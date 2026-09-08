@@ -59,6 +59,10 @@ type Input struct {
 type Output struct {
 	Frames []action.WindowFrame `json:"frames"`
 	State  json.RawMessage      `json:"state"`
+	// Focus, when set, is the window the layout wants keyboard focus on
+	// once the frames are applied: how a layout moves focus along its own
+	// structure, a strip's next column say, where spatial focus cannot.
+	Focus uint32 `json:"focus,omitempty"`
 }
 
 // Event kinds the engine reports beyond the hookable ones it forwards from

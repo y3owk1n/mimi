@@ -68,6 +68,8 @@ Output:
 
 `frames` is what `mimi action apply_frames` takes. Every frame is attempted
 even after one fails. Print nothing, or an empty `frames`, to change nothing.
+An optional `focus`, a window number, asks for keyboard focus on that window
+once the frames are applied.
 
 All frames are in window coordinates: the origin is the top left of the
 primary display and y grows downward. A display above or taller than the
@@ -84,6 +86,7 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 | `monocle.py` | Every window fills the display; move between them with focus. The smallest layout there is, and the one to copy when starting your own. |
 | `columns.py` | Equal-width columns. No state, no commands. |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
+| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. Answers `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction]`, `center`, `scroll <dir>`, `togglemax`; a dragged edge sets a column's width and a window dropped on a column joins it. |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
 | `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the area to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |
 

@@ -259,8 +259,9 @@ dragged:
  "state":null}
 ```
 
-The output is the frames, in the shape `mimi action apply_frames` takes, and
-the state to hand back next time. Printing nothing changes nothing:
+The output is the frames, in the shape `mimi action apply_frames` takes, the
+state to hand back next time, and optionally `focus`, a window number to give
+keyboard focus once the frames are applied. Printing nothing changes nothing:
 
 ```json
 {"frames":[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}}],

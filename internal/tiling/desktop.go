@@ -18,6 +18,9 @@ func (LiveDesktop) ActiveSpaces() (map[uint32]int, error) { return action.QueryA
 // Margins is the system tiled-window margins setting.
 func (LiveDesktop) Margins() (action.MarginsInfo, error) { return action.QueryMargins() }
 
+// Focus gives keyboard focus to a window by number.
+func (LiveDesktop) Focus(number uint32) error { return action.FocusWindowNumber(number) }
+
 // Apply writes the frames the way apply_frames does.
 func (LiveDesktop) Apply(frames []action.WindowFrame) error {
 	cmd, err := action.NewApplyFramesCommand(frames)

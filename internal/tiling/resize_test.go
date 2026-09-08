@@ -44,6 +44,8 @@ func (d *snappingDesktop) ActiveSpaces() (map[uint32]int, error) { return map[ui
 
 func (d *snappingDesktop) Margins() (action.MarginsInfo, error) { return action.MarginsInfo{}, nil }
 
+func (d *snappingDesktop) Focus(uint32) error { return nil }
+
 func (d *snappingDesktop) Apply(frames []action.WindowFrame) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()

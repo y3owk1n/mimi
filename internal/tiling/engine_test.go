@@ -33,6 +33,16 @@ type fakeDesktop struct {
 	spaces   map[uint32]int
 	applied  [][]action.WindowFrame
 	applyErr error
+	focused  []uint32
+}
+
+func (d *fakeDesktop) Focus(number uint32) error {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.focused = append(d.focused, number)
+
+	return nil
 }
 
 func (d *fakeDesktop) Windows() (action.WindowsInfo, error)     { return d.windows, nil }
@@ -592,5 +602,29 @@ func TestEngine_Input_GapFollowsTheConfigThenTheMargin(t *testing.T) {
 				t.Fatalf("gap = %v, want %v", inputs[0].Gap, testCase.want)
 			}
 		})
+	}
+}
+
+// TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor pins the one thing a
+// layout may ask for beyond frames: keyboard focus on a window, applied
+// after the frames, and alone when there are no frames.
+func TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null, focus: 1}'`), shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventCommand, Name: "focus"})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if len(desktop.applied) != 0 || len(desktop.focused) != 1 || desktop.focused[0] != 1 {
+		t.Fatalf(
+			"applied %d, focused %v; want nothing applied and window 1 focused",
+			len(desktop.applied),
+			desktop.focused,
+		)
 	}
 }

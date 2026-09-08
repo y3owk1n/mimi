@@ -73,6 +73,7 @@ The three layouts shipped:
 | `columns.py` | Equal columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
+| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, columns that do not fit park at the edge as slivers. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction]`, `center`, `scroll <dir>`, `togglemax` |
 
 None of them takes a gap: the gap is `tiling.gap` in the config when you set
 it, and otherwise the macOS tiled-window margin, the same setting
@@ -101,7 +102,7 @@ window event ──▶ daemon settles the burst (debounce_ms)
   a window on it, with that display's windows and that display's own state,
   so a layout only ever thinks about one display.
 - **Events that wake it:** a window created, closed, or focused; an
-  application hidden, unhidden, or quit; a space change; the daemon starting
+  application activated, hidden, unhidden, or quit; a space change; the daemon starting
   with tiling on; a reload that switches it on or names another layout; and,
   when `relayout_on_drag = true`, a window the user moved or resized. Every
   burst of events becomes one run of your program.
@@ -178,7 +179,10 @@ Your program reads one JSON document on stdin and prints one on stdout.
 
 `frames` is applied in order, every one attempted even if an earlier one
 fails. Leave a window out to leave it where it is. Print nothing at all, or
-an empty `frames`, to change nothing. `state` may be any JSON.
+an empty `frames`, to change nothing. `state` may be any JSON. An optional
+`focus`, a window number, asks for keyboard focus on that window once the
+frames are applied: how a layout moves focus along its own structure where
+spatial `focus_window` cannot, such as along a strip's parked columns.
 
 ### Coordinates
 
@@ -286,8 +290,24 @@ Two more that are not commands: `mimi tiling relayout` sends a `relayout`
 event, useful as a "put everything back" key, and `mimi tiling preview` sends
 `preview` and applies nothing.
 
-Bind them in whatever you use for hotkeys. With skhd, the set `bsp.py`
-answers:
+Bind them in whatever you use for hotkeys. With skhd, the set `strip.py`
+answers. Its `focus` walks the strip itself, since the parked columns all
+sit at the edge where spatial focus cannot tell them apart:
+
+```
+alt - h         : mimi tiling cmd focus left
+alt - l         : mimi tiling cmd focus right
+alt - j         : mimi tiling cmd focus down
+alt - k         : mimi tiling cmd focus up
+alt - shift - h : mimi tiling cmd move left
+alt - shift - l : mimi tiling cmd move right
+alt - r         : mimi tiling cmd width
+alt - c         : mimi tiling cmd center
+alt - comma     : mimi tiling cmd consume
+alt - period    : mimi tiling cmd expel
+```
+
+And the set `bsp.py` answers:
 
 ```
 alt - h      : mimi tiling cmd swap left

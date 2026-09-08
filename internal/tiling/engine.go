@@ -25,6 +25,7 @@ type Desktop interface {
 	ActiveSpaces() (map[uint32]int, error)
 	Margins() (action.MarginsInfo, error)
 	Apply(frames []action.WindowFrame) error
+	Focus(number uint32) error
 }
 
 // Serializer runs fn where the desktop is safe to drive. The daemon hands in
@@ -159,6 +160,7 @@ func (e *Engine) Enabled() bool {
 //
 //nolint:gochecknoglobals // a fixed set
 var wakingKinds = map[events.EventKind]bool{
+	events.AppActivate:      true,
 	events.WindowCreated:    true,
 	events.WindowClosed:     true,
 	events.WindowFocus:      true,
@@ -280,7 +282,10 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		return err
 	}
 
-	var frames []action.WindowFrame
+	var (
+		frames []action.WindowFrame
+		focus  uint32
+	)
 
 	for _, input := range inputs {
 		out, reduceErr := e.layout.Reduce(ctx, input)
@@ -293,9 +298,13 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		}
 
 		frames = append(frames, out.Frames...)
+
+		if out.Focus != 0 {
+			focus = out.Focus
+		}
 	}
 
-	if len(frames) == 0 {
+	if len(frames) == 0 && focus == 0 {
 		return nil
 	}
 
@@ -308,7 +317,20 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		return nil
 	}
 
-	err = e.run(func() error { return e.desktop.Apply(frames) })
+	err = e.run(func() error {
+		if len(frames) == 0 {
+			return nil
+		}
+
+		return e.desktop.Apply(frames)
+	})
+
+	if focus != 0 {
+		focusErr := e.run(func() error { return e.desktop.Focus(focus) })
+		if focusErr != nil {
+			e.logger.Debugw("tiling pass could not focus", "window", focus, "err", focusErr)
+		}
+	}
 
 	// Whatever the apply reported, some frames may have landed: remember
 	// them all as requested, then read back where they are.

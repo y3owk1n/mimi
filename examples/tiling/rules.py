@@ -122,14 +122,18 @@ def _on(frame, bounds):
     return bounds["x"] <= cx < bounds["x"] + bounds["width"] and bounds["y"] <= cy < bounds["y"] + bounds["height"]
 
 
-def write_output(frames, state):
-    """Print the layout output: frames in whole points, and the state to
-    get back next time."""
+def write_output(frames, state, focus=None):
+    """Print the layout output: frames in whole points, the state to get
+    back next time, and the window to focus once the frames are applied,
+    when the layout moved focus along its own structure."""
     frames = [
         {"number": number, "frame": {k: int(round(v)) for k, v in frame.items()}}
         for number, frame in frames
     ]
-    json.dump({"frames": frames, "state": state}, sys.stdout)
+    out = {"frames": frames, "state": state}
+    if focus is not None:
+        out["focus"] = focus
+    json.dump(out, sys.stdout)
 
 
 def maximised(inp, state, frames, area):
