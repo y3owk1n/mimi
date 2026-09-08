@@ -75,7 +75,8 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 
 | File | What it does |
 | --- | --- |
-| `columns.py [gap]` | Equal-width columns across the display holding the focused window. No state, no commands: the one to copy when starting your own. |
+| `monocle.py [gap]` | Every window fills the display; move between them with focus. The smallest layout there is, and the one to copy when starting your own. |
+| `columns.py [gap]` | Equal-width columns. No state, no commands. |
 | `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
 | `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
 | `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the area to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |

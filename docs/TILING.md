@@ -69,7 +69,8 @@ The three layouts shipped:
 
 | Layout | Shape | Commands it answers |
 | --- | --- | --- |
-| `columns.py [gap]` | Equal columns. The one to copy when starting your own. | `togglemax` |
+| `monocle.py [gap]` | Every window fills the display; switch with focus. The one to copy when starting your own. | none |
+| `columns.py [gap]` | Equal columns. | `togglemax` |
 | `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
 

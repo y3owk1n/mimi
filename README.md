@@ -182,7 +182,7 @@ layout = "~/.config/mimi/tiling/bsp.py 10"   # copied from examples/tiling/
 relayout_on_drag = true                      # drag an edge to resize a split, drop on a window to swap
 ```
 
-Three layouts ship as starting points to copy and edit — equal columns, master and stack, and a Hyprland-style dwindle BSP — plus the commands they answer, which you bind like any other:
+Four layouts ship as starting points to copy and edit — monocle, equal columns, master and stack, and a Hyprland-style dwindle BSP — plus the commands they answer, which you bind like any other:
 
 ```bash
 mimi tiling preview          # what your layout would do, applied to nothing
