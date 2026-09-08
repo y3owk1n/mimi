@@ -73,6 +73,36 @@ def write_output(frames, state):
     json.dump({"frames": frames, "state": state}, sys.stdout)
 
 
+def maximised(inp, state, frames, area):
+    """A temporary maximise, as Hyprland's fullscreen toggle: the focused
+    window fills the whole area over the layout, whose own frames and state
+    are left exactly as they were underneath.
+
+      mimi tiling cmd togglemax
+
+    It ends when the command runs again, when the window goes away, or when
+    focus moves to another tiled window, so the layout comes back the moment
+    you leave. Call it last, on the frames the layout computed; it returns
+    the frames to print and keeps its one fact in state["maximised"]."""
+    numbers = [number for number, _ in frames]
+    focused = (
+        inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
+    )
+    current = state.get("maximised")
+
+    if command(inp, "togglemax") is not None and focused in numbers:
+        current = None if current == focused else focused
+    elif current not in numbers:
+        current = None
+    elif inp["event"]["kind"] == "window_focus" and focused not in (None, current):
+        current = None
+
+    state["maximised"] = current
+    if current is None:
+        return frames
+    return [(n, area if n == current else f) for n, f in frames]
+
+
 def command(inp, name):
     """The command's arguments when the event is that command, else None."""
     event = inp["event"]

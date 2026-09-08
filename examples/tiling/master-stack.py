@@ -7,6 +7,7 @@ not reshuffle the layout, and the layout answers two commands of its own:
 
   mimi tiling cmd swap           make the focused window the master
   mimi tiling cmd ratio +0.05    widen the master (or -0.05 to narrow it)
+  mimi tiling cmd togglemax      fill the area with the focused window, for now
 
 mimi gives those names no meaning; this file does. Add your own. With
 tiling.relayout_on_drag set, dragging the edge between the master and the
@@ -23,7 +24,7 @@ Usage: master-stack.py [ratio] [gap]
 
 import sys
 
-from rules import clamp, command, read_input, visible_area, write_output
+from rules import clamp, command, maximised, read_input, visible_area, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 GAP = float(sys.argv[2]) if len(sys.argv) > 2 else 8.0
@@ -98,7 +99,8 @@ def main():
             )
         )
 
-    write_output(frames, {"master": master, "ratio": ratio})
+    state.update(master=master, ratio=ratio)
+    write_output(maximised(inp, state, frames, area), state)
 
 
 if __name__ == "__main__":

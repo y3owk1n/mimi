@@ -15,6 +15,8 @@ Commands the layout answers (mimi gives them no meaning; this file does):
                                               window's share of its split
   mimi tiling cmd togglefloat                 take the focused window out of the
                                               tree, or put it back
+  mimi tiling cmd togglemax                   fill the area with the focused
+                                              window, for now
 
 With tiling.relayout_on_drag set, dragging any edge of any window resizes the
 split that edge belongs to, and the rest of the tree follows; dragging a
@@ -29,7 +31,7 @@ Usage: bsp.py [gap]
 import sys
 
 from rules import clamp as clamp_to
-from rules import command, read_input, visible_area, write_output
+from rules import command, maximised, read_input, visible_area, write_output
 
 GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
@@ -298,6 +300,7 @@ def main():
     layout(tree, area, rects)
     frames = [(number, rect) for number, rect in rects.items()]
     state["tree"] = tree
+    frames = maximised(inp, state, frames, area)
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }

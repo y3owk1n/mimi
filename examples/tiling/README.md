@@ -72,7 +72,7 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 | `columns.py [gap]` | Equal-width columns across the display holding the focused window. No state, no commands: the one to copy when starting your own. |
 | `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
 | `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
-| `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the display to fill, reading the input and writing the output. |
+| `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the display to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |
 | `standalone.sh <layout> [args]` | Run any layout once without the daemon. Shell and `jq`. |
 
 The contract needs no particular language. This is a whole layout in
@@ -124,7 +124,12 @@ alt - k : mimi tiling cmd swap up
 alt - j : mimi tiling cmd swap down
 alt - t : mimi tiling cmd togglesplit
 alt - f : mimi tiling cmd togglefloat
+alt - m : mimi tiling cmd togglemax
 ```
+
+`togglemax` works in every layout here: the focused window fills the area
+until you toggle again, close it, or focus another tiled window, and the
+layout underneath is untouched the whole time.
 
 With the daemon running these reach its engine, and the state it holds. With
 no daemon they run in the CLI with a null state, which is enough for
