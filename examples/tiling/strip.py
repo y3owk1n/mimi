@@ -19,8 +19,11 @@ Commands the layout answers (mimi gives them no meaning; this file does):
                                          on its left, stacked below
   mimi tiling cmd expel                  push the focused window out into a
                                          column of its own, to the right
-  mimi tiling cmd width [fraction]       cycle the focused column through a
-                                         third, a half, two thirds; or set one
+  mimi tiling cmd width [fraction|prev|+d|-d]
+                                        cycle the focused column through a
+                                        third, a half, two thirds (prev goes
+                                        back); set a fraction; or nudge it by
+                                        d, as niri's +10%
   mimi tiling cmd center                 scroll the focused column to the middle
   mimi tiling cmd scroll <left|right> [fraction]
                                         scroll the strip a step that way, a
@@ -206,8 +209,14 @@ def main():
             columns.insert(at + 1, {"windows": [focused], "width": column["width"]})
             at += 1
         elif name == "width":
-            if args:
-                column["width"] = clamp(float(args[0]), MIN_WIDTH, MAX_WIDTH)
+            arg = args[0] if args else ""
+            if arg.startswith(("+", "-")):
+                column["width"] = clamp(column["width"] + float(arg), MIN_WIDTH, MAX_WIDTH)
+            elif arg == "prev":
+                earlier = [p for p in PRESETS if p < column["width"] - 0.01]
+                column["width"] = earlier[-1] if earlier else PRESETS[-1]
+            elif arg:
+                column["width"] = clamp(float(arg), MIN_WIDTH, MAX_WIDTH)
             else:
                 later = [p for p in PRESETS if p > column["width"] + 0.01]
                 column["width"] = later[0] if later else PRESETS[0]

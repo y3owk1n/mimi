@@ -73,7 +73,7 @@ The three layouts shipped:
 | `columns.py` | Equal columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
-| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction]`, `center`, `scroll <dir> [fraction]`, `togglemax` |
+| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction|prev|+d|-d]`, `center`, `scroll <dir> [fraction]`, `togglemax` |
 
 None of them takes a gap: the gap is `tiling.gap` in the config when you set
 it, and otherwise the macOS tiled-window margin, the same setting
