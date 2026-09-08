@@ -15,7 +15,8 @@ keep working across mimi versions except the JSON contract below.
 
 A layout is a program. It reads one JSON document on stdin and prints one on
 stdout. The daemon runs it on every window event; `mimi tiling preview` runs
-it once by hand; `standalone.sh` runs it without a daemon at all.
+it once by hand; run with nothing on stdin, a layout here lays the desktop
+out once by itself, with tiling off and no daemon at all.
 
 Input:
 
@@ -42,7 +43,7 @@ Input:
   or `startup` when the daemon starts with tiling on, or `reload` when a
   reload switches it on or changes the layout,
   or `preview` from `mimi tiling preview`, or `relayout` from
-  `mimi tiling relayout` and `standalone.sh`, or `command` from
+  `mimi tiling relayout` and a layout run by itself, or `command` from
   `mimi tiling cmd <name> [args...]`, which adds `"name"` and `"args"`.
   mimi gives a command name no meaning. Your program does, which is how it
   defines its own hotkeys.
@@ -85,7 +86,11 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
 | `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the area to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |
-| `standalone.sh <layout> [args]` | Run any layout once without the daemon. Shell and `jq`. |
+
+Run any of them with nothing on stdin and it lays the desktop out once by
+itself: the inputs the daemon would build, one run per display, frames
+applied. Tiling off, no daemon. That is `rules.py` at work, so a layout of
+your own that uses it gets the same.
 
 The contract needs no particular language. This is a whole layout in
 shell and jq, one column per window:
@@ -115,7 +120,7 @@ Try it before switching it on:
 ```bash
 mimi tiling preview --input      # what your program will be given
 mimi tiling preview              # what it returns, applied to nothing
-~/.config/mimi/tiling/standalone.sh ~/.config/mimi/tiling/columns.py   # apply once
+~/.config/mimi/tiling/columns.py   # apply once, tiling off, no daemon
 ```
 
 Bind the commands to hotkeys (skhd, Hammerspoon, Karabiner):

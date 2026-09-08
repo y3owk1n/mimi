@@ -368,11 +368,18 @@ entry per display.
 ```bash
 mimi tiling preview --input | jq     # what your program will be given
 mimi tiling preview | jq             # what it returns, applied to nothing
-~/.config/mimi/tiling/standalone.sh ~/.config/mimi/tiling/columns.py   # apply once, no daemon
+~/.config/mimi/tiling/columns.py     # apply once, no daemon, tiling off
 ```
 
 `preview` works with `enabled = false`, so you can iterate on a layout while
-the daemon leaves your windows alone, then flip it on. If your program prints
+the daemon leaves your windows alone, then flip it on.
+
+A shipped layout run with nothing on stdin, from a terminal or a hotkey,
+lays the desktop out once by itself: it builds the inputs the daemon would,
+runs once per display, and applies the frames. Tiling stays off and no daemon
+is needed, which makes any layout a one-shot command to bind to a key. State
+is null on such a run, and the gap is the macOS tiled-window margin, since no
+config is read. If your program prints
 something malformed, `preview` shows you the error the daemon would log.
 
 ---

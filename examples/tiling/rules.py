@@ -9,7 +9,9 @@ bundle identifier or a title pattern that should never be tiled.
 """
 
 import json
+import os
 import re
+import subprocess
 import sys
 
 FLOATING_BUNDLES = {
@@ -33,7 +35,16 @@ def floating(win):
 
 def read_input():
     """The layout input from stdin, with `windows` narrowed to the tileable
-    ones and `focused` re-pointed at the same window, or -1 if it went."""
+    ones and `focused` re-pointed at the same window, or -1 if it went.
+
+    Run with nothing on stdin, from a terminal or a hotkey, a layout drives
+    itself instead: it builds the inputs the daemon would, runs itself once
+    per display, applies the frames, and exits. That is how a layout is
+    used as a one-shot command with tiling off and no daemon running."""
+    if sys.stdin.isatty():
+        run_once()
+        sys.exit(0)
+
     inp = json.load(sys.stdin)
     focused_number = (
         inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
@@ -64,6 +75,51 @@ def area(inp, gap):
         "width": v["width"] - 2 * gap,
         "height": v["height"] - 2 * gap,
     }
+
+
+def run_once():
+    """Lay the desktop out once, the way the daemon would: one run of this
+    program per display that has a window, with that display's windows,
+    then every frame applied together. State is null, since only the daemon
+    remembers state, and the gap is the macOS tiled-window margin, since no
+    config is read here."""
+    query = lambda what: json.loads(subprocess.check_output(["mimi", "query", what]))
+    windows, displays = query("windows"), query("displays")
+    space, margins = query("space")["index"], query("margins")
+    gap = margins["size"] if margins["enabled"] else 0
+    focused = windows["windows"][windows["focused"]]["number"] if windows["focused"] >= 0 else None
+
+    frames = []
+    for display in displays:
+        mine = [w for w in windows["windows"] if _on(w["frame"], display["frame"])]
+        if not mine:
+            continue
+        numbers = [w["number"] for w in mine]
+        inp = {
+            "version": 1,
+            "event": {"kind": "relayout"},
+            "display": display,
+            "space": space,
+            "gap": gap,
+            "displays": displays,
+            "focused": numbers.index(focused) if focused in numbers else -1,
+            "windows": mine,
+            "state": None,
+        }
+        out = subprocess.run(
+            [sys.executable, os.path.abspath(sys.argv[0])] + sys.argv[1:],
+            input=json.dumps(inp), capture_output=True, text=True, check=True,
+        )
+        if out.stdout.strip():
+            frames.extend(json.loads(out.stdout).get("frames") or [])
+
+    if frames:
+        subprocess.run(["mimi", "action", "apply_frames"], input=json.dumps(frames), text=True, check=True)
+
+
+def _on(frame, bounds):
+    cx, cy = frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] / 2
+    return bounds["x"] <= cx < bounds["x"] + bounds["width"] and bounds["y"] <= cy < bounds["y"] + bounds["height"]
 
 
 def write_output(frames, state):
