@@ -39,13 +39,13 @@ from rules import area, clamp, command, gap, maximised, read_input, write_output
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
 MIN_WIDTH, MAX_WIDTH = 0.2, 1.0
-# How much of a column that does not fit whole stays visible at the edge, in
-# points. macOS refuses to put a window entirely off screen: asked for this,
-# it leaves about 16 points of a full-height window showing, its floor, so a
-# parked column is as hidden as a window on the space can be. It is reached
-# with the focus command, not by sight. A column is shown whole or as this
-# sliver, never cut somewhere across.
-PEEK = 8
+# How much of a column that does not fit whole stays visible at the display's
+# edge, in points. macOS refuses to put a window entirely off screen but
+# allows this little, so a parked column is as hidden as a window on the
+# space can be. It is reached with the focus command, not by sight. A column
+# is shown whole or as this sliver, never cut somewhere across. (paneru, the
+# other sliding tiler for macOS, parks at 5 for the same reason.)
+PEEK = 4
 
 
 # --- the strip ----------------------------------------------------------------
@@ -109,19 +109,19 @@ def scroll_into_view(columns, index, box, gap, offset):
     return clamp(offset, lo, hi)
 
 
-def frames_for(columns, box, gap, offset):
+def frames_for(columns, box, edge, gap, offset):
     """Frames for every column: the ones that fit whole at their place on
-    the strip, the ones that do not parked at the edge they are past, as a
-    sliver."""
+    the strip, the ones that do not parked past the display's edge (not the
+    gap-inset area's, or the gap would show too), as a sliver."""
     xs, _ = starts(columns, box, gap)
     frames = []
     for column, left in zip(columns, xs):
         width = col_width(column, box, gap)
         x = box["x"] + left - offset
         if left < offset - 0.5:
-            x = box["x"] - width + PEEK
+            x = edge["x"] - width + PEEK
         elif left + width > offset + box["width"] + 0.5:
-            x = box["x"] + box["width"] - PEEK
+            x = edge["x"] + edge["width"] - PEEK
         n = len(column["windows"])
         height = (box["height"] - gap * (n - 1)) / n
         for row, number in enumerate(column["windows"]):
@@ -159,6 +159,7 @@ def main():
     offset = float(state.get("offset") or 0)
     GAP = gap(inp)
     box = area(inp, GAP)
+    edge = inp["display"]["visible"]
     event = inp["event"]
     windows = inp["windows"]
     by_number = {w["number"]: w for w in windows}
@@ -209,7 +210,7 @@ def main():
             width = col_width(column, box, GAP)
             offset = max(0, xs[at] + width / 2 - box["width"] / 2)
             state.update(columns=columns, offset=offset)
-            write_output(maximised(inp, state, frames_for(columns, box, GAP, offset), box), state)
+            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
             return
         elif name == "scroll" and args:
             # To the next column boundary past the viewport's left edge, in
@@ -223,7 +224,7 @@ def main():
                 offset = behind[-1] if behind else 0
             offset = max(0, offset)
             state.update(columns=columns, offset=offset)
-            write_output(maximised(inp, state, frames_for(columns, box, GAP, offset), box), state)
+            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
             return
 
     elif event["kind"] == "window_resize":
@@ -253,7 +254,7 @@ def main():
 
     # Whatever happened, the focused column ends up in view.
     offset = scroll_into_view(columns, at, box, GAP, offset)
-    frames = maximised(inp, state, frames_for(columns, box, GAP, offset), box)
+    frames = maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box)
     state.update(columns=columns, offset=offset)
     state["placed"] = {str(n): {k: int(round(v)) for k, v in f.items()} for n, f in frames}
     write_output(frames, state, focus)
