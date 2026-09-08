@@ -538,8 +538,11 @@ func hasAppEvents(cfg *config.Config) bool {
 	return cfg.Hooks.HasGroup(config.GroupApp)
 }
 
+// hasWorkspaceEvents reports whether anything in cfg needs the workspace
+// observer: a workspace hook, or the tiling engine, which lays a space out
+// when it comes to the front.
 func hasWorkspaceEvents(cfg *config.Config) bool {
-	return cfg.Hooks.HasGroup(config.GroupWorkspace)
+	return cfg.Hooks.HasGroup(config.GroupWorkspace) || cfg.Tiling.Enabled
 }
 
 func getObserverConfig(cfg *config.Config) native.ObserverConfig {

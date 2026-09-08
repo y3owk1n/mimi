@@ -278,6 +278,16 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		return nil
 	}
 
+	// The layout ran on a snapshot; a space that changed under it would
+	// refuse every frame, and the switch itself raises the event that lays
+	// the new space out.
+	now, spaceErr := e.activeSpace()
+	if spaceErr == nil && now != space {
+		e.logger.Debugw("tiling pass skipped: space changed", "from", space, "to", now)
+
+		return nil
+	}
+
 	err = e.run(func() error { return e.desktop.Apply(out.Frames) })
 
 	// Whatever the apply reported, some frames may have landed: remember
@@ -513,6 +523,21 @@ func (e *Engine) inputLocked(event Event) (Input, error) {
 	}
 
 	return input, nil
+}
+
+// activeSpace reads the space in front through the serializer.
+func (e *Engine) activeSpace() (int, error) {
+	var space int
+
+	err := e.run(func() error {
+		var err error
+
+		space, err = e.desktop.ActiveSpace()
+
+		return err
+	})
+
+	return space, err
 }
 
 // run puts fn through the serializer when there is one.

@@ -300,20 +300,31 @@ func TestEngine_Run_SettlesABurstIntoOnePass(t *testing.T) {
 		close(done)
 	}()
 
-	for _, kind := range []events.EventKind{events.WindowCreated, events.WindowFocus, events.WindowClosed} {
-		sub <- events.Event{Kind: kind}
-	}
-
+	// The engine starts enabled, so its startup pass comes first; let it
+	// land before the burst so the two cannot merge into one.
 	deadline := time.Now().Add(3 * time.Second)
 	for desktop.appliedCount() == 0 && time.Now().Before(deadline) {
 		time.Sleep(10 * time.Millisecond)
 	}
 
-	// Give a second, unwanted pass the chance to show up.
+	for _, kind := range []events.EventKind{
+		events.WindowCreated,
+		events.WindowFocus,
+		events.WindowClosed,
+	} {
+		sub <- events.Event{Kind: kind}
+	}
+
+	deadline = time.Now().Add(3 * time.Second)
+	for desktop.appliedCount() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Give a further, unwanted pass the chance to show up.
 	time.Sleep(100 * time.Millisecond)
 
-	if got := desktop.appliedCount(); got != 1 {
-		t.Fatalf("burst of three events applied %d times, want 1", got)
+	if got := desktop.appliedCount(); got != 2 {
+		t.Fatalf("startup plus a burst of three events applied %d times, want 2", got)
 	}
 
 	input, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
