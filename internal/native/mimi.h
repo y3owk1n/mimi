@@ -38,6 +38,10 @@ typedef struct {
 /// Resolve a running application by bundle identifier or localized name
 /// (case-insensitive). Returns its pid, or 0 when nothing running matches.
 int MimiFindApplication(const char *query);
+/// Copy the pids of every running application with the regular activation
+/// policy that owns a window, in no particular order. Sets *count; the
+/// caller frees the array. NULL when there are none.
+int *MimiCopyRegularApplicationPIDs(int *count);
 /// Copy a running application's localized name as a UTF-8 string the caller
 /// frees, or NULL when no application has that pid.
 char *MimiCopyApplicationName(int pid);

@@ -37,10 +37,13 @@ type Router struct {
 	ax     *AXTracker
 	logger *zap.SugaredLogger
 
-	mu             sync.Mutex
-	timers         map[string]*resizeState
-	retries        map[int]*axRetry
-	retryDelays    []time.Duration
+	mu          sync.Mutex
+	timers      map[string]*resizeState
+	retries     map[int]*axRetry
+	retryDelays []time.Duration
+	// listRunning names the applications to attach to at startup; it is the
+	// native enumeration, replaced in tests.
+	listRunning    func() []int
 	stopped        bool
 	debounceWindow time.Duration
 }
@@ -87,6 +90,7 @@ func NewRouterWithDebounce(
 		timers:         make(map[string]*resizeState),
 		retries:        make(map[int]*axRetry),
 		retryDelays:    axRetryDelays,
+		listRunning:    native.RegularApplicationPIDs,
 		debounceWindow: debounceWindow,
 	}
 }
@@ -103,6 +107,14 @@ func (r *Router) SetDebounceWindow(window time.Duration) {
 	r.mu.Lock()
 	r.debounceWindow = window
 	r.mu.Unlock()
+}
+
+// DebounceWindow is the window resize events coalesce over.
+func (r *Router) DebounceWindow() time.Duration {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	return r.debounceWindow
 }
 
 // Run consumes native events until the context is canceled.
@@ -125,8 +137,24 @@ func (r *Router) Run(ctx context.Context) {
 	}
 }
 
+// AttachRunning attaches an observer to every running application that has
+// none yet, retrying the ones that refuse. The bridge's startup event calls
+// it, and so does a reload that switches window observation on: until then
+// an application already running when the daemon started went unobserved
+// until the user next switched to it, and every window it opened, closed or
+// resized in between was missed.
+func (r *Router) AttachRunning() {
+	for _, pid := range r.listRunning() {
+		if !r.ax.Install(pid) {
+			r.scheduleRetry(events.Event{Kind: events.AppLaunch, PID: pid}, 0)
+		}
+	}
+}
+
 func (r *Router) handle(evt events.Event) {
 	switch evt.Kind { //nolint:exhaustive
+	case events.Startup:
+		r.AttachRunning()
 	case events.AppActivate, events.AppLaunch:
 		if evt.PID > 0 {
 			if ok := r.ax.Install(evt.PID); ok {

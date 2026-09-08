@@ -32,6 +32,10 @@ const (
 	WindowResizing EventKind = "_window_resizing"
 	// WindowResize fires when a window resize is completed (debounced).
 	WindowResize EventKind = "window_resize"
+	// Startup is the one event the native bridge sends as the observers come
+	// up (raw, internal). The router attaches to the applications already
+	// running when it arrives.
+	Startup EventKind = "_startup_"
 	// AXAttached fires when the daemon's Accessibility observer reaches an
 	// application it could not observe when the application launched (raw,
 	// internal). Window events from that application flow from this point;

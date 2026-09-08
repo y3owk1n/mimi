@@ -56,7 +56,7 @@ func newTestReloadConfig(
 		t.Fatalf("failed to load the starting config: %v", err)
 	}
 
-	cfgReloader, _, _ := newTestReloader(t, cfg)
+	cfgReloader, _ := newTestReloader(t, cfg)
 
 	core, logs := observer.New(zapcore.DebugLevel)
 

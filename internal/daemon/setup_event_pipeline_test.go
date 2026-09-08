@@ -173,7 +173,7 @@ func TestSetupEventPipeline_ResizeDebounceReachesRouter(t *testing.T) {
 		{
 			name:         "zero debounce falls back to the router default",
 			debounceMS:   0,
-			wantDebounce: 0, // NewRouterWithDebounce(..., 0) applies its own default
+			wantDebounce: 250 * time.Millisecond, // NewRouterWithDebounce(..., 0) applies its own default
 		},
 	}
 
@@ -186,17 +186,7 @@ func TestSetupEventPipeline_ResizeDebounceReachesRouter(t *testing.T) {
 
 			result := mustSetupPipeline(t, cfg, logger, false)
 
-			// Router exposes no getter for its debounce window. Build a
-			// comparison router from the exact same bus/AX-tracker pointers
-			// and logger so every other field is trivially identical, which
-			// isolates the debounceWindow field in the comparison.
-			want := observe.NewRouterWithDebounce(
-				result.bus,
-				result.axTracker,
-				logger,
-				scenario.wantDebounce,
-			)
-			if !reflect.DeepEqual(want, result.router) {
+			if result.router.DebounceWindow() != scenario.wantDebounce {
 				t.Errorf(
 					"router debounce window was not built from settings.resize_debounce_ms=%d",
 					scenario.debounceMS,

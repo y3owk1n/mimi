@@ -60,11 +60,10 @@ func newRetryTestRouter(t *testing.T, failures int) (*Router, <-chan events.Even
 	return router, sub, fake
 }
 
-// drain reads events off sub until one of kind arrives or the timeout
+// drain reads events off sub until an AXAttached arrives or the timeout
 // passes, reporting whether it arrived.
 func drain(
 	sub <-chan events.Event,
-	kind events.EventKind,
 	timeout time.Duration,
 ) (events.Event, bool) {
 	deadline := time.After(timeout)
@@ -72,7 +71,7 @@ func drain(
 	for {
 		select {
 		case evt := <-sub:
-			if evt.Kind == kind {
+			if evt.Kind == events.AXAttached {
 				return evt, true
 			}
 		case <-deadline:
@@ -92,7 +91,7 @@ func TestHandle_AppLaunch_RetriesARefusedInstallAndAnnouncesIt(t *testing.T) {
 		events.Event{Kind: events.AppLaunch, PID: 77, AppName: testAppName, BundleID: testBundleID},
 	)
 
-	attached, ok := drain(sub, events.AXAttached, testFireTimeout)
+	attached, ok := drain(sub, testFireTimeout)
 	if !ok {
 		t.Fatalf("no %s within %s; installs = %d", events.AXAttached, testFireTimeout, fake.count())
 	}
@@ -121,7 +120,7 @@ func TestHandle_AppQuit_CancelsAPendingRetry(t *testing.T) {
 
 	before := fake.count()
 
-	if _, ok := drain(sub, events.AXAttached, testNoFireWait); ok {
+	if _, ok := drain(sub, testNoFireWait); ok {
 		t.Fatal("an application that quit was attached to")
 	}
 
@@ -135,12 +134,37 @@ func TestHandle_AppLaunch_GivesUpAfterTheSchedule(t *testing.T) {
 
 	router.handle(events.Event{Kind: events.AppLaunch, PID: 79, AppName: testAppName})
 
-	if _, ok := drain(sub, events.AXAttached, testNoFireWait); ok {
+	if _, ok := drain(sub, testNoFireWait); ok {
 		t.Fatal("attached to an application that never accepts")
 	}
 
 	// One at launch plus one per delay on the schedule, and no more.
 	if got, want := fake.count(), 1+len(router.retryDelays); got != want {
 		t.Fatalf("installs = %d, want %d", got, want)
+	}
+}
+
+// TestHandle_Startup_AttachesToEveryRunningApplication pins that the
+// applications already running when the daemon starts are observed from the
+// start, the ones that refuse on the retry schedule.
+func TestHandle_Startup_AttachesToEveryRunningApplication(t *testing.T) {
+	router, sub, fake := newRetryTestRouter(t, 1)
+	router.listRunning = func() []int { return []int{201, 202} }
+
+	router.handle(events.Event{Kind: events.Startup, AppName: "mimi"})
+
+	// 201 was refused once and retried; 202 was accepted first time.
+	if _, ok := drain(sub, testFireTimeout); !ok {
+		t.Fatal("the refused application was never attached to")
+	}
+
+	for _, pid := range []int{201, 202} {
+		if _, tracked := router.ax.tracked[pid]; !tracked {
+			t.Errorf("pid %d is not tracked after startup", pid)
+		}
+	}
+
+	if got := fake.count(); got != 3 {
+		t.Fatalf("installs = %d, want 3", got)
 	}
 }

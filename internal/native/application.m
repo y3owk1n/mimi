@@ -234,6 +234,38 @@ int MimiFindApplication(const char *query) {
 	}
 }
 
+int *MimiCopyRegularApplicationPIDs(int *count) {
+	if (!count)
+		return NULL;
+	*count = 0;
+
+	@autoreleasepool {
+		// Derived from the window list rather than -[NSWorkspace
+		// runningApplications], for the reason window.m gives: that array
+		// refreshes only while the main thread's run loop runs.
+		NSArray<NSNumber *> *owners = mimiAllWindowOwnerPIDs();
+		NSMutableArray<NSNumber *> *regular = [NSMutableArray array];
+		for (NSNumber *owner in owners) {
+			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:owner.intValue];
+			if (app && app.activationPolicy == NSApplicationActivationPolicyRegular)
+				[regular addObject:owner];
+		}
+
+		if (regular.count == 0)
+			return NULL;
+
+		int *pids = malloc(sizeof(int) * regular.count);
+		if (!pids)
+			return NULL;
+
+		for (NSUInteger i = 0; i < regular.count; i++)
+			pids[i] = regular[i].intValue;
+		*count = (int)regular.count;
+
+		return pids;
+	}
+}
+
 static char *mimiCopyUTF8(NSString *string) {
 	const char *utf8 = string ? [string UTF8String] : NULL;
 	return utf8 ? strdup(utf8) : NULL;

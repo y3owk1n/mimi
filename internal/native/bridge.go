@@ -67,7 +67,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 
 	eventCh <- events.Event{
 		ID:      uuid.NewString(),
-		Kind:    events.EventKind("_startup_"),
+		Kind:    events.Startup,
 		AppName: "mimi",
 		At:      time.Now(),
 	}

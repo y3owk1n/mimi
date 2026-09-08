@@ -108,7 +108,14 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	rl.router.SetDebounceWindow(time.Duration(cfg.Settings.ResizeDebounceMS) * time.Millisecond)
 
 	perm := permissions.Check()
-	rl.axTracker.Update(perm.Accessibility && hasWindowEvents(cfg))
+
+	observeWindows := perm.Accessibility && hasWindowEvents(cfg)
+
+	rl.axTracker.Update(observeWindows)
+
+	if observeWindows {
+		rl.router.AttachRunning()
+	}
 
 	if rl.tiler != nil {
 		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility), cfg.Settings.HookShell)

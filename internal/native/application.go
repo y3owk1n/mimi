@@ -38,6 +38,33 @@ func FindApplication(query string) (int, error) {
 	return pid, nil
 }
 
+// RegularApplicationPIDs lists the running applications a user sees in the
+// Dock and the app switcher, by pid, which are the ones whose windows the
+// daemon observes.
+func RegularApplicationPIDs() []int {
+	var count C.int
+
+	cPIDs := C.MimiCopyRegularApplicationPIDs(&count)
+	if cPIDs == nil || count == 0 {
+		if cPIDs != nil {
+			C.free(unsafe.Pointer(cPIDs))
+		}
+
+		return nil
+	}
+	defer C.free(unsafe.Pointer(cPIDs)) //nolint:nlreturn
+
+	countInt := int(count)
+	cSlice := (*[1 << 20]C.int)(unsafe.Pointer(cPIDs))[:countInt:countInt]
+	pids := make([]int, countInt)
+
+	for index, pid := range cSlice {
+		pids[index] = int(pid)
+	}
+
+	return pids
+}
+
 // ApplicationInfo describes a running application by pid: its localized name
 // and its bundle identifier. Either is "" when macOS does not report it.
 type ApplicationInfo struct {
