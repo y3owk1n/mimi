@@ -43,6 +43,16 @@ func (t *AXTracker) Update(enabled bool) {
 	}
 }
 
+// Enabled reports whether the tracker installs observers at all: false
+// while nothing configured needs window events, in which case there is
+// nothing to install, retry, or enumerate for.
+func (t *AXTracker) Enabled() bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
+	return t.enabled
+}
+
 // Install installs an AX observer for the given PID.
 func (t *AXTracker) Install(pid int) bool {
 	if !t.enabled {

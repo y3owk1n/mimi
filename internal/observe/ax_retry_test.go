@@ -11,6 +11,10 @@ import (
 	"github.com/y3owk1n/mimi/internal/events"
 )
 
+// daemonAppName is the application name the bridge puts on its own startup
+// event.
+const daemonAppName = "mimi"
+
 // flakyAX is an installAX that refuses the first failures attempts and
 // accepts after, recording every call. It is safe from the retry timers.
 type flakyAX struct {
@@ -151,7 +155,7 @@ func TestHandle_Startup_AttachesToEveryRunningApplication(t *testing.T) {
 	router, sub, fake := newRetryTestRouter(t, 1)
 	router.listRunning = func() []int { return []int{201, 202} }
 
-	router.handle(events.Event{Kind: events.Startup, AppName: "mimi"})
+	router.handle(events.Event{Kind: events.Startup, AppName: daemonAppName})
 
 	// 201 was refused once and retried; 202 was accepted first time.
 	if _, ok := drain(sub, testFireTimeout); !ok {
@@ -166,5 +170,45 @@ func TestHandle_Startup_AttachesToEveryRunningApplication(t *testing.T) {
 
 	if got := fake.count(); got != 3 {
 		t.Fatalf("installs = %d, want 3", got)
+	}
+}
+
+// TestHandle_WithWindowObservationOff_NeitherInstallsNorRetries pins that a
+// daemon with no window hooks and no tiling does what it did before the
+// retry existed: nothing. No install attempt, no retry timer, no
+// enumeration of running applications, and so no warning about giving up.
+func TestHandle_WithWindowObservationOff_NeitherInstallsNorRetries(t *testing.T) {
+	router, sub, fake := newRetryTestRouter(t, 100)
+	router.ax.Update(false)
+
+	enumerated := false
+	router.listRunning = func() []int {
+		enumerated = true
+
+		return []int{301}
+	}
+
+	router.handle(events.Event{Kind: events.Startup, AppName: daemonAppName})
+	router.handle(events.Event{Kind: events.AppLaunch, PID: 302, AppName: testAppName})
+	router.handle(events.Event{Kind: events.AppActivate, PID: 302, AppName: testAppName})
+
+	if _, ok := drain(sub, testNoFireWait); ok {
+		t.Fatal("attached with window observation off")
+	}
+
+	if enumerated {
+		t.Error("running applications were enumerated with window observation off")
+	}
+
+	if got := fake.count(); got != 0 {
+		t.Errorf("installs = %d, want 0", got)
+	}
+
+	router.mu.Lock()
+	pending := len(router.retries)
+	router.mu.Unlock()
+
+	if pending != 0 {
+		t.Errorf("retries pending = %d, want 0", pending)
 	}
 }

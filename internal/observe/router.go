@@ -144,6 +144,10 @@ func (r *Router) Run(ctx context.Context) {
 // until the user next switched to it, and every window it opened, closed or
 // resized in between was missed.
 func (r *Router) AttachRunning() {
+	if !r.ax.Enabled() {
+		return
+	}
+
 	for _, pid := range r.listRunning() {
 		if !r.ax.Install(pid) {
 			r.scheduleRetry(events.Event{Kind: events.AppLaunch, PID: pid}, 0)
@@ -156,7 +160,7 @@ func (r *Router) handle(evt events.Event) {
 	case events.Startup:
 		r.AttachRunning()
 	case events.AppActivate, events.AppLaunch:
-		if evt.PID > 0 {
+		if evt.PID > 0 && r.ax.Enabled() {
 			if ok := r.ax.Install(evt.PID); ok {
 				r.cancelRetry(evt.PID)
 			} else {
@@ -315,6 +319,12 @@ func (r *Router) retryInstall(pid int, retry *axRetry) {
 
 	delete(r.retries, pid)
 	r.mu.Unlock()
+
+	// Window observation switched off since the retry was armed: there is
+	// nothing to attach any more.
+	if !r.ax.Enabled() {
+		return
+	}
 
 	if !r.ax.Install(pid) {
 		r.scheduleRetry(retry.evt, retry.attempt+1)

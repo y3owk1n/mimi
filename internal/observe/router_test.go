@@ -629,7 +629,7 @@ func TestHandle_InternalKindReachesLogSubButNotHookFilteredSub(t *testing.T) {
 	logger := zap.NewNop().Sugar()
 	router := NewRouterWithDebounce(bus, ax, logger, testDebounceWindow)
 
-	router.handle(events.Event{Kind: events.EventKind("_startup_"), AppName: "mimi"})
+	router.handle(events.Event{Kind: events.EventKind("_startup_"), AppName: daemonAppName})
 
 	select {
 	case evt := <-logSub:
@@ -662,21 +662,18 @@ func TestHandle_InternalKindReachesLogSubButNotHookFilteredSub(t *testing.T) {
 
 // TestDebounceMove_SettlesIntoWindowMove pins that a drag debounces the way
 // a resize does, into window_move, and that a move and a resize of the same
-// window settle separately rather than one swallowing the other.
+// window settle separately rather than one swallowing the other. Coalescing
+// within one kind is TestDebounceResize_MultipleEventsCoalesce's business.
 func TestDebounceMove_SettlesIntoWindowMove(t *testing.T) {
 	router, sub := newTestRouter(t)
 
-	for range 3 {
-		router.handle(events.Event{
-			Kind:        events.WindowMoving,
-			PID:         7,
-			WindowID:    1,
-			WindowTitle: testWindowTitle,
-			AppName:     testAppShort,
-		})
-		time.Sleep(testCoalesceSpacing)
-	}
-
+	router.handle(events.Event{
+		Kind:        events.WindowMoving,
+		PID:         7,
+		WindowID:    1,
+		WindowTitle: testWindowTitle,
+		AppName:     testAppShort,
+	})
 	router.handle(events.Event{
 		Kind:        events.WindowResizing,
 		PID:         7,
@@ -698,5 +695,11 @@ func TestDebounceMove_SettlesIntoWindowMove(t *testing.T) {
 
 	if got[events.WindowMove] != 1 || got[events.WindowResize] != 1 {
 		t.Fatalf("settled %v, want one window_move and one window_resize", got)
+	}
+
+	select {
+	case evt := <-sub:
+		t.Fatalf("a third event settled: %s", evt.Kind)
+	case <-time.After(testNoFireWait):
 	}
 }
