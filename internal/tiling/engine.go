@@ -222,11 +222,16 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				return
 			}
 
-			if evt.Kind == events.WindowResize && !e.userResized() {
-				continue
+			event := eventOf(evt)
+
+			if evt.Kind == events.WindowResize {
+				event.Windows = e.userResized()
+				if len(event.Windows) == 0 {
+					continue
+				}
 			}
 
-			arm(eventOf(evt))
+			arm(event)
 		case event := <-e.wake:
 			arm(event)
 		case <-fire:
@@ -344,38 +349,41 @@ func (e *Engine) settleWindow() time.Duration {
 	return e.settle
 }
 
-// userResized decides what a resize event means. Within the grace after an
-// apply it is the engine's own write landing, possibly snapped by the
-// application, so the frames are read back again and remembered and the
-// event dropped. After it, the event is the user's if any window the engine
-// placed is no longer where it was placed.
-func (e *Engine) userResized() bool {
+// userResized decides what a resize event means, reporting the windows the
+// user moved, none when the event was not the user's. Within the grace after
+// an apply it is the engine's own write landing, possibly snapped by the
+// application, so the frames are read back again and remembered. After it,
+// the user's windows are the placed ones that are no longer where they were
+// placed.
+func (e *Engine) userResized() []uint32 {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
 	if !e.onResize || len(e.applied) == 0 {
-		return false
+		return nil
 	}
 
 	if time.Since(e.appliedAt) < e.resizeGrace {
 		e.rememberLocked()
 
-		return false
+		return nil
 	}
 
 	windows, err := e.readWindows()
 	if err != nil {
-		return false
+		return nil
 	}
+
+	var moved []uint32
 
 	for _, win := range windows.Windows {
 		placed, ok := e.applied[win.Number]
 		if ok && !sameFrame(placed, win.Frame) {
-			return true
+			moved = append(moved, win.Number)
 		}
 	}
 
-	return false
+	return moved
 }
 
 // rememberLocked reads back where the windows the engine placed actually

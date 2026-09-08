@@ -21,6 +21,10 @@ type Event struct {
 	PID      int      `json:"pid,omitempty"`
 	Name     string   `json:"name,omitempty"`
 	Args     []string `json:"args,omitempty"`
+	// Windows are the windows a window_resize event is about: the ones the
+	// user moved or resized, by number, so a layout knows which edge was
+	// dragged without diffing frames itself.
+	Windows []uint32 `json:"windows,omitempty"`
 }
 
 // Input is everything the layout is told: the event, the active space, the

@@ -77,7 +77,7 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 		DebounceMS:       10,
 		TimeoutSecs:      5,
 		Layout: `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 800, height: 800}}], ` +
-			`state: {last: .event.kind}}'`,
+			`state: {last: .event.kind, windows: .event.windows}}'`,
 	}, "/bin/sh")
 
 	ctx, cancel := context.WithCancel(context.Background())
@@ -138,8 +138,11 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
-	if string(input.State) != `{"last":"window_resize"}` {
-		t.Fatalf("state = %s, want the pass to have reported window_resize", input.State)
+	if string(input.State) != `{"last":"window_resize","windows":[1]}` {
+		t.Fatalf(
+			"state = %s, want the pass to have reported window_resize for window 1",
+			input.State,
+		)
 	}
 
 	cancel()

@@ -66,6 +66,7 @@ primary has a negative y. Fill `visible` from a display, never `frame`.
 | --- | --- | --- |
 | `columns.sh [gap]` | Equal-width columns across the display holding the focused window. | `jq` |
 | `master-stack.sh [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, and answers `swap` and `ratio +0.05`. | `jq` |
+| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. Python, standard library only. | `python3` |
 | `float-rules.jq` | jq definitions the two above include: `floating`, `tileable`, `display_for`. Edit the bundle ids and title patterns here. | `jq` |
 | `standalone.sh <layout> [args]` | Run any layout once without the daemon. | `jq` |
 
@@ -94,6 +95,17 @@ alt - return : mimi tiling cmd swap
 alt - l      : mimi tiling cmd ratio +0.05
 alt - h      : mimi tiling cmd ratio -0.05
 alt - r      : mimi tiling relayout
+```
+
+And for `bsp.py`, the Hyprland-shaped set:
+
+```
+alt - h : mimi tiling cmd swap left
+alt - l : mimi tiling cmd swap right
+alt - k : mimi tiling cmd swap up
+alt - j : mimi tiling cmd swap down
+alt - t : mimi tiling cmd togglesplit
+alt - f : mimi tiling cmd togglefloat
 ```
 
 With the daemon running these reach its engine, and the state it holds. With

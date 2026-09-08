@@ -237,7 +237,8 @@ the layout returned last time for that space, or `null` the first time.
 as it starts with tiling enabled; `reload` for the pass a reload runs when it
 switches tiling on or names another layout; or `preview`, `relayout` or
 `command` from the `mimi tiling` subcommands. A `command` carries `name` and
-`args`, and what they mean is the layout's to decide:
+`args`, and what they mean is the layout's to decide; a `window_resize`
+carries `windows`, the numbers of the windows the user moved:
 
 ```json
 {"version":1,
