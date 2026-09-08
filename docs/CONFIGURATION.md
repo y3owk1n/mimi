@@ -226,9 +226,11 @@ that ran on its own writes would never stop.
 The input is the same JSON `mimi query windows` and `mimi query displays`
 print, plus the event that woke the engine, the active space, and the `state`
 the layout returned last time for that space, or `null` the first time.
-`event.kind` is the hook event name, or `preview`, `relayout` or `command`
-from the `mimi tiling` subcommands; a `command` carries `name` and `args`,
-and what they mean is the layout's to decide:
+`event.kind` is the hook event name; `startup` for the pass the daemon runs
+as it starts with tiling enabled; `reload` for the pass a reload runs when it
+switches tiling on or names another layout; or `preview`, `relayout` or
+`command` from the `mimi tiling` subcommands. A `command` carries `name` and
+`args`, and what they mean is the layout's to decide:
 
 ```json
 {"version":1,

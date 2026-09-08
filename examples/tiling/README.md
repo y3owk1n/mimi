@@ -30,6 +30,8 @@ Input:
 
 - `event.kind` is a hook event name (`window_created`, `window_closed`,
   `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`),
+  or `startup` when the daemon starts with tiling on, or `reload` when a
+  reload switches it on or changes the layout,
   or `preview` from `mimi tiling preview`, or `relayout` from
   `mimi tiling relayout` and `standalone.sh`, or `command` from
   `mimi tiling cmd <name> [args...]`, which adds `"name"` and `"args"`.

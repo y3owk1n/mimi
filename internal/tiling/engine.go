@@ -39,10 +39,19 @@ type Engine struct {
 
 	mu      sync.Mutex
 	enabled bool
-	layout  Layout
-	settle  time.Duration
+	command string
+	// configured reports whether Update has run at all, which is what tells
+	// the startup pass from a reload's.
+	configured bool
+	layout     Layout
+	settle     time.Duration
 	// states is what the layout returned last time, keyed by space index.
 	states map[int]json.RawMessage
+
+	// wake carries the passes the engine asks of itself, on startup and on
+	// a reload that switches it on; Run drains it alongside the bus. It
+	// holds one, so an Update before Run starts is not lost.
+	wake chan Event
 }
 
 // New returns an engine that is disabled until Update enables it.
@@ -56,21 +65,45 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		serialize: serialize,
 		logger:    logger,
 		states:    map[int]json.RawMessage{},
+		wake:      make(chan Event, 1),
 	}
 }
 
 // Update applies the [tiling] section and the shell it runs under. It is
 // what the daemon calls at startup and on every reload.
+//
+// Enabling the engine, at startup or on a reload, or handing it another
+// layout while enabled, asks for a pass, so the windows already open are laid
+// out without waiting for one of them to change. Any other change asks for
+// none: a reload that touched a hook should not reshuffle the desktop.
 func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	wasEnabled, hadCommand, hadConfig := e.enabled, e.command, e.configured
+
 	e.enabled = cfg.Enabled
+	e.command = cfg.Layout
+	e.configured = true
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 	e.layout = Program{
 		Shell:   shell,
 		Command: cfg.Layout,
 		Timeout: time.Duration(cfg.TimeoutSecs) * time.Second,
+	}
+
+	if !cfg.Enabled || (wasEnabled && hadCommand == cfg.Layout) {
+		return
+	}
+
+	kind := EventReload
+	if !hadConfig {
+		kind = EventStartup
+	}
+
+	select {
+	case e.wake <- Event{Kind: kind}:
+	default:
 	}
 }
 
@@ -106,14 +139,35 @@ func (e *Engine) KindFilter() events.KindFilter {
 	}
 }
 
-// Run drains sub until ctx is done, settling each burst of events into one
-// pass that reports the last event of the burst.
+// Run drains sub, and the engine's own wake-ups, until ctx is done, settling
+// each burst into one pass that reports the last event of the burst.
 func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 	var (
 		timer   *time.Timer
 		fire    <-chan time.Time
-		pending events.Event
+		pending Event
 	)
+
+	arm := func(event Event) {
+		pending = event
+
+		settle := e.settleWindow()
+		if timer == nil {
+			timer = time.NewTimer(settle)
+			fire = timer.C
+
+			return
+		}
+
+		if !timer.Stop() {
+			select {
+			case <-timer.C:
+			default:
+			}
+		}
+
+		timer.Reset(settle)
+	}
 
 	for {
 		select {
@@ -128,27 +182,14 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				return
 			}
 
-			pending = evt
-
-			settle := e.settleWindow()
-			if timer == nil {
-				timer = time.NewTimer(settle)
-				fire = timer.C
-			} else {
-				if !timer.Stop() {
-					select {
-					case <-timer.C:
-					default:
-					}
-				}
-
-				timer.Reset(settle)
-			}
+			arm(eventOf(evt))
+		case event := <-e.wake:
+			arm(event)
 		case <-fire:
 			timer = nil
 			fire = nil
 
-			err := e.Pass(ctx, eventOf(pending))
+			err := e.Pass(ctx, pending)
 			if err != nil {
 				e.logger.Warnw("tiling pass failed", "kind", pending.Kind, "err", err)
 			}

@@ -45,12 +45,20 @@ type Output struct {
 }
 
 // Event kinds the engine reports beyond the hookable ones it forwards from
-// the bus: a preview run by hand, a relayout asked for by name, and a named
-// command whose meaning is the layout's to decide.
+// the bus: a preview run by hand, a relayout asked for by name, a named
+// command whose meaning is the layout's to decide, and the two passes the
+// daemon's own lifecycle runs.
 const (
 	EventPreview  = "preview"
 	EventRelayout = "relayout"
 	EventCommand  = "command"
+	// EventStartup is the pass the daemon runs as it starts with tiling
+	// enabled, so the windows already open are laid out without waiting for
+	// one of them to change.
+	EventStartup = "startup"
+	// EventReload is the pass a reload runs when it switches tiling on or
+	// names another layout. A reload that changes neither runs none.
+	EventReload = "reload"
 )
 
 // EventFromArgs is the tiling action's payload as the layout hears of it.

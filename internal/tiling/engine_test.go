@@ -346,3 +346,89 @@ func TestEngine_Run_SettlesABurstIntoOnePass(t *testing.T) {
 	cancel()
 	<-done
 }
+
+// TestEngine_Run_PassesOnStartupAndOnEnablingReloads pins the passes the
+// engine asks of itself: one as it starts enabled, one when a reload switches
+// it on or names another layout, and none for a reload that changes neither.
+func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(echoLayout), shell)
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sub := make(events.Subscriber)
+	done := make(chan struct{})
+
+	go func() {
+		engine.Run(ctx, sub)
+		close(done)
+	}()
+
+	waitForApplied := func(want int, why string) {
+		t.Helper()
+
+		deadline := time.Now().Add(3 * time.Second)
+		for desktop.appliedCount() < want && time.Now().Before(deadline) {
+			time.Sleep(10 * time.Millisecond)
+		}
+
+		time.Sleep(100 * time.Millisecond)
+
+		if got := desktop.appliedCount(); got != want {
+			t.Fatalf("%s: applied %d times, want %d", why, got, want)
+		}
+	}
+
+	waitForApplied(1, "startup")
+
+	lastKind := func() string {
+		input, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+		if err != nil {
+			t.Fatalf("Preview() error = %v", err)
+		}
+
+		var state struct {
+			Kind string `json:"kind"`
+		}
+
+		_ = json.Unmarshal(input.State, &state)
+
+		return state.Kind
+	}
+
+	if got := lastKind(); got != tiling.EventStartup {
+		t.Fatalf("startup pass reported %q, want %q", got, tiling.EventStartup)
+	}
+
+	// The same config again, and a debounce change: neither is a reason.
+	engine.Update(enabled(echoLayout), shell)
+
+	same := enabled(echoLayout)
+	same.DebounceMS = 20
+	engine.Update(same, shell)
+	waitForApplied(1, "reload that changes nothing the layout sees")
+
+	// Another layout while enabled.
+	engine.Update(enabled(echoLayout+" | jq -c ."), shell)
+	waitForApplied(2, "reload naming another layout")
+
+	if got := lastKind(); got != tiling.EventReload {
+		t.Fatalf("reload pass reported %q, want %q", got, tiling.EventReload)
+	}
+
+	// Off, then on again.
+	off := enabled(echoLayout)
+	off.Enabled = false
+	engine.Update(off, shell)
+	waitForApplied(2, "reload switching tiling off")
+
+	engine.Update(enabled(echoLayout), shell)
+	waitForApplied(3, "reload switching tiling on")
+
+	cancel()
+	<-done
+}
