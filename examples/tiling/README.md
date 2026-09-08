@@ -25,6 +25,7 @@ Input:
  "display":{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},
             "visible":{"x":0,"y":25,"width":1440,"height":875}},
  "space":2,
+ "margins":{"enabled":true,"size":8},
  "displays":[{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},
               "visible":{"x":0,"y":25,"width":1440,"height":875}}],
  "focused":0,
@@ -49,6 +50,9 @@ Input:
   fills and `windows` are the windows on it, as `mimi query windows` prints
   them; `displays` lists every display for reference. `focused` is the
   index into `windows` of the focused one, or -1.
+- `margins` is the macOS tiled-window margins setting, the one
+  `mimi action resize_window` honours. Every layout here defaults its gap to
+  it, so leave the gap argument off to line up with hand-placed windows.
 - `state` is whatever your program printed as `state` last time for this
   display and space, or `null`. The daemon keeps it for you; that is how a
   layout remembers a master window or a split ratio without a file.

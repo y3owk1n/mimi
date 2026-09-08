@@ -38,10 +38,13 @@ type Event struct {
 // dragged to another display leaves one input and appears in the other on
 // the next run.
 type Input struct {
-	Version  int                   `json:"version"`
-	Event    Event                 `json:"event"`
-	Display  action.DisplayEntry   `json:"display"`
-	Space    int                   `json:"space"`
+	Version int                 `json:"version"`
+	Event   Event               `json:"event"`
+	Display action.DisplayEntry `json:"display"`
+	Space   int                 `json:"space"`
+	// Margins is the system tiled-window margins setting resize_window
+	// honors too, for a layout to default its gap to.
+	Margins  action.MarginsInfo    `json:"margins"`
 	Displays []action.DisplayEntry `json:"displays"`
 	Focused  int                   `json:"focused"`
 	Windows  []action.WindowEntry  `json:"windows"`

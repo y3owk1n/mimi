@@ -125,6 +125,8 @@ var interruptAudit = []auditEntry{
 			"frame and title, each of which runs to completion, then one line of output"),
 	audited("query displays", interruptRunsOn,
 		"NSScreen reads and one line of output; nothing blocks"),
+	audited("query margins", interruptRunsOn,
+		"one NSScreen read, two preference reads, and one line of output; nothing blocks"),
 	audited("tiling", interruptRunsOn,
 		"as action: the body only reports the missing subcommand and returns"),
 	audited("tiling preview", interruptRunsOn,

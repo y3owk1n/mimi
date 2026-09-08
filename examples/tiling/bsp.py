@@ -25,15 +25,17 @@ window and dropping it on another swaps the two, as Hyprland does.
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: bsp.py [gap]
+Usage: bsp.py [gap]     (gap defaults to the macOS tiled-window margin)
 """
 
 import sys
 
 from rules import clamp as clamp_to
-from rules import area, command, maximised, read_input, write_output
+from rules import area, command, gap, maximised, read_input, write_output
 
-GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
+# The gap, set from the input once it is read: the argument, else the macOS
+# tiled-window margin. The tree functions below read it as a global.
+GAP = 0.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
 
 
@@ -224,7 +226,10 @@ def neighbour(rects, number, direction):
 
 
 def main():
+    global GAP
+
     inp = read_input()
+    GAP = gap(inp)
     state = inp.get("state") or {}
     box = area(inp, GAP)
     tree = state.get("tree")

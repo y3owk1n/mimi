@@ -8,19 +8,15 @@ is, and the one to copy when starting your own: no state, no commands.
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 
-Usage: monocle.py [gap]
+Usage: monocle.py [gap]     (gap defaults to the macOS tiled-window margin)
 """
 
-import sys
-
-from rules import area, read_input, write_output
-
-GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 0.0
+from rules import area, gap, read_input, write_output
 
 
 def main():
     inp = read_input()
-    box = area(inp, GAP)
+    box = area(inp, gap(inp))
     write_output([(w["number"], box) for w in inp["windows"]], None)
 
 

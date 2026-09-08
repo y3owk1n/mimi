@@ -283,6 +283,7 @@ mimi query space
 mimi query window
 mimi query windows
 mimi query displays
+mimi query margins
 ```
 
 A query that fails prints nothing on stdout and reports the error the way every
@@ -339,6 +340,17 @@ are in window coordinates, so a frame computed from `visible` can be handed to
 ```
 $ mimi query displays
 [{"index":1,"id":1,"frame":{"x":0,"y":0,"width":1440,"height":900},"visible":{"x":0,"y":25,"width":1440,"height":875}}]
+```
+
+### `mimi query margins`
+
+Report the macOS tiled-window margins setting, the one `resize_window`
+honours and a tiling layout defaults its gap to. `size` is in points. Needs no
+Accessibility permission.
+
+```
+$ mimi query margins
+{"enabled":true,"size":8}
 ```
 
 Pipe through `jq` to pick one field:

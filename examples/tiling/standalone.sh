@@ -13,20 +13,22 @@ set -eu
 windows="$(mimi query windows)"
 displays="$(mimi query displays)"
 space="$(mimi query space | jq '.index')"
+margins="$(mimi query margins)"
 
 # One input per display: the windows whose centres are on it, with
 # "focused" re-pointed, or -1 when the focused window is elsewhere.
 inputs="$(jq -c -n \
 	--argjson w "$windows" \
 	--argjson d "$displays" \
-	--argjson s "$space" '
+	--argjson s "$space" \
+	--argjson m "$margins" '
 	def on($disp): (.frame.x + .frame.width / 2) as $cx | (.frame.y + .frame.height / 2) as $cy
 	  | $disp.frame | ($cx >= .x and $cx < .x + .width and $cy >= .y and $cy < .y + .height);
 	(if $w.focused >= 0 then $w.windows[$w.focused].number else null end) as $focused
 	| $d[] as $disp
 	| [$w.windows[] | select(on($disp))] as $mine
 	| select(($mine | length) > 0)
-	| {version: 1, event: {kind: "relayout"}, display: $disp, space: $s,
+	| {version: 1, event: {kind: "relayout"}, display: $disp, space: $s, margins: $m,
 	   displays: $d, windows: $mine,
 	   focused: (($mine | map(.number) | index($focused)) // -1), state: null}
 ')"

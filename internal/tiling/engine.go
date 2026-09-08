@@ -23,6 +23,7 @@ type Desktop interface {
 	Windows() (action.WindowsInfo, error)
 	Displays() ([]action.DisplayEntry, error)
 	ActiveSpaces() (map[uint32]int, error)
+	Margins() (action.MarginsInfo, error)
 	Apply(frames []action.WindowFrame) error
 }
 
@@ -392,6 +393,7 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 	var (
 		displays []action.DisplayEntry
 		spaces   map[uint32]int
+		margins  action.MarginsInfo
 		windows  action.WindowsInfo
 	)
 
@@ -404,6 +406,11 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 		}
 
 		spaces, err = e.desktop.ActiveSpaces()
+		if err != nil {
+			return err
+		}
+
+		margins, err = e.desktop.Margins()
 		if err != nil {
 			return err
 		}
@@ -429,6 +436,7 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 			Event:    event,
 			Display:  display,
 			Space:    spaces[display.ID],
+			Margins:  margins,
 			Displays: displays,
 			Focused:  -1,
 			Windows:  []action.WindowEntry{},

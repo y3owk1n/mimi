@@ -50,6 +50,10 @@ func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	return spaces, nil
 }
 
+func (d *fakeDesktop) Margins() (action.MarginsInfo, error) {
+	return action.MarginsInfo{Enabled: true, Size: 8}, nil
+}
+
 func (d *fakeDesktop) Apply(frames []action.WindowFrame) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -186,7 +190,8 @@ func TestEngine_Preview_RunsWithoutApplying(t *testing.T) {
 	}
 
 	if len(inputs) != 1 || inputs[0].Version != tiling.InputVersion || inputs[0].Space != 2 ||
-		len(inputs[0].Windows) != 1 || len(inputs[0].Displays) != 1 || inputs[0].Display.ID != 7 {
+		len(inputs[0].Windows) != 1 || len(inputs[0].Displays) != 1 || inputs[0].Display.ID != 7 ||
+		inputs[0].Margins != (action.MarginsInfo{Enabled: true, Size: 8}) {
 		t.Fatalf(
 			"Preview() inputs = %+v, want one for display 7, version %d, space 2, one window",
 			inputs,

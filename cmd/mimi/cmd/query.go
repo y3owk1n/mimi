@@ -29,6 +29,7 @@ Available subcommands:
   window    the frontmost window's owner and frame
   windows   every focusable window on the active space, with its frame
   displays  every connected display, with its frames
+  margins   the system tiled-window margins setting resize_window honors
 
 Examples:
   mimi query space
@@ -53,8 +54,27 @@ Examples:
 	cmd.AddCommand(buildQueryWindowCommand())
 	cmd.AddCommand(buildQueryWindowsCommand())
 	cmd.AddCommand(buildQueryDisplaysCommand())
+	cmd.AddCommand(buildQueryMarginsCommand())
 
 	return cmd
+}
+
+func buildQueryMarginsCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "margins",
+		Short: "Report the system tiled-window margins setting",
+		Long: `Report the macOS tiled-window margins setting as JSON:
+
+  {"enabled":true,"size":8}
+
+This is the setting "mimi action resize_window" honors, and what a tiling
+layout defaults its gap to. "size" is in points. Accessibility permission is
+not needed.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QueryMargins)
+		},
+	}
 }
 
 func buildQueryWindowsCommand() *cobra.Command {

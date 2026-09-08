@@ -44,6 +44,18 @@ def read_input():
     return inp
 
 
+def gap(inp, argv_index=1):
+    """The gap between windows and at the display's edges: the command-line
+    argument at argv_index when one was given, else the macOS tiled-window
+    margin, the same setting `mimi action resize_window` honours, or 0 when
+    that is switched off. A gap of one margin between two windows is what
+    resize_window leaves too: half a margin on each side of the split."""
+    if len(sys.argv) > argv_index:
+        return float(sys.argv[argv_index])
+    margins = inp.get("margins") or {}
+    return float(margins.get("size", 0)) if margins.get("enabled") else 0.0
+
+
 def area(inp, gap):
     """The visible frame of the display this input is for, inset by gap on
     every side. mimi runs a layout once per display, so this is the one area

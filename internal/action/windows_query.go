@@ -35,6 +35,34 @@ type DisplayEntry struct {
 	Visible Frame  `json:"visible"`
 }
 
+// MarginsInfo is what a margins query reports: the system tiled-window
+// margins setting, and the margin size in points, which resize_window
+// applies and a layout may default its gap to.
+type MarginsInfo struct {
+	Enabled bool    `json:"enabled"`
+	Size    float64 `json:"size"`
+}
+
+// QueryMargins reports the system tiled-window margins setting of the
+// desktop mimi is running on.
+func QueryMargins() (MarginsInfo, error) {
+	return defaultExecutor.QueryMargins()
+}
+
+// QueryMargins reads the system tiled-window margins setting, the way
+// resize_window does before applying it. It reads screens, not windows, so
+// no Accessibility is needed.
+func (e *Executor) QueryMargins() (MarginsInfo, error) {
+	// The origin of window coordinates is on the primary display; the
+	// setting is system-wide, so any screen reports it.
+	screen, err := e.desktop.ScreenAt(geometry.Rect{X: 0, Y: 0, W: 1, H: 1})
+	if err != nil {
+		return MarginsInfo{}, err
+	}
+
+	return MarginsInfo{Enabled: screen.MarginsEnabled, Size: screen.MarginSize}, nil
+}
+
 // QueryActiveSpaces reports the space in front on every display of the
 // desktop mimi is running on.
 func QueryActiveSpaces() (map[uint32]int, error) {

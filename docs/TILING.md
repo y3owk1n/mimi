@@ -74,6 +74,10 @@ The three layouts shipped:
 | `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
 
+`gap` is optional everywhere: left out, a layout uses the macOS tiled-window
+margin, the same setting `mimi action resize_window` honours, so tiled and
+hand-placed windows line up.
+
 Windows that should never be tiled (System Settings, Finder, small dialogs)
 are listed in `rules.py`. Edit it to taste.
 
@@ -130,6 +134,7 @@ Your program reads one JSON document on stdin and prints one on stdout.
               "frame":   {"x": 0, "y": 0,  "width": 1440, "height": 900},
               "visible": {"x": 0, "y": 25, "width": 1440, "height": 875}},
   "space": 2,
+  "margins": {"enabled": true, "size": 8},
   "displays": [
     {"index": 1, "id": 1,
      "frame":   {"x": 0, "y": 0,  "width": 1440, "height": 900},
@@ -152,6 +157,7 @@ Your program reads one JSON document on stdin and prints one on stdout.
 | `event.windows` | For a `window_move` or `window_resize`: the numbers of the windows the user dragged. |
 | `display` | The display this run is for. Fill its `visible`, never its `frame`: `visible` is what is left after the menu bar and the Dock. |
 | `space` | The 1-based Mission Control space in front on that display. |
+| `margins` | The macOS tiled-window margins setting, the one `resize_window` honours. The shipped layouts default their gap to `size` when `enabled`, and to 0 otherwise, so they sit flush with windows placed by `resize_window`. An explicit gap argument on the command line still wins. |
 | `displays` | Every display, numbered as `move_window_to_display` counts them, for reference. |
 | `focused` | Index into `windows` of the focused one, or -1 when the focused window is on another display. |
 | `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. |
@@ -191,9 +197,10 @@ is with the shared helpers spelled out, so you can see there is no magic:
 #!/usr/bin/env python3
 import json, sys
 
-GAP = 8
-
 inp = json.load(sys.stdin)
+
+# The macOS tiled-window margin, as resize_window uses it; 0 when it is off.
+GAP = inp["margins"]["size"] if inp["margins"]["enabled"] else 0
 
 # 1. Decide which windows you are laying out.
 windows = [w for w in inp["windows"] if w["bundleId"] != "com.apple.finder"]

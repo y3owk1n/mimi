@@ -15,6 +15,9 @@ func (LiveDesktop) Displays() ([]action.DisplayEntry, error) { return action.Que
 // ActiveSpaces is the space in front on every display.
 func (LiveDesktop) ActiveSpaces() (map[uint32]int, error) { return action.QueryActiveSpaces() }
 
+// Margins is the system tiled-window margins setting.
+func (LiveDesktop) Margins() (action.MarginsInfo, error) { return action.QueryMargins() }
+
 // Apply writes the frames the way apply_frames does.
 func (LiveDesktop) Apply(frames []action.WindowFrame) error {
 	cmd, err := action.NewApplyFramesCommand(frames)
