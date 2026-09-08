@@ -31,7 +31,7 @@ Usage: bsp.py [gap]
 import sys
 
 from rules import clamp as clamp_to
-from rules import command, maximised, read_input, visible_area, write_output
+from rules import command, maximised, per_display, read_input, write_output
 
 GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
@@ -223,9 +223,9 @@ def neighbour(rects, number, direction):
 # --- one pass -------------------------------------------------------------
 
 
-def main():
-    inp = read_input()
-    state = inp.get("state") or {}
+def tile(inp, state, area):
+    """The tree for one display: sync it with the windows there, apply the
+    event, lay it out."""
     tree = state.get("tree")
     event = inp["event"]
     focused_win = inp["windows"][inp["focused"]] if inp["focused"] >= 0 else None
@@ -247,7 +247,6 @@ def main():
     for leaf in leaves(tree):
         if leaf["win"] not in present:
             tree = remove(tree, leaf["win"])
-    area = visible_area(inp, GAP)
     for number in [w["number"] for w in tiled]:
         if number in {leaf["win"] for leaf in leaves(tree)}:
             continue
@@ -304,6 +303,13 @@ def main():
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }
+    return frames, state
+
+
+def main():
+    inp = read_input()
+    state = inp.get("state") or {}
+    frames = per_display(inp, state, GAP, tile)
     write_output(frames, state)
 
 

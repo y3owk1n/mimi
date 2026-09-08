@@ -18,6 +18,7 @@ the contract, write your own, bind hotkeys, and fix it when it goes wrong.
 - [Writing your own layout](#writing-your-own-layout)
 - [Commands and hotkeys](#commands-and-hotkeys)
 - [Drags, moves, and the temporary maximise](#drags-moves-and-the-temporary-maximise)
+- [More than one display](#more-than-one-display)
 - [Trying a layout without turning it on](#trying-a-layout-without-turning-it-on)
 - [When nothing happens](#when-nothing-happens)
 
@@ -214,9 +215,14 @@ From there, the pieces you will want, in the order you will want them:
 identifiers, a title pattern, and a size floor. Use `read_input()` from it and
 `windows` arrives already filtered, with `focused` re-pointed.
 
-**Pick the right display.** `visible_area(inp, gap)` from `rules.py` finds
-the display under the focused window and insets it by the gap. Multi-display
-is that one call.
+**Handle every display.** The input holds the windows of every display, so
+a layout that fills one area would drag the other monitor's windows onto it.
+`per_display(inp, state, gap, tile)` from `rules.py` runs your `tile`
+function once per display, on the windows whose centres are on it, with an
+area inset by the gap and a state of that display's own under
+`state["displays"][id]`. The three shipped layouts are written as a `tile`
+function for one display and that one call; a window moved to another
+monitor simply shows up in that monitor's group on the next run.
 
 **Remember something.** Print it in `state`, read it back from
 `inp["state"]` next time. `master-stack.py` remembers its master and ratio in
@@ -317,6 +323,24 @@ when the window closes, or when you focus another tiled window, so the layout
 is back the moment you leave. It is one call from `rules.py`,
 `maximised(inp, state, frames, area)`, made last on the frames a layout
 computed. Add it to your own layout with that one line.
+
+---
+
+## More than one display
+
+Each display is tiled on its own. A layout written with `per_display` keeps a
+separate tree, master, or maximised window per display, and a window that
+crosses to the other monitor, by drag or by `mimi action
+move_window_to_display`, leaves one group and joins the other on the next run.
+`mimi query displays` lists the displays in the order
+`move_window_to_display` counts them, with frames in the shared window
+coordinate system, so a display below the primary has a y past the primary's
+height and one above it has a negative y. Fill each display's `visible`, never
+its `frame`.
+
+`space` in the input is the space in front on the display holding the cursor,
+and state is kept per space, so with "Displays have separate Spaces" on, each
+combination of space and display has state of its own.
 
 ---
 

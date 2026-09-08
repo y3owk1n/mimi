@@ -24,24 +24,18 @@ Usage: master-stack.py [ratio] [gap]
 
 import sys
 
-from rules import clamp, command, maximised, read_input, visible_area, write_output
+from rules import clamp, command, maximised, per_display, read_input, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 GAP = float(sys.argv[2]) if len(sys.argv) > 2 else 8.0
 
 
-def main():
-    inp = read_input()
-    state = inp.get("state") or {}
+def tile(inp, state, area):
+    """Master and stack on one display."""
     windows = inp["windows"]
-    if not windows:
-        write_output([], None)
-        return
-
     numbers = [w["number"] for w in windows]
     by_number = {w["number"]: w for w in windows}
     focused = numbers[inp["focused"]] if inp["focused"] >= 0 else None
-    area = visible_area(inp, GAP)
     n = len(windows)
 
     # The master: "swap" makes the focused window the master; otherwise the
@@ -100,7 +94,14 @@ def main():
         )
 
     state.update(master=master, ratio=ratio)
-    write_output(maximised(inp, state, frames, area), state)
+    return maximised(inp, state, frames, area), state
+
+
+def main():
+    inp = read_input()
+    state = inp.get("state") or {}
+    frames = per_display(inp, state, GAP, tile)
+    write_output(frames, state)
 
 
 if __name__ == "__main__":
