@@ -9,10 +9,11 @@ not reshuffle the layout, and the layout answers two commands of its own:
   mimi tiling cmd ratio +0.05    widen the master (or -0.05 to narrow it)
 
 mimi gives those names no meaning; this file does. Add your own. With
-tiling.relayout_on_resize set, dragging the edge between the master and the
-stack sets the ratio too, from whichever side was dragged. Dragging a stack
-window taller has nowhere to go in this layout and snaps back; see bsp.py
-for a layout where every edge is a split.
+tiling.relayout_on_drag set, dragging the edge between the master and the
+stack sets the ratio too, from whichever side was dragged, and dropping a
+stack window onto the master makes it the master. Dragging a stack window
+taller has nowhere to go in this layout and snaps back; see bsp.py for a
+layout where every edge is a split.
 
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
@@ -49,6 +50,15 @@ def main():
         master = focused
     elif master not in numbers:
         master = focused if focused is not None else numbers[0]
+
+    # A stack window dropped on the master's side becomes the master.
+    if inp["event"]["kind"] == "window_move" and n > 1:
+        boundary = area["x"] + (area["width"] - GAP) * state.get("ratio", RATIO)
+        for number in inp["event"].get("windows", []):
+            if number != master and number in by_number:
+                f = by_number[number]["frame"]
+                if f["x"] + f["width"] / 2 < boundary:
+                    master = number
 
     # The ratio: remembered, read off a dragged edge from either side of the
     # split, nudged by "ratio +0.05", clamped.

@@ -55,6 +55,13 @@ func (d *snappingDesktop) count() int {
 	return d.applies
 }
 
+func (d *snappingDesktop) move(dx float64) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.frame.X += dx
+}
+
 func (d *snappingDesktop) drag(dx float64) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
@@ -72,10 +79,10 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 	engine := New(desktop, nil, nil)
 	engine.resizeGrace = 50 * time.Millisecond
 	engine.Update(config.TilingConfig{
-		Enabled:          true,
-		RelayoutOnResize: true,
-		DebounceMS:       10,
-		TimeoutSecs:      5,
+		Enabled:        true,
+		RelayoutOnDrag: true,
+		DebounceMS:     10,
+		TimeoutSecs:    5,
 		Layout: `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 800, height: 800}}], ` +
 			`state: {last: .event.kind, windows: .event.windows}}'`,
 	}, "/bin/sh")
@@ -106,8 +113,8 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 		}
 	}
 
-	if !engine.KindFilter()(events.WindowResize) {
-		t.Fatal("KindFilter refuses resizes with relayout_on_resize set")
+	if !engine.KindFilter()(events.WindowResize) || !engine.KindFilter()(events.WindowMove) {
+		t.Fatal("KindFilter refuses moves or resizes with relayout_on_drag set")
 	}
 
 	waitFor(1, "startup")
@@ -145,17 +152,38 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 		)
 	}
 
+	// The user drags the window somewhere else, and the application snaps
+	// its width a little on the way, raising a resize too. It is a move.
+	time.Sleep(engine.resizeGrace)
+	desktop.move(300)
+	desktop.drag(3)
+
+	sub <- events.Event{Kind: events.WindowResize, PID: 10}
+
+	sub <- events.Event{Kind: events.WindowMove, PID: 10}
+
+	waitFor(3, "a move by the user")
+
+	input, _, err = engine.Preview(ctx, Event{Kind: EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if string(input.State) != `{"last":"window_move","windows":[1]}` {
+		t.Fatalf("state = %s, want the pass to have reported window_move for window 1", input.State)
+	}
+
 	cancel()
 	<-done
 }
 
-func TestEngine_KindFilter_RefusesResizesUnlessAsked(t *testing.T) {
+func TestEngine_KindFilter_RefusesDragsUnlessAsked(t *testing.T) {
 	t.Parallel()
 
 	engine := New(&snappingDesktop{}, nil, nil)
 	engine.Update(config.TilingConfig{Enabled: true, Layout: "true", TimeoutSecs: 1}, "/bin/sh")
 
-	if engine.KindFilter()(events.WindowResize) {
-		t.Fatal("KindFilter admits resizes without relayout_on_resize")
+	if engine.KindFilter()(events.WindowResize) || engine.KindFilter()(events.WindowMove) {
+		t.Fatal("KindFilter admits moves or resizes without relayout_on_drag")
 	}
 }

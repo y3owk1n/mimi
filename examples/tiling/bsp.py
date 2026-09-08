@@ -16,8 +16,9 @@ Commands the layout answers (mimi gives them no meaning; this file does):
   mimi tiling cmd togglefloat                 take the focused window out of the
                                               tree, or put it back
 
-With tiling.relayout_on_resize set, dragging any edge of any window resizes
-the split that edge belongs to, and the rest of the tree follows.
+With tiling.relayout_on_drag set, dragging any edge of any window resizes the
+split that edge belongs to, and the rest of the tree follows; dragging a
+window and dropping it on another swaps the two, as Hyprland does.
 
 A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
@@ -173,6 +174,24 @@ def apply_drag(tree, number, placed, now, area):
             break
 
 
+def leaf_at(rects, number, point):
+    """The leaf other than number whose rect holds point, or None."""
+    px, py = point
+    for other, rect in rects.items():
+        if other == number:
+            continue
+        if rect["x"] <= px < rect["x"] + rect["width"] and rect["y"] <= py < rect["y"] + rect["height"]:
+            return other
+    return None
+
+
+def swap_leaves(tree, first, second):
+    mine = leaves(tree)
+    la = next(l for l in mine if l["win"] == first)
+    lb = next(l for l in mine if l["win"] == second)
+    la["win"], lb["win"] = lb["win"], la["win"]
+
+
 def neighbour(rects, number, direction):
     """The leaf whose rect lies that way from number's, nearest by centre."""
     me = rects.get(number)
@@ -236,8 +255,22 @@ def main():
         target = focused if focused in known else (known[-1] if known else None)
         tree = insert(tree, target, number, rects) if target else {"win": number}
 
-    # Then the event.
-    if event["kind"] == "window_resize":
+    # Then the event. mimi has already told a move from a resize, from where
+    # the window ended up. A move dropped on another window swaps with it,
+    # dropped on nothing it snaps back. A resize moved an edge, and resizes
+    # that edge's split.
+    if event["kind"] == "window_move":
+        rects = {}
+        layout(tree, area, rects)
+        for number in event.get("windows", []):
+            if number not in by_number:
+                continue
+            now = by_number[number]["frame"]
+            centre = (now["x"] + now["width"] / 2, now["y"] + now["height"] / 2)
+            other = leaf_at(rects, number, centre)
+            if other is not None:
+                swap_leaves(tree, number, other)
+    elif event["kind"] == "window_resize":
         placed = state.get("placed", {})
         for number in event.get("windows", []):
             key = str(number)
@@ -259,10 +292,7 @@ def main():
             layout(tree, area, rects)
             other = neighbour(rects, focused, args[0])
             if other:
-                mine = leaves(tree)
-                la = next(l for l in mine if l["win"] == focused)
-                lb = next(l for l in mine if l["win"] == other)
-                la["win"], lb["win"] = lb["win"], la["win"]
+                swap_leaves(tree, focused, other)
 
     rects = {}
     layout(tree, area, rects)

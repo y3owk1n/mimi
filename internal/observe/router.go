@@ -171,7 +171,7 @@ func (r *Router) handle(evt events.Event) {
 			r.cancelTimersForPID(evt.PID)
 			r.cancelRetry(evt.PID)
 		}
-	case events.WindowResizing:
+	case events.WindowResizing, events.WindowMoving:
 		r.debounceResize(evt)
 
 		return
@@ -194,10 +194,10 @@ func (r *Router) handle(evt events.Event) {
 // it falls back to the title only when no id is available.
 func resizeKey(evt events.Event) string {
 	if evt.WindowID != 0 {
-		return fmt.Sprintf("%d:%d", evt.PID, evt.WindowID)
+		return fmt.Sprintf("%s:%d:%d", evt.Kind, evt.PID, evt.WindowID)
 	}
 
-	return fmt.Sprintf("%d:%s", evt.PID, evt.WindowTitle)
+	return fmt.Sprintf("%s:%d:%s", evt.Kind, evt.PID, evt.WindowTitle)
 }
 
 func (r *Router) debounceResize(evt events.Event) {
@@ -246,7 +246,7 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 
 		resizeEvt := events.Event{
 			ID:          uuid.NewString(),
-			Kind:        events.WindowResize,
+			Kind:        settledKind(snapshot.Kind),
 			AppName:     snapshot.AppName,
 			BundleID:    snapshot.BundleID,
 			PID:         snapshot.PID,
@@ -349,6 +349,15 @@ func (r *Router) cancelRetry(pid int) {
 		retry.timer.Stop()
 		delete(r.retries, pid)
 	}
+}
+
+// settledKind is the hookable kind a raw stream debounces into.
+func settledKind(raw events.EventKind) events.EventKind {
+	if raw == events.WindowMoving {
+		return events.WindowMove
+	}
+
+	return events.WindowResize
 }
 
 func (r *Router) cancelTimersForPID(pid int) {

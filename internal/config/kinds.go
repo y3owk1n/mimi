@@ -120,6 +120,12 @@ var HookKinds = []HookKind{
 		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WindowResize },
 	},
 	{
+		Kind:    events.WindowMove,
+		TOMLKey: "on_window_move",
+		Group:   GroupWindow,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WindowMove },
+	},
+	{
 		Kind:    events.WorkspaceChanged,
 		TOMLKey: "on_workspace_changed",
 		Group:   GroupWorkspace,

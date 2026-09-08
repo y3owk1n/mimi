@@ -77,6 +77,7 @@ var mappedKinds = map[string]events.EventKind{
 	"MIMI_KIND_WINDOW_CREATED":      events.WindowCreated,
 	"MIMI_KIND_WINDOW_CLOSED":       events.WindowClosed,
 	"MIMI_KIND_WINDOW_RESIZING":     events.WindowResizing,
+	"MIMI_KIND_WINDOW_MOVING":       events.WindowMoving,
 	"MIMI_KIND_WORKSPACE_CHANGED":   events.WorkspaceChanged,
 }
 
@@ -125,13 +126,14 @@ func TestEventKindsHeader_EveryHookableKindHasAConstant(t *testing.T) {
 	// wired through kindFromInt -- a Go-side addition with no MIMI_KIND_*
 	// counterpart would otherwise never be reachable from a real event.
 	//
-	// The one deliberate exception is events.WindowResize: it is never
-	// produced by kindFromInt. internal/observe/router.go debounces the raw
-	// MIMI_KIND_WINDOW_RESIZING stream (-> events.WindowResizing) and
-	// synthesizes WindowResize itself once resizing settles, so it has no
-	// C-side constant to agree with.
+	// The two deliberate exceptions are events.WindowResize and
+	// events.WindowMove: neither is produced by kindFromInt.
+	// internal/observe/router.go debounces the raw MIMI_KIND_WINDOW_RESIZING
+	// and MIMI_KIND_WINDOW_MOVING streams (-> events.WindowResizing and
+	// events.WindowMoving) and synthesizes the settled kinds itself, so they
+	// have no C-side constant to agree with.
 	for _, kind := range events.AllKinds {
-		if kind == events.WindowResize {
+		if kind == events.WindowResize || kind == events.WindowMove {
 			continue
 		}
 

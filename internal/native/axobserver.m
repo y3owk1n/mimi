@@ -266,6 +266,17 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 
 			return;
 		}
+
+		if (CFEqual(notification, kAXMovedNotification)) {
+			// A drag: the same fan-out and the same overlays as a
+			// resize, so the same real-window check.
+			if (!axRealWindowEntry(pid, element)) {
+				return;
+			}
+			dispatchAXEvent(MIMI_KIND_WINDOW_MOVING, pid, element);
+
+			return;
+		}
 	}
 }
 
@@ -298,7 +309,7 @@ static bool axInstallBlock(int pid) {
 
 	CFStringRef notifications[] = {
 	    kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification,
-	    kAXTitleChangedNotification,  kAXWindowResizedNotification,
+	    kAXTitleChangedNotification,  kAXWindowResizedNotification,      kAXMovedNotification,
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {

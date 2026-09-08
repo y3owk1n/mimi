@@ -222,6 +222,8 @@ func kindFromInt(kindInt int) events.EventKind {
 		return events.WindowClosed
 	case int(C.MIMI_KIND_WINDOW_RESIZING):
 		return events.WindowResizing
+	case int(C.MIMI_KIND_WINDOW_MOVING):
+		return events.WindowMoving
 	case int(C.MIMI_KIND_WORKSPACE_CHANGED):
 		return events.WorkspaceChanged
 	default:

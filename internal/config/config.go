@@ -74,11 +74,11 @@ type SystrayConfig struct {
 // examples/tiling/). The whole section is reloadable: the engine re-reads it
 // on every reload, and enabling it at runtime is how a layout is tried out.
 type TilingConfig struct {
-	Enabled          bool   `json:"enabled"          toml:"enabled"`
-	Layout           string `json:"layout"           toml:"layout"`
-	DebounceMS       int    `json:"debounceMs"       toml:"debounce_ms"`
-	TimeoutSecs      int    `json:"timeoutSecs"      toml:"timeout_secs"`
-	RelayoutOnResize bool   `json:"relayoutOnResize" toml:"relayout_on_resize"`
+	Enabled        bool   `json:"enabled"        toml:"enabled"`
+	Layout         string `json:"layout"         toml:"layout"`
+	DebounceMS     int    `json:"debounceMs"     toml:"debounce_ms"`
+	TimeoutSecs    int    `json:"timeoutSecs"    toml:"timeout_secs"`
+	RelayoutOnDrag bool   `json:"relayoutOnDrag" toml:"relayout_on_drag"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.
@@ -94,6 +94,7 @@ type HooksConfig struct {
 	WindowCreated     []HookEntry `json:"onWindowCreated"     toml:"on_window_created"`
 	WindowClosed      []HookEntry `json:"onWindowClosed"      toml:"on_window_closed"`
 	WindowResize      []HookEntry `json:"onWindowResize"      toml:"on_window_resize"`
+	WindowMove        []HookEntry `json:"onWindowMove"        toml:"on_window_move"`
 	WorkspaceChanged  []HookEntry `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
 }
 

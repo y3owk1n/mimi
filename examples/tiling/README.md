@@ -30,8 +30,9 @@ Input:
 
 - `event.kind` is a hook event name (`window_created`, `window_closed`,
   `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`,
-  and `window_resize` when `tiling.relayout_on_resize` is set, only for a
-  resize the user made),
+  and `window_move` or `window_resize` when `tiling.relayout_on_drag` is
+  set, only for a drag the user made, which add `"windows"`, the numbers
+  of the windows dragged),
   or `startup` when the daemon starts with tiling on, or `reload` when a
   reload switches it on or changes the layout,
   or `preview` from `mimi tiling preview`, or `relayout` from
@@ -69,8 +70,8 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 | File | What it does |
 | --- | --- |
 | `columns.py [gap]` | Equal-width columns across the display holding the focused window. No state, no commands: the one to copy when starting your own. |
-| `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, and reads a drag of the split from either side. |
-| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
+| `master-stack.py [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
+| `bsp.py [gap]` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
 | `rules.py` | What the three share: the float rules (edit the bundle ids and title patterns here), the display to fill, reading the input and writing the output. |
 | `standalone.sh <layout> [args]` | Run any layout once without the daemon. Shell and `jq`. |
 
@@ -142,7 +143,7 @@ next event tries again.
 - `windows` is what `focus_window` cycles: standard windows of regular
   applications, not sheets, popovers, or minimized windows. `rules.py` is
   for what you want to skip beyond that.
-- Resizes wake the daemon's engine only with `relayout_on_resize = true`.
-  Without it a window the user drags stays where it was dragged until the
-  next event. With it the master-stack example reads a dragged master edge
-  as the new ratio.
+- Moves and resizes wake the daemon's engine only with
+  `relayout_on_drag = true`. Without it a window the user drags stays where
+  it was dragged until the next event. With it the examples read a dragged
+  edge as a new ratio and a window dropped on another as a swap.

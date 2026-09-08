@@ -213,7 +213,7 @@ enabled = true
 layout = "~/.config/mimi/tiling/columns.py 8"
 debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
-relayout_on_resize = false   # a window the user resizes runs a pass too
+relayout_on_drag = false     # a window the user moves or resizes runs a pass too
 ```
 
 mimi ships no layout. `layout` is a command line, run through
@@ -223,11 +223,12 @@ created, closed or focused, an application hides, unhides or quits, or the
 space changes, waiting `debounce_ms` for the burst to settle so one pass covers
 it.
 
-Resizes are opt-in, with `relayout_on_resize = true`, because every frame the
-engine writes is one and a layout that ran on its own writes would never stop.
-With it set, the engine remembers where each window it placed actually landed
-and treats a resize as the user's only when a placed window is somewhere else,
-which is what lets a layout read a dragged edge as a new split ratio. A resize
+Moves and resizes are opt-in, with `relayout_on_drag = true`, because every
+frame the engine writes is one and a layout that ran on its own writes would
+never stop. With it set, the engine remembers where each window it placed
+actually landed and treats a move or resize as the user's only when a placed
+window is somewhere else, which is what lets a layout read a dragged edge as a
+new split ratio, or a window dropped on another as a swap. A move or resize
 within a second of the engine's own write is taken as that write settling.
 
 The input is the same JSON `mimi query windows` and `mimi query displays`
@@ -238,7 +239,8 @@ as it starts with tiling enabled; `reload` for the pass a reload runs when it
 switches tiling on or names another layout; or `preview`, `relayout` or
 `command` from the `mimi tiling` subcommands. A `command` carries `name` and
 `args`, and what they mean is the layout's to decide; a `window_resize`
-carries `windows`, the numbers of the windows the user moved:
+or a `window_move` carries `windows`, the numbers of the windows the user
+dragged:
 
 ```json
 {"version":1,
@@ -298,6 +300,7 @@ while running the hooks it did understand.
 | `on_window_created` | New window opens |
 | `on_window_closed` | Window closes |
 | `on_window_resize` | Window resize completes (debounced) |
+| `on_window_move` | Window move completes (debounced, same window as resize) |
 
 ### Workspace events
 

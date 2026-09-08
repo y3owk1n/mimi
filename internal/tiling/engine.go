@@ -49,8 +49,8 @@ type Engine struct {
 	// states is what the layout returned last time, keyed by space index.
 	states map[int]json.RawMessage
 
-	// onResize is whether a window the user resized runs a pass.
-	onResize bool
+	// onDrag is whether a window the user moved or resized runs a pass.
+	onDrag bool
 	// applied is where every window the engine last wrote actually landed,
 	// read back rather than as requested, keyed by window number; and
 	// appliedAt is when. Together they tell the engine's own resizes from
@@ -110,7 +110,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.enabled = cfg.Enabled
 	e.command = cfg.Layout
 	e.configured = true
-	e.onResize = cfg.RelayoutOnResize
+	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 	e.layout = Program{
 		Shell:   shell,
@@ -160,8 +160,8 @@ var wakingKinds = map[events.EventKind]bool{
 }
 
 // KindFilter is the bus filter for the engine's subscription: the waking
-// kinds, resizes too when relayout_on_resize is set, and only while the
-// engine is enabled, so a disabled engine costs the bus no sends.
+// kinds, moves and resizes too when relayout_on_drag is set, and only while
+// the engine is enabled, so a disabled engine costs the bus no sends.
 func (e *Engine) KindFilter() events.KindFilter {
 	return func(kind events.EventKind) bool {
 		e.mu.Lock()
@@ -171,8 +171,8 @@ func (e *Engine) KindFilter() events.KindFilter {
 			return false
 		}
 
-		if kind == events.WindowResize {
-			return e.onResize
+		if kind == events.WindowResize || kind == events.WindowMove {
+			return e.onDrag
 		}
 
 		return wakingKinds[kind]
@@ -222,21 +222,24 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				return
 			}
 
-			event := eventOf(evt)
-
-			if evt.Kind == events.WindowResize {
-				event.Windows = e.userResized()
-				if len(event.Windows) == 0 {
-					continue
-				}
-			}
-
-			arm(event)
+			arm(eventOf(evt))
 		case event := <-e.wake:
 			arm(event)
 		case <-fire:
 			timer = nil
 			fire = nil
+
+			// A drag settles into one pass, whatever mix of move and
+			// resize events it raised on the way: what it was is decided
+			// here, from where the windows ended up.
+			if isDrag(pending.Kind) {
+				kind, windows := e.userDragged()
+				if len(windows) == 0 {
+					continue
+				}
+
+				pending.Kind, pending.Windows = kind, windows
+			}
 
 			err := e.Pass(ctx, pending)
 			if err != nil {
@@ -349,41 +352,68 @@ func (e *Engine) settleWindow() time.Duration {
 	return e.settle
 }
 
-// userResized decides what a resize event means, reporting the windows the
-// user moved, none when the event was not the user's. Within the grace after
-// an apply it is the engine's own write landing, possibly snapped by the
-// application, so the frames are read back again and remembered. After it,
-// the user's windows are the placed ones that are no longer where they were
-// placed.
-func (e *Engine) userResized() []uint32 {
+// isDrag reports whether kind is one a user's drag raises.
+func isDrag(kind string) bool {
+	return kind == string(events.WindowMove) || kind == string(events.WindowResize)
+}
+
+// userDragged decides what a settled drag was, reporting the windows the
+// user dragged, none when the drag was not the user's, and whether it was a
+// move or a resize. Within the grace after an apply it is the engine's own
+// write landing, possibly snapped by the application, so the frames are
+// read back again and remembered. After it, the user's windows are the
+// placed ones that are no longer where they were placed.
+//
+// The kind comes from where the windows ended up, not from which
+// notifications macOS sent: an application that snaps its size to a grid
+// resizes itself a little on every move, and raises both. A drag that
+// changed position more than it changed size is a move; anything else,
+// which includes a dragged edge, is a resize.
+func (e *Engine) userDragged() (string, []uint32) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if !e.onResize || len(e.applied) == 0 {
-		return nil
+	if !e.onDrag || len(e.applied) == 0 {
+		return "", nil
 	}
 
 	if time.Since(e.appliedAt) < e.resizeGrace {
 		e.rememberLocked()
 
-		return nil
+		return "", nil
 	}
 
 	windows, err := e.readWindows()
 	if err != nil {
-		return nil
+		return "", nil
 	}
 
-	var moved []uint32
+	var (
+		dragged []uint32
+		resized bool
+	)
 
 	for _, win := range windows.Windows {
 		placed, ok := e.applied[win.Number]
-		if ok && !sameFrame(placed, win.Frame) {
-			moved = append(moved, win.Number)
+		if !ok || sameFrame(placed, win.Frame) {
+			continue
+		}
+
+		dragged = append(dragged, win.Number)
+
+		moved := math.Abs(win.Frame.X-placed.X) + math.Abs(win.Frame.Y-placed.Y)
+		sized := math.Abs(win.Frame.Width-placed.Width) + math.Abs(win.Frame.Height-placed.Height)
+
+		if sized >= moved {
+			resized = true
 		}
 	}
 
-	return moved
+	if resized {
+		return string(events.WindowResize), dragged
+	}
+
+	return string(events.WindowMove), dragged
 }
 
 // rememberLocked reads back where the windows the engine placed actually
