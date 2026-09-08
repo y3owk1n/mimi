@@ -74,9 +74,20 @@ func TestTilingCommands_ReachTheDaemonAsATilingAction(t *testing.T) {
 
 // TestTilingCommands_RunALocalEngineWithoutADaemon: no daemon, so the layout
 // runs here. The layout below fails on purpose, which is how the test knows
-// it ran, and its stderr is what the user sees.
+// it ran, and its stderr is what the user sees. The engine runs a layout
+// only for a display with a window on it, so a desktop with none, a CI
+// runner's, has nothing to run and the test cannot tell; it skips there.
 func TestTilingCommands_RunALocalEngineWithoutADaemon(t *testing.T) {
 	t.Parallel()
+
+	windows, queryErr := action.QueryWindows()
+	if queryErr != nil || len(windows.Windows) == 0 {
+		t.Skipf(
+			"needs a desktop with a window to lay out (windows: %d, err: %v)",
+			len(windows.Windows),
+			queryErr,
+		)
+	}
 
 	socketPath := filepath.Join(shortSocketDir(t), "none.sock")
 	configPath := tilingConfigWith(t, socketPath, "echo ran-locally >&2; exit 3")
