@@ -15,6 +15,22 @@ import (
 
 const defaultResizeDebounceDuration = 250 * time.Millisecond
 
+// axRetryDelays is how long the router waits between attempts to attach an
+// AX observer to an application that refused the first one. An application
+// answers Accessibility only once its run loop is up, which for a large one
+// is seconds after launch; the first attempt is made the instant macOS
+// reports the launch, and until this retry existed a refusal there was the
+// end of window events from that application for its whole run.
+//
+//nolint:gochecknoglobals // a fixed schedule
+var axRetryDelays = []time.Duration{
+	250 * time.Millisecond,
+	500 * time.Millisecond,
+	time.Second,
+	2 * time.Second,
+	4 * time.Second,
+}
+
 // Router receives native events and publishes hookable events to the bus.
 type Router struct {
 	bus    *events.Bus
@@ -23,6 +39,8 @@ type Router struct {
 
 	mu             sync.Mutex
 	timers         map[string]*resizeState
+	retries        map[int]*axRetry
+	retryDelays    []time.Duration
 	stopped        bool
 	debounceWindow time.Duration
 }
@@ -30,6 +48,13 @@ type Router struct {
 type resizeState struct {
 	timer *time.Timer
 	evt   events.Event
+}
+
+// axRetry is one application the router is still trying to observe.
+type axRetry struct {
+	timer   *time.Timer
+	evt     events.Event
+	attempt int
 }
 
 // NewRouter creates an event router for the hook daemon with the default
@@ -60,6 +85,8 @@ func NewRouterWithDebounce(
 		ax:             tracker,
 		logger:         logger,
 		timers:         make(map[string]*resizeState),
+		retries:        make(map[int]*axRetry),
+		retryDelays:    axRetryDelays,
 		debounceWindow: debounceWindow,
 	}
 }
@@ -102,15 +129,19 @@ func (r *Router) handle(evt events.Event) {
 	switch evt.Kind { //nolint:exhaustive
 	case events.AppActivate, events.AppLaunch:
 		if evt.PID > 0 {
-			if ok := r.ax.Install(evt.PID); !ok {
-				r.logger.Debugw("AX observer install failed",
+			if ok := r.ax.Install(evt.PID); ok {
+				r.cancelRetry(evt.PID)
+			} else {
+				r.logger.Debugw("AX observer install failed; will retry",
 					"pid", evt.PID, "app", evt.AppName)
+				r.scheduleRetry(evt, 0)
 			}
 		}
 	case events.AppQuit:
 		if evt.PID > 0 {
 			r.ax.Remove(evt.PID)
 			r.cancelTimersForPID(evt.PID)
+			r.cancelRetry(evt.PID)
 		}
 	case events.WindowResizing:
 		r.debounceResize(evt)
@@ -208,6 +239,90 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 	return rState
 }
 
+// scheduleRetry arms the next attempt to observe evt's application, or gives
+// up once the schedule is spent. A retry already pending for the pid stands.
+func (r *Router) scheduleRetry(evt events.Event, attempt int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if r.stopped {
+		return
+	}
+
+	if _, pending := r.retries[evt.PID]; pending {
+		return
+	}
+
+	if attempt >= len(r.retryDelays) {
+		r.logger.Warnw(
+			"AX observer install gave up; window events from this application will not fire",
+			"pid",
+			evt.PID,
+			"app",
+			evt.AppName,
+			"attempts",
+			attempt,
+		)
+
+		return
+	}
+
+	retry := &axRetry{evt: evt, attempt: attempt}
+	retry.timer = time.AfterFunc(r.retryDelays[attempt], func() { r.retryInstall(evt.PID, retry) })
+	r.retries[evt.PID] = retry
+}
+
+// retryInstall is one attempt off the timer. On success it publishes
+// AXAttached, so a subscriber that missed the application's first windows
+// knows to look now.
+func (r *Router) retryInstall(pid int, retry *axRetry) {
+	r.mu.Lock()
+
+	current, pending := r.retries[pid]
+	if !pending || current != retry || r.stopped {
+		r.mu.Unlock()
+
+		return
+	}
+
+	delete(r.retries, pid)
+	r.mu.Unlock()
+
+	if !r.ax.Install(pid) {
+		r.scheduleRetry(retry.evt, retry.attempt+1)
+
+		return
+	}
+
+	attached := events.Event{
+		ID:       uuid.NewString(),
+		Kind:     events.AXAttached,
+		AppName:  retry.evt.AppName,
+		BundleID: retry.evt.BundleID,
+		PID:      pid,
+		At:       time.Now(),
+	}
+	r.logger.Debugw("event",
+		"kind", attached.Kind,
+		"app", attached.AppName,
+		"bundle", attached.BundleID,
+		"pid", attached.PID,
+		"attempt", retry.attempt+1,
+	)
+	r.bus.Publish(attached)
+}
+
+// cancelRetry drops any pending attempt for pid.
+func (r *Router) cancelRetry(pid int) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	if retry, pending := r.retries[pid]; pending {
+		retry.timer.Stop()
+		delete(r.retries, pid)
+	}
+}
+
 func (r *Router) cancelTimersForPID(pid int) {
 	r.mu.Lock()
 	defer r.mu.Unlock()
@@ -229,5 +344,10 @@ func (r *Router) stopAllTimers() {
 	for key, rs := range r.timers {
 		rs.timer.Stop()
 		delete(r.timers, key)
+	}
+
+	for pid, retry := range r.retries {
+		retry.timer.Stop()
+		delete(r.retries, pid)
 	}
 }

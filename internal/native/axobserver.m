@@ -269,17 +269,23 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 	}
 }
 
-static void axInstallBlock(int pid) {
+// axInstallBlock attaches the observer to pid, reporting whether every
+// notification is now subscribed. An application that has just launched
+// answers Accessibility with kAXErrorCannotComplete until its run loop is up;
+// an observer with no subscriptions would sit there for the application's
+// whole run and report nothing, so the attempt is torn down and reported as
+// failed for the caller to retry.
+static bool axInstallBlock(int pid) {
 	if (!gEntries)
 		gEntries = [NSMutableDictionary new];
 
 	NSNumber *key = @(pid);
 	if (gEntries[key])
-		return;
+		return true;
 
 	AXUIElementRef appElement = AXUIElementCreateApplication(pid);
 	if (!appElement)
-		return;
+		return false;
 
 	AXObserverRef observer = NULL;
 	AXError err = AXObserverCreate(pid, axCallback, &observer);
@@ -287,7 +293,7 @@ static void axInstallBlock(int pid) {
 		MIMI_LOG("AXObserverCreate failed for pid=%d with error %d", pid, (int)err);
 		CFRelease(appElement);
 
-		return;
+		return false;
 	}
 
 	CFStringRef notifications[] = {
@@ -301,6 +307,10 @@ static void axInstallBlock(int pid) {
 			MIMI_LOG(
 			    "AXObserverAddNotification failed for %@ with error %d (pid=%d)", (__bridge NSString *)notifications[i],
 			    (int)addErr, pid);
+			CFRelease(observer);
+			CFRelease(appElement);
+
+			return false;
 		}
 	}
 
@@ -315,6 +325,8 @@ static void axInstallBlock(int pid) {
 	entry.pid = pid;
 	entry.knownRealWindows = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
 	gEntries[key] = entry;
+
+	return true;
 }
 
 static void axRemoveBlock(int pid) {
@@ -344,8 +356,7 @@ bool AXInstallObserver(int pid) {
 		return false;
 
 	CFRunLoopPerformBlock(rl, kCFRunLoopDefaultMode, ^{
-		axInstallBlock(pid);
-		ok = true;
+		ok = axInstallBlock(pid);
 		dispatch_semaphore_signal(sem);
 	});
 	CFRunLoopWakeUp(rl);

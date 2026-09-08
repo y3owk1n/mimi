@@ -117,7 +117,9 @@ func (e *Engine) Enabled() bool {
 
 // wakingKinds are the events a pass runs for. Resizes are deliberately not
 // among them: every frame the engine writes is one, and the loop that would
-// make is the failure a layout engine exists to avoid.
+// make is the failure a layout engine exists to avoid. AXAttached is: the
+// application's first windows opened before the daemon could see them, and
+// this is the moment it can.
 //
 //nolint:gochecknoglobals // a fixed set
 var wakingKinds = map[events.EventKind]bool{
@@ -128,6 +130,7 @@ var wakingKinds = map[events.EventKind]bool{
 	events.AppHide:          true,
 	events.AppUnhide:        true,
 	events.AppQuit:          true,
+	events.AXAttached:       true,
 }
 
 // KindFilter is the bus filter for the engine's subscription: the waking

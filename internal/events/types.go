@@ -32,6 +32,11 @@ const (
 	WindowResizing EventKind = "_window_resizing"
 	// WindowResize fires when a window resize is completed (debounced).
 	WindowResize EventKind = "window_resize"
+	// AXAttached fires when the daemon's Accessibility observer reaches an
+	// application it could not observe when the application launched (raw,
+	// internal). Window events from that application flow from this point;
+	// anything the application did before it is unseen.
+	AXAttached EventKind = "_ax_attached"
 
 	// WorkspaceChanged fires when the active macOS Space/Desktop changes.
 	WorkspaceChanged EventKind = "workspace_changed"
