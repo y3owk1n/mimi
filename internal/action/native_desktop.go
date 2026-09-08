@@ -258,6 +258,21 @@ func (d *nativeDesktop) ActiveSpaceIndex() (int, error) {
 	return native.ActiveSpaceIndex()
 }
 
+// ActiveSpaces is the space in front on every display.
+func (d *nativeDesktop) ActiveSpaces() (map[uint32]int, error) {
+	displays, err := native.Displays()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint32, len(displays))
+	for index, display := range displays {
+		ids[index] = display.ID
+	}
+
+	return native.ActiveSpaceIndexes(ids), nil
+}
+
 // FocusSpace switches to the space at the given 1-based index.
 func (d *nativeDesktop) FocusSpace(index int) error {
 	return native.FocusSpace(index)

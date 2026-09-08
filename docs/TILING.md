@@ -86,14 +86,18 @@ window event ──▶ daemon settles the burst (debounce_ms)
               applies the frames, keeps the state for next time
 ```
 
+- **One run per display:** the program runs once for each display that has
+  a window on it, with that display's windows and that display's own state,
+  so a layout only ever thinks about one display.
 - **Events that wake it:** a window created, closed, or focused; an
   application hidden, unhidden, or quit; a space change; the daemon starting
   with tiling on; a reload that switches it on or names another layout; and,
   when `relayout_on_drag = true`, a window the user moved or resized. Every
   burst of events becomes one run of your program.
 - **State:** whatever your program prints as `state` is handed back to it on
-  the next run for the same space, so a layout remembers a tree or a ratio
-  without touching a file. Each Mission Control space has its own state.
+  the next run for the same display and space, so a layout remembers a tree
+  or a ratio without touching a file. Each display keeps one state per
+  Mission Control space in front on it.
 - **The engine never fights you:** its own frame writes never wake it, and
   with `relayout_on_drag` it tells a drag you made from a write it made by
   reading back where every window actually landed.
@@ -116,6 +120,9 @@ Your program reads one JSON document on stdin and prints one on stdout.
   "version": 1,
   "event": {"kind": "window_created", "app": "Safari",
             "bundleId": "com.apple.Safari", "pid": 501},
+  "display": {"index": 1, "id": 1,
+              "frame":   {"x": 0, "y": 0,  "width": 1440, "height": 900},
+              "visible": {"x": 0, "y": 25, "width": 1440, "height": 875}},
   "space": 2,
   "displays": [
     {"index": 1, "id": 1,
@@ -137,11 +144,12 @@ Your program reads one JSON document on stdin and prints one on stdout.
 | `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`), `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
 | `event.name`, `event.args` | For a `command`: what the user typed after `mimi tiling cmd`. |
 | `event.windows` | For a `window_move` or `window_resize`: the numbers of the windows the user dragged. |
-| `space` | The 1-based Mission Control space in front. |
-| `displays` | Every display, numbered as `move_window_to_display` counts them. Fill `visible`, never `frame`: `visible` is what is left after the menu bar and the Dock. |
-| `focused` | Index into `windows` of the focused one, or -1. |
-| `windows` | Every focusable window on the active space, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. |
-| `state` | What you printed last time for this space, or `null`. |
+| `display` | The display this run is for. Fill its `visible`, never its `frame`: `visible` is what is left after the menu bar and the Dock. |
+| `space` | The 1-based Mission Control space in front on that display. |
+| `displays` | Every display, numbered as `move_window_to_display` counts them, for reference. |
+| `focused` | Index into `windows` of the focused one, or -1 when the focused window is on another display. |
+| `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. |
+| `state` | What you printed last time for this display and space, or `null`. |
 
 `displays` and `windows` are exactly what `mimi query displays` and
 `mimi query windows` print, so you can look at real data any time.
@@ -188,7 +196,7 @@ if not windows:
     sys.exit(0)
 
 # 2. Decide the area to fill. visible, never frame.
-v = inp["displays"][0]["visible"]
+v = inp["display"]["visible"]
 area = {"x": v["x"] + GAP, "y": v["y"] + GAP,
         "width": v["width"] - 2 * GAP, "height": v["height"] - 2 * GAP}
 
@@ -215,14 +223,10 @@ From there, the pieces you will want, in the order you will want them:
 identifiers, a title pattern, and a size floor. Use `read_input()` from it and
 `windows` arrives already filtered, with `focused` re-pointed.
 
-**Handle every display.** The input holds the windows of every display, so
-a layout that fills one area would drag the other monitor's windows onto it.
-`per_display(inp, state, gap, tile)` from `rules.py` runs your `tile`
-function once per display, on the windows whose centres are on it, with an
-area inset by the gap and a state of that display's own under
-`state["displays"][id]`. The three shipped layouts are written as a `tile`
-function for one display and that one call; a window moved to another
-monitor simply shows up in that monitor's group on the next run.
+**Fill the right area.** `area(inp, gap)` from `rules.py` is the display's
+visible frame inset by the gap. There is nothing more to multi-display than
+that: mimi runs your program once per display, and a window moved to another
+monitor simply shows up in that monitor's run next time.
 
 **Remember something.** Print it in `state`, read it back from
 `inp["state"]` next time. `master-stack.py` remembers its master and ratio in
@@ -328,19 +332,20 @@ computed. Add it to your own layout with that one line.
 
 ## More than one display
 
-Each display is tiled on its own. A layout written with `per_display` keeps a
-separate tree, master, or maximised window per display, and a window that
+Each display is tiled on its own: mimi runs your program once per display
+that has a window, with `display` set to it, `windows` narrowed to the windows
+whose centres are on it, and `space` the space in front on it. State is kept
+per display and space, so a tree, a master, or a maximised window on one
+monitor is never confused with the other's, and switching the space on one
+monitor leaves the other monitor's state exactly where it was. A window that
 crosses to the other monitor, by drag or by `mimi action
-move_window_to_display`, leaves one group and joins the other on the next run.
+move_window_to_display`, leaves one run and joins the other next time.
+
 `mimi query displays` lists the displays in the order
 `move_window_to_display` counts them, with frames in the shared window
 coordinate system, so a display below the primary has a y past the primary's
-height and one above it has a negative y. Fill each display's `visible`, never
-its `frame`.
-
-`space` in the input is the space in front on the display holding the cursor,
-and state is kept per space, so with "Displays have separate Spaces" on, each
-combination of space and display has state of its own.
+height and one above it has a negative y. `mimi tiling preview` prints one
+entry per display.
 
 ---
 

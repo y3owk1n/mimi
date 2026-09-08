@@ -2,7 +2,9 @@
 and which display to fill. Copy, edit, own.
 
 Every layout here reads one JSON document on stdin and prints one on
-stdout; see README.md for the shapes. This file is the one place to add a
+stdout; see README.md for the shapes. mimi runs a layout once per display,
+with that display's windows and a state of that display's own, so a layout
+only ever thinks about one display. This file is the one place to add a
 bundle identifier or a title pattern that should never be tiled.
 """
 
@@ -42,61 +44,17 @@ def read_input():
     return inp
 
 
-def display_of(frame, displays):
-    """The display whose frame holds the centre of frame, or the first."""
-    cx, cy = frame["x"] + frame["width"] / 2, frame["y"] + frame["height"] / 2
-    for d in displays:
-        r = d["frame"]
-        if r["x"] <= cx < r["x"] + r["width"] and r["y"] <= cy < r["y"] + r["height"]:
-            return d
-    return displays[0]
-
-
-def area_of(display, gap):
-    """The display's visible frame inset by gap on every side."""
-    v = display["visible"]
+def area(inp, gap):
+    """The visible frame of the display this input is for, inset by gap on
+    every side. mimi runs a layout once per display, so this is the one area
+    a run ever fills."""
+    v = inp["display"]["visible"]
     return {
         "x": v["x"] + gap,
         "y": v["y"] + gap,
         "width": v["width"] - 2 * gap,
         "height": v["height"] - 2 * gap,
     }
-
-
-def per_display(inp, state, gap, tile):
-    """Run tile once for every display, on the windows whose centres are on
-    it, and gather the frames. Each display keeps its own state under
-    state["displays"][id], so a tree or a master on one monitor is never
-    confused with the other's.
-
-    tile(display_inp, display_state, area) returns (frames, display_state).
-    display_inp is inp narrowed to that display's windows, with `focused`
-    re-pointed, or -1 when the focused window is elsewhere."""
-    focused_number = (
-        inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
-    )
-    groups = {}
-    for w in inp["windows"]:
-        d = display_of(w["frame"], inp["displays"])
-        groups.setdefault(d["id"], (d, []))[1].append(w)
-
-    states = dict(state.get("displays") or {})
-    frames = []
-    for key, (display, windows) in groups.items():
-        numbers = [w["number"] for w in windows]
-        display_inp = dict(inp)
-        display_inp["windows"] = windows
-        display_inp["focused"] = (
-            numbers.index(focused_number) if focused_number in numbers else -1
-        )
-        got, states[str(key)] = tile(
-            display_inp, states.get(str(key)) or {}, area_of(display, gap)
-        )
-        frames.extend(got)
-
-    # A display with nothing on it any more keeps nothing.
-    state["displays"] = {k: v for k, v in states.items() if any(str(d["id"]) == k for d, _ in groups.values())}
-    return frames
 
 
 def write_output(frames, state):

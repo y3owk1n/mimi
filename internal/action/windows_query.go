@@ -35,6 +35,35 @@ type DisplayEntry struct {
 	Visible Frame  `json:"visible"`
 }
 
+// QueryActiveSpaces reports the space in front on every display of the
+// desktop mimi is running on.
+func QueryActiveSpaces() (map[uint32]int, error) {
+	return defaultExecutor.QueryActiveSpaces()
+}
+
+// QueryActiveSpaces reports the space in front on every display, keyed by
+// display id, the way QuerySpace reports the cursor's: through SkyLight, with
+// no Accessibility needed.
+func (e *Executor) QueryActiveSpaces() (map[uint32]int, error) {
+	spaces, err := e.desktop.ActiveSpaces()
+	if err != nil {
+		return nil, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to resolve the active spaces",
+		)
+	}
+
+	if len(spaces) == 0 {
+		return nil, derrors.New(
+			derrors.CodeActionFailed,
+			"failed to enumerate Mission Control spaces",
+		)
+	}
+
+	return spaces, nil
+}
+
 // QueryWindows lists the focusable windows on the active space of the desktop
 // mimi is running on.
 func QueryWindows() (WindowsInfo, error) {

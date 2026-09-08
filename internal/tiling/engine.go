@@ -3,6 +3,7 @@ package tiling
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"math"
 	"sync"
 	"time"
@@ -21,7 +22,7 @@ import (
 type Desktop interface {
 	Windows() (action.WindowsInfo, error)
 	Displays() ([]action.DisplayEntry, error)
-	ActiveSpace() (int, error)
+	ActiveSpaces() (map[uint32]int, error)
 	Apply(frames []action.WindowFrame) error
 }
 
@@ -46,8 +47,10 @@ type Engine struct {
 	configured bool
 	layout     Layout
 	settle     time.Duration
-	// states is what the layout returned last time, keyed by space index.
-	states map[int]json.RawMessage
+	// states is what the layout returned last time, keyed by display and
+	// the space in front on it (stateKey), so a space switched on one
+	// display never touches what the other remembers.
+	states map[string]json.RawMessage
 
 	// onDrag is whether a window the user moved or resized runs a pass.
 	onDrag bool
@@ -79,7 +82,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		desktop:     desktop,
 		serialize:   serialize,
 		logger:      logger,
-		states:      map[int]json.RawMessage{},
+		states:      map[string]json.RawMessage{},
 		applied:     map[uint32]action.Frame{},
 		resizeGrace: defaultResizeGrace,
 		wake:        make(chan Event, 1),
@@ -89,6 +92,9 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 // defaultResizeGrace covers the router's resize debounce plus an
 // application's own settling after a write.
 const defaultResizeGrace = time.Second
+
+// half is the divisor that finds the center of a frame.
+const half = 2
 
 // samePoint is how far two frames may differ and still be the same
 // placement: macOS stores frames in whole points, and rounds.
@@ -255,8 +261,8 @@ func eventOf(evt events.Event) Event {
 	return Event{Kind: string(evt.Kind), App: evt.AppName, BundleID: evt.BundleID, PID: evt.PID}
 }
 
-// Pass runs the layout once for event and applies what it returns. A
-// disabled engine passes without doing anything.
+// Pass runs the layout once per display for event and applies what they
+// return, in one write. A disabled engine passes without doing anything.
 func (e *Engine) Pass(ctx context.Context, event Event) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -265,35 +271,45 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		return nil
 	}
 
-	out, space, err := e.reduceLocked(ctx, event)
+	inputs, err := e.inputsLocked(event)
 	if err != nil {
 		return err
 	}
 
-	if out.State != nil {
-		e.states[space] = out.State
+	var frames []action.WindowFrame
+
+	for _, input := range inputs {
+		out, reduceErr := e.layout.Reduce(ctx, input)
+		if reduceErr != nil {
+			return reduceErr
+		}
+
+		if out.State != nil {
+			e.states[stateKey(input)] = out.State
+		}
+
+		frames = append(frames, out.Frames...)
 	}
 
-	if len(out.Frames) == 0 {
+	if len(frames) == 0 {
 		return nil
 	}
 
 	// The layout ran on a snapshot; a space that changed under it would
 	// refuse every frame, and the switch itself raises the event that lays
 	// the new space out.
-	now, spaceErr := e.activeSpace()
-	if spaceErr == nil && now != space {
-		e.logger.Debugw("tiling pass skipped: space changed", "from", space, "to", now)
+	if e.spacesChangedLocked(inputs) {
+		e.logger.Debugw("tiling pass skipped: space changed")
 
 		return nil
 	}
 
-	err = e.run(func() error { return e.desktop.Apply(out.Frames) })
+	err = e.run(func() error { return e.desktop.Apply(frames) })
 
 	// Whatever the apply reported, some frames may have landed: remember
 	// them all as requested, then read back where they are.
-	e.applied = make(map[uint32]action.Frame, len(out.Frames))
-	for _, frame := range out.Frames {
+	e.applied = make(map[uint32]action.Frame, len(frames))
+	for _, frame := range frames {
 		e.applied[frame.Number] = frame.Frame
 	}
 
@@ -308,10 +324,10 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		"tiling pass applied",
 		"kind",
 		event.Kind,
-		"space",
-		space,
+		"displays",
+		len(inputs),
 		"frames",
-		len(out.Frames),
+		len(frames),
 	)
 
 	return nil
@@ -331,28 +347,164 @@ func (e *Engine) Command(ctx context.Context, event Event) error {
 	return e.Pass(ctx, event)
 }
 
-// Preview runs the layout the way Pass would, and returns what it would
-// apply instead of applying it. It runs whether or not the engine is enabled,
-// so a layout can be tried before it is switched on, and it keeps no state.
-func (e *Engine) Preview(ctx context.Context, event Event) (Input, Output, error) {
+// Preview runs the layout the way Pass would, once per display, and returns
+// what each run was given and what it would apply instead of applying it.
+// It runs whether or not the engine is enabled, so a layout can be tried
+// before it is switched on, and it keeps no state.
+func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	input, err := e.inputLocked(event)
+	inputs, err := e.inputsLocked(event)
 	if err != nil {
-		return Input{}, Output{}, err
+		return nil, nil, err
 	}
 
 	if e.layout == nil {
-		return input, Output{}, derrors.New(
+		return inputs, nil, derrors.New(
 			derrors.CodeInvalidConfig,
 			"no tiling layout configured",
 		)
 	}
 
-	out, err := e.layout.Reduce(ctx, input)
+	outputs := make([]Output, 0, len(inputs))
 
-	return input, out, err
+	for _, input := range inputs {
+		out, reduceErr := e.layout.Reduce(ctx, input)
+		if reduceErr != nil {
+			return inputs, outputs, reduceErr
+		}
+
+		outputs = append(outputs, out)
+	}
+
+	return inputs, outputs, nil
+}
+
+// stateKey names the state for one display and the space in front on it.
+func stateKey(input Input) string {
+	return fmt.Sprintf("%d/%d", input.Display.ID, input.Space)
+}
+
+// inputsLocked reads the desktop into one Input per display that has a
+// window on it, in display order. The caller holds the lock.
+func (e *Engine) inputsLocked(event Event) ([]Input, error) {
+	var (
+		displays []action.DisplayEntry
+		spaces   map[uint32]int
+		windows  action.WindowsInfo
+	)
+
+	err := e.run(func() error {
+		var err error
+
+		displays, err = e.desktop.Displays()
+		if err != nil {
+			return err
+		}
+
+		spaces, err = e.desktop.ActiveSpaces()
+		if err != nil {
+			return err
+		}
+
+		windows, err = e.desktop.Windows()
+
+		return err
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	focused := uint32(0)
+	if windows.Focused >= 0 && windows.Focused < len(windows.Windows) {
+		focused = windows.Windows[windows.Focused].Number
+	}
+
+	inputs := make([]Input, 0, len(displays))
+
+	for _, display := range displays {
+		input := Input{
+			Version:  InputVersion,
+			Event:    event,
+			Display:  display,
+			Space:    spaces[display.ID],
+			Displays: displays,
+			Focused:  -1,
+			Windows:  []action.WindowEntry{},
+		}
+
+		for _, win := range windows.Windows {
+			if displayOf(win.Frame, displays) != display.ID {
+				continue
+			}
+
+			if win.Number == focused {
+				input.Focused = len(input.Windows)
+			}
+
+			input.Windows = append(input.Windows, win)
+		}
+
+		if len(input.Windows) == 0 {
+			continue
+		}
+
+		input.State = e.states[stateKey(input)]
+		if input.State == nil {
+			input.State = json.RawMessage("null")
+		}
+
+		inputs = append(inputs, input)
+	}
+
+	return inputs, nil
+}
+
+// displayOf is the id of the display whose frame holds the center of frame,
+// or the first display's when none does.
+func displayOf(frame action.Frame, displays []action.DisplayEntry) uint32 {
+	centerX := frame.X + frame.Width/half
+	centerY := frame.Y + frame.Height/half
+
+	for _, display := range displays {
+		bounds := display.Frame
+		if centerX >= bounds.X && centerX < bounds.X+bounds.Width &&
+			centerY >= bounds.Y && centerY < bounds.Y+bounds.Height {
+			return display.ID
+		}
+	}
+
+	if len(displays) > 0 {
+		return displays[0].ID
+	}
+
+	return 0
+}
+
+// spacesChangedLocked reports whether any display the inputs were read on
+// shows another space now. The caller holds the lock.
+func (e *Engine) spacesChangedLocked(inputs []Input) bool {
+	var spaces map[uint32]int
+
+	err := e.run(func() error {
+		var err error
+
+		spaces, err = e.desktop.ActiveSpaces()
+
+		return err
+	})
+	if err != nil {
+		return false
+	}
+
+	for _, input := range inputs {
+		if now, ok := spaces[input.Display.ID]; ok && now != input.Space {
+			return true
+		}
+	}
+
+	return false
 }
 
 func (e *Engine) settleWindow() time.Duration {
@@ -460,84 +612,6 @@ func sameFrame(first, second action.Frame) bool {
 		math.Abs(first.Y-second.Y) <= samePoint &&
 		math.Abs(first.Width-second.Width) <= samePoint &&
 		math.Abs(first.Height-second.Height) <= samePoint
-}
-
-// reduceLocked builds the input, runs the layout, and reports the space the
-// state belongs to. The caller holds the lock.
-func (e *Engine) reduceLocked(ctx context.Context, event Event) (Output, int, error) {
-	input, err := e.inputLocked(event)
-	if err != nil {
-		return Output{}, 0, err
-	}
-
-	out, err := e.layout.Reduce(ctx, input)
-	if err != nil {
-		return Output{}, 0, err
-	}
-
-	return out, input.Space, nil
-}
-
-// inputLocked reads the desktop into an Input. The caller holds the lock.
-func (e *Engine) inputLocked(event Event) (Input, error) {
-	var input Input
-
-	err := e.run(func() error {
-		space, err := e.desktop.ActiveSpace()
-		if err != nil {
-			return err
-		}
-
-		displays, err := e.desktop.Displays()
-		if err != nil {
-			return err
-		}
-
-		windows, err := e.desktop.Windows()
-		if err != nil {
-			return err
-		}
-
-		input = Input{
-			Version:  InputVersion,
-			Event:    event,
-			Space:    space,
-			Displays: displays,
-			Focused:  windows.Focused,
-			Windows:  windows.Windows,
-			State:    e.states[space],
-		}
-
-		return nil
-	})
-	if err != nil {
-		return Input{}, err
-	}
-
-	if input.Windows == nil {
-		input.Windows = []action.WindowEntry{}
-	}
-
-	if input.State == nil {
-		input.State = json.RawMessage("null")
-	}
-
-	return input, nil
-}
-
-// activeSpace reads the space in front through the serializer.
-func (e *Engine) activeSpace() (int, error) {
-	var space int
-
-	err := e.run(func() error {
-		var err error
-
-		space, err = e.desktop.ActiveSpace()
-
-		return err
-	})
-
-	return space, err
 }
 
 // run puts fn through the serializer when there is one.

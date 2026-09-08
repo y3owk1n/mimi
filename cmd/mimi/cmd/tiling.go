@@ -192,8 +192,9 @@ Accessibility permission is required.`,
 }
 
 // previewLayout runs the engine's preview on the live desktop and returns
-// whichever side of it was asked for. With inputOnly the layout is not run at
-// all, so a config with no layout still shows the input one would get.
+// whichever side of it was asked for: one entry per display that has a
+// window. With inputOnly the layout is not run at all, so a config with no
+// layout still shows the inputs one would get.
 func previewLayout(cobraCmd *cobra.Command, cfg *config.Config, inputOnly bool) (any, error) {
 	engine := tiling.New(tiling.LiveDesktop{}, nil, nil)
 
@@ -209,31 +210,45 @@ func previewLayout(cobraCmd *cobra.Command, cfg *config.Config, inputOnly bool) 
 		engine.Update(cfg.Tiling, cfg.Settings.HookShell)
 	}
 
-	input, out, err := engine.Preview(cobraCmd.Context(), tiling.Event{Kind: tiling.EventPreview})
+	inputs, outs, err := engine.Preview(cobraCmd.Context(), tiling.Event{Kind: tiling.EventPreview})
 	if err != nil {
 		return nil, err
 	}
 
 	if inputOnly {
-		return input, nil
+		return inputs, nil
 	}
 
-	frames := out.Frames
-	if frames == nil {
-		frames = []action.WindowFrame{}
+	previews := make([]previewOutput, len(outs))
+
+	for index, out := range outs {
+		frames := out.Frames
+		if frames == nil {
+			frames = []action.WindowFrame{}
+		}
+
+		state := out.State
+		if state == nil {
+			state = json.RawMessage("null")
+		}
+
+		previews[index] = previewOutput{
+			Display: inputs[index].Display.ID,
+			Space:   inputs[index].Space,
+			Frames:  frames,
+			State:   state,
+		}
 	}
 
-	state := out.State
-	if state == nil {
-		state = json.RawMessage("null")
-	}
-
-	return previewOutput{Frames: frames, State: state}, nil
+	return previews, nil
 }
 
-// previewOutput is a layout's Output printed the way the layout printed it,
-// with an absent state shown as null rather than left out.
+// previewOutput is one display's Output printed the way the layout printed
+// it, with the display and space it was for, and an absent state shown as
+// null rather than left out.
 type previewOutput struct {
-	Frames []action.WindowFrame `json:"frames"`
-	State  json.RawMessage      `json:"state"`
+	Display uint32               `json:"display"`
+	Space   int                  `json:"space"`
+	Frames  []action.WindowFrame `json:"frames"`
+	State   json.RawMessage      `json:"state"`
 }

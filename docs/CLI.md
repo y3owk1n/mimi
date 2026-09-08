@@ -358,17 +358,17 @@ copy.
 
 ### `mimi tiling preview [--input]`
 
-Run `tiling.layout` once against the desktop as it is now, with a `preview`
-event and a null state, and print what it returned as one line of JSON without
-applying any of it. It runs whether or not `tiling.enabled` is set, which is
-how a layout is tried before it is switched on. With `--input` the JSON that
-would be handed to the layout is printed instead, and the layout is not run.
-**Accessibility permission is required.**
+Run `tiling.layout` once per display against the desktop as it is now, with a
+`preview` event and a null state, and print what each run returned as one line
+of JSON without applying any of it. It runs whether or not `tiling.enabled` is
+set, which is how a layout is tried before it is switched on. With `--input`
+the JSON that would be handed to each run is printed instead, and the layout
+is not run. **Accessibility permission is required.**
 
 ```
 $ mimi tiling preview
-{"frames":[{"number":4242,"frame":{"x":8,"y":33,"width":1904,"height":1034}}],"state":null}
-$ mimi tiling preview --input | jq '.windows[].app'
+[{"display":1,"space":2,"frames":[{"number":4242,"frame":{"x":8,"y":33,"width":1904,"height":1034}}],"state":null}]
+$ mimi tiling preview --input | jq '.[].windows[].app'
 ```
 
 ### `mimi tiling relayout`

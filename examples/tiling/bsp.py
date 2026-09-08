@@ -31,7 +31,7 @@ Usage: bsp.py [gap]
 import sys
 
 from rules import clamp as clamp_to
-from rules import command, maximised, per_display, read_input, write_output
+from rules import area, command, maximised, read_input, write_output
 
 GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
@@ -223,9 +223,10 @@ def neighbour(rects, number, direction):
 # --- one pass -------------------------------------------------------------
 
 
-def tile(inp, state, area):
-    """The tree for one display: sync it with the windows there, apply the
-    event, lay it out."""
+def main():
+    inp = read_input()
+    state = inp.get("state") or {}
+    box = area(inp, GAP)
     tree = state.get("tree")
     event = inp["event"]
     focused_win = inp["windows"][inp["focused"]] if inp["focused"] >= 0 else None
@@ -251,7 +252,7 @@ def tile(inp, state, area):
         if number in {leaf["win"] for leaf in leaves(tree)}:
             continue
         rects = {}
-        layout(tree, area, rects)
+        layout(tree, box, rects)
         known = [leaf["win"] for leaf in leaves(tree)]
         target = focused if focused in known else (known[-1] if known else None)
         tree = insert(tree, target, number, rects) if target else {"win": number}
@@ -262,7 +263,7 @@ def tile(inp, state, area):
     # that edge's split.
     if event["kind"] == "window_move":
         rects = {}
-        layout(tree, area, rects)
+        layout(tree, box, rects)
         for number in event.get("windows", []):
             if number not in by_number:
                 continue
@@ -276,7 +277,7 @@ def tile(inp, state, area):
         for number in event.get("windows", []):
             key = str(number)
             if key in placed and number in by_number:
-                apply_drag(tree, number, placed[key], by_number[number]["frame"], area)
+                apply_drag(tree, number, placed[key], by_number[number]["frame"], box)
     elif event["kind"] == "command" and focused:
         name, args = event.get("name"), event.get("args", [])
         path = path_to(tree, focused)
@@ -290,26 +291,19 @@ def tile(inp, state, area):
             node["ratio"] = clamp(node["ratio"] + delta)
         elif name == "swap" and args:
             rects = {}
-            layout(tree, area, rects)
+            layout(tree, box, rects)
             other = neighbour(rects, focused, args[0])
             if other:
                 swap_leaves(tree, focused, other)
 
     rects = {}
-    layout(tree, area, rects)
+    layout(tree, box, rects)
     frames = [(number, rect) for number, rect in rects.items()]
     state["tree"] = tree
-    frames = maximised(inp, state, frames, area)
+    frames = maximised(inp, state, frames, box)
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }
-    return frames, state
-
-
-def main():
-    inp = read_input()
-    state = inp.get("state") or {}
-    frames = per_display(inp, state, GAP, tile)
     write_output(frames, state)
 
 

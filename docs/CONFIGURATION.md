@@ -231,9 +231,11 @@ window is somewhere else, which is what lets a layout read a dragged edge as a
 new split ratio, or a window dropped on another as a swap. A move or resize
 within a second of the engine's own write is taken as that write settling.
 
-The input is the same JSON `mimi query windows` and `mimi query displays`
-print, plus the event that woke the engine, the active space, and the `state`
-the layout returned last time for that space, or `null` the first time.
+The layout runs once per display that has a window on it. The input is the
+same JSON `mimi query windows` and `mimi query displays` print, narrowed to
+that display's windows, plus the display itself, the event that woke the
+engine, the space in front on that display, and the `state` the layout
+returned last time for that display and space, or `null` the first time.
 `event.kind` is the hook event name; `startup` for the pass the daemon runs
 as it starts with tiling enabled; `reload` for the pass a reload runs when it
 switches tiling on or names another layout; or `preview`, `relayout` or
@@ -245,6 +247,7 @@ dragged:
 ```json
 {"version":1,
  "event":{"kind":"window_created","app":"Safari","bundleId":"com.apple.Safari","pid":501},
+ "display":{"index":1,"id":1,"frame":{...},"visible":{...}},
  "space":2,
  "displays":[{"index":1,"id":1,"frame":{...},"visible":{...}}],
  "focused":0,

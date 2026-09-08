@@ -88,6 +88,8 @@ int MimiCountMissionControlSpaces(void);
 uint64_t MimiMissionControlSpaceID(int index);
 uint32_t MimiSpaceDisplayID(uint64_t sid);
 uint64_t MimiActiveSpaceID(void);
+/// The space ID in front on the given display, or 0.
+uint64_t MimiDisplayActiveSpaceID(uint32_t did);
 int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid);
 int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID);
 uint32_t MimiCursorDisplayID(void);

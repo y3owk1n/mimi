@@ -143,6 +143,11 @@ type Desktop interface {
 	// ActiveSpaceIndex is the 1-based index of the space in front.
 	ActiveSpaceIndex() (int, error)
 
+	// ActiveSpaces is the 1-based index of the space in front on every
+	// connected display, keyed by display id. With displays sharing one
+	// space every entry is the same index.
+	ActiveSpaces() (map[uint32]int, error)
+
 	// FocusSpace switches to the Mission Control space at the given 1-based
 	// index, which the caller has already checked against SpaceCount.
 	FocusSpace(index int) error

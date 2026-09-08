@@ -30,13 +30,25 @@ type fakeDesktop struct {
 	space    int
 	windows  action.WindowsInfo
 	displays []action.DisplayEntry
+	spaces   map[uint32]int
 	applied  [][]action.WindowFrame
 	applyErr error
 }
 
 func (d *fakeDesktop) Windows() (action.WindowsInfo, error)     { return d.windows, nil }
 func (d *fakeDesktop) Displays() ([]action.DisplayEntry, error) { return d.displays, nil }
-func (d *fakeDesktop) ActiveSpace() (int, error)                { return d.space, nil }
+func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
+	if d.spaces != nil {
+		return d.spaces, nil
+	}
+
+	spaces := map[uint32]int{}
+	for _, display := range d.displays {
+		spaces[display.ID] = d.space
+	}
+
+	return spaces, nil
+}
 
 func (d *fakeDesktop) Apply(frames []action.WindowFrame) error {
 	d.mu.Lock()
@@ -112,26 +124,26 @@ func TestEngine_Pass_HandsTheLayoutItsOwnStateBack(t *testing.T) {
 		}
 	}
 
-	input, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
 	if err != nil {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
 	if got, want := string(
-		input.State,
+		inputs[0].State,
 	), `{"kind":"window_focus","was":{"kind":"`+created+`","was":null}}`; got != want {
 		t.Fatalf("state after two passes = %s, want %s", got, want)
 	}
 
 	desktop.space = 3
 
-	input, _, err = engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	inputs, _, err = engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
 	if err != nil {
 		t.Fatalf("Preview() on another space error = %v", err)
 	}
 
-	if string(input.State) != "null" {
-		t.Fatalf("state on a fresh space = %s, want null", input.State)
+	if string(inputs[0].State) != "null" {
+		t.Fatalf("state on a fresh space = %s, want null", inputs[0].State)
 	}
 }
 
@@ -165,24 +177,27 @@ func TestEngine_Preview_RunsWithoutApplying(t *testing.T) {
 	engine := tiling.New(desktop, nil, nil)
 	engine.Update(config.TilingConfig{Enabled: false, Layout: echoLayout, TimeoutSecs: 5}, shell)
 
-	input, out, err := engine.Preview(context.Background(), tiling.Event{Kind: tiling.EventPreview})
+	inputs, outs, err := engine.Preview(
+		context.Background(),
+		tiling.Event{Kind: tiling.EventPreview},
+	)
 	if err != nil {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
-	if input.Version != tiling.InputVersion || input.Space != 2 || len(input.Windows) != 1 ||
-		len(input.Displays) != 1 {
+	if len(inputs) != 1 || inputs[0].Version != tiling.InputVersion || inputs[0].Space != 2 ||
+		len(inputs[0].Windows) != 1 || len(inputs[0].Displays) != 1 || inputs[0].Display.ID != 7 {
 		t.Fatalf(
-			"Preview() input = %+v, want version %d, space 2, one window, one display",
-			input,
+			"Preview() inputs = %+v, want one for display 7, version %d, space 2, one window",
+			inputs,
 			tiling.InputVersion,
 		)
 	}
 
-	if len(out.Frames) != 1 || len(desktop.applied) != 0 {
+	if len(outs) != 1 || len(outs[0].Frames) != 1 || len(desktop.applied) != 0 {
 		t.Fatalf(
-			"Preview() frames = %d applied = %d, want 1 and 0",
-			len(out.Frames),
+			"Preview() outputs = %+v applied = %d, want one frame and 0",
+			outs,
 			len(desktop.applied),
 		)
 	}
@@ -327,7 +342,7 @@ func TestEngine_Run_SettlesABurstIntoOnePass(t *testing.T) {
 		t.Fatalf("startup plus a burst of three events applied %d times, want 2", got)
 	}
 
-	input, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
 	if err != nil {
 		t.Fatalf("Preview() error = %v", err)
 	}
@@ -336,7 +351,7 @@ func TestEngine_Run_SettlesABurstIntoOnePass(t *testing.T) {
 		Kind string `json:"kind"`
 	}
 
-	_ = json.Unmarshal(input.State, &state)
+	_ = json.Unmarshal(inputs[0].State, &state)
 
 	if state.Kind != string(events.WindowClosed) {
 		t.Fatalf(
@@ -397,7 +412,7 @@ func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
 	waitForApplied(1, "startup")
 
 	lastKind := func() string {
-		input, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+		inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
 		if err != nil {
 			t.Fatalf("Preview() error = %v", err)
 		}
@@ -406,7 +421,7 @@ func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
 			Kind string `json:"kind"`
 		}
 
-		_ = json.Unmarshal(input.State, &state)
+		_ = json.Unmarshal(inputs[0].State, &state)
 
 		return state.Kind
 	}
@@ -442,4 +457,93 @@ func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
 
 	cancel()
 	<-done
+}
+
+// TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn pins the multi-display
+// contract: a display gets a run of its own with only its windows, its
+// state is keyed by its own space, and a space switched on one display
+// leaves the other's state untouched.
+func TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.displays = []action.DisplayEntry{
+		{
+			Index:   1,
+			ID:      7,
+			Frame:   action.Frame{Width: 1000, Height: 1000},
+			Visible: action.Frame{Width: 1000, Height: 1000},
+		},
+		{
+			Index:   2,
+			ID:      8,
+			Frame:   action.Frame{X: 1000, Width: 1000, Height: 1000},
+			Visible: action.Frame{X: 1000, Width: 1000, Height: 1000},
+		},
+	}
+	desktop.windows = action.WindowsInfo{Focused: 1, Windows: []action.WindowEntry{
+		{
+			Number: 1,
+			PID:    10,
+			App:    "A",
+			Frame:  action.Frame{X: 100, Y: 100, Width: 500, Height: 500},
+		},
+		{
+			Number: 2,
+			PID:    11,
+			App:    "B",
+			Frame:  action.Frame{X: 1100, Y: 100, Width: 500, Height: 500},
+		},
+	}}
+	desktop.spaces = map[uint32]int{7: 2, 8: 5}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		enabled(
+			`jq -c '{frames: [], state: {display: .display.id, space: .space, n: (.windows|length), focused: .focused, was: .state}}'`,
+		),
+		shell,
+	)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: created})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if len(inputs) != 2 {
+		t.Fatalf("got %d inputs, want one per display", len(inputs))
+	}
+
+	want := []string{
+		`{"display":7,"space":2,"n":1,"focused":-1,"was":null}`,
+		`{"display":8,"space":5,"n":1,"focused":0,"was":null}`,
+	}
+
+	for index, input := range inputs {
+		if len(input.Windows) != 1 || string(input.State) != want[index] {
+			t.Fatalf("display %d input = %d windows, state %s; want one window and %s",
+				input.Display.ID, len(input.Windows), input.State, want[index])
+		}
+	}
+
+	// The second display switches space: its state starts over, the first
+	// display's is exactly where it was.
+	desktop.spaces = map[uint32]int{7: 2, 8: 6}
+
+	inputs, _, err = engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if string(inputs[0].State) != want[0] || string(inputs[1].State) != "null" {
+		t.Fatalf("after a switch on display 8: states %s and %s; want %s and null",
+			inputs[0].State, inputs[1].State, want[0])
+	}
 }

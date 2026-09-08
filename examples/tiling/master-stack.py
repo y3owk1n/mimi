@@ -24,15 +24,21 @@ Usage: master-stack.py [ratio] [gap]
 
 import sys
 
-from rules import clamp, command, maximised, per_display, read_input, write_output
+from rules import area, clamp, command, maximised, read_input, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 GAP = float(sys.argv[2]) if len(sys.argv) > 2 else 8.0
 
 
-def tile(inp, state, area):
-    """Master and stack on one display."""
+def main():
+    inp = read_input()
+    state = inp.get("state") or {}
     windows = inp["windows"]
+    if not windows:
+        write_output([], None)
+        return
+
+    box = area(inp, GAP)
     numbers = [w["number"] for w in windows]
     by_number = {w["number"]: w for w in windows}
     focused = numbers[inp["focused"]] if inp["focused"] >= 0 else None
@@ -48,7 +54,7 @@ def tile(inp, state, area):
 
     # A stack window dropped on the master's side becomes the master.
     if inp["event"]["kind"] == "window_move" and n > 1:
-        boundary = area["x"] + (area["width"] - GAP) * state.get("ratio", RATIO)
+        boundary = box["x"] + (box["width"] - GAP) * state.get("ratio", RATIO)
         for number in inp["event"].get("windows", []):
             if number != master and number in by_number:
                 f = by_number[number]["frame"]
@@ -58,7 +64,7 @@ def tile(inp, state, area):
     # The ratio: remembered, read off a dragged edge from either side of the
     # split, nudged by "ratio +0.05", clamped.
     ratio = state.get("ratio", RATIO)
-    inner = area["width"] - GAP  # the width shared between master and stack
+    inner = box["width"] - GAP  # the width shared between master and stack
     if inp["event"]["kind"] == "window_resize" and n > 1:
         dragged = inp["event"].get("windows", [])
         stack_dragged = [d for d in dragged if d != master and d in by_number]
@@ -71,13 +77,13 @@ def tile(inp, state, area):
         ratio += float(args[0])
     ratio = clamp(ratio, 0.2, 0.8)
 
-    master_w = area["width"] if n == 1 else int(inner * ratio)
+    master_w = box["width"] if n == 1 else int(inner * ratio)
     stack_w = inner - master_w
     k = n - 1
-    stack_h = (area["height"] - GAP * (k - 1)) // k if k > 0 else 0
+    stack_h = (box["height"] - GAP * (k - 1)) // k if k > 0 else 0
 
     frames = [
-        (master, {"x": area["x"], "y": area["y"], "width": master_w, "height": area["height"]})
+        (master, {"x": box["x"], "y": box["y"], "width": master_w, "height": box["height"]})
     ]
     stack = [w for w in windows if w["number"] != master]
     for i, w in enumerate(stack):
@@ -85,8 +91,8 @@ def tile(inp, state, area):
             (
                 w["number"],
                 {
-                    "x": area["x"] + master_w + GAP,
-                    "y": area["y"] + i * (stack_h + GAP),
+                    "x": box["x"] + master_w + GAP,
+                    "y": box["y"] + i * (stack_h + GAP),
                     "width": stack_w,
                     "height": stack_h,
                 },
@@ -94,14 +100,7 @@ def tile(inp, state, area):
         )
 
     state.update(master=master, ratio=ratio)
-    return maximised(inp, state, frames, area), state
-
-
-def main():
-    inp = read_input()
-    state = inp.get("state") or {}
-    frames = per_display(inp, state, GAP, tile)
-    write_output(frames, state)
+    write_output(maximised(inp, state, frames, box), state)
 
 
 if __name__ == "__main__":

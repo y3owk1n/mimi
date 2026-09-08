@@ -69,6 +69,23 @@ func ActiveSpaceIndex() (int, error) {
 	return 0, derrors.New(derrors.CodeActionFailed, "active space not found in space enumeration")
 }
 
+// ActiveSpaceIndexes reports the 1-based Mission Control index of the space
+// in front on each of the given displays, leaving out a display whose space
+// cannot be resolved.
+func ActiveSpaceIndexes(displayIDs []uint32) map[uint32]int {
+	indexes := SpaceIndexes()
+	active := make(map[uint32]int, len(displayIDs))
+
+	for _, did := range displayIDs {
+		sid := uint64(C.MimiDisplayActiveSpaceID(C.uint32_t(did)))
+		if index, ok := indexes[sid]; ok {
+			active[did] = index
+		}
+	}
+
+	return active
+}
+
 // MoveWindowToSpace moves the frontmost window to the space at the given 1-based index.
 //
 // As with FocusSpace, the index is expected to name a space that exists.

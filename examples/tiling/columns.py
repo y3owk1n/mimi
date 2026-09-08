@@ -13,36 +13,35 @@ Usage: columns.py [gap]
 
 import sys
 
-from rules import maximised, per_display, read_input, write_output
+from rules import area, maximised, read_input, write_output
 
 GAP = float(sys.argv[1]) if len(sys.argv) > 1 else 8.0
-
-
-def tile(inp, state, area):
-    """Columns on one display."""
-    windows = inp["windows"]
-    n = len(windows)
-    col = (area["width"] - GAP * (n - 1)) // n
-    frames = [
-        (
-            w["number"],
-            {
-                "x": area["x"] + i * (col + GAP),
-                "y": area["y"],
-                "width": col,
-                "height": area["height"],
-            },
-        )
-        for i, w in enumerate(windows)
-    ]
-    return maximised(inp, state, frames, area), state
 
 
 def main():
     inp = read_input()
     state = inp.get("state") or {}
-    frames = per_display(inp, state, GAP, tile)
-    write_output(frames, state)
+    windows = inp["windows"]
+    if not windows:
+        write_output([], None)
+        return
+
+    box = area(inp, GAP)
+    n = len(windows)
+    col = (box["width"] - GAP * (n - 1)) // n
+    frames = [
+        (
+            w["number"],
+            {
+                "x": box["x"] + i * (col + GAP),
+                "y": box["y"],
+                "width": col,
+                "height": box["height"],
+            },
+        )
+        for i, w in enumerate(windows)
+    ]
+    write_output(maximised(inp, state, frames, box), state)
 
 
 if __name__ == "__main__":

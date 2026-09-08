@@ -27,12 +27,20 @@ type Event struct {
 	Windows []uint32 `json:"windows,omitempty"`
 }
 
-// Input is everything the layout is told: the event, the active space, the
-// displays and windows exactly as the queries report them, and the state the
-// layout returned on its last run for this space, or null the first time.
+// Input is everything the layout is told for one display: the event, the
+// display to fill and the space in front on it, the windows whose centers
+// are on that display exactly as the queries report them, every display for
+// reference, and the state the layout returned on its last run for this
+// display and space, or null the first time.
+//
+// The engine runs the layout once per display that has windows, so a layout
+// is written for one display and never sees another's windows. A window
+// dragged to another display leaves one input and appears in the other on
+// the next run.
 type Input struct {
 	Version  int                   `json:"version"`
 	Event    Event                 `json:"event"`
+	Display  action.DisplayEntry   `json:"display"`
 	Space    int                   `json:"space"`
 	Displays []action.DisplayEntry `json:"displays"`
 	Focused  int                   `json:"focused"`

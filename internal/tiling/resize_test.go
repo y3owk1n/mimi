@@ -32,10 +32,15 @@ func (d *snappingDesktop) Windows() (action.WindowsInfo, error) {
 }
 
 func (d *snappingDesktop) Displays() ([]action.DisplayEntry, error) {
-	return []action.DisplayEntry{{Index: 1, Visible: action.Frame{Width: 1000, Height: 1000}}}, nil
+	return []action.DisplayEntry{{
+		Index:   1,
+		ID:      1,
+		Frame:   action.Frame{Width: 1000, Height: 1000},
+		Visible: action.Frame{Width: 1000, Height: 1000},
+	}}, nil
 }
 
-func (d *snappingDesktop) ActiveSpace() (int, error) { return 1, nil }
+func (d *snappingDesktop) ActiveSpaces() (map[uint32]int, error) { return map[uint32]int{1: 1}, nil }
 
 func (d *snappingDesktop) Apply(frames []action.WindowFrame) error {
 	d.mu.Lock()
@@ -140,15 +145,15 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 
 	waitFor(2, "a resize by the user")
 
-	input, _, err := engine.Preview(ctx, Event{Kind: EventPreview})
+	inputs, _, err := engine.Preview(ctx, Event{Kind: EventPreview})
 	if err != nil {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
-	if string(input.State) != `{"last":"window_resize","windows":[1]}` {
+	if string(inputs[0].State) != `{"last":"window_resize","windows":[1]}` {
 		t.Fatalf(
 			"state = %s, want the pass to have reported window_resize for window 1",
-			input.State,
+			inputs[0].State,
 		)
 	}
 
@@ -164,13 +169,16 @@ func TestEngine_Run_ResizesByTheUserPassAndOwnResizesDoNot(t *testing.T) {
 
 	waitFor(3, "a move by the user")
 
-	input, _, err = engine.Preview(ctx, Event{Kind: EventPreview})
+	inputs, _, err = engine.Preview(ctx, Event{Kind: EventPreview})
 	if err != nil {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
-	if string(input.State) != `{"last":"window_move","windows":[1]}` {
-		t.Fatalf("state = %s, want the pass to have reported window_move for window 1", input.State)
+	if string(inputs[0].State) != `{"last":"window_move","windows":[1]}` {
+		t.Fatalf(
+			"state = %s, want the pass to have reported window_move for window 1",
+			inputs[0].State,
+		)
 	}
 
 	cancel()
