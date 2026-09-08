@@ -44,6 +44,7 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
 | `mimi query *`               | Does not reach the command; it finishes. Each is a few desktop reads and one line of output. |
 | `mimi tiling preview`        | Kills the layout program if it is still running; nothing is applied either way. |
+| `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
 
 A command in the bottom four rows that the first Ctrl-C did not reach still
 succeeds and exits 0, because it did in fact finish — `mimi config init`
@@ -368,6 +369,30 @@ $ mimi tiling preview
 {"frames":[{"number":4242,"frame":{"x":8,"y":33,"width":1904,"height":1034}}],"state":null}
 $ mimi tiling preview --input | jq '.windows[].app'
 ```
+
+### `mimi tiling relayout`
+
+Run the layout once, with a `relayout` event, and apply the frames it returns.
+With the daemon running its engine runs it, with the state it holds for the
+active space, and `tiling.enabled` has to be set. Without a daemon the layout
+runs in the CLI with a null state, whether or not tiling is enabled.
+**Accessibility permission is required.**
+
+### `mimi tiling cmd <name> [args...]`
+
+Send a named command to the layout. mimi gives the name no meaning: the layout
+reads it from the event (`"kind": "command"`, `"name"`, `"args"`) and decides
+what it does, which is how a layout defines its own hotkeys. The example
+master-stack layout answers `swap` and `ratio +0.05`. Routed exactly as
+`relayout` is. **Accessibility permission is required.**
+
+```bash
+mimi tiling cmd swap
+mimi tiling cmd ratio +0.05
+```
+
+A command is rejected in the CLI, before any path is taken, when its name is
+blank.
 
 ---
 

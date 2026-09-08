@@ -203,6 +203,20 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 	return nil
 }
 
+// Command is a Pass a user asked for, by hotkey or by hand: unlike an event
+// from the bus, it is refused rather than dropped while the engine is
+// disabled, so the user learns why nothing moved.
+func (e *Engine) Command(ctx context.Context, event Event) error {
+	if !e.Enabled() {
+		return derrors.New(
+			derrors.CodeActionFailed,
+			"tiling is disabled (set tiling.enabled = true, and grant Accessibility)",
+		)
+	}
+
+	return e.Pass(ctx, event)
+}
+
 // Preview runs the layout the way Pass would, and returns what it would
 // apply instead of applying it. It runs whether or not the engine is enabled,
 // so a layout can be tried before it is switched on, and it keeps no state.

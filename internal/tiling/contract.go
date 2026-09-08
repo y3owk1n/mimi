@@ -11,13 +11,16 @@ import (
 // input it was not written for; adding a field does not move it.
 const InputVersion = 1
 
-// Event is why the engine ran: the kind of the event that woke it, and the
-// application the event was about, when it was about one.
+// Event is why the engine ran: the kind of the event that woke it, the
+// application the event was about when it was about one, and for a command
+// the user sent, its name and arguments.
 type Event struct {
-	Kind     string `json:"kind"`
-	App      string `json:"app,omitempty"`
-	BundleID string `json:"bundleId,omitempty"`
-	PID      int    `json:"pid,omitempty"`
+	Kind     string   `json:"kind"`
+	App      string   `json:"app,omitempty"`
+	BundleID string   `json:"bundleId,omitempty"`
+	PID      int      `json:"pid,omitempty"`
+	Name     string   `json:"name,omitempty"`
+	Args     []string `json:"args,omitempty"`
 }
 
 // Input is everything the layout is told: the event, the active space, the
@@ -42,8 +45,19 @@ type Output struct {
 }
 
 // Event kinds the engine reports beyond the hookable ones it forwards from
-// the bus: a preview run by hand, and a relayout asked for by name.
+// the bus: a preview run by hand, a relayout asked for by name, and a named
+// command whose meaning is the layout's to decide.
 const (
 	EventPreview  = "preview"
 	EventRelayout = "relayout"
+	EventCommand  = "command"
 )
+
+// EventFromArgs is the tiling action's payload as the layout hears of it.
+func EventFromArgs(args action.TilingArgs) Event {
+	if args.Kind == action.TilingCommand {
+		return Event{Kind: EventCommand, Name: args.Name, Args: args.Args}
+	}
+
+	return Event{Kind: EventRelayout}
+}

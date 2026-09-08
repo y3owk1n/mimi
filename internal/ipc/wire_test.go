@@ -61,6 +61,13 @@ func everyPayloadSet() []payloadCase {
 			},
 		},
 		{
+			name: "tiling with every field set",
+			cmd: action.Command{
+				Name:   action.NameTiling,
+				Tiling: action.TilingArgs{Kind: "command", Name: "swap", Args: []string{"left"}},
+			},
+		},
+		{
 			name: "move_window_to_space with nothing set",
 			cmd:  action.Command{Name: action.NameMoveWindowToSpace},
 		},
@@ -242,6 +249,14 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			want: `{"version":7,"command":{"name":"apply_frames",` +
 				`"applyFrames":{"frames":[{"number":42,` +
 				`"frame":{"x":0,"y":25,"width":960,"height":1055}}]}}}`,
+		},
+		{
+			name: "mimi tiling cmd swap left",
+			build: func() (action.Command, error) {
+				return action.NewTilingCommand(action.TilingCommand, "swap", []string{"left"})
+			},
+			want: `{"version":7,"command":{"name":"tiling",` +
+				`"tiling":{"kind":"command","name":"swap","args":["left"]}}}`,
 		},
 		{
 			name: "mimi action resize_window left-half --width 800 --anchor cc --no-margin",

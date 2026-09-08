@@ -12,6 +12,7 @@ import (
 
 	"go.uber.org/zap"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -135,6 +136,12 @@ func runCore(
 	if cfg.Tiling.Enabled && !accessibilityGranted {
 		logger.Warn("accessibility permission not granted — tiling disabled")
 	}
+
+	// A tiling command from the CLI reaches the engine here, off the action
+	// worker: the engine puts its own desktop work on that worker.
+	ipcServer.HandleDirect(action.NameTiling, func(cmd action.Command) error {
+		return pipeline.tiler.Command(ctx, tiling.EventFromArgs(cmd.Tiling))
+	})
 
 	go pipeline.router.Run(ctx)
 	go pipeline.executor.Run(ctx, pipeline.hookSub)

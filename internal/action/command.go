@@ -40,6 +40,7 @@ type Command struct {
 	ResizeWindow        ResizeWindowArgs      `json:"resizeWindow,omitzero"`
 	FocusApp            FocusAppArgs          `json:"focusApp,omitzero"`
 	ApplyFrames         ApplyFramesArgs       `json:"applyFrames,omitzero"`
+	Tiling              TilingArgs            `json:"tiling,omitzero"`
 }
 
 // FocusAppArgs is focus_app's typed payload: the application, as a bundle
@@ -549,10 +550,24 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		return e.ApplyFrames(cmd.ApplyFrames)
+	case NameTiling:
+		err := validateTilingArgs(cmd.Tiling)
+		if err != nil {
+			return err
+		}
+
+		// The tiling engine, and the layout state it holds, live in the
+		// daemon; the CLI runs a fresh engine of its own when no daemon
+		// answers. A daemon that routed the command here has no engine
+		// registered for it, which is a wiring fault, not a user error.
+		return derrors.New(
+			derrors.CodeNotSupported,
+			"tiling commands run in the daemon's tiling engine, which is not registered",
+		)
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, apply_frames)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, apply_frames, tiling)",
 			cmd.Name,
 		)
 	}

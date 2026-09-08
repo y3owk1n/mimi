@@ -89,6 +89,13 @@ worker (`ipc.Server.Serialize`), so a pass never interleaves with an action
 arriving over the socket and releases the window references that action is
 holding.
 
+`mimi tiling relayout` and `mimi tiling cmd <name>` reach the engine over
+the same socket as the actions, as the `tiling` action; the server hands
+that one action to the engine on the connection's goroutine
+(`ipc.Server.HandleDirect`) rather than the worker, because the engine will
+queue its own work on the worker. With no daemon the CLI runs an engine of
+its own with no state.
+
 `examples/tiling/` holds programs to copy; they are not loaded by mimi and
 carry no promise beyond the JSON contract (`tiling.Input`, `tiling.Output`,
 versioned by `tiling.InputVersion`).

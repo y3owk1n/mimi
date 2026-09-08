@@ -131,6 +131,11 @@ var interruptAudit = []auditEntry{
 		"as query windows for the reads, then the layout program runs under its "+
 			"own timeout; the context is handed to it, so a canceled preview "+
 			"kills the program, and nothing is applied either way"),
+	audited("tiling relayout", interruptRunsOn,
+		"as action when a daemon answers: the request is written and the reply "+
+			"awaited; otherwise as tiling preview, and then the frames are applied"),
+	audited("tiling cmd", interruptRunsOn,
+		"as tiling relayout"),
 	audited("services install", interruptStopsTheWork,
 		"Service.Install threads the context through every launchctl call "+
 			"and checks it again before the plist is written, so a canceled "+

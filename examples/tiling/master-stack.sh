@@ -2,9 +2,13 @@
 # Master and stack: one window fills the left share of the display, every
 # other window stacks top to bottom on the right.
 #
-# The master is remembered in the state, so focusing another window does not
-# reshuffle the layout: the master changes only when it goes away, and then
-# the focused window takes over. That is what the state is for.
+# The master and the ratio live in the state, so focusing another window does
+# not reshuffle the layout, and the layout answers two commands of its own:
+#
+#   mimi tiling cmd swap           make the focused window the master
+#   mimi tiling cmd ratio +0.05    widen the master (or -0.05 to narrow it)
+#
+# mimi gives those names no meaning; this file does. Add your own.
 #
 # A layout program: reads the tiling input on stdin, prints the output on
 # stdout. Copy, edit, own. Needs jq.
@@ -23,14 +27,22 @@ jq -c -L "$here" --argjson ratio "$ratio" --argjson gap "$gap" '
 	| .windows as $wins
 	| ($wins | map(.number)) as $numbers
 	| ($wins | length) as $n
+	| (if .focused >= 0 then $wins[.focused].number else null end) as $focused
 	| if $n == 0 then {frames: [], state: null} else
-	    # Keep the remembered master while it is still here; otherwise the
-	    # focused window, or the first.
-	    (.state.master as $m
-	     | if $m != null and ($numbers | index($m)) != null then $m
-	       elif .focused >= 0 then $wins[.focused].number
-	       else $numbers[0] end) as $master
-	    | (if $n == 1 then $v.width - 2 * $gap else (($v.width - 3 * $gap) * $ratio | floor) end) as $mw
+	    # The ratio: remembered, nudged by "ratio +0.05", clamped.
+	    ((.state.ratio // $ratio)
+	     + (if .event.kind == "command" and .event.name == "ratio"
+	        then (.event.args[0] // "0" | tonumber) else 0 end)
+	     | [[., 0.2] | max, 0.8] | min) as $r
+	    # The master: "swap" makes the focused window the master; otherwise
+	    # the remembered one while it is still here, else the focused, else
+	    # the first.
+	    | (.state.master as $m
+	       | if .event.kind == "command" and .event.name == "swap" and $focused != null then $focused
+	         elif $m != null and ($numbers | index($m)) != null then $m
+	         elif $focused != null then $focused
+	         else $numbers[0] end) as $master
+	    | (if $n == 1 then $v.width - 2 * $gap else (($v.width - 3 * $gap) * $r | floor) end) as $mw
 	    | ($v.width - $mw - 3 * $gap) as $sw
 	    | ($n - 1) as $k
 	    | (if $k > 0 then (($v.height - $gap * ($k + 1)) / $k | floor) else 0 end) as $sh
@@ -43,6 +55,6 @@ jq -c -L "$here" --argjson ratio "$ratio" --argjson gap "$gap" '
 	                           y: ($v.y + $gap + .key * ($sh + $gap)),
 	                           width: $sw,
 	                           height: $sh } } ] ),
-	        state: { master: $master } }
+	        state: { master: $master, ratio: $r } }
 	  end
 '

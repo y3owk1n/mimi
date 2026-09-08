@@ -30,7 +30,11 @@ Input:
 
 - `event.kind` is a hook event name (`window_created`, `window_closed`,
   `window_focus`, `workspace_changed`, `app_hide`, `app_unhide`, `app_quit`),
-  or `preview` from `mimi tiling preview`, or `relayout` from `standalone.sh`.
+  or `preview` from `mimi tiling preview`, or `relayout` from
+  `mimi tiling relayout` and `standalone.sh`, or `command` from
+  `mimi tiling cmd <name> [args...]`, which adds `"name"` and `"args"`.
+  mimi gives a command name no meaning. Your program does, which is how it
+  defines its own hotkeys.
 - `displays` and `windows` are exactly what `mimi query displays` and
   `mimi query windows` print. `focused` is the index into `windows` of the
   focused one, or -1.
@@ -57,7 +61,7 @@ primary has a negative y. Fill `visible` from a display, never `frame`.
 | File | What it does | Needs |
 | --- | --- | --- |
 | `columns.sh [gap]` | Equal-width columns across the display holding the focused window. | `jq` |
-| `master-stack.sh [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master in `state`. | `jq` |
+| `master-stack.sh [ratio] [gap]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, and answers `swap` and `ratio +0.05`. | `jq` |
 | `float-rules.jq` | jq definitions the two above include: `floating`, `tileable`, `display_for`. Edit the bundle ids and title patterns here. | `jq` |
 | `standalone.sh <layout> [args]` | Run any layout once without the daemon. | `jq` |
 
@@ -78,6 +82,19 @@ mimi tiling preview --input      # what your program will be given
 mimi tiling preview              # what it returns, applied to nothing
 ~/.config/mimi/tiling/standalone.sh ~/.config/mimi/tiling/columns.sh   # apply once
 ```
+
+Bind the commands to hotkeys (skhd, Hammerspoon, Karabiner):
+
+```
+alt - return : mimi tiling cmd swap
+alt - l      : mimi tiling cmd ratio +0.05
+alt - h      : mimi tiling cmd ratio -0.05
+alt - r      : mimi tiling relayout
+```
+
+With the daemon running these reach its engine, and the state it holds. With
+no daemon they run in the CLI with a null state, which is enough for
+`relayout` and for trying a command.
 
 `enabled` and `layout` are reloadable, so editing the config while the daemon
 runs is enough. A program that fails is logged and applies nothing, and the
