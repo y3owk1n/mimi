@@ -22,7 +22,9 @@ Commands the layout answers (mimi gives them no meaning; this file does):
   mimi tiling cmd width [fraction]       cycle the focused column through a
                                          third, a half, two thirds; or set one
   mimi tiling cmd center                 scroll the focused column to the middle
-  mimi tiling cmd scroll <left|right>    scroll the strip by one column
+  mimi tiling cmd scroll <left|right> [fraction]
+                                        scroll the strip a step that way, a
+                                        quarter of the display unless given
   mimi tiling cmd togglemax              fill the display with the focused
                                          window, for now
 
@@ -39,6 +41,7 @@ from rules import area, clamp, command, gap, maximised, read_input, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
+SCROLL_STEP = 1 / 4
 MIN_WIDTH, MAX_WIDTH = 0.2, 1.0
 # How much of a column wholly off the strip's visible part stays at the
 # display's edge, in points. macOS refuses to put a window entirely off
@@ -92,21 +95,14 @@ def starts(columns, box, gap):
 
 
 def scroll_into_view(columns, index, box, gap, offset):
-    """The offset that shows column index whole, moving as little as needed,
-    and snapped to a column boundary when one lies in the range that keeps
-    it whole, so a neighbour is either fully in view or off the edge rather
-    than cut somewhere across."""
+    """The offset that shows column index whole, moving as little as
+    needed, so a position the user scrolled to stays until the focused
+    column would leave the view."""
     xs, total = starts(columns, box, gap)
     if index is None:
         return clamp(offset, 0, max(0, total - box["width"]))
     left, width = xs[index], col_width(columns[index], box, gap)
-    # The strip may scroll past its end to land on a boundary: empty space
-    # after the last column beats a neighbour parked over it.
-    lo, hi = max(0, left + width - box["width"]), max(0, left)
-    boundaries = [x for x in xs if lo - 0.5 <= x <= hi + 0.5]
-    if boundaries:
-        return min(boundaries, key=lambda x: abs(x - offset))
-    return clamp(offset, lo, hi)
+    return clamp(offset, max(0, left + width - box["width"]), max(0, left))
 
 
 def frames_for(columns, box, edge, gap, offset):
@@ -223,16 +219,13 @@ def main():
             write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
             return
         elif name == "scroll" and args:
-            # To the next column boundary past the viewport's left edge, in
-            # the direction asked, so every scroll moves a whole column.
-            xs, total = starts(columns, box, GAP)
-            if args[0] == "right":
-                ahead = [x for x in xs if x > offset + 0.5]
-                offset = ahead[0] if ahead else offset
-            else:
-                behind = [x for x in xs if x < offset - 0.5]
-                offset = behind[-1] if behind else 0
-            offset = max(0, offset)
+            # A step along the strip, in the direction asked, kept within
+            # the strip's ends. Focus stays where it is: the view floats
+            # until the next event would leave the focused column hidden.
+            _, total = starts(columns, box, GAP)
+            step = (float(args[1]) if len(args) > 1 else SCROLL_STEP) * box["width"]
+            offset += step if args[0] == "right" else -step
+            offset = clamp(offset, 0, max(0, total - box["width"]))
             state.update(columns=columns, offset=offset)
             write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
             return
