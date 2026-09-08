@@ -86,31 +86,44 @@ func ActiveSpaceIndexes(displayIDs []uint32) map[uint32]int {
 	return active
 }
 
-// MoveWindowToSpace moves the frontmost window to the space at the given 1-based index.
+// MoveWindowToSpace moves the frontmost window to the space at the given
+// 1-based index and returns the pid and window number of the window it moved,
+// which is what a caller that follows the window needs to raise it again once
+// the destination space is in front. The number is 0 when the window server
+// reports none.
 //
 // As with FocusSpace, the index is expected to name a space that exists.
-func MoveWindowToSpace(index int) error {
+func MoveWindowToSpace(index int) (int, uint32, error) {
 	sid := uint64(C.MimiMissionControlSpaceID(C.int(index)))
 	if sid == 0 {
-		return derrors.Newf(
+		return 0, 0, derrors.Newf(
 			derrors.CodeActionFailed,
 			"failed to resolve Mission Control space at index %d",
 			index,
 		)
 	}
 
-	frontmost := C.MimiGetFrontmostWindow()
+	frontmost := FrontmostWindow()
 	if frontmost == nil {
-		return derrors.New(
+		return 0, 0, derrors.New(
 			derrors.CodeActionFailed,
 			"no active window found to move",
 		)
 	}
 
-	defer C.MimiReleaseElement(frontmost) //nolint:nlreturn
+	defer frontmost.Release()
 
-	if C.MimiMoveWindowToSpace(frontmost, C.uint64_t(sid)) == 0 { //nolint:nlreturn
-		return derrors.New(derrors.CodeActionFailed, "failed to move window to space")
+	// Read the identity before the move: once the window leaves the active
+	// space its application stops listing it through Accessibility.
+	pid, err := frontmost.PID()
+	if err != nil {
+		return 0, 0, err
+	}
+
+	number := frontmost.Number()
+
+	if C.MimiMoveWindowToSpace(frontmost.ref, C.uint64_t(sid)) == 0 { //nolint:nlreturn
+		return 0, 0, derrors.New(derrors.CodeActionFailed, "failed to move window to space")
 	}
 
 	targetDid := uint32(C.MimiSpaceDisplayID(C.uint64_t(sid)))
@@ -118,5 +131,5 @@ func MoveWindowToSpace(index int) error {
 		C.MimiActivateDisplay(C.uint32_t(targetDid))
 	}
 
-	return nil
+	return pid, number, nil
 }

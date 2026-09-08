@@ -138,7 +138,7 @@ Move the frontmost window to a space by its 1-based index, or cycle to the next/
 | ---------- | ---------------------------------------------------------------- |
 | `--follow` | Switch to the destination space once the window is there         |
 
-Without `--follow` the window leaves and the current space stays in front. With it, the switch is the same dock-swipe gesture `mimi action space` makes, so it is subject to the same timing. If the move lands but the switch fails, the error says the window moved and the window stays on its new space.
+Without `--follow` the window leaves and the current space stays in front. With it, the switch is the same dock-swipe gesture `mimi action space` makes, so it is subject to the same timing, and the moved window is raised again once the switch lands, since macOS would otherwise bring forward whatever was last in front on that space. If the move lands but the switch or the raise fails, the error says the window moved and the window stays on its new space.
 
 ### `mimi action move_window_to_display <number|next|prev>`
 

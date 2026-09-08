@@ -74,6 +74,11 @@ type fakeDesktop struct {
 	// windowSpace is the space the frontmost window sits on, which is what
 	// move_window_to_space is observed through.
 	windowSpace int
+	// movedWindow is the window move_window_to_space last moved, so a raise
+	// after the follow can be checked against it.
+	movedWindow action.WindowID
+	// raiseErr fails every RaiseWindow when set.
+	raiseErr error
 
 	// refreshWorkspaceTitleCalls counts how many times the desktop's systray
 	// title was asked to catch up with the active space.
@@ -181,6 +186,29 @@ func (d *fakeDesktop) ApplicationWindows(pid int) ([]action.AppWindow, error) {
 // RaiseWindow models the one constraint the real desktop has: a window is
 // reachable through Accessibility only while its space is in front.
 func (d *fakeDesktop) RaiseWindow(pid int, number uint32) error {
+	if d.raiseErr != nil {
+		return d.raiseErr
+	}
+
+	// A window that was just moved is on windowSpace, which the fake's
+	// appWindows listing does not know about.
+	if d.movedWindow != 0 {
+		index, err := d.indexOf(d.movedWindow)
+		if err == nil && d.windows[index].pid == pid && d.windows[index].number == number {
+			if d.windowSpace != d.activeSpace {
+				return derrors.Newf(
+					derrors.CodeAccessibilityFailed,
+					"window %d is on space %d, not the active space %d",
+					number,
+					d.windowSpace,
+					d.activeSpace,
+				)
+			}
+
+			return d.ActivateWindow(d.movedWindow)
+		}
+	}
+
 	for _, win := range d.appWindows[pid] {
 		if win.Number != number {
 			continue
@@ -295,14 +323,25 @@ func (d *fakeDesktop) FocusSpace(index int) error {
 	return nil
 }
 
-func (d *fakeDesktop) MoveWindowToSpace(index int) error {
+func (d *fakeDesktop) MoveWindowToSpace(index int) (action.Window, error) {
 	if d.moveErr != nil {
-		return d.moveErr
+		return action.Window{}, d.moveErr
+	}
+
+	moved, err := d.FrontmostWindow()
+	if err != nil {
+		return action.Window{}, err
 	}
 
 	d.windowSpace = index
+	d.movedWindow = moved.ID
 
-	return nil
+	// macOS focuses the next window on the space the moved one left; the
+	// fake forgets the frontmost window to stand in for that.
+	d.frontmost = 0
+	d.focused = -1
+
+	return action.Window{PID: moved.PID, Number: moved.Number}, nil
 }
 
 func (d *fakeDesktop) RefreshWorkspaceTitle() {

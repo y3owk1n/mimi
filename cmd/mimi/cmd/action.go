@@ -214,8 +214,9 @@ This command uses private APIs (SkyLight) to move the window instantly
 without scripting additions or disabling SIP on macOS.
 
 With --follow, focus switches to the destination space once the window is
-there, the same way "mimi action space" switches. Without it the window
-leaves and the current space stays in front.
+there, the same way "mimi action space" switches, and the moved window is
+brought back to the front on that space. Without it the window leaves and
+the current space stays in front.
 
 Examples:
   mimi action move_window_to_space 2             Move current window to space 2

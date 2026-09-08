@@ -355,3 +355,77 @@ func TestExecuteCommand_MoveWindowToSpace_CarriesFollowOverTheWire(t *testing.T)
 		)
 	}
 }
+
+// TestExecutor_MoveWindowToSpace_FollowRaisesTheMovedWindow pins the fix for
+// following a window to a space and landing in another application: macOS
+// brings the destination space's last frontmost window forward when the
+// switch lands, so the moved window has to be raised again afterwards.
+func TestExecutor_MoveWindowToSpace_FollowRaisesTheMovedWindow(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+	desktop.windows[0].number = 42
+	moved := desktop.windows[0].id
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, true)
+	if err != nil {
+		t.Fatalf("MoveWindowToSpace(3, follow) error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 3 || desktop.windowSpace != 3 {
+		t.Fatalf(
+			"active space = %d, window space = %d, want both 3",
+			desktop.activeSpace,
+			desktop.windowSpace,
+		)
+	}
+
+	wantFocused(t, desktop, moved)
+	wantRefreshCalls(t, desktop, 1)
+}
+
+// TestExecutor_MoveWindowToSpace_WithoutFollowDoesNotRaise checks the raise
+// is tied to following: a plain move leaves focus where macOS put it.
+func TestExecutor_MoveWindowToSpace_WithoutFollowDoesNotRaise(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, false)
+	if err != nil {
+		t.Fatalf("MoveWindowToSpace(3) error = %v, want nil", err)
+	}
+
+	if desktop.frontmost != 0 {
+		t.Fatalf("frontmost = %d, want no window raised", desktop.frontmost)
+	}
+}
+
+// TestExecutor_MoveWindowToSpace_FollowReportsRaiseFailure checks a raise
+// that fails after the move and switch landed is reported as an action
+// failure, with the window left where it was moved to.
+func TestExecutor_MoveWindowToSpace_FollowReportsRaiseFailure(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithSpaces(1)
+	desktop.raiseErr = derrors.New(derrors.CodeAccessibilityFailed, "boom")
+
+	err := action.NewExecutor(desktop).MoveWindowToSpace(3, true)
+	if err == nil {
+		t.Fatal("MoveWindowToSpace(3, follow) error = nil, want an error")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeActionFailed) {
+		t.Fatalf("MoveWindowToSpace(3, follow) error = %v, want an action failure", err)
+	}
+
+	if desktop.activeSpace != 3 || desktop.windowSpace != 3 {
+		t.Fatalf(
+			"active space = %d, window space = %d, want both 3",
+			desktop.activeSpace,
+			desktop.windowSpace,
+		)
+	}
+
+	wantRefreshCalls(t, desktop, 1)
+}

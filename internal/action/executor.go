@@ -104,11 +104,17 @@ func (e *Executor) FocusSpace(index int) error {
 }
 
 // MoveWindowToSpace moves the frontmost window to the space at the given
-// 1-based index, and with follow set switches to that space afterwards.
+// 1-based index, and with follow set switches to that space afterwards and
+// raises the moved window there.
 //
 // The switch is the same one the space action makes, so a window that was
 // moved but could not be followed is reported as such and stays where it was
 // moved to: the move landed, and undoing it would be a second surprise.
+//
+// The raise is needed because macOS refocuses the next window on the space
+// the window left the moment it goes, and then brings whatever was last in
+// front on the destination space forward when the switch lands. Without it
+// the user follows the window and ends up in another application.
 func (e *Executor) MoveWindowToSpace(index int, follow bool) error {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
@@ -127,7 +133,7 @@ func (e *Executor) MoveWindowToSpace(index int, follow bool) error {
 		return err
 	}
 
-	err = e.desktop.MoveWindowToSpace(index)
+	moved, err := e.desktop.MoveWindowToSpace(index)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
 	}
@@ -141,6 +147,18 @@ func (e *Executor) MoveWindowToSpace(index int, follow bool) error {
 				err,
 				derrors.CodeActionFailed,
 				"window moved, but failed to follow it to space %d",
+				index,
+			)
+		}
+
+		err = e.desktop.RaiseWindow(moved.PID, moved.Number)
+		if err != nil {
+			e.desktop.RefreshWorkspaceTitle()
+
+			return derrors.Wrapf(
+				err,
+				derrors.CodeActionFailed,
+				"window moved to space %d, but failed to focus it there",
 				index,
 			)
 		}

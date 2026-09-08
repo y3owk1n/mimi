@@ -154,8 +154,11 @@ type Desktop interface {
 
 	// MoveWindowToSpace moves the frontmost window to the Mission Control
 	// space at the given 1-based index, which the caller has already checked
-	// against SpaceCount.
-	MoveWindowToSpace(index int) error
+	// against SpaceCount, and reports the window it moved. The window's ID is
+	// not meaningful afterwards: the window has left the active space, so
+	// only its PID and Number identify it, and those are what RaiseWindow
+	// takes once that space is in front.
+	MoveWindowToSpace(index int) (Window, error)
 
 	// RefreshWorkspaceTitle brings any on-screen UI for the active space (the
 	// systray's title, on the desktop macOS itself runs) up to date after a

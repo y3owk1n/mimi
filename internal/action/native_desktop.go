@@ -279,9 +279,14 @@ func (d *nativeDesktop) FocusSpace(index int) error {
 }
 
 // MoveWindowToSpace moves the frontmost window to the space at the given
-// 1-based index.
-func (d *nativeDesktop) MoveWindowToSpace(index int) error {
-	return native.MoveWindowToSpace(index)
+// 1-based index and reports which window it moved.
+func (d *nativeDesktop) MoveWindowToSpace(index int) (Window, error) {
+	pid, number, err := native.MoveWindowToSpace(index)
+	if err != nil {
+		return Window{}, err
+	}
+
+	return Window{PID: pid, Number: number}, nil
 }
 
 // RefreshWorkspaceTitle brings the systray's title up to date with the active
