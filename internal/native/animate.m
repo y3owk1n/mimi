@@ -15,8 +15,10 @@
 // on screen but the moving windows, covers the real windows while they jump
 // to their new frames. Over it, one proxy per window carries a picture of that
 // window, and the compositor moves it with a transform, so no application
-// does any work while the animation runs. One transaction removes everything
-// when it ends.
+// does any work while the animation runs. Windows in front of every moving
+// window, a floating one say, get a still of their own over the proxies, so
+// the stacking order is kept. One transaction removes everything when it
+// ends.
 
 #pragma mark - SkyLight External Declarations
 
@@ -341,10 +343,16 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 		}
 
 		// Everything on screen but the animating windows and our own, a
-		// previous animation's proxies. CGWindowListCreateImageFromArray
-		// reads the ids as raw values, not as numbers.
+		// previous animation's proxies. The list runs front to back, and is
+		// split at the first animating window. Whatever comes before it is
+		// in front of every moving window, a floating window say, and is
+		// drawn over the proxies. The rest goes under them.
+		// CGWindowListCreateImageFromArray reads the ids as raw values, not
+		// as numbers.
 		CFMutableArrayRef others = CFArrayCreateMutable(NULL, 0, NULL);
+		CFMutableArrayRef front = CFArrayCreateMutable(NULL, 0, NULL);
 		pid_t self = getpid();
+		BOOL passed = NO;
 		CFArrayRef onScreen = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
 		for (NSDictionary *info in (__bridge NSArray *)onScreen) {
 			if ([info[(id)kCGWindowOwnerPID] intValue] == self ||
@@ -356,18 +364,23 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			for (int i = 0; i < nextCount && !inFlight; i++) {
 				inFlight = next[i].number == number;
 			}
-			if (!inFlight) {
-				CFArrayAppendValue(others, (const void *)(uintptr_t)number);
+			if (inFlight) {
+				passed = YES;
+			} else {
+				CFArrayAppendValue(passed ? others : front, (const void *)(uintptr_t)number);
 			}
 		}
 		if (onScreen) {
 			CFRelease(onScreen);
 		}
 
-		uint32_t *backdrops = calloc(16, sizeof(uint32_t));
-		CGRect *backdropBounds = calloc(16, sizeof(CGRect));
-		CGImageRef *backdropStills = calloc(16, sizeof(CGImageRef));
-		double *backdropScales = calloc(16, sizeof(double));
+		// Backdrops: at most two per display, the still of what is under
+		// the proxies and, when anything is, the still of what is over them.
+		uint32_t *backdrops = calloc(32, sizeof(uint32_t));
+		CGRect *backdropBounds = calloc(32, sizeof(CGRect));
+		CGImageRef *backdropStills = calloc(32, sizeof(CGImageRef));
+		double *backdropScales = calloc(32, sizeof(double));
+		BOOL *backdropOver = calloc(32, sizeof(BOOL));
 		int backdropCount = 0;
 		CGDirectDisplayID displays[16];
 		uint32_t displayCount = 0;
@@ -418,19 +431,26 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			}
 
 			CGImageRef still = CGWindowListCreateImageFromArray(bounds, others, kCGWindowImageBestResolution);
+			CGImageRef cover = CFArrayGetCount(front) > 0
+			                       ? CGWindowListCreateImageFromArray(bounds, front, kCGWindowImageBestResolution)
+			                       : NULL;
 			CGImageRef flight = CFArrayGetCount(apart) > 0
 			                        ? CGWindowListCreateImageFromArray(bounds, apart, kCGWindowImageBestResolution)
 			                        : NULL;
 			CFRelease(apart);
-			double scale = still ? (double)CGImageGetWidth(still) / bounds.size.width
-			                     : (flight ? (double)CGImageGetWidth(flight) / bounds.size.width : 1);
+			CGImageRef measure = still ? still : (cover ? cover : flight);
+			double scale = measure ? (double)CGImageGetWidth(measure) / bounds.size.width : 1;
 
 			// A display with nothing else on it needs no backdrop.
-			if (still && backdropCount < 16) {
-				backdropBounds[backdropCount] = bounds;
-				backdropStills[backdropCount] = still;
-				backdropScales[backdropCount] = scale;
-				backdropCount++;
+			CGImageRef stills[2] = {still, cover};
+			for (int k = 0; k < 2; k++) {
+				if (stills[k] && backdropCount < 32) {
+					backdropBounds[backdropCount] = bounds;
+					backdropStills[backdropCount] = stills[k];
+					backdropScales[backdropCount] = scale;
+					backdropOver[backdropCount] = k == 1;
+					backdropCount++;
+				}
 			}
 
 			for (int i = 0; i < nextCount; i++) {
@@ -460,6 +480,7 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			}
 		}
 		CFRelease(others);
+		CFRelease(front);
 
 		// Then the windows, each painted the moment it exists: the window
 		// server stalls for half a second on a request that arrives while
@@ -471,6 +492,7 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 				mimiPaint(cid, backdrop, backdropBounds[i].size, backdropStills[i]);
 				backdrops[kept] = backdrop;
 				backdropBounds[kept] = backdropBounds[i];
+				backdropOver[kept] = backdropOver[i];
 				kept++;
 			} else {
 				CGImageRelease(backdropStills[i]);
@@ -500,22 +522,31 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			}
 		}
 
-		// One commit: the new backdrops come in under the new proxies, and
-		// the previous animation, if any, goes out.
+		// One commit: the under backdrops come in, the new proxies over
+		// them, the over backdrops on top, and the previous animation, if
+		// any, goes out.
 		CFTypeRef transaction = SLSTransactionCreate(cid);
 		for (int i = 0; i < backdropCount; i++) {
 			SLSTransactionSetWindowTransform(
 			    transaction, backdrops[i], 0, 0, mimiPlacement(backdropBounds[i].size, backdropBounds[i]));
-			SLSTransactionOrderWindow(transaction, backdrops[i], kMimiOrderAbove, 0);
+			if (!backdropOver[i]) {
+				SLSTransactionOrderWindow(transaction, backdrops[i], kMimiOrderAbove, 0);
+			}
 		}
 		for (int i = 0; i < kept; i++) {
 			SLSTransactionSetWindowTransform(
 			    transaction, next[i].proxy, 0, 0, mimiPlacement(next[i].from.size, next[i].from));
 			SLSTransactionOrderWindow(transaction, next[i].proxy, kMimiOrderAbove, 0);
 		}
+		for (int i = 0; i < backdropCount; i++) {
+			if (backdropOver[i]) {
+				SLSTransactionOrderWindow(transaction, backdrops[i], kMimiOrderAbove, 0);
+			}
+		}
 		mimiReleaseAllLocked(cid, transaction);
 		CFRelease(transaction);
 		free(backdropBounds);
+		free(backdropOver);
 
 		gAnim.proxies = next;
 		gAnim.proxyCount = kept;
