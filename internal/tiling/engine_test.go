@@ -3,6 +3,7 @@ package tiling_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -33,7 +34,12 @@ type fakeDesktop struct {
 	spaces   map[uint32]int
 	// fullScreen is the displays FullScreenDisplays reports.
 	fullScreen map[uint32]bool
-	applied    [][]action.WindowFrame
+	// late is a window Windows lists only after lateAfter reads, the way
+	// the window server lists a window a little after Accessibility does.
+	late        action.WindowEntry
+	lateAfter   int
+	windowReads int
+	applied     [][]action.WindowFrame
 	// animations is the animation each Apply was asked for, nil for none.
 	animations []*action.Animation
 	applyErr   error
@@ -52,7 +58,20 @@ func (d *fakeDesktop) Focus(number uint32) error {
 	return nil
 }
 
-func (d *fakeDesktop) Windows() (action.WindowsInfo, error)     { return d.windows, nil }
+func (d *fakeDesktop) Windows() (action.WindowsInfo, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.windowReads++
+	if d.late.Number != 0 && d.windowReads > d.lateAfter {
+		windows := d.windows
+		windows.Windows = append(slices.Clone(windows.Windows), d.late)
+
+		return windows, nil
+	}
+
+	return d.windows, nil
+}
 func (d *fakeDesktop) Displays() ([]action.DisplayEntry, error) { return d.displays, nil }
 func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	if d.spaces != nil {
@@ -526,6 +545,45 @@ func TestEngine_Pass_LeavesAFullScreenDisplayAlone(t *testing.T) {
 
 	if len(inputs) != 1 || inputs[0].Display.ID != 8 || len(inputs[0].Windows) != 1 {
 		t.Fatalf("inputs = %+v; want display 8 alone with its one window", inputs)
+	}
+}
+
+// TestEngine_Pass_WaitsForACreatedWindowToBeListed pins that a window_created
+// pass does not lay out until the window server lists the new window, which
+// it does a little after Accessibility reports it.
+func TestEngine_Pass_WaitsForACreatedWindowToBeListed(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.late = action.WindowEntry{
+		Number: 2,
+		PID:    20,
+		App:    "B",
+		Frame:  action.Frame{X: 500, Width: 400, Height: 400},
+	}
+	desktop.lateAfter = 3
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [.windows[] | {number, frame}], state: null}'`), shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventStartup})
+	if err != nil {
+		t.Fatalf("startup Pass() error = %v", err)
+	}
+
+	err = engine.Pass(
+		context.Background(),
+		tiling.Event{Kind: string(events.WindowCreated), PID: 20},
+	)
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	desktop.mu.Lock()
+	defer desktop.mu.Unlock()
+
+	if len(desktop.applied) != 2 || len(desktop.applied[1]) != 2 {
+		t.Fatalf("applied = %v; want the second pass to place both windows", desktop.applied)
 	}
 }
 

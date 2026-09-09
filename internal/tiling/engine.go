@@ -68,6 +68,10 @@ type Engine struct {
 	// the space in front on it (stateKey), so a space switched on one
 	// display never touches what the other remembers.
 	states map[string]json.RawMessage
+	// seen is every window number the last pass read, nil before the
+	// first, so a window_created pass can tell whether the window it was
+	// raised for has reached the window server's on-screen list yet.
+	seen map[uint32]bool
 
 	// onDrag is whether a window the user moved or resized runs a pass.
 	onDrag bool
@@ -402,7 +406,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		return nil
 	}
 
-	inputs, err := e.inputsLocked(event)
+	inputs, err := e.settledInputsLocked(ctx, event)
 	if err != nil {
 		return err
 	}
@@ -516,6 +520,68 @@ func (e *Engine) stopResidentLocked() {
 // stateKey names the state for one display and the space in front on it.
 func stateKey(input Input) string {
 	return fmt.Sprintf("%d/%d", input.Display.ID, input.Space)
+}
+
+// newWindowWait is how long a window_created pass waits for the window
+// server to list the window it was raised for, and newWindowPoll how often
+// it looks. Accessibility reports a window created before the window server
+// shows it on screen, by a couple of hundred milliseconds when the Dock
+// reopens an application, and a pass that read the desktop in between
+// would lay out everything but the new window, with nothing to run again.
+const (
+	newWindowWait = 500 * time.Millisecond
+	newWindowPoll = 50 * time.Millisecond
+)
+
+// settledInputsLocked is inputsLocked, re-read for a window_created event
+// until the application the event names shows a window the last pass did
+// not, or newWindowWait is up. The caller holds the lock.
+func (e *Engine) settledInputsLocked(ctx context.Context, event Event) ([]Input, error) {
+	inputs, err := e.inputsLocked(event)
+	if err != nil {
+		return nil, err
+	}
+
+	if event.Kind == string(events.WindowCreated) && event.PID != 0 && e.seen != nil {
+		deadline := time.Now().Add(newWindowWait)
+
+		for !e.newWindowOf(inputs, event.PID) && time.Now().Before(deadline) {
+			select {
+			case <-ctx.Done():
+				return nil, ctx.Err()
+			case <-time.After(newWindowPoll):
+			}
+
+			inputs, err = e.inputsLocked(event)
+			if err != nil {
+				return nil, err
+			}
+		}
+	}
+
+	e.seen = map[uint32]bool{}
+
+	for _, input := range inputs {
+		for _, win := range input.Windows {
+			e.seen[win.Number] = true
+		}
+	}
+
+	return inputs, nil
+}
+
+// newWindowOf reports whether inputs hold a window of pid the last pass
+// did not see.
+func (e *Engine) newWindowOf(inputs []Input, pid int) bool {
+	for _, input := range inputs {
+		for _, win := range input.Windows {
+			if win.PID == pid && !e.seen[win.Number] {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 // inputsLocked reads the desktop into one Input per display that has a

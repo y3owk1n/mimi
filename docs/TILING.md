@@ -100,7 +100,9 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   A display showing a full-screen space gets no run, and the rest lay out
   as usual. The daemon's Accessibility observer reaching an application it
   could not see at launch. The daemon starting with tiling on, and a reload that switches
-  it on or names another layout. With `relayout_on_drag = true`, a window you
+  it on or names another layout. A run for a new window waits up to half a
+  second for the window server to list it, since Accessibility reports the
+  window a little before it is on screen. With `relayout_on_drag = true`, a window you
   moved or resized. A burst of events settles into one run.
 - **One run per display.** The program runs once for each display that has a
   window on it, with that display's windows and that display's own state, so

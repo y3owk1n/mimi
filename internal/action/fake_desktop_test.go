@@ -13,14 +13,17 @@ import (
 // fakeWindow is one window on the fake desktop: an identity, a frame, and the
 // failures macOS is allowed to report for it.
 type fakeWindow struct {
-	id          action.WindowID
-	pid         int
-	number      uint32
-	frame       geometry.Rect
-	title       string
-	frameErr    error
-	activateErr error
-	setFrameErr error
+	id       action.WindowID
+	pid      int
+	number   uint32
+	frame    geometry.Rect
+	title    string
+	frameErr error
+	// frameErrOnce clears frameErr the next time the window is enumerated,
+	// the way a relearned element answers where a dead one did not.
+	frameErrOnce bool
+	activateErr  error
+	setFrameErr  error
 	// setFrameWrites counts how many frames were written to the window.
 	setFrameWrites int
 	// clampsFirstWrite makes the first frame written land one point
@@ -75,9 +78,11 @@ type fakeDesktop struct {
 	activeSpaces map[uint32]int
 	// fullScreenDisplays is what FullScreenDisplays reports.
 	fullScreenDisplays map[uint32]bool
-	activeSpaceErr     error
-	focusSpaceErr      error
-	moveErr            error
+	// enumerations counts FocusableWindows calls.
+	enumerations   int
+	activeSpaceErr error
+	focusSpaceErr  error
+	moveErr        error
 	// windowSpace is the space the frontmost window sits on, which is what
 	// move_window_to_space is observed through.
 	windowSpace int
@@ -104,7 +109,13 @@ func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
 	windows := make([]action.Window, len(d.windows))
 	for index, win := range d.windows {
 		windows[index] = action.Window{ID: win.id, PID: win.pid, Number: win.number}
+
+		if win.frameErrOnce && d.enumerations > 0 {
+			d.windows[index].frameErr = nil
+		}
 	}
+
+	d.enumerations++
 
 	return windows, d.focused, nil
 }
