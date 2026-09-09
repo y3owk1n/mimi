@@ -448,6 +448,20 @@ static CALayer *mimiImageLayer(CGImageRef image, CGImageRef mask, CGRect frame, 
 
 #pragma mark - Masks
 
+// A window's own picture, asked for by its number. It is whole even where
+// the window hangs past the display's edge, where a capture of the screen
+// has nothing to show. It is opaque, a flat tint where the window is
+// translucent, since nothing is under it to blend with. Its alpha carries
+// the window's shape.
+static CGImageRef mimiWholeWindow(uint32_t number) {
+#pragma clang diagnostic push
+#pragma clang diagnostic ignored "-Wdeprecated-declarations"
+	return CGWindowListCreateImage(
+	    CGRectNull, kCGWindowListOptionIncludingWindow, number,
+	    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
+#pragma clang diagnostic pop
+}
+
 // The remembered mask for a window of this size, retained, or NULL.
 static CGImageRef mimiCachedMask(uint32_t number, CGSize size, double scale) {
 	for (int i = 0; i < gMaskCount; i++) {
@@ -693,6 +707,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	// left to finish.
 	NSMutableArray<MimiProxy *> *next = [NSMutableArray arrayWithCapacity:(NSUInteger)count];
 	NSMutableArray<MimiProxy *> *carried = [NSMutableArray array];
+	BOOL retargeted = NO;
 	for (int i = 0; i < count; i++) {
 		CGRect from;
 		MimiProxy *flight = mimiInFlight(targets[i].number, &from);
@@ -712,15 +727,22 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		proxy.number = targets[i].number;
 		proxy.from = from;
 		proxy.to = to;
-		if (flight && mimiSameRect(flight.to, to)) {
+		// A window in flight keeps its proxy, sent on to the new frame
+		// from where it is shown. A scroll held on a key repeats before
+		// the last step lands, and a capture then would find the window
+		// already at its last frame, cut at the display's edge.
+		if (flight) {
 			proxy.carried = YES;
 			proxy.layer = flight.layer;
 			proxy.scale = flight.scale;
 			[carried addObject:flight];
+			if (!mimiSameRect(flight.to, to)) {
+				retargeted = YES;
+			}
 		}
 		[next addObject:proxy];
 	}
-	if (next.count == carried.count) {
+	if (next.count == carried.count && !retargeted) {
 		return 0;
 	}
 
@@ -803,6 +825,25 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			}
 		}
 		if (!any) {
+			// Nothing to capture here. The carried proxies still need the
+			// stills under and over them, so those stay as they are.
+			BOOL flying = NO;
+			for (MimiProxy *proxy in next) {
+				if (proxy.carried && mimiAnimatesOn(proxy, bounds)) {
+					flying = YES;
+					break;
+				}
+			}
+			if (!flying) {
+				continue;
+			}
+			for (MimiBackdrop *backdrop in gBackdrops) {
+				if (backdrop.display == displays[d]) {
+					[backdrops addObject:mimiNewBackdrop(
+					                         displays[d], bounds, backdrop.over, backdrop.shows, backdrop.showsCount,
+					                         NULL, backdrop)];
+				}
+			}
 			continue;
 		}
 		double scale = bounds.size.width > 0 ? CGDisplayPixelsWide(displays[d]) / bounds.size.width : 1;
@@ -909,13 +950,19 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				CGRect crop = CGRectMake(
 				    (proxy.from.origin.x - bounds.origin.x) * scale, (proxy.from.origin.y - bounds.origin.y) * scale,
 				    proxy.from.size.width * scale, proxy.from.size.height * scale);
-				if (scene) {
-					proxy.picture = CGImageCreateWithImageInRect(scene, crop);
-				}
-				if (!proxy.mask && flight) {
-					proxy.mask = CGImageCreateWithImageInRect(flight, crop);
-					if (proxy.mask) {
-						mimiRememberMask(proxy.number, proxy.from.size, scale, proxy.mask);
+				if (!CGRectContainsRect(bounds, proxy.from)) {
+					// Cut at the display's edge, the crop would show only
+					// the part on screen, stretched over the whole.
+					proxy.picture = mimiWholeWindow(proxy.number);
+				} else {
+					if (scene) {
+						proxy.picture = CGImageCreateWithImageInRect(scene, crop);
+					}
+					if (!proxy.mask && flight) {
+						proxy.mask = CGImageCreateWithImageInRect(flight, crop);
+						if (proxy.mask) {
+							mimiRememberMask(proxy.number, proxy.from.size, scale, proxy.mask);
+						}
 					}
 				}
 				if (!proxy.picture && proxy.mask) {
@@ -923,9 +970,11 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 					proxy.picture = proxy.mask;
 					proxy.mask = NULL;
 				}
-			} else if (mimiOnDisplay(proxy.from, bounds)) {
+			} else if (CGRectContainsRect(bounds, proxy.from)) {
 				proxy.picture = CGWindowListCreateImage(
 				    proxy.from, kCGWindowListOptionIncludingWindow, proxy.number, kCGWindowImageBestResolution);
+			} else if (mimiOnDisplay(proxy.from, bounds)) {
+				proxy.picture = mimiWholeWindow(proxy.number);
 			} else {
 				// A window parked by an earlier animation comes back with
 				// the picture it left with. Otherwise, off the display, a
@@ -937,9 +986,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				if (proxy.picture) {
 					proxy.mask = mimiCachedMask(proxy.number, proxy.from.size, scale);
 				} else {
-					proxy.picture = CGWindowListCreateImage(
-					    CGRectNull, kCGWindowListOptionIncludingWindow, proxy.number,
-					    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
+					proxy.picture = mimiWholeWindow(proxy.number);
 				}
 			}
 			proxy.scale = scale;
