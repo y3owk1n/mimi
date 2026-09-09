@@ -9,6 +9,7 @@ import (
 	"io"
 	"os/exec"
 	"sync"
+	"syscall"
 	"time"
 
 	"go.uber.org/zap"
@@ -109,7 +110,7 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 			return out, nil
 		}
 
-		r.stopLocked()
+		stderr := r.stopLocked()
 
 		// A program that had answered before and now gave end of file
 		// exited between passes. It is started once more before the pass
@@ -122,6 +123,16 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 
 		r.failures++
 		r.failedAt = time.Now()
+
+		// What it wrote to stderr is read once it has exited, and is what
+		// a program that answered nothing has to say for itself.
+		if errors.Is(reduceErr, errNoAnswer) {
+			return Output{}, derrors.Newf(
+				derrors.CodeActionFailed,
+				"layout exited without answering%s",
+				stderrSuffix(stderr),
+			)
+		}
 
 		return Output{}, reduceErr
 	}
@@ -142,6 +153,7 @@ func (r *Resident) Stop() {
 // maxLayoutLineBytes.
 var (
 	errResidentGone = errors.New("layout exited")
+	errNoAnswer     = errors.New("layout exited without answering")
 	errLineTooLong  = errors.New("layout output line too long")
 )
 
@@ -169,6 +181,9 @@ func (r *Resident) ensureLocked() (*residentProcess, error) {
 	cmd := exec.CommandContext(context.Background(), r.Shell, "-c", r.Command)
 	stderr := &limitedBuffer{buf: &bytes.Buffer{}, limit: maxLayoutOutputBytes}
 	cmd.Stderr = stderr
+	// Its own process group, so that killing it takes what it started
+	// with it, which is what holds the pipes open otherwise.
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
 
 	stdin, err := cmd.StdinPipe()
 	if err != nil {
@@ -276,11 +291,7 @@ func (r *Resident) exchangeLocked(
 				return Output{}, errResidentGone
 			}
 
-			return Output{}, derrors.Newf(
-				derrors.CodeActionFailed,
-				"layout exited without answering%s",
-				stderrSuffix(proc.stderr.buf.String()),
-			)
+			return Output{}, errNoAnswer
 		}
 
 		proc.served++
@@ -302,11 +313,12 @@ func (r *Resident) exchangeLocked(
 	}
 }
 
-// stopLocked ends the program and forgets it. The caller holds the lock.
-func (r *Resident) stopLocked() {
+// stopLocked ends the program and forgets it, returning what it wrote to
+// stderr. The caller holds the lock.
+func (r *Resident) stopLocked() string {
 	proc := r.proc
 	if proc == nil {
-		return
+		return ""
 	}
 
 	r.proc = nil
@@ -314,7 +326,7 @@ func (r *Resident) stopLocked() {
 	_ = proc.stdin.Close()
 
 	// Closing stdin ends a well-behaved program at once. One that is stuck
-	// is killed after a grace period.
+	// is killed after a grace period, with everything it started.
 	done := make(chan struct{})
 	go func() {
 		_ = proc.cmd.Wait()
@@ -325,7 +337,7 @@ func (r *Resident) stopLocked() {
 	select {
 	case <-done:
 	case <-time.After(residentBackoffFirst):
-		_ = proc.cmd.Process.Kill()
+		_ = syscall.Kill(-proc.cmd.Process.Pid, syscall.SIGKILL)
 
 		<-done
 	}
@@ -333,4 +345,6 @@ func (r *Resident) stopLocked() {
 	// Drain the reader so it can end.
 	for range proc.lines {
 	}
+
+	return proc.stderr.buf.String()
 }
