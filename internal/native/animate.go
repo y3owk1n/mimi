@@ -100,9 +100,3 @@ func StartFrameAnimation(dropped []uint32) {
 func WarmFrameAnimation() {
 	C.MimiAnimationWarm()
 }
-
-// ScreenCaptureGranted reports whether macOS lets mimi capture the screen,
-// which animating frames needs. It never prompts.
-func ScreenCaptureGranted() bool {
-	return C.MimiScreenCaptureGranted() != 0
-}

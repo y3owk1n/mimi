@@ -16,7 +16,12 @@ static int MimiRunOnMainThreadSync(int (^block)(void)) {
 	return result;
 }
 
-static int MimiResetAccessibilityPermissionDecision(void) {
+// MimiResetPermissionDecision clears the TCC decision macOS holds for mimi
+// under service, so that the next request prompts again. An unsigned build
+// is a new program to TCC on every rebuild, while System Settings keeps
+// showing the old entry as allowed. Without the reset the request never
+// prompts and mimi never gets the permission.
+static int MimiResetPermissionDecision(NSString *service) {
 	NSString *bundleID = [[NSBundle mainBundle] bundleIdentifier];
 	if (bundleID == nil || [bundleID length] == 0) {
 		bundleID = @"com.y3owk1n.mimi";
@@ -24,7 +29,7 @@ static int MimiResetAccessibilityPermissionDecision(void) {
 
 	NSTask *task = [[NSTask alloc] init];
 	task.launchPath = @"/usr/bin/tccutil";
-	task.arguments = @[ @"reset", @"Accessibility", bundleID ];
+	task.arguments = @[ @"reset", service, bundleID ];
 
 	@try {
 		[task launch];
@@ -33,16 +38,45 @@ static int MimiResetAccessibilityPermissionDecision(void) {
 		int status = [task terminationStatus];
 		if (status != 0) {
 			MIMI_LOG(
-			    "tccutil reset Accessibility %@ exited with status %d; system permission dialog may not appear",
-			    bundleID, status);
+			    "tccutil reset %@ %@ exited with status %d; system permission dialog may not appear", service, bundleID,
+			    status);
 			return 0;
 		}
 	} @catch (NSException *exception) {
-		MIMI_LOG("failed to reset Accessibility permission decision: %@", exception);
+		MIMI_LOG("failed to reset %@ permission decision: %@", service, exception);
 		return 0;
 	}
 
 	return 1;
+}
+
+// MimiPresentAlert runs alert as a floating modal, restores the accessory
+// activation policy, and returns the button pressed.
+static NSModalResponse MimiPresentAlert(NSAlert *alert) {
+	[[alert window] setLevel:NSFloatingWindowLevel];
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+	[[alert window] center];
+	[[alert window] makeKeyAndOrderFront:nil];
+	[NSApp activateIgnoringOtherApps:YES];
+
+	NSModalResponse response = [alert runModal];
+	[[alert window] orderOut:nil];
+	[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+	return response;
+}
+
+// MimiShowRestartRequiredAlert tells the user the grant for permission takes
+// effect on the next start, and that mimi is quitting.
+static void MimiShowRestartRequiredAlert(NSString *permission) {
+	NSAlert *alert = [[NSAlert alloc] init];
+	alert.messageText = @"Mimi Restart Required";
+	alert.informativeText =
+	    [NSString stringWithFormat:@"macOS requires restarting Mimi for %@ permissions to take effect.\n\n"
+	                                "Mimi will now quit. Please relaunch the application.",
+	                               permission];
+	alert.alertStyle = NSAlertStyleInformational;
+	[alert addButtonWithTitle:@"Quit Mimi"];
+	MimiPresentAlert(alert);
 }
 
 int MimiCheckAccessibilityPermissions(void) {
@@ -52,7 +86,7 @@ int MimiCheckAccessibilityPermissions(void) {
 
 int MimiRequestAccessibilityPermissions(void) {
 	@autoreleasepool {
-		if (!MimiResetAccessibilityPermissionDecision()) {
+		if (!MimiResetPermissionDecision(@"Accessibility")) {
 			MIMI_LOG("continuing with Accessibility permission request after reset failure");
 		}
 
@@ -62,7 +96,17 @@ int MimiRequestAccessibilityPermissions(void) {
 	}
 }
 
-int MimiRequestScreenCapturePermission(void) { return CGRequestScreenCaptureAccess() ? 1 : 0; }
+int MimiCheckScreenCapturePermission(void) { return CGPreflightScreenCaptureAccess() ? 1 : 0; }
+
+int MimiRequestScreenCapturePermission(void) {
+	@autoreleasepool {
+		if (!MimiResetPermissionDecision(@"ScreenCapture")) {
+			MIMI_LOG("continuing with ScreenCapture permission request after reset failure");
+		}
+
+		return CGRequestScreenCaptureAccess() ? 1 : 0;
+	}
+}
 
 int MimiShowAccessibilityPermissionStartupAlert(void) {
 	return MimiRunOnMainThreadSync(^int {
@@ -83,15 +127,7 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 				[alert addButtonWithTitle:@"Granted, Start Mimi"];
 				[alert addButtonWithTitle:@"Quit"];
 
-				[[alert window] setLevel:NSFloatingWindowLevel];
-				[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-				[[alert window] center];
-				[[alert window] makeKeyAndOrderFront:nil];
-				[NSApp activateIgnoringOtherApps:YES];
-
-				NSModalResponse response = [alert runModal];
-				[[alert window] orderOut:nil];
-				[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+				NSModalResponse response = MimiPresentAlert(alert);
 
 				if (response == NSAlertFirstButtonReturn) {
 					MimiRequestAccessibilityPermissions();
@@ -100,23 +136,48 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 						return 1;
 					}
 
-					NSAlert *restartAlert = [[NSAlert alloc] init];
-					restartAlert.messageText = @"Mimi Restart Required";
-					restartAlert.informativeText =
-					    @"macOS requires restarting Mimi for Accessibility permissions to take effect.\n\n"
-					     "Mimi will now quit. Please relaunch the application.";
-					restartAlert.alertStyle = NSAlertStyleInformational;
-					[restartAlert addButtonWithTitle:@"Quit Mimi"];
+					MimiShowRestartRequiredAlert(@"Accessibility");
+					return 3;
+				} else if (response == NSAlertThirdButtonReturn) {
+					return 2;
+				}
+			}
 
-					[[restartAlert window] setLevel:NSFloatingWindowLevel];
-					[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-					[[restartAlert window] center];
-					[[restartAlert window] makeKeyAndOrderFront:nil];
-					[NSApp activateIgnoringOtherApps:YES];
+			return 1;
+		}
+	});
+}
 
-					[restartAlert runModal];
-					[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+int MimiShowScreenCapturePermissionStartupAlert(void) {
+	return MimiRunOnMainThreadSync(^int {
+		@autoreleasepool {
+			[NSApplication sharedApplication];
 
+			while (MimiCheckScreenCapturePermission() != 1) {
+				NSAlert *alert = [[NSAlert alloc] init];
+				alert.messageText = @"Screen Recording Permission Needed";
+				alert.informativeText =
+				    @"Mimi needs Screen Recording permission to animate tiling layouts. "
+				    @"Click Request Permission to open the macOS permission flow, grant access in System Settings, "
+				    @"then return here and click Granted, Continue. "
+				    @"Skip Animation starts Mimi with windows moving at once.";
+				alert.alertStyle = NSAlertStyleWarning;
+				alert.icon = [NSImage imageNamed:NSImageNameCaution];
+
+				[alert addButtonWithTitle:@"Request Permission"];
+				[alert addButtonWithTitle:@"Granted, Continue"];
+				[alert addButtonWithTitle:@"Skip Animation"];
+
+				NSModalResponse response = MimiPresentAlert(alert);
+
+				if (response == NSAlertFirstButtonReturn) {
+					MimiRequestScreenCapturePermission();
+				} else if (response == NSAlertSecondButtonReturn) {
+					if (MimiCheckScreenCapturePermission() == 1) {
+						return 1;
+					}
+
+					MimiShowRestartRequiredAlert(@"Screen Recording");
 					return 3;
 				} else if (response == NSAlertThirdButtonReturn) {
 					return 2;
@@ -144,15 +205,7 @@ int MimiShowConfigOnboardingAlert(const char *configPath) {
 			[alert addButtonWithTitle:@"Create Config"];
 			[alert addButtonWithTitle:@"Quit"];
 
-			[[alert window] setLevel:NSFloatingWindowLevel];
-			[NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
-			[[alert window] center];
-			[[alert window] makeKeyAndOrderFront:nil];
-			[NSApp activateIgnoringOtherApps:YES];
-
-			NSModalResponse response = [alert runModal];
-			[[alert window] orderOut:nil];
-			[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+			NSModalResponse response = MimiPresentAlert(alert);
 
 			if (response == NSAlertFirstButtonReturn) {
 				return 1;

@@ -640,8 +640,6 @@ static MimiBackdrop *mimiNewBackdrop(
 	return backdrop;
 }
 
-int MimiScreenCaptureGranted(void) { return CGPreflightScreenCaptureAccess() ? 1 : 0; }
-
 void MimiAnimationWarm(void) {
 	if (![NSApp isRunning] && ![NSThread isMainThread]) {
 		return;

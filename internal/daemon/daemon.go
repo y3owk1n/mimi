@@ -120,6 +120,10 @@ func runCore(
 		return nil
 	}
 
+	if !promptScreenCapture(cfg, accessibilityGranted, logger) {
+		return nil
+	}
+
 	// The IPC server is built before the pipeline because the tiling engine
 	// drives the desktop through its action worker; it starts listening
 	// below, once the pipeline runs.
@@ -559,12 +563,33 @@ func borderConfigFor(cfg *config.Config, accessibilityGranted bool) config.Borde
 	return borderCfg
 }
 
+// promptScreenCapture shows the Screen Recording alert once, at startup,
+// when the tiling animation is enabled and macOS has not granted the
+// permission. A config that leaves the animation off never prompts. It
+// reports false when mimi must quit for a grant to take effect.
+func promptScreenCapture(
+	cfg *config.Config,
+	accessibilityGranted bool,
+	logger *zap.SugaredLogger,
+) bool {
+	if !accessibilityGranted || !cfg.Tiling.Enabled || !cfg.Tiling.Animation.Enabled ||
+		permissions.ScreenCaptureGranted() {
+		return true
+	}
+
+	if permissions.ShowScreenCaptureStartupAlert() == permissions.ScreenCaptureStartupRestartRequired {
+		logger.Info("screen recording permission granted, restart required")
+
+		return false
+	}
+
+	return true
+}
+
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,
 // except that without Accessibility it is disabled, and without Screen
-// Recording its animation is. The daemon asks for Screen Recording only when
-// the animation is on, so a config that leaves it off never prompts. macOS
-// prompts once and keeps the answer, and a grant takes effect on the next
-// start.
+// Recording its animation is. It never prompts. promptScreenCapture asks at
+// startup, and a grant takes effect on the next start.
 func tilingConfigFor(
 	cfg *config.Config,
 	accessibilityGranted bool,
@@ -575,15 +600,13 @@ func tilingConfigFor(
 		tilingCfg.Enabled = false
 	}
 
-	if tilingCfg.Enabled && tilingCfg.Animation.Enabled && !native.ScreenCaptureGranted() {
-		if !permissions.RequestScreenCapture() {
-			logger.Warn(
-				"screen recording permission not granted, tiling animation disabled. " +
-					"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording, then restart mimi",
-			)
+	if tilingCfg.Enabled && tilingCfg.Animation.Enabled && !permissions.ScreenCaptureGranted() {
+		logger.Warn(
+			"screen recording permission not granted, tiling animation disabled. " +
+				"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording, then restart mimi",
+		)
 
-			tilingCfg.Animation.Enabled = false
-		}
+		tilingCfg.Animation.Enabled = false
 	}
 
 	if tilingCfg.Enabled && tilingCfg.Animation.Enabled {

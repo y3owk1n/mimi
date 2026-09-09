@@ -40,7 +40,4 @@ void MimiAnimationStart(const uint32_t *dropped, int count);
 /// animation.
 void MimiAnimationWarm(void);
 
-/// Report whether the process may capture the screen, without prompting.
-int MimiScreenCaptureGranted(void);
-
 #endif  // MIMI_ANIMATE_H
