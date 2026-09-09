@@ -72,10 +72,12 @@ type fakeDesktop struct {
 	activeSpace int // 1-based
 	// activeSpaces is the space in front per display, when a test sets it;
 	// otherwise every display shows activeSpace.
-	activeSpaces   map[uint32]int
-	activeSpaceErr error
-	focusSpaceErr  error
-	moveErr        error
+	activeSpaces map[uint32]int
+	// fullScreenDisplays is what FullScreenDisplays reports.
+	fullScreenDisplays map[uint32]bool
+	activeSpaceErr     error
+	focusSpaceErr      error
+	moveErr            error
 	// windowSpace is the space the frontmost window sits on, which is what
 	// move_window_to_space is observed through.
 	windowSpace int
@@ -314,6 +316,10 @@ func (d *fakeDesktop) ActiveSpaceIndex() (int, error) {
 	}
 
 	return d.activeSpace, nil
+}
+
+func (d *fakeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
+	return d.fullScreenDisplays, nil
 }
 
 func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {

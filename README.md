@@ -151,6 +151,7 @@ The `[systray]` block shows the active space number in your menu bar while the d
 | Window opened / closed | `on_window_created` / `on_window_closed` | Yes                 |
 | Window resized         | `on_window_resize`                       | Yes                 |
 | Window moved           | `on_window_move`                         | Yes                 |
+| Window minimized / restored | `on_window_minimize` / `on_window_unminimize` | Yes            |
 | Active space changed   | `on_workspace_changed`                   | No                  |
 
 Hooks support app, bundle, title and space filters, each negatable with a leading `!`, plus async execution and per-hook timeouts.

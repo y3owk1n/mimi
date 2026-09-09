@@ -36,6 +36,10 @@ const (
 	WindowMoving EventKind = "_window_moving"
 	// WindowMove fires when a window move is completed (debounced).
 	WindowMove EventKind = "window_move"
+	// WindowMinimize fires when a window is minimized to the Dock.
+	WindowMinimize EventKind = "window_minimize"
+	// WindowUnminimize fires when a minimized window is restored.
+	WindowUnminimize EventKind = "window_unminimize"
 	// Startup is the one event the native bridge sends as the observers come
 	// up (raw, internal). The router attaches to the applications already
 	// running when it arrives.
@@ -64,6 +68,8 @@ var AllKinds = []EventKind{
 	WindowClosed,
 	WindowResize,
 	WindowMove,
+	WindowMinimize,
+	WindowUnminimize,
 	WorkspaceChanged,
 }
 

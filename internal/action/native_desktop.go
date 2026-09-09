@@ -501,6 +501,20 @@ func (d *nativeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	return native.ActiveSpaceIndexes(ids), nil
 }
 
+func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
+	displays, err := native.Displays()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint32, len(displays))
+	for index, display := range displays {
+		ids[index] = display.ID
+	}
+
+	return native.FullScreenDisplays(ids), nil
+}
+
 // FocusSpace switches to the space at the given 1-based index.
 func (d *nativeDesktop) FocusSpace(index int) error {
 	return native.FocusSpace(index)

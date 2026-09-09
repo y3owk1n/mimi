@@ -229,6 +229,52 @@ uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID
 
 uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
 
+/// SLSCopyManagedDisplaySpaces space "type": a full-screen application space,
+/// as opposed to a user desktop (0) or a system space.
+static const int kMimiSpaceTypeFullScreen = 4;
+
+/// Whether the space in front on a display is a full-screen application
+/// space, which holds one window or a split-view pair that macOS itself lays out.
+int MimiDisplaySpaceIsFullScreen(uint32_t did) {
+	@autoreleasepool {
+		CFStringRef uuid = mimiDisplayUUID(did);
+		if (!uuid) {
+			return 0;
+		}
+
+		CFArrayRef displaySpaces = SLSCopyManagedDisplaySpaces(SLSMainConnectionID());
+		if (!displaySpaces) {
+			CFRelease(uuid);
+
+			return 0;
+		}
+
+		int fullScreen = 0;
+		CFIndex displayCount = CFArrayGetCount(displaySpaces);
+		for (CFIndex i = 0; i < displayCount; i++) {
+			CFDictionaryRef displayRef = (CFDictionaryRef)CFArrayGetValueAtIndex(displaySpaces, i);
+			CFStringRef identifier = (CFStringRef)CFDictionaryGetValue(displayRef, CFSTR("Display Identifier"));
+			if (!identifier || CFStringCompare(identifier, uuid, 0) != kCFCompareEqualTo) {
+				continue;
+			}
+
+			CFDictionaryRef current = (CFDictionaryRef)CFDictionaryGetValue(displayRef, CFSTR("Current Space"));
+			CFNumberRef typeRef = current ? (CFNumberRef)CFDictionaryGetValue(current, CFSTR("type")) : NULL;
+			int type = 0;
+			if (typeRef && CFNumberGetValue(typeRef, kCFNumberIntType, &type)) {
+				fullScreen = type == kMimiSpaceTypeFullScreen;
+			}
+
+			break;
+		}
+
+		CFRelease(displaySpaces);
+		CFRelease(uuid);
+
+		return fullScreen;
+	}
+}
+
 #pragma mark - Gesture-Based Space Focus
 
 // Private Core Graphics event field IDs used to synthesize a high-velocity

@@ -24,6 +24,7 @@ type Desktop interface {
 	Windows() (action.WindowsInfo, error)
 	Displays() ([]action.DisplayEntry, error)
 	ActiveSpaces() (map[uint32]int, error)
+	FullScreenDisplays() (map[uint32]bool, error)
 	Margins() (action.MarginsInfo, error)
 	Apply(frames []action.WindowFrame, animation *action.Animation) error
 	Focus(number uint32) error
@@ -202,6 +203,8 @@ var wakingKinds = map[events.EventKind]bool{
 	events.WindowCreated:    true,
 	events.WindowClosed:     true,
 	events.WindowFocus:      true,
+	events.WindowMinimize:   true,
+	events.WindowUnminimize: true,
 	events.WorkspaceChanged: true,
 	events.AppHide:          true,
 	events.AppUnhide:        true,
@@ -516,13 +519,14 @@ func stateKey(input Input) string {
 }
 
 // inputsLocked reads the desktop into one Input per display that has a
-// window on it, in display order. The caller holds the lock.
+// window on it and is not showing a full-screen space, in display order. The caller holds the lock.
 func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 	var (
-		displays []action.DisplayEntry
-		spaces   map[uint32]int
-		margins  action.MarginsInfo
-		windows  action.WindowsInfo
+		displays   []action.DisplayEntry
+		spaces     map[uint32]int
+		fullScreen map[uint32]bool
+		margins    action.MarginsInfo
+		windows    action.WindowsInfo
 	)
 
 	err := e.run(func() error {
@@ -534,6 +538,11 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 		}
 
 		spaces, err = e.desktop.ActiveSpaces()
+		if err != nil {
+			return err
+		}
+
+		fullScreen, err = e.desktop.FullScreenDisplays()
 		if err != nil {
 			return err
 		}
@@ -566,6 +575,12 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 	inputs := make([]Input, 0, len(displays))
 
 	for _, display := range displays {
+		// macOS lays out a full-screen space itself, one window or a
+		// split-view pair, and rejects frames written to it.
+		if fullScreen[display.ID] {
+			continue
+		}
+
 		input := Input{
 			Version:  InputVersion,
 			Event:    event,

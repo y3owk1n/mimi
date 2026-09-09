@@ -94,10 +94,12 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
                applies every frame in one write, keeps the state
 ```
 
-- **Events that wake it.** A window created, closed, or focused. An
-  application activated, hidden, unhidden, or quit. A space change. The
-  daemon's Accessibility observer reaching an application it could not see
-  at launch. The daemon starting with tiling on, and a reload that switches
+- **Events that wake it.** A window created, closed, focused, minimized, or
+  restored from the Dock. An application activated, hidden, unhidden, or
+  quit. A space change, which entering or leaving full screen also fires.
+  A display showing a full-screen space gets no run, and the rest lay out
+  as usual. The daemon's Accessibility observer reaching an application it
+  could not see at launch. The daemon starting with tiling on, and a reload that switches
   it on or names another layout. With `relayout_on_drag = true`, a window you
   moved or resized. A burst of events settles into one run.
 - **One run per display.** The program runs once for each display that has a
@@ -160,7 +162,7 @@ both, through `serve()` in `rules.py`.
 | Field | Meaning |
 | --- | --- |
 | `version` | Moves only when a field is renamed, removed, or changes meaning. Adding a field does not move it. |
-| `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `app_activate`, `app_hide`, `app_unhide`, `app_quit`, `workspace_changed`), `_ax_attached`, `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
+| `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `window_minimize`, `window_unminimize`, `app_activate`, `app_hide`, `app_unhide`, `app_quit`, `workspace_changed`), `_ax_attached`, `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
 | `event.app`, `event.bundleId`, `event.pid` | The application behind a hook event, when there is one. |
 | `event.name`, `event.args` | For a `command`: what the user typed after `mimi tiling cmd`. |
 | `event.windows` | For a `window_move` or `window_resize`: the numbers of the windows the user dragged. |
@@ -441,8 +443,9 @@ Work down this list.
    logs `layout timed out`. Raise `timeout_secs`.
 5. **Is the window one mimi tiles?** `mimi query windows` lists exactly what
    a layout is given: standard windows of regular applications on the current
-   space. Sheets, popovers, minimized windows, and full-screen spaces are not
-   there. If it is listed but not tiled, check `rules.py`.
+   space. Sheets, popovers, and minimized windows are not there. The pass
+   skips a display showing a full-screen space even though its window is
+   listed. If it is listed but not tiled, check `rules.py`.
 6. **A window that will not take its frame.** Some applications enforce a
    minimum size or snap to a grid, and land a little off what was asked. The
    next input shows where things actually are, which is why the shipped

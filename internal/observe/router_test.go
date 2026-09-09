@@ -83,6 +83,8 @@ var hookableKinds = []events.EventKind{
 	events.WindowCreated,
 	events.WindowClosed,
 	events.WindowResize,
+	events.WindowMinimize,
+	events.WindowUnminimize,
 	events.WorkspaceChanged,
 }
 

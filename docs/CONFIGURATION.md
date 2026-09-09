@@ -319,6 +319,8 @@ other key under `[hooks]`, and the daemon warns about it on startup and reload.
 | `on_window_closed` | Window closes |
 | `on_window_resize` | Window resize completes (debounced) |
 | `on_window_move` | Window move completes (debounced, same window as resize) |
+| `on_window_minimize` | Window minimized to the Dock |
+| `on_window_unminimize` | Minimized window restored |
 
 ### Workspace events
 

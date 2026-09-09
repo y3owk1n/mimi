@@ -69,6 +69,29 @@ func QueryActiveSpaces() (map[uint32]int, error) {
 	return defaultExecutor.QueryActiveSpaces()
 }
 
+// QueryFullScreenDisplays reports the displays of the desktop mimi is
+// running on that show a full-screen space in front.
+func QueryFullScreenDisplays() (map[uint32]bool, error) {
+	return defaultExecutor.QueryFullScreenDisplays()
+}
+
+// QueryFullScreenDisplays reports the displays whose space in front is a
+// full-screen application space, keyed by display id, through SkyLight with
+// no Accessibility needed. A layout leaves those displays alone, since
+// macOS lays a full-screen window out itself.
+func (e *Executor) QueryFullScreenDisplays() (map[uint32]bool, error) {
+	displays, err := e.desktop.FullScreenDisplays()
+	if err != nil {
+		return nil, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to resolve the full-screen displays",
+		)
+	}
+
+	return displays, nil
+}
+
 // QueryActiveSpaces reports the space in front on every display, keyed by
 // display id, the way QuerySpace reports the cursor's: through SkyLight, with
 // no Accessibility needed.

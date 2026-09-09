@@ -155,6 +155,11 @@ type Desktop interface {
 	// space every entry is the same index.
 	ActiveSpaces() (map[uint32]int, error)
 
+	// FullScreenDisplays is the set of connected displays, by id, whose
+	// space in front is a full-screen application space. macOS lays that
+	// space out itself, for one window or a split-view pair.
+	FullScreenDisplays() (map[uint32]bool, error)
+
 	// FocusSpace switches to the Mission Control space at the given 1-based
 	// index, which the caller has already checked against SpaceCount.
 	FocusSpace(index int) error

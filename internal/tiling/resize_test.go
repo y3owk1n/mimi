@@ -41,6 +41,9 @@ func (d *snappingDesktop) Displays() ([]action.DisplayEntry, error) {
 }
 
 func (d *snappingDesktop) ActiveSpaces() (map[uint32]int, error) { return map[uint32]int{1: 1}, nil }
+func (d *snappingDesktop) FullScreenDisplays() (map[uint32]bool, error) {
+	return map[uint32]bool{}, nil
+}
 
 func (d *snappingDesktop) Margins() (action.MarginsInfo, error) { return action.MarginsInfo{}, nil }
 

@@ -78,6 +78,8 @@ var mappedKinds = map[string]events.EventKind{
 	"MIMI_KIND_WINDOW_CLOSED":       events.WindowClosed,
 	"MIMI_KIND_WINDOW_RESIZING":     events.WindowResizing,
 	"MIMI_KIND_WINDOW_MOVING":       events.WindowMoving,
+	"MIMI_KIND_WINDOW_MINIMIZE":     events.WindowMinimize,
+	"MIMI_KIND_WINDOW_UNMINIMIZE":   events.WindowUnminimize,
 	"MIMI_KIND_WORKSPACE_CHANGED":   events.WorkspaceChanged,
 }
 
