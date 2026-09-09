@@ -251,6 +251,58 @@ func (e *Element) SetPosition(posX, posY float64) error {
 	return nil
 }
 
+// OnScreenWindow is one window as the window server lists it: its number,
+// its frame in screen coordinates, and its title when the window server
+// gives it, which it does only with Screen Recording granted.
+type OnScreenWindow struct {
+	Number uint32
+	Frame  Frame
+	Title  string
+	Named  bool
+}
+
+// OnScreenWindows lists every on-screen window, front to back, in one call
+// to the window server: no application is asked anything.
+func OnScreenWindows() []OnScreenWindow {
+	var (
+		count C.int
+		names **C.char
+	)
+
+	rows := C.MimiCopyOnScreenWindows(&count, &names) //nolint:nlreturn // cgo call expansion
+	if rows == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	total := int(count)
+	perWindow := int(C.MIMI_WINDOW_DOUBLES)
+	values := unsafe.Slice((*C.double)(unsafe.Pointer(rows)), total*perWindow)
+	titles := unsafe.Slice(names, total)
+	windows := make([]OnScreenWindow, total)
+
+	for index := range windows {
+		row := values[index*perWindow : (index+1)*perWindow]
+		windows[index] = OnScreenWindow{
+			Number: uint32(row[0]),
+			Frame: Frame{
+				X: float64(row[1]),
+				Y: float64(row[2]),
+				W: float64(row[3]),
+				H: float64(row[4]),
+			},
+			Title: C.GoString(titles[index]),
+			Named: row[5] != 0,
+		}
+
+		C.free(unsafe.Pointer(titles[index]))
+	}
+
+	C.free(unsafe.Pointer(names))
+
+	return windows
+}
+
 // PrimaryScreenHeight returns the height of the primary display (the one with the menu bar).
 // This is needed to convert between AX (y-down) and NSScreen (y-up) coordinate systems.
 func PrimaryScreenHeight() (float64, error) {

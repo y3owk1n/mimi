@@ -144,6 +144,22 @@ void *MimiGetFrontmostWindow(void) {
 	}
 }
 
+// The bounds of every on-screen window by number, from the window server.
+static NSDictionary<NSNumber *, NSValue *> *mimiOnScreenBounds(void) {
+	NSMutableDictionary<NSNumber *, NSValue *> *bounds = [NSMutableDictionary dictionary];
+	CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+	for (NSDictionary *info in (__bridge NSArray *)list) {
+		CGRect rect;
+		if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect)) {
+			bounds[info[(id)kCGWindowNumber]] = [NSValue valueWithBytes:&rect objCType:@encode(CGRect)];
+		}
+	}
+	if (list) {
+		CFRelease(list);
+	}
+	return bounds;
+}
+
 static CGPoint getWindowPosition(AXUIElementRef window) {
 	CFTypeRef positionValue = NULL;
 	if (AXUIElementCopyAttributeValue(window, kAXPositionAttribute, &positionValue) == kAXErrorSuccess &&
@@ -361,21 +377,33 @@ void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focus
 		CFIndex total = *count;
 		NSMutableDictionary<NSValue *, NSValue *> *positions = [NSMutableDictionary dictionaryWithCapacity:total];
 		NSMutableDictionary<NSValue *, NSNumber *> *pids = [NSMutableDictionary dictionaryWithCapacity:total];
-		// A position is a round trip into the window's application; the
-		// reads go out at once, and applications answer side by side.
-		CGPoint *points = calloc((size_t)total, sizeof(CGPoint));
-		dispatch_apply((size_t)total, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^(size_t i) {
-			points[i] = getWindowPosition((AXUIElementRef)CFArrayGetValueAtIndex(windowsCollector, (CFIndex)i));
-		});
+		// A position read through Accessibility is a round trip into the
+		// window's application, and one just activated answers late. The
+		// window server knows where every window is, in one call for all
+		// of them; a window it does not list, one without a number, is
+		// asked itself.
+		NSDictionary<NSNumber *, NSValue *> *onScreen = mimiOnScreenBounds();
 		for (CFIndex i = 0; i < total; i++) {
 			AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(windowsCollector, i);
-			positions[[NSValue valueWithPointer:w]] = [NSValue valueWithBytes:&points[i] objCType:@encode(CGPoint)];
+			CGWindowID number = 0;
+			NSValue *known = nil;
+			if (_AXUIElementGetWindow(w, &number) == kAXErrorSuccess && number != 0) {
+				known = onScreen[@(number)];
+			}
+			CGPoint pos;
+			if (known) {
+				CGRect bounds;
+				[known getValue:&bounds];
+				pos = bounds.origin;
+			} else {
+				pos = getWindowPosition(w);
+			}
+			positions[[NSValue valueWithPointer:w]] = [NSValue valueWithBytes:&pos objCType:@encode(CGPoint)];
 
 			pid_t pid = 0;
 			AXUIElementGetPid(w, &pid);
 			pids[[NSValue valueWithPointer:w]] = @(pid);
 		}
-		free(points);
 
 		NSArray *sortedWindows =
 		    [(__bridge NSArray *)windowsCollector sortedArrayUsingComparator:^NSComparisonResult(id obj1, id obj2) {
@@ -495,6 +523,55 @@ double *MimiGetWindowFrame(void *window) {
 		}
 
 		return result;
+	}
+}
+
+double *MimiCopyOnScreenWindows(int *count, char ***names) {
+	if (!count) {
+		return NULL;
+	}
+	*count = 0;
+	if (names) {
+		*names = NULL;
+	}
+
+	@autoreleasepool {
+		CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+		if (!list) {
+			return NULL;
+		}
+		CFIndex total = CFArrayGetCount(list);
+		double *rows = calloc((size_t)total * MIMI_WINDOW_DOUBLES, sizeof(double));
+		char **titles = calloc((size_t)total + 1, sizeof(char *));
+		int kept = 0;
+		for (NSDictionary *info in (__bridge NSArray *)list) {
+			CGRect rect;
+			if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect)) {
+				continue;
+			}
+			double *row = rows + (size_t)kept * MIMI_WINDOW_DOUBLES;
+			row[0] = [info[(id)kCGWindowNumber] doubleValue];
+			row[1] = rect.origin.x;
+			row[2] = rect.origin.y;
+			row[3] = rect.size.width;
+			row[4] = rect.size.height;
+			// The name is absent without Screen Recording; "" then.
+			NSString *name = info[(id)kCGWindowName];
+			row[5] = name != nil;
+			titles[kept] = strdup(name ? name.UTF8String : "");
+			kept++;
+		}
+		CFRelease(list);
+		*count = kept;
+		if (names) {
+			*names = titles;
+		} else {
+			for (int i = 0; i < kept; i++) {
+				free(titles[i]);
+			}
+			free(titles);
+		}
+		return rows;
 	}
 }
 

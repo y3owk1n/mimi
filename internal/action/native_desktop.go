@@ -36,6 +36,11 @@ type nativeDesktop struct {
 	// windows at once under mu's read lock.
 	framesMu sync.Mutex
 	frames   map[WindowID]geometry.Rect
+	// listed is the window server's list by number, taken with the last
+	// enumeration and again after a write, since a write moves the
+	// windows. It answers frames, and titles when the server names them,
+	// without a round trip into the application.
+	listed map[uint32]native.OnScreenWindow
 }
 
 // knownWindowsFor is how long an enumeration is trusted by number. Within
@@ -91,6 +96,7 @@ func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
 
 	d.known = windows
 	d.knownAt = time.Now()
+	d.relist()
 
 	return windows, focused, nil
 }
@@ -168,6 +174,20 @@ func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 	var frame geometry.Rect
 
 	err := d.withWindow(windowID, func(element *native.Element) error {
+		// The window server's answer is where the window is on screen,
+		// and costs no round trip into the application.
+		if listed, ok := d.listing(element); ok {
+			frame = geometry.Rect{
+				X: listed.Frame.X,
+				Y: listed.Frame.Y,
+				W: listed.Frame.W,
+				H: listed.Frame.H,
+			}
+			d.rememberFrame(windowID, frame)
+
+			return nil
+		}
+
 		posX, posY, width, height, err := element.GetFrame()
 		if err != nil {
 			return err
@@ -187,6 +207,14 @@ func (d *nativeDesktop) WindowTitle(id WindowID) (string, error) {
 	var title string
 
 	err := d.withWindow(id, func(element *native.Element) error {
+		// The window server names windows only with Screen Recording
+		// granted; otherwise the application is asked.
+		if listed, ok := d.listing(element); ok && listed.Named {
+			title = listed.Title
+
+			return nil
+		}
+
 		title = element.Title()
 
 		return nil
@@ -226,6 +254,7 @@ func (d *nativeDesktop) SetWindowFrame(windowID WindowID, frame geometry.Rect) e
 		}
 
 		d.rememberFrame(windowID, frame)
+		d.relist()
 
 		return nil
 	})
@@ -453,4 +482,32 @@ func (d *nativeDesktop) rememberedSize(id WindowID) (geometry.Rect, bool) {
 	frame, ok := d.frames[id]
 
 	return frame, ok
+}
+
+// relist takes the window server's list afresh.
+func (d *nativeDesktop) relist() {
+	listed := map[uint32]native.OnScreenWindow{}
+	for _, window := range native.OnScreenWindows() {
+		listed[window.Number] = window
+	}
+
+	d.framesMu.Lock()
+	defer d.framesMu.Unlock()
+
+	d.listed = listed
+}
+
+// listing is the window server's entry for a window, when it has one.
+func (d *nativeDesktop) listing(element *native.Element) (native.OnScreenWindow, bool) {
+	number := element.Number()
+	if number == 0 {
+		return native.OnScreenWindow{}, false
+	}
+
+	d.framesMu.Lock()
+	defer d.framesMu.Unlock()
+
+	window, ok := d.listed[number]
+
+	return window, ok
 }
