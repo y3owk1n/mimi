@@ -526,7 +526,7 @@ double *MimiGetWindowFrame(void *window) {
 	}
 }
 
-double *MimiCopyOnScreenWindows(int *count, char ***names) {
+double *MimiCopyWindowList(int onScreenOnly, int *count, char ***names) {
 	if (!count) {
 		return NULL;
 	}
@@ -536,18 +536,31 @@ double *MimiCopyOnScreenWindows(int *count, char ***names) {
 	}
 
 	@autoreleasepool {
-		CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+		CGWindowListOption option = onScreenOnly ? kCGWindowListOptionOnScreenOnly : kCGWindowListOptionAll;
+		CFArrayRef list = CGWindowListCopyWindowInfo(option, kCGNullWindowID);
 		if (!list) {
 			return NULL;
 		}
 		CFIndex total = CFArrayGetCount(list);
 		double *rows = calloc((size_t)total * MIMI_WINDOW_DOUBLES, sizeof(double));
 		char **titles = calloc((size_t)total + 1, sizeof(char *));
+		// Whether each owner is a regular, visible application, looked up
+		// once per owner: it is what makes a window's owner an application
+		// rather than a border drawer or an overlay.
+		NSMutableDictionary<NSNumber *, NSNumber *> *regular = [NSMutableDictionary dictionary];
 		int kept = 0;
 		for (NSDictionary *info in (__bridge NSArray *)list) {
 			CGRect rect;
 			if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect)) {
 				continue;
+			}
+			NSNumber *pid = info[(id)kCGWindowOwnerPID];
+			NSNumber *isRegular = regular[pid];
+			if (!isRegular) {
+				NSRunningApplication *app =
+				    [NSRunningApplication runningApplicationWithProcessIdentifier:(pid_t)pid.intValue];
+				isRegular = @(app && app.activationPolicy == NSApplicationActivationPolicyRegular && !app.hidden);
+				regular[pid] = isRegular;
 			}
 			double *row = rows + (size_t)kept * MIMI_WINDOW_DOUBLES;
 			row[0] = [info[(id)kCGWindowNumber] doubleValue];
@@ -558,6 +571,9 @@ double *MimiCopyOnScreenWindows(int *count, char ***names) {
 			// The name is absent without Screen Recording; "" then.
 			NSString *name = info[(id)kCGWindowName];
 			row[5] = name != nil;
+			row[6] = pid.doubleValue;
+			row[7] = [info[(id)kCGWindowLayer] doubleValue];
+			row[8] = isRegular.boolValue;
 			titles[kept] = strdup(name ? name.UTF8String : "");
 			kept++;
 		}
@@ -572,6 +588,62 @@ double *MimiCopyOnScreenWindows(int *count, char ***names) {
 			free(titles);
 		}
 		return rows;
+	}
+}
+
+void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **numbers, int **windows) {
+	if (!count) {
+		return NULL;
+	}
+	*count = 0;
+
+	@autoreleasepool {
+		AXUIElementRef appElement = AXUIElementCreateApplication((pid_t)pid);
+		if (!appElement) {
+			return NULL;
+		}
+		CFTypeRef value = NULL;
+		AXError error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute, &value);
+		CFRelease(appElement);
+		if (error != kAXErrorSuccess || !value) {
+			return NULL;
+		}
+		if (CFGetTypeID(value) != CFArrayGetTypeID()) {
+			CFRelease(value);
+			return NULL;
+		}
+		CFArrayRef list = (CFArrayRef)value;
+		CFIndex total = CFArrayGetCount(list);
+		void **elements = calloc((size_t)total + 1, sizeof(void *));
+		unsigned int *ids = calloc((size_t)total + 1, sizeof(unsigned int));
+		int *roles = calloc((size_t)total + 1, sizeof(int));
+		int kept = 0;
+		for (CFIndex i = 0; i < total; i++) {
+			AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(list, i);
+			if (!window) {
+				continue;
+			}
+			CGWindowID number = 0;
+			if (_AXUIElementGetWindow(window, &number) != kAXErrorSuccess || number == 0) {
+				continue;
+			}
+			CFTypeRef role = NULL;
+			int isWindow = 0;
+			if (AXUIElementCopyAttributeValue(window, kAXRoleAttribute, &role) == kAXErrorSuccess && role) {
+				isWindow = CFGetTypeID(role) == CFStringGetTypeID() &&
+				           CFStringCompare((CFStringRef)role, CFSTR("AXWindow"), 0) == kCFCompareEqualTo;
+				CFRelease(role);
+			}
+			elements[kept] = (void *)CFRetain(window);
+			ids[kept] = number;
+			roles[kept] = isWindow;
+			kept++;
+		}
+		CFRelease(value);
+		*count = kept;
+		*numbers = ids;
+		*windows = roles;
+		return elements;
 	}
 }
 

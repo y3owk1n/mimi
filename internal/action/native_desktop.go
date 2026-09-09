@@ -1,6 +1,7 @@
 package action
 
 import (
+	"cmp"
 	"math"
 	"slices"
 	"sync"
@@ -16,17 +17,25 @@ import (
 // nativeDesktop is the Desktop macOS itself: the adapter between the actions'
 // values and internal/native's handles.
 //
-// It owns every window reference behind the ids it hands out. A generation of
-// references lives until the next lookup replaces it, at which point the whole
-// previous generation is released — so no action above this seam ever holds,
-// or has to release, a native reference.
+// It owns every window reference behind the ids it hands out, by window
+// number, for as long as the window server has the window. An application
+// is asked for its windows only when the server lists a number the desktop
+// has not seen: a round trip into an application waits on its main thread,
+// and the one just activated is busy, so a pass that asks every application
+// waits on the slowest one. No action above this seam ever holds, or has to
+// release, a native reference.
 type nativeDesktop struct {
-	// mu is held for writing while the window set is replaced, and for
-	// reading around every use of a window in it, so frames can be written to
+	// mu is held for writing while the window set changes, and for reading
+	// around every use of a window in it, so frames can be written to
 	// several windows at once.
 	mu      sync.RWMutex
 	lastID  WindowID
 	windows map[WindowID]*native.Element
+	// entries is what the desktop knows of each window by number.
+	entries map[uint32]*windowEntry
+	// missing is when an application last failed to list a number the
+	// window server has for it, so it is not asked again at once.
+	missing map[uint32]time.Time
 	// known is the last enumeration, and knownAt when it was taken.
 	known   []Window
 	knownAt time.Time
@@ -40,7 +49,17 @@ type nativeDesktop struct {
 	// enumeration and again after a write, since a write moves the
 	// windows. It answers frames, and titles when the server names them,
 	// without a round trip into the application.
-	listed map[uint32]native.OnScreenWindow
+	listed map[uint32]native.ListedWindow
+}
+
+// windowEntry is one window the desktop holds a reference to.
+type windowEntry struct {
+	id      WindowID
+	element *native.Element
+	pid     int
+	// isWindow is whether Accessibility calls it a window, rather than a
+	// sheet, a popover or the like, which never changes.
+	isWindow bool
 }
 
 // knownWindowsFor is how long an enumeration is trusted by number. Within
@@ -48,10 +67,16 @@ type nativeDesktop struct {
 // space unnoticed.
 const knownWindowsFor = time.Second
 
+// missingFor is how long an application is left alone after it did not
+// list a window the window server has for it.
+const missingFor = 2 * time.Second
+
 // newNativeDesktop returns the Desktop backed by macOS.
 func newNativeDesktop() *nativeDesktop {
 	return &nativeDesktop{
 		windows: map[WindowID]*native.Element{},
+		entries: map[uint32]*windowEntry{},
+		missing: map[uint32]time.Time{},
 		frames:  map[WindowID]geometry.Rect{},
 	}
 }
@@ -61,44 +86,111 @@ func (d *nativeDesktop) EnsureAccessible() error {
 	return permissions.FriendlyError(permissions.Check())
 }
 
-// FocusableWindows enumerates the focusable windows on the active space.
+// FocusableWindows enumerates the focusable windows on the active space:
+// the window server's on-screen windows at the ordinary layer owned by a
+// regular, visible application, that Accessibility calls windows. They are
+// ordered top to bottom, then left to right, then by application, and the
+// focused one is the frontmost of them: the window server orders its list
+// front to back, and the window with keyboard focus is in front of every
+// other application's. Asking the Accessibility server instead was measured
+// to wait on the application just activated.
 func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
-	elements, focused, err := native.AllFocusableOnActiveSpaceWithFocused()
-	if err != nil {
-		return nil, -1, err
-	}
+	onScreen := native.WindowList(true)
+	all := native.WindowList(false)
 
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.releaseLocked()
+	d.evictLocked(all)
 
-	windows := make([]Window, 0, len(elements))
+	// The numbers the desktop has not seen, by application, each asked
+	// once for every window it has, at the same time as the others.
+	unknown := map[int]bool{}
 
-	for _, element := range elements {
-		if element == nil {
+	for _, window := range onScreen {
+		if window.Layer != 0 || !window.Regular {
 			continue
 		}
 
-		// A window whose owning process cannot be read still cycles; the pid
-		// is what tells applications apart, not what makes a window valid.
-		pid, pidErr := element.PID()
-		if pidErr != nil {
-			pid = 0
+		if _, ok := d.entries[window.Number]; ok {
+			continue
 		}
 
-		windows = append(windows, Window{
-			ID:     d.registerLocked(element),
-			PID:    pid,
-			Number: element.Number(),
-		})
+		if asked, ok := d.missing[window.Number]; ok && time.Since(asked) < missingFor {
+			continue
+		}
+
+		unknown[window.PID] = true
+	}
+
+	d.learnLocked(unknown)
+
+	windows := make([]Window, 0, len(onScreen))
+	focused := uint32(0)
+
+	for _, window := range onScreen {
+		if window.Layer != 0 || !window.Regular {
+			continue
+		}
+
+		entry, ok := d.entries[window.Number]
+		if !ok {
+			d.missing[window.Number] = time.Now()
+
+			continue
+		}
+
+		if !entry.isWindow {
+			continue
+		}
+
+		if focused == 0 {
+			focused = window.Number
+		}
+
+		windows = append(windows, Window{ID: entry.id, PID: entry.pid, Number: window.Number})
+	}
+
+	frames := map[uint32]native.Frame{}
+	for _, window := range onScreen {
+		frames[window.Number] = window.Frame
+	}
+
+	slices.SortStableFunc(windows, func(left, right Window) int {
+		leftFrame, rightFrame := frames[left.Number], frames[right.Number]
+		if leftFrame.Y != rightFrame.Y {
+			return cmp.Compare(leftFrame.Y, rightFrame.Y)
+		}
+
+		if leftFrame.X != rightFrame.X {
+			return cmp.Compare(leftFrame.X, rightFrame.X)
+		}
+
+		return cmp.Compare(left.PID, right.PID)
+	})
+
+	focusedIndex := -1
+	for index, window := range windows {
+		if window.Number == focused {
+			focusedIndex = index
+		}
 	}
 
 	d.known = windows
 	d.knownAt = time.Now()
-	d.relist()
+	d.listed = listing(onScreen)
 
-	return windows, focused, nil
+	return windows, focusedIndex, nil
+}
+
+// listing indexes a window list by number.
+func listing(windows []native.ListedWindow) map[uint32]native.ListedWindow {
+	listed := make(map[uint32]native.ListedWindow, len(windows))
+	for _, window := range windows {
+		listed[window.Number] = window
+	}
+
+	return listed
 }
 
 // KnownWindows is the last enumeration, when it is recent.
@@ -161,12 +253,24 @@ func (d *nativeDesktop) FrontmostWindow() (Window, error) {
 		pid = 0
 	}
 
+	number := element.Number()
+
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	d.releaseLocked()
+	// The window in front is kept like any other, by number; one without a
+	// number is held until the next enumeration evicts it.
+	if entry, ok := d.entries[number]; ok && number != 0 {
+		element.Release()
 
-	return Window{ID: d.registerLocked(element), PID: pid, Number: element.Number()}, nil
+		return Window{ID: entry.id, PID: pid, Number: number}, nil
+	}
+
+	d.lastID++
+	d.windows[d.lastID] = element
+	d.entries[number] = &windowEntry{id: d.lastID, element: element, pid: pid, isWindow: true}
+
+	return Window{ID: d.lastID, PID: pid, Number: number}, nil
 }
 
 // WindowFrame reads one window's frame.
@@ -176,7 +280,7 @@ func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 	err := d.withWindow(windowID, func(element *native.Element) error {
 		// The window server's answer is where the window is on screen,
 		// and costs no round trip into the application.
-		if listed, ok := d.listing(element); ok {
+		if listed, ok := d.listedWindow(element); ok {
 			frame = geometry.Rect{
 				X: listed.Frame.X,
 				Y: listed.Frame.Y,
@@ -209,7 +313,7 @@ func (d *nativeDesktop) WindowTitle(id WindowID) (string, error) {
 	err := d.withWindow(id, func(element *native.Element) error {
 		// The window server names windows only with Screen Recording
 		// granted; otherwise the application is asked.
-		if listed, ok := d.listing(element); ok && listed.Named {
+		if listed, ok := d.listedWindow(element); ok && listed.Named {
 			title = listed.Title
 
 			return nil
@@ -443,29 +547,6 @@ func (d *nativeDesktop) withWindow(
 	return apply(element)
 }
 
-// registerLocked takes ownership of one native reference and returns the id
-// standing for it. The caller must hold the lock.
-func (d *nativeDesktop) registerLocked(element *native.Element) WindowID {
-	d.lastID++
-	d.windows[d.lastID] = element
-
-	return d.lastID
-}
-
-// releaseLocked releases every reference the desktop holds. The caller must
-// hold the lock.
-func (d *nativeDesktop) releaseLocked() {
-	for id, element := range d.windows {
-		element.Release()
-		delete(d.windows, id)
-	}
-
-	d.framesMu.Lock()
-	defer d.framesMu.Unlock()
-
-	clear(d.frames)
-}
-
 func (d *nativeDesktop) rememberFrame(id WindowID, frame geometry.Rect) {
 	d.framesMu.Lock()
 	defer d.framesMu.Unlock()
@@ -486,10 +567,7 @@ func (d *nativeDesktop) rememberedSize(id WindowID) (geometry.Rect, bool) {
 
 // relist takes the window server's list afresh.
 func (d *nativeDesktop) relist() {
-	listed := map[uint32]native.OnScreenWindow{}
-	for _, window := range native.OnScreenWindows() {
-		listed[window.Number] = window
-	}
+	listed := listing(native.WindowList(true))
 
 	d.framesMu.Lock()
 	defer d.framesMu.Unlock()
@@ -498,10 +576,10 @@ func (d *nativeDesktop) relist() {
 }
 
 // listing is the window server's entry for a window, when it has one.
-func (d *nativeDesktop) listing(element *native.Element) (native.OnScreenWindow, bool) {
+func (d *nativeDesktop) listedWindow(element *native.Element) (native.ListedWindow, bool) {
 	number := element.Number()
 	if number == 0 {
-		return native.OnScreenWindow{}, false
+		return native.ListedWindow{}, false
 	}
 
 	d.framesMu.Lock()
@@ -510,4 +588,74 @@ func (d *nativeDesktop) listing(element *native.Element) (native.OnScreenWindow,
 	window, ok := d.listed[number]
 
 	return window, ok
+}
+
+// learnLocked asks each given application for its windows, at once, and
+// keeps a reference to every one that has a number. The caller holds mu.
+func (d *nativeDesktop) learnLocked(pids map[int]bool) {
+	if len(pids) == 0 {
+		return
+	}
+
+	results := make(chan []native.ApplicationWindow, len(pids))
+
+	for pid := range pids {
+		go func(pid int) {
+			results <- native.ApplicationWindowElements(pid)
+		}(pid)
+	}
+
+	for range pids {
+		for _, window := range <-results {
+			if _, ok := d.entries[window.Number]; ok {
+				window.Element.Release()
+
+				continue
+			}
+
+			pid, err := window.Element.PID()
+			if err != nil {
+				pid = 0
+			}
+
+			d.lastID++
+			d.windows[d.lastID] = window.Element
+			d.entries[window.Number] = &windowEntry{
+				id:       d.lastID,
+				element:  window.Element,
+				pid:      pid,
+				isWindow: window.IsWindow,
+			}
+			delete(d.missing, window.Number)
+		}
+	}
+}
+
+// evictLocked releases the windows the window server no longer has. The
+// caller holds mu.
+func (d *nativeDesktop) evictLocked(all []native.ListedWindow) {
+	alive := make(map[uint32]bool, len(all))
+	for _, window := range all {
+		alive[window.Number] = true
+	}
+
+	for number, entry := range d.entries {
+		if alive[number] {
+			continue
+		}
+
+		entry.element.Release()
+		delete(d.windows, entry.id)
+		delete(d.entries, number)
+
+		d.framesMu.Lock()
+		delete(d.frames, entry.id)
+		d.framesMu.Unlock()
+	}
+
+	for number := range d.missing {
+		if !alive[number] {
+			delete(d.missing, number)
+		}
+	}
 }

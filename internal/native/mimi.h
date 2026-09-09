@@ -78,14 +78,20 @@ double *MimiGetWindowFrame(void *window);
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
 int MimiSetWindowPosition(void *window, double x, double y);
 
-/// Doubles per window in MimiCopyOnScreenWindows' result: number, x, y,
-/// width, height, and whether the window server named it.
-#define MIMI_WINDOW_DOUBLES 6
+/// Doubles per window in MimiCopyWindowList's result: number, x, y, width,
+/// height, whether the window server named it, owner pid, layer, and whether
+/// the owner is a regular, visible application.
+#define MIMI_WINDOW_DOUBLES 9
 
-/// Every on-screen window as the window server lists it, front to back,
-/// with its name in *names when Screen Recording is granted. The caller
-/// frees the rows and each name.
-double *MimiCopyOnScreenWindows(int *count, char ***names);
+/// Every window as the window server lists it, front to back, on screen only
+/// or on every space, with its name in *names when Screen Recording is
+/// granted. The caller frees the rows and each name.
+double *MimiCopyWindowList(int onScreenOnly, int *count, char ***names);
+
+/// An application's windows as Accessibility lists them, each with its
+/// window server number and whether its role is a window, for the ones that
+/// have a number. The caller releases each element and frees the arrays.
+void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **numbers, int **windows);
 
 #pragma mark - Tiling Margins
 
