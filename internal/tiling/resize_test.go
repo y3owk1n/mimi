@@ -46,7 +46,7 @@ func (d *snappingDesktop) Margins() (action.MarginsInfo, error) { return action.
 
 func (d *snappingDesktop) Focus(uint32) error { return nil }
 
-func (d *snappingDesktop) Apply(frames []action.WindowFrame) error {
+func (d *snappingDesktop) Apply(frames []action.WindowFrame, _ *action.Animation) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 

@@ -62,6 +62,8 @@ int MimiRequestAccessibilityPermissions(void) {
 	}
 }
 
+int MimiRequestScreenCapturePermission(void) { return CGRequestScreenCaptureAccess() ? 1 : 0; }
+
 int MimiShowAccessibilityPermissionStartupAlert(void) {
 	return MimiRunOnMainThreadSync(^int {
 		@autoreleasepool {

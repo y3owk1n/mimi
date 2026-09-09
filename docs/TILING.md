@@ -183,7 +183,7 @@ Your program reads one JSON document on stdin and prints one on stdout.
 
 | Field | Meaning |
 | --- | --- |
-| `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. |
+| `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus once the frames land. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
 

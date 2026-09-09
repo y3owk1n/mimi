@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"slices"
 	"sync"
 	"time"
 
@@ -24,7 +25,7 @@ type Desktop interface {
 	Displays() ([]action.DisplayEntry, error)
 	ActiveSpaces() (map[uint32]int, error)
 	Margins() (action.MarginsInfo, error)
-	Apply(frames []action.WindowFrame) error
+	Apply(frames []action.WindowFrame, animation *action.Animation) error
 	Focus(number uint32) error
 }
 
@@ -46,6 +47,8 @@ type Engine struct {
 	command string
 	// gap is tiling.gap when set; nil follows the macOS margin.
 	gap *int
+	// animation is how the frames move, or nil to move them at once.
+	animation *action.Animation
 	// configured reports whether Update has run at all, which is what tells
 	// the startup pass from a reload's.
 	configured bool
@@ -120,6 +123,15 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.enabled = cfg.Enabled
 	e.command = cfg.Layout
 	e.gap = cfg.Gap
+
+	e.animation = nil
+	if cfg.Animation.Enabled {
+		e.animation = &action.Animation{
+			DurationMS: cfg.Animation.DurationMS,
+			Easing:     cfg.Animation.Easing,
+		}
+	}
+
 	e.configured = true
 	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
@@ -317,12 +329,22 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 		return nil
 	}
 
+	// A window the user just dragged is placed where the layout puts it at
+	// once rather than animated there.
+	if e.animation != nil {
+		for index := range frames {
+			if slices.Contains(event.Windows, frames[index].Number) {
+				frames[index].Animate = new(bool)
+			}
+		}
+	}
+
 	err = e.run(func() error {
 		if len(frames) == 0 {
 			return nil
 		}
 
-		return e.desktop.Apply(frames)
+		return e.desktop.Apply(frames, e.animation)
 	})
 
 	if focus != 0 {

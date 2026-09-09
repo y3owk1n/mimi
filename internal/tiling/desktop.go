@@ -21,12 +21,15 @@ func (LiveDesktop) Margins() (action.MarginsInfo, error) { return action.QueryMa
 // Focus gives keyboard focus to a window by number.
 func (LiveDesktop) Focus(number uint32) error { return action.FocusWindowNumber(number) }
 
-// Apply writes the frames the way apply_frames does.
-func (LiveDesktop) Apply(frames []action.WindowFrame) error {
+// Apply writes the frames the way apply_frames does, animated when
+// animation is set.
+func (LiveDesktop) Apply(frames []action.WindowFrame, animation *action.Animation) error {
 	cmd, err := action.NewApplyFramesCommand(frames)
 	if err != nil {
 		return err
 	}
+
+	cmd.ApplyFrames.Animation = animation
 
 	return action.ExecuteCommand(cmd)
 }

@@ -215,6 +215,11 @@ debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
 # gap = 12                   # points between windows; unset follows the macOS tiled-window margin
+
+[tiling.animation]
+enabled = false       # move the frames into place over time instead of at once
+duration_ms = 150     # how long the move takes
+easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
 ```
 
 mimi ships no layout. `layout` is a command line, run through
@@ -272,6 +277,20 @@ keyboard focus once the frames are applied. Printing nothing changes nothing:
 layout can refuse an input it was not written for. A layout that exits
 non-zero, times out, or prints something that is not this shape is logged and
 applies nothing; the next event tries again.
+
+With `[tiling.animation]` enabled, the windows move to the frames a pass
+returns over `duration_ms`, along the `easing` curve, instead of at once. The
+window server draws the animation from pictures of the windows, so the
+applications do no more work than for an instant move. A pass that arrives
+while an animation is running continues from where the windows are on
+screen. A window the user just dragged moves at once, and a layout can
+exclude any window with `animate: false` on its frame (see
+[TILING.md](TILING.md)). Taking the pictures needs the Screen Recording
+permission. With the animation enabled the daemon asks for it once, at
+startup and on reload. Until it is granted the windows move at once and a
+warning says so. macOS applies a grant when mimi next starts. With the
+animation disabled, the default, the daemon captures nothing and asks for
+nothing.
 
 `enabled = true` requires `layout`, and Accessibility permission, which the
 daemon checks at startup and on every reload: without it tiling stays off and

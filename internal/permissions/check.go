@@ -64,6 +64,13 @@ func RequestAccessibility() bool {
 	return C.MimiRequestAccessibilityPermissions() != 0
 }
 
+// RequestScreenCapture asks macOS for Screen Recording permission, which
+// animating tiling frames needs. macOS prompts the first time and remembers
+// the answer; a grant takes effect when mimi next starts.
+func RequestScreenCapture() bool {
+	return C.MimiRequestScreenCapturePermission() != 0
+}
+
 // ShowConfigOnboardingAlert displays startup guidance for creating the first config file.
 func ShowConfigOnboardingAlert(configPath string) ConfigOnboardingChoice {
 	cPath := C.CString(configPath)
