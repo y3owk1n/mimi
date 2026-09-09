@@ -95,8 +95,8 @@ func StartFrameAnimation(dropped []uint32) {
 	C.MimiAnimationStart((*C.uint32_t)(unsafe.Pointer(&dropped[0])), C.int(len(dropped)))
 }
 
-// WarmFrameAnimation makes the windows the first frame animation would
-// otherwise make during its setup, where a new window costs half a second.
+// WarmFrameAnimation makes the window per display the frame animation
+// draws in, ahead of the first animation.
 func WarmFrameAnimation() {
 	C.MimiAnimationWarm()
 }
