@@ -36,6 +36,8 @@ type fakeDesktop struct {
 	animations []*action.Animation
 	applyErr   error
 	focused    []uint32
+	// calls is the order of Apply and Focus, by name.
+	calls []string
 }
 
 func (d *fakeDesktop) Focus(number uint32) error {
@@ -43,6 +45,7 @@ func (d *fakeDesktop) Focus(number uint32) error {
 	defer d.mu.Unlock()
 
 	d.focused = append(d.focused, number)
+	d.calls = append(d.calls, "focus")
 
 	return nil
 }
@@ -76,6 +79,7 @@ func (d *fakeDesktop) Apply(frames []action.WindowFrame, animation *action.Anima
 
 	d.applied = append(d.applied, frames)
 	d.animations = append(d.animations, animation)
+	d.calls = append(d.calls, "apply")
 
 	return nil
 }
@@ -481,6 +485,57 @@ func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
 // contract: a display gets a run of its own with only its windows, its
 // state is keyed by its own space, and a space switched on one display
 // leaves the other's state untouched.
+// TestEngine_Pass_KeepsAnOffScreenWindowWithItsNearestDisplay pins where a
+// window whose center is on no display is laid out: with the display it is
+// nearest, as a column a strip parks off a secondary display's edge is,
+// rather than with the first display.
+func TestEngine_Pass_KeepsAnOffScreenWindowWithItsNearestDisplay(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.displays = []action.DisplayEntry{
+		{
+			Index:   1,
+			ID:      7,
+			Frame:   action.Frame{Width: 1000, Height: 1000},
+			Visible: action.Frame{Width: 1000, Height: 1000},
+		},
+		{
+			Index:   2,
+			ID:      8,
+			Frame:   action.Frame{X: 200, Y: 1000, Width: 1000, Height: 1000},
+			Visible: action.Frame{X: 200, Y: 1000, Width: 1000, Height: 1000},
+		},
+	}
+	desktop.windows = action.WindowsInfo{Focused: 0, Windows: []action.WindowEntry{
+		{
+			Number: 1,
+			PID:    10,
+			App:    "A",
+			Frame:  action.Frame{X: 300, Y: 1100, Width: 500, Height: 500},
+		},
+		// Parked left of the second display: its center is on no display.
+		{
+			Number: 2,
+			PID:    11,
+			App:    "B",
+			Frame:  action.Frame{X: -400, Y: 1100, Width: 500, Height: 500},
+		},
+	}}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null}'`), shell)
+
+	inputs, _, err := engine.Preview(context.Background(), tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if len(inputs) != 1 || inputs[0].Display.ID != 8 || len(inputs[0].Windows) != 2 {
+		t.Fatalf("inputs = %+v; want both windows on display 8 alone", inputs)
+	}
+}
+
 func TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn(t *testing.T) {
 	t.Parallel()
 
@@ -609,8 +664,8 @@ func TestEngine_Input_GapFollowsTheConfigThenTheMargin(t *testing.T) {
 }
 
 // TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor pins the one thing a
-// layout may ask for beyond frames: keyboard focus on a window, applied
-// after the frames, and alone when there are no frames.
+// layout may ask for beyond frames: keyboard focus on a window, given
+// before the frames, and alone when there are no frames.
 func TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor(t *testing.T) {
 	t.Parallel()
 
@@ -629,6 +684,31 @@ func TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor(t *testing.T) {
 			len(desktop.applied),
 			desktop.focused,
 		)
+	}
+}
+
+// TestEngine_Pass_FocusesBeforeTheFramesMove pins that the focus a layout
+// asks for lands before its frames do: the focus is what the user asked
+// for, and the frames may wait on a screen capture.
+func TestEngine_Pass_FocusesBeforeTheFramesMove(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		enabled(
+			`jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 10, height: 10}}], state: null, focus: 1}'`,
+		),
+		shell,
+	)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventCommand, Name: "focus"})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if got, want := strings.Join(desktop.calls, ","), "focus,apply"; got != want {
+		t.Fatalf("calls = %q, want %q", got, want)
 	}
 }
 

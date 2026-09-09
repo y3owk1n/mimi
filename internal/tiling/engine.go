@@ -449,6 +449,18 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		}
 	}
 
+	// Focus goes first: it is what the user pressed a key for, and it is
+	// one round trip, while the frames wait on a screen capture when they
+	// animate. A window focuses as well off screen as on it.
+	if focus != 0 {
+		focusErr := e.run(func() error { return e.desktop.Focus(focus) })
+		if focusErr != nil {
+			e.logger.Debugw("tiling pass could not focus", "window", focus, "err", focusErr)
+		}
+	}
+
+	applyStart := time.Now()
+
 	err = e.run(func() error {
 		if len(frames) == 0 {
 			return nil
@@ -456,13 +468,6 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 
 		return e.desktop.Apply(frames, e.animation)
 	})
-
-	if focus != 0 {
-		focusErr := e.run(func() error { return e.desktop.Focus(focus) })
-		if focusErr != nil {
-			e.logger.Debugw("tiling pass could not focus", "window", focus, "err", focusErr)
-		}
-	}
 
 	// Whatever the apply reported, some frames may have landed: remember
 	// them all as requested, then read back where they are.
@@ -486,6 +491,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		len(inputs),
 		"frames",
 		len(frames),
+		"apply_ms",
+		time.Since(applyStart).Milliseconds(),
 	)
 
 	return nil
@@ -598,24 +605,32 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 }
 
 // displayOf is the id of the display whose frame holds the center of frame,
-// or the first display's when none does.
+// or, when none does, the one that center is nearest: a column a strip
+// parks off the edge of a display stays that display's.
 func displayOf(frame action.Frame, displays []action.DisplayEntry) uint32 {
 	centerX := frame.X + frame.Width/half
 	centerY := frame.Y + frame.Height/half
 
+	var (
+		nearest  uint32
+		distance = math.Inf(1)
+	)
+
 	for _, display := range displays {
 		bounds := display.Frame
-		if centerX >= bounds.X && centerX < bounds.X+bounds.Width &&
-			centerY >= bounds.Y && centerY < bounds.Y+bounds.Height {
+		outsideX := math.Max(bounds.X-centerX, math.Max(0, centerX-(bounds.X+bounds.Width)))
+		outsideY := math.Max(bounds.Y-centerY, math.Max(0, centerY-(bounds.Y+bounds.Height)))
+
+		if outsideX == 0 && outsideY == 0 {
 			return display.ID
+		}
+
+		if d := outsideX*outsideX + outsideY*outsideY; d < distance {
+			nearest, distance = display.ID, d
 		}
 	}
 
-	if len(displays) > 0 {
-		return displays[0].ID
-	}
-
-	return 0
+	return nearest
 }
 
 // spacesChangedLocked reports whether any display the inputs were read on

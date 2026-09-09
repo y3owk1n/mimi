@@ -1,6 +1,7 @@
 package action
 
 import (
+	"math"
 	"slices"
 	"sync"
 	"time"
@@ -26,11 +27,28 @@ type nativeDesktop struct {
 	mu      sync.RWMutex
 	lastID  WindowID
 	windows map[WindowID]*native.Element
+	// known is the last enumeration, and knownAt when it was taken.
+	known   []Window
+	knownAt time.Time
+	// frames is the frame each window was last read at or written to,
+	// as the application reported it, for the windows of the last
+	// enumeration. framesMu covers it: frames are written to several
+	// windows at once under mu's read lock.
+	framesMu sync.Mutex
+	frames   map[WindowID]geometry.Rect
 }
+
+// knownWindowsFor is how long an enumeration is trusted by number. Within
+// it a window may close, and its write fails, but it does not leave the
+// space unnoticed.
+const knownWindowsFor = time.Second
 
 // newNativeDesktop returns the Desktop backed by macOS.
 func newNativeDesktop() *nativeDesktop {
-	return &nativeDesktop{windows: map[WindowID]*native.Element{}}
+	return &nativeDesktop{
+		windows: map[WindowID]*native.Element{},
+		frames:  map[WindowID]geometry.Rect{},
+	}
 }
 
 // EnsureAccessible reports whether macOS still lets mimi drive the desktop.
@@ -71,7 +89,22 @@ func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
 		})
 	}
 
+	d.known = windows
+	d.knownAt = time.Now()
+
 	return windows, focused, nil
+}
+
+// KnownWindows is the last enumeration, when it is recent.
+func (d *nativeDesktop) KnownWindows() []Window {
+	d.mu.RLock()
+	defer d.mu.RUnlock()
+
+	if time.Since(d.knownAt) > knownWindowsFor {
+		return nil
+	}
+
+	return d.known
 }
 
 // FindApplication resolves a bundle identifier or a name to a running pid.
@@ -131,16 +164,17 @@ func (d *nativeDesktop) FrontmostWindow() (Window, error) {
 }
 
 // WindowFrame reads one window's frame.
-func (d *nativeDesktop) WindowFrame(id WindowID) (geometry.Rect, error) {
+func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 	var frame geometry.Rect
 
-	err := d.withWindow(id, func(element *native.Element) error {
+	err := d.withWindow(windowID, func(element *native.Element) error {
 		posX, posY, width, height, err := element.GetFrame()
 		if err != nil {
 			return err
 		}
 
 		frame = geometry.Rect{X: posX, Y: posY, W: width, H: height}
+		d.rememberFrame(windowID, frame)
 
 		return nil
 	})
@@ -171,11 +205,39 @@ func (d *nativeDesktop) ApplicationInfo(pid int) (AppInfo, error) {
 	return AppInfo{Name: info.Name, BundleID: info.BundleID}, nil
 }
 
-// SetWindowFrame moves and resizes one window.
-func (d *nativeDesktop) SetWindowFrame(id WindowID, frame geometry.Rect) error {
-	return d.withWindow(id, func(element *native.Element) error {
-		return element.SetFrame(frame.X, frame.Y, frame.W, frame.H)
+// SetWindowFrame moves and resizes one window. A window the application
+// last reported at the size asked for is only moved: each write is a round
+// trip into the application, some ten milliseconds for a heavy one, and a
+// move is the common case, as a layout that scrolls or swaps two windows
+// of a size makes.
+func (d *nativeDesktop) SetWindowFrame(windowID WindowID, frame geometry.Rect) error {
+	return d.withWindow(windowID, func(element *native.Element) error {
+		last, known := d.rememberedSize(windowID)
+		if known && sameLength(last.W, frame.W) && sameLength(last.H, frame.H) {
+			err := element.SetPosition(frame.X, frame.Y)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := element.SetFrame(frame.X, frame.Y, frame.W, frame.H)
+			if err != nil {
+				return err
+			}
+		}
+
+		d.rememberFrame(windowID, frame)
+
+		return nil
 	})
+}
+
+// samePoint is how far two lengths may differ and still be the same as
+// macOS stores them, in whole points.
+const samePoint = 0.5
+
+// sameLength is whether two lengths agree in whole points.
+func sameLength(a, b float64) bool {
+	return math.Abs(a-b) < samePoint
 }
 
 // BeginFrameAnimation prepares to fly the given windows to their frames.
@@ -368,4 +430,27 @@ func (d *nativeDesktop) releaseLocked() {
 		element.Release()
 		delete(d.windows, id)
 	}
+
+	d.framesMu.Lock()
+	defer d.framesMu.Unlock()
+
+	clear(d.frames)
+}
+
+func (d *nativeDesktop) rememberFrame(id WindowID, frame geometry.Rect) {
+	d.framesMu.Lock()
+	defer d.framesMu.Unlock()
+
+	d.frames[id] = frame
+}
+
+// rememberedSize is the size the window was last read at or written to,
+// when it was.
+func (d *nativeDesktop) rememberedSize(id WindowID) (geometry.Rect, bool) {
+	d.framesMu.Lock()
+	defer d.framesMu.Unlock()
+
+	frame, ok := d.frames[id]
+
+	return frame, ok
 }

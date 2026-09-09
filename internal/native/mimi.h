@@ -76,6 +76,7 @@ double *MimiCopyScreenFrames(int *count);
 
 double *MimiGetWindowFrame(void *window);
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
+int MimiSetWindowPosition(void *window, double x, double y);
 
 #pragma mark - Tiling Margins
 

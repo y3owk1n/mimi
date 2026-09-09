@@ -235,8 +235,11 @@ shape, and applies nothing.
 
 With `[tiling.animation]` enabled, windows move to their frames over
 `duration_ms` along the `easing` curve. A pass that lands mid-animation
-continues from where the windows are. A window the user just dragged moves at
-once, and a layout can opt a window out with `animate: false` on its frame.
+continues from where the windows are, and one that asks for the frames
+already in flight leaves the animation to finish. A window arriving from off
+screen slides in. A window the user just dragged moves at once, and a layout
+can opt a window out with `animate: false` on its frame. The focus a layout
+asks for lands before its frames move.
 
 **Animation requires Screen Recording permission.** macOS lets a process
 move another application's window, but not fade, transform or reorder it.

@@ -225,6 +225,32 @@ func (e *Element) SetFrame(posX, posY, width, height float64) error {
 	return nil
 }
 
+// SetPosition moves the window to (x, y) in screen coordinates, leaving its
+// size alone: one round trip into the application where SetFrame makes
+// three.
+func (e *Element) SetPosition(posX, posY float64) error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot set window position: element reference is nil",
+		)
+	}
+
+	result := C.MimiSetWindowPosition(
+		e.ref,
+		C.double(posX),
+		C.double(posY), //nolint:nlreturn
+	)
+	if result == 0 {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to set window position",
+		)
+	}
+
+	return nil
+}
+
 // PrimaryScreenHeight returns the height of the primary display (the one with the menu bar).
 // This is needed to convert between AX (y-down) and NSScreen (y-up) coordinate systems.
 func PrimaryScreenHeight() (float64, error) {
