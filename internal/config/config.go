@@ -19,6 +19,7 @@ type Config struct {
 	Hooks    HooksConfig    `json:"hooks"    reload:"reloadable" toml:"hooks"`
 	Systray  SystrayConfig  `json:"systray"  reload:"per-field"  toml:"systray"`
 	Tiling   TilingConfig   `json:"tiling"   reload:"reloadable" toml:"tiling"`
+	Border   BorderConfig   `json:"border"   reload:"reloadable" toml:"border"`
 
 	// UnknownHookKeys lists the keys found under [hooks] that name no hook
 	// kind, sorted. Loading records them rather than reporting them so each
@@ -109,6 +110,37 @@ type AnimationConfig struct {
 	Easing     string `json:"easing"     toml:"easing"`
 }
 
+// BorderConfig holds the [border] section: whether the daemon draws a
+// border around every window on the spaces in front, how wide, the radius
+// of the window corner it follows, and the colors for the focused window
+// and for the rest. Colors are written as #rrggbb or #rrggbbaa. The whole
+// section is reloadable; it needs Accessibility, like the window events it
+// follows.
+type BorderConfig struct {
+	Enabled bool    `json:"enabled" toml:"enabled"`
+	Width   float64 `json:"width"   toml:"width"`
+	// Radius is the corner radius of the window the border follows on its
+	// inside, in points. Left unset, each border follows its own window's
+	// corner as the window server reports it; 0 draws square corners.
+	Radius        *float64 `json:"radius"        toml:"radius"`
+	ActiveColor   string   `json:"activeColor"   toml:"active_color"`
+	InactiveColor string   `json:"inactiveColor" toml:"inactive_color"`
+}
+
+// CornerRadius is the radius the border follows: Radius when set, else
+// FollowWindowRadius, each window's own.
+func (b BorderConfig) CornerRadius() float64 {
+	if b.Radius != nil {
+		return *b.Radius
+	}
+
+	return FollowWindowRadius
+}
+
+// FollowWindowRadius is the CornerRadius of a [border] section with no
+// radius set: every border follows its own window's corner.
+const FollowWindowRadius = -1
+
 // HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {
 	AppActivate       []HookEntry `json:"onAppActivate"       toml:"on_app_activate"`
@@ -158,6 +190,7 @@ type rawConfig struct {
 	Hooks    rawHooksConfig   `json:"hooks"    toml:"hooks"`
 	Systray  rawSystrayConfig `json:"systray"  toml:"systray"`
 	Tiling   TilingConfig     `json:"tiling"   toml:"tiling"`
+	Border   BorderConfig     `json:"border"   toml:"border"`
 }
 
 type rawSystrayConfig struct {

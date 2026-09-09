@@ -13,6 +13,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	"github.com/y3owk1n/mimi/internal/border"
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -31,6 +32,9 @@ const (
 	logSubBufSize  = 128
 	hookSubBufSize = 256
 	tileSubBufSize = 64
+	// borderSubBufSize is small on purpose. Every event asks for the same
+	// sync, and the drawer folds the ones that pile up into one.
+	borderSubBufSize = 16
 )
 
 // Run starts the mimi daemon: window/space observers, hooks executor, and config watcher.
@@ -137,6 +141,10 @@ func runCore(
 		logger.Warn("accessibility permission not granted — tiling disabled")
 	}
 
+	if cfg.Border.Enabled && !accessibilityGranted {
+		logger.Warn("accessibility permission not granted — borders disabled")
+	}
+
 	// A tiling command from the CLI reaches the engine here, off the action
 	// worker: the engine puts its own desktop work on that worker.
 	ipcServer.HandleDirect(action.NameTiling, func(cmd action.Command) error {
@@ -146,6 +154,7 @@ func runCore(
 	go pipeline.router.Run(ctx)
 	go pipeline.executor.Run(ctx, pipeline.hookSub)
 	go pipeline.tiler.Run(ctx, pipeline.tileSub)
+	go pipeline.borders.Run(ctx, pipeline.borderSub)
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
 	cfgReloader := newReloader(
@@ -155,6 +164,7 @@ func runCore(
 		pipeline.axTracker,
 		pipeline.router,
 		pipeline.tiler,
+		pipeline.borders,
 		logger,
 	)
 
@@ -208,8 +218,8 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 
 // eventPipeline bundles the dependencies setupEventPipeline wires together:
 // the event bus, the hook registry and its executor, the AX tracker and
-// router that react to window state, the tiling engine, and the three
-// subscribers that drain the bus. Packaging them here means callers — runCore and, in turn, the
+// router that react to window state, the tiling engine, the border engine,
+// and the four subscribers that drain the bus. Packaging them here means callers — runCore and, in turn, the
 // reloader — pass the bundle once instead of threading the same handful of
 // pointers by hand through every call site, which is how the fsnotify and
 // SIGHUP reload paths drifted from each other in the first place.
@@ -220,9 +230,11 @@ type eventPipeline struct {
 	reg       *hooks.Registry
 	executor  *hooks.Executor
 	tiler     *tiling.Engine
+	borders   *border.Engine
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
 	tileSub   events.Subscriber
+	borderSub events.Subscriber
 }
 
 // setupEventPipeline wires the pipeline. serialize is where the tiling
@@ -268,6 +280,14 @@ func setupEventPipeline(
 	tiler.Update(tilingConfigFor(cfg, accessibilityGranted, logger), cfg.Settings.HookShell)
 	tileSub := bus.SubscribeWithFilter(tileSubBufSize, tiler.KindFilter())
 
+	// The border engine is likewise always built and subscribed, and admits
+	// nothing while disabled. A drag reaches it ahead of the debounce, so
+	// a border follows the window rather than catching up when it settles.
+	borders := border.New(border.NativeDrawer())
+	borders.Update(borderConfigFor(cfg, accessibilityGranted))
+	borderSub := bus.SubscribeWithFilter(borderSubBufSize, borders.KindFilter())
+	router.SetRawListener(func(events.Event) { borders.Nudge() })
+
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
 	// always-false filter prevents the bus from sending into a channel
@@ -294,9 +314,11 @@ func setupEventPipeline(
 		reg:       reg,
 		executor:  executor,
 		tiler:     tiler,
+		borders:   borders,
 		logSub:    logSub,
 		hookSub:   hookSub,
 		tileSub:   tileSub,
+		borderSub: borderSub,
 	}
 
 	return pipeline, ctx, cancel, nil
@@ -487,6 +509,7 @@ func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.Su
 	pipeline.bus.Unsubscribe(pipeline.logSub)
 	pipeline.bus.Unsubscribe(pipeline.hookSub)
 	pipeline.bus.Unsubscribe(pipeline.tileSub)
+	pipeline.bus.Unsubscribe(pipeline.borderSub)
 }
 
 // logEventDropCounts logs the native observer's and the event bus's drop
@@ -518,10 +541,22 @@ func removePID(path string) {
 }
 
 // hasWindowEvents reports whether anything in cfg needs the AX window
-// observers: a window hook, or the tiling engine, which wakes on the same
-// events.
+// observers: a window hook, the tiling engine, or the borders, which wake on
+// the same events.
 func hasWindowEvents(cfg *config.Config) bool {
-	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled
+	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled || cfg.Border.Enabled
+}
+
+// borderConfigFor is the [border] section as the engine gets it: as
+// written, except that without Accessibility it is disabled, since the
+// focused window and every move come from the window observers.
+func borderConfigFor(cfg *config.Config, accessibilityGranted bool) config.BorderConfig {
+	borderCfg := cfg.Border
+	if !accessibilityGranted {
+		borderCfg.Enabled = false
+	}
+
+	return borderCfg
 }
 
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,

@@ -46,6 +46,11 @@ type Router struct {
 	listRunning    func() []int
 	stopped        bool
 	debounceWindow time.Duration
+	// onRaw hears every move and resize as it happens, ahead of the
+	// debounce, for a subscriber that follows a drag rather than waits for
+	// it to settle. It is called on the router's goroutine and must not
+	// block.
+	onRaw func(events.Event)
 }
 
 type resizeState struct {
@@ -106,6 +111,14 @@ func (r *Router) SetDebounceWindow(window time.Duration) {
 
 	r.mu.Lock()
 	r.debounceWindow = window
+	r.mu.Unlock()
+}
+
+// SetRawListener names the function every raw move and resize goes to as
+// it arrives, ahead of the debounce. nil clears it.
+func (r *Router) SetRawListener(listener func(events.Event)) {
+	r.mu.Lock()
+	r.onRaw = listener
 	r.mu.Unlock()
 }
 
@@ -176,6 +189,14 @@ func (r *Router) handle(evt events.Event) {
 			r.cancelRetry(evt.PID)
 		}
 	case events.WindowResizing, events.WindowMoving:
+		r.mu.Lock()
+		onRaw := r.onRaw
+		r.mu.Unlock()
+
+		if onRaw != nil {
+			onRaw(evt)
+		}
+
 		r.debounceResize(evt)
 
 		return
