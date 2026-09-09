@@ -86,6 +86,21 @@ func ActiveSpaceIndexes(displayIDs []uint32) map[uint32]int {
 	return active
 }
 
+// FullScreenDisplays reports which of the given displays show a full-screen
+// application space in front. macOS lays that window out itself, so nothing
+// else should move it.
+func FullScreenDisplays(displayIDs []uint32) map[uint32]bool {
+	fullScreen := make(map[uint32]bool, len(displayIDs))
+
+	for _, did := range displayIDs {
+		if C.MimiDisplaySpaceIsFullScreen(C.uint32_t(did)) != 0 {
+			fullScreen[did] = true
+		}
+	}
+
+	return fullScreen
+}
+
 // MoveWindowToSpace moves the frontmost window to the space at the given
 // 1-based index and returns the pid and window number of the window it moved,
 // which is what a caller that follows the window needs to raise it again once

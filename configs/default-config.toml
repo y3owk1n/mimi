@@ -194,6 +194,16 @@ inactive_color = "#414141"
 #     "echo 'window closed: $mimi_APP_NAME'"
 # ]
 
+# Window minimized to the Dock.
+# on_window_minimize = [
+#     "echo 'window minimized: $mimi_APP_NAME'"
+# ]
+
+# Minimized window restored.
+# on_window_unminimize = [
+#     "echo 'window restored: $mimi_APP_NAME'"
+# ]
+
 # Window finished resizing (debounced, fires once after resize ends).
 # on_window_resize = [
 #     "echo 'window resized: $mimi_APP_NAME — $mimi_WINDOW_TITLE'"

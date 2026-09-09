@@ -502,6 +502,11 @@ double *MimiGetWindowFrame(void *window) {
 
 		CFTypeRef positionValue = NULL;
 		AXError posError = AXUIElementCopyAttributeValue(axWindow, kAXPositionAttribute, &positionValue);
+		if (posError == kAXErrorInvalidUIElement) {
+			// The window is gone, whatever the window server still lists.
+			free(result);
+			return NULL;
+		}
 		if (posError == kAXErrorSuccess && positionValue) {
 			CGPoint point;
 			if (AXValueGetValue((AXValueRef)positionValue, kAXValueCGPointType, &point)) {

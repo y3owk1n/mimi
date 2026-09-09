@@ -126,6 +126,18 @@ var HookKinds = []HookKind{
 		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WindowMove },
 	},
 	{
+		Kind:    events.WindowMinimize,
+		TOMLKey: "on_window_minimize",
+		Group:   GroupWindow,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WindowMinimize },
+	},
+	{
+		Kind:    events.WindowUnminimize,
+		TOMLKey: "on_window_unminimize",
+		Group:   GroupWindow,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WindowUnminimize },
+	},
+	{
 		Kind:    events.WorkspaceChanged,
 		TOMLKey: "on_workspace_changed",
 		Group:   GroupWorkspace,

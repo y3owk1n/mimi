@@ -102,6 +102,8 @@ var wakingKinds = map[events.EventKind]bool{
 	events.WindowClosed:     true,
 	events.WindowMove:       true,
 	events.WindowResize:     true,
+	events.WindowMinimize:   true,
+	events.WindowUnminimize: true,
 	events.WorkspaceChanged: true,
 	events.AXAttached:       true,
 }

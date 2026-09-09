@@ -88,6 +88,30 @@ func TestExecutor_QueryWindows_LeavesOutAWindowWithoutAFrame(t *testing.T) {
 	}
 }
 
+// TestExecutor_QueryWindows_AsksAgainForAWindowWithoutAFrame pins that one
+// unreadable frame costs a second enumeration, which lists the window when
+// its application has handed out a new element under the same number.
+func TestExecutor_QueryWindows_AsksAgainForAWindowWithoutAFrame(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithListedWindows()
+	desktop.windows[0].frameErr = derrors.New(derrors.CodeAccessibilityFailed, "unreadable")
+	desktop.windows[0].frameErrOnce = true
+
+	got, err := action.NewExecutor(desktop).QueryWindows()
+	if err != nil {
+		t.Fatalf("QueryWindows() error = %v, want nil", err)
+	}
+
+	if len(got.Windows) != 2 || desktop.enumerations != 2 {
+		t.Fatalf(
+			"QueryWindows().Windows = %+v after %d enumerations, want both windows after 2",
+			got.Windows,
+			desktop.enumerations,
+		)
+	}
+}
+
 // TestExecutor_QueryWindows_KeepsAWindowWhoseApplicationIsUnknown: the frame
 // is what a layout needs; a missing name is reported as "" and nothing else.
 func TestExecutor_QueryWindows_KeepsAWindowWhoseApplicationIsUnknown(t *testing.T) {

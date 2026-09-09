@@ -40,6 +40,8 @@ var allHookableKinds = []events.EventKind{
 	events.WindowCreated,
 	events.WindowClosed,
 	events.WindowResize,
+	events.WindowMinimize,
+	events.WindowUnminimize,
 	events.WorkspaceChanged,
 }
 
@@ -72,6 +74,10 @@ func cfgWithHook(kind events.EventKind, entry config.HookEntry) *config.Config {
 		cfg.Hooks.WindowClosed = []config.HookEntry{entry}
 	case events.WindowResize:
 		cfg.Hooks.WindowResize = []config.HookEntry{entry}
+	case events.WindowMinimize:
+		cfg.Hooks.WindowMinimize = []config.HookEntry{entry}
+	case events.WindowUnminimize:
+		cfg.Hooks.WindowUnminimize = []config.HookEntry{entry}
 	case events.WorkspaceChanged:
 		cfg.Hooks.WorkspaceChanged = []config.HookEntry{entry}
 	default:

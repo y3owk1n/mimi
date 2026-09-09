@@ -155,6 +155,8 @@ type HooksConfig struct {
 	WindowClosed      []HookEntry `json:"onWindowClosed"      toml:"on_window_closed"`
 	WindowResize      []HookEntry `json:"onWindowResize"      toml:"on_window_resize"`
 	WindowMove        []HookEntry `json:"onWindowMove"        toml:"on_window_move"`
+	WindowMinimize    []HookEntry `json:"onWindowMinimize"    toml:"on_window_minimize"`
+	WindowUnminimize  []HookEntry `json:"onWindowUnminimize"  toml:"on_window_unminimize"`
 	WorkspaceChanged  []HookEntry `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
 }
 

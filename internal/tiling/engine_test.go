@@ -3,6 +3,7 @@ package tiling_test
 import (
 	"context"
 	"encoding/json"
+	"slices"
 	"strings"
 	"sync"
 	"testing"
@@ -31,7 +32,14 @@ type fakeDesktop struct {
 	windows  action.WindowsInfo
 	displays []action.DisplayEntry
 	spaces   map[uint32]int
-	applied  [][]action.WindowFrame
+	// fullScreen is the displays FullScreenDisplays reports.
+	fullScreen map[uint32]bool
+	// late is a window Windows lists only after lateAfter reads, the way
+	// the window server lists a window a little after Accessibility does.
+	late        action.WindowEntry
+	lateAfter   int
+	windowReads int
+	applied     [][]action.WindowFrame
 	// animations is the animation each Apply was asked for, nil for none.
 	animations []*action.Animation
 	applyErr   error
@@ -50,7 +58,20 @@ func (d *fakeDesktop) Focus(number uint32) error {
 	return nil
 }
 
-func (d *fakeDesktop) Windows() (action.WindowsInfo, error)     { return d.windows, nil }
+func (d *fakeDesktop) Windows() (action.WindowsInfo, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.windowReads++
+	if d.late.Number != 0 && d.windowReads > d.lateAfter {
+		windows := d.windows
+		windows.Windows = append(slices.Clone(windows.Windows), d.late)
+
+		return windows, nil
+	}
+
+	return d.windows, nil
+}
 func (d *fakeDesktop) Displays() ([]action.DisplayEntry, error) { return d.displays, nil }
 func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	if d.spaces != nil {
@@ -64,6 +85,8 @@ func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 
 	return spaces, nil
 }
+
+func (d *fakeDesktop) FullScreenDisplays() (map[uint32]bool, error) { return d.fullScreen, nil }
 
 func (d *fakeDesktop) Margins() (action.MarginsInfo, error) {
 	return action.MarginsInfo{Enabled: true, Size: 8}, nil
@@ -481,10 +504,105 @@ func TestEngine_Run_PassesOnStartupAndOnEnablingReloads(t *testing.T) {
 	<-done
 }
 
-// TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn pins the multi-display
-// contract: a display gets a run of its own with only its windows, its
-// state is keyed by its own space, and a space switched on one display
-// leaves the other's state untouched.
+// TestEngine_Pass_LeavesAFullScreenDisplayAlone pins that a display showing
+// a full-screen space gets no run: macOS lays that window out itself.
+func TestEngine_Pass_LeavesAFullScreenDisplayAlone(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.displays = []action.DisplayEntry{
+		{
+			Index:   1,
+			ID:      7,
+			Frame:   action.Frame{Width: 1000, Height: 1000},
+			Visible: action.Frame{Width: 1000, Height: 1000},
+		},
+		{
+			Index:   2,
+			ID:      8,
+			Frame:   action.Frame{X: 1000, Width: 1000, Height: 1000},
+			Visible: action.Frame{X: 1000, Width: 1000, Height: 1000},
+		},
+	}
+	desktop.windows = action.WindowsInfo{Focused: 0, Windows: []action.WindowEntry{
+		{Number: 1, PID: 10, App: "A", Frame: action.Frame{Width: 1000, Height: 1000}},
+		{
+			Number: 2,
+			PID:    11,
+			App:    "B",
+			Frame:  action.Frame{X: 1100, Y: 100, Width: 500, Height: 500},
+		},
+	}}
+	desktop.fullScreen = map[uint32]bool{7: true}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null}'`), shell)
+
+	inputs, _, err := engine.Preview(context.Background(), tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if len(inputs) != 1 || inputs[0].Display.ID != 8 || len(inputs[0].Windows) != 1 {
+		t.Fatalf("inputs = %+v; want display 8 alone with its one window", inputs)
+	}
+}
+
+// TestEngine_Pass_WaitsForACreatedWindowToBeListed pins that a window_created
+// pass does not lay out until the window server lists the new window, which
+// it does a little after Accessibility reports it.
+func TestEngine_Pass_WaitsForACreatedWindowToBeListed(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.late = action.WindowEntry{
+		Number: 2,
+		PID:    20,
+		App:    "B",
+		Frame:  action.Frame{X: 500, Width: 400, Height: 400},
+	}
+	desktop.lateAfter = 3
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [.windows[] | {number, frame}], state: null}'`), shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventStartup})
+	if err != nil {
+		t.Fatalf("startup Pass() error = %v", err)
+	}
+
+	err = engine.Pass(
+		context.Background(),
+		tiling.Event{Kind: string(events.WindowCreated), PID: 20},
+	)
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	desktop.mu.Lock()
+	defer desktop.mu.Unlock()
+
+	if len(desktop.applied) != 2 || len(desktop.applied[1]) != 2 {
+		t.Fatalf("applied = %v; want the second pass to place both windows", desktop.applied)
+	}
+}
+
+// TestEngine_KindFilter_WakesOnMinimize pins that minimizing a window, and
+// restoring it, each run a pass: the window leaves or rejoins the layout.
+func TestEngine_KindFilter_WakesOnMinimize(t *testing.T) {
+	t.Parallel()
+
+	engine := tiling.New(newDesktop(), nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null}'`), shell)
+
+	filter := engine.KindFilter()
+	if !filter(events.WindowMinimize) || !filter(events.WindowUnminimize) {
+		t.Fatal(
+			"KindFilter() refuses window_minimize or window_unminimize; want both to wake a pass",
+		)
+	}
+}
+
 // TestEngine_Pass_KeepsAnOffScreenWindowWithItsNearestDisplay pins where a
 // window whose center is on no display is laid out: with the display it is
 // nearest, as a column a strip parks off a secondary display's edge is,
@@ -536,6 +654,10 @@ func TestEngine_Pass_KeepsAnOffScreenWindowWithItsNearestDisplay(t *testing.T) {
 	}
 }
 
+// TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn pins the multi-display
+// contract: a display gets a run of its own with only its windows, its
+// state is keyed by its own space, and a space switched on one display
+// leaves the other's state untouched.
 func TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn(t *testing.T) {
 	t.Parallel()
 

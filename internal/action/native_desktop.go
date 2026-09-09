@@ -302,6 +302,9 @@ func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 
 		return nil
 	})
+	if err != nil {
+		d.forget(windowID)
+	}
 
 	return frame, err
 }
@@ -501,6 +504,20 @@ func (d *nativeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	return native.ActiveSpaceIndexes(ids), nil
 }
 
+func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
+	displays, err := native.Displays()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint32, len(displays))
+	for index, display := range displays {
+		ids[index] = display.ID
+	}
+
+	return native.FullScreenDisplays(ids), nil
+}
+
 // FocusSpace switches to the space at the given 1-based index.
 func (d *nativeDesktop) FocusSpace(index int) error {
 	return native.FocusSpace(index)
@@ -658,4 +675,31 @@ func (d *nativeDesktop) evictLocked(all []native.ListedWindow) {
 			delete(d.missing, number)
 		}
 	}
+}
+
+// forget drops one window from the cache, so the next enumeration asks its
+// application again. An application that closes a window and reopens it
+// can keep the window server's number and yet hand Accessibility a new
+// element, and the old one answers nothing from then on.
+func (d *nativeDesktop) forget(windowID WindowID) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	element, ok := d.windows[windowID]
+	if !ok {
+		return
+	}
+
+	for number, entry := range d.entries {
+		if entry.id == windowID {
+			delete(d.entries, number)
+		}
+	}
+
+	delete(d.windows, windowID)
+	element.Release()
+
+	d.framesMu.Lock()
+	delete(d.frames, windowID)
+	d.framesMu.Unlock()
 }

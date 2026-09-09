@@ -277,7 +277,56 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 
 			return;
 		}
+
+		if (CFEqual(notification, kAXWindowMiniaturizedNotification)) {
+			// Delivered on the window itself. The same real-window
+			// check as the others keeps sheets and overlays out.
+			if (!axRealWindowEntry(pid, element)) {
+				return;
+			}
+			dispatchAXEvent(MIMI_KIND_WINDOW_MINIMIZE, pid, element);
+
+			return;
+		}
+
+		if (CFEqual(notification, kAXWindowDeminiaturizedNotification)) {
+			if (!axRealWindowEntry(pid, element)) {
+				return;
+			}
+			dispatchAXEvent(MIMI_KIND_WINDOW_UNMINIMIZE, pid, element);
+
+			return;
+		}
 	}
+}
+
+// axSeedKnownRealWindows records the application's real windows that are
+// already open when the observer attaches. The destroy handler fires
+// window_closed only for elements in knownRealWindows, and the create
+// handler is the only other writer. Without this, closing a window that was
+// open before the daemon reached its application fired no hook and ran no
+// layout pass.
+static void axSeedKnownRealWindows(AXEntry *entry) {
+	CFTypeRef value = NULL;
+	if (AXUIElementCopyAttributeValue(entry.appElement, kAXWindowsAttribute, &value) != kAXErrorSuccess || !value) {
+		return;
+	}
+	if (CFGetTypeID(value) != CFArrayGetTypeID()) {
+		CFRelease(value);
+
+		return;
+	}
+
+	CFArrayRef windows = (CFArrayRef)value;
+	CFIndex count = CFArrayGetCount(windows);
+	for (CFIndex i = 0; i < count; i++) {
+		AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
+		if (window && axElementIsRealWindow(window, entry.appElement)) {
+			CFSetAddValue(entry.knownRealWindows, window);
+		}
+	}
+
+	CFRelease(value);
 }
 
 // axInstallBlock attaches the observer to pid, reporting whether every
@@ -308,8 +357,9 @@ static bool axInstallBlock(int pid) {
 	}
 
 	CFStringRef notifications[] = {
-	    kAXWindowCreatedNotification, kAXUIElementDestroyedNotification, kAXFocusedWindowChangedNotification,
-	    kAXTitleChangedNotification,  kAXWindowResizedNotification,      kAXMovedNotification,
+	    kAXWindowCreatedNotification,      kAXUIElementDestroyedNotification,   kAXFocusedWindowChangedNotification,
+	    kAXTitleChangedNotification,       kAXWindowResizedNotification,        kAXMovedNotification,
+	    kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {
@@ -335,6 +385,7 @@ static bool axInstallBlock(int pid) {
 	entry.appElement = appElement;
 	entry.pid = pid;
 	entry.knownRealWindows = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+	axSeedKnownRealWindows(entry);
 	gEntries[key] = entry;
 
 	return true;

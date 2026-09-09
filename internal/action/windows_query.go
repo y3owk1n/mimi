@@ -69,6 +69,29 @@ func QueryActiveSpaces() (map[uint32]int, error) {
 	return defaultExecutor.QueryActiveSpaces()
 }
 
+// QueryFullScreenDisplays reports the displays of the desktop mimi is
+// running on that show a full-screen space in front.
+func QueryFullScreenDisplays() (map[uint32]bool, error) {
+	return defaultExecutor.QueryFullScreenDisplays()
+}
+
+// QueryFullScreenDisplays reports the displays whose space in front is a
+// full-screen application space, keyed by display id, through SkyLight with
+// no Accessibility needed. A layout leaves those displays alone, since
+// macOS lays a full-screen window out itself.
+func (e *Executor) QueryFullScreenDisplays() (map[uint32]bool, error) {
+	displays, err := e.desktop.FullScreenDisplays()
+	if err != nil {
+		return nil, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to resolve the full-screen displays",
+		)
+	}
+
+	return displays, nil
+}
+
 // QueryActiveSpaces reports the space in front on every display, keyed by
 // display id, the way QuerySpace reports the cursor's: through SkyLight, with
 // no Accessibility needed.
@@ -109,19 +132,33 @@ func QueryDisplays() ([]DisplayEntry, error) {
 //
 // It reads through Accessibility, as focus_window does, so it checks the
 // permission first and lists exactly the windows focus_window cycles. A
-// window whose frame cannot be read is left out: without a frame there is
-// nothing a layout can do with it, and the listing is more useful complete
-// than refused. A missing title or application is reported as "" and the
-// window kept.
+// window whose frame cannot be read is asked for once more, in a second
+// enumeration, since a window an application closed and reopened can keep
+// its number under a new element; one still unreadable is left out, as
+// without a frame there is nothing a layout can do with it, and the listing
+// is more useful complete than refused. A missing title or application is
+// reported as "" and the window kept.
 func (e *Executor) QueryWindows() (WindowsInfo, error) {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
 		return WindowsInfo{}, err
 	}
 
+	info, retry, err := e.listWindows()
+	if err != nil || !retry {
+		return info, err
+	}
+
+	info, _, err = e.listWindows()
+
+	return info, err
+}
+
+// listWindows is one enumeration, reporting whether a frame read failed.
+func (e *Executor) listWindows() (WindowsInfo, bool, error) {
 	windows, focused, err := e.desktop.FocusableWindows()
 	if err != nil {
-		return WindowsInfo{}, derrors.Wrapf(
+		return WindowsInfo{}, false, derrors.Wrapf(
 			err,
 			derrors.CodeActionFailed,
 			"failed to get focusable windows",
@@ -129,10 +166,13 @@ func (e *Executor) QueryWindows() (WindowsInfo, error) {
 	}
 
 	info := WindowsInfo{Focused: -1, Windows: make([]WindowEntry, 0, len(windows))}
+	retry := false
 
 	for index, win := range windows {
 		frame, frameErr := e.desktop.WindowFrame(win.ID)
 		if frameErr != nil {
+			retry = true
+
 			continue
 		}
 
@@ -153,7 +193,7 @@ func (e *Executor) QueryWindows() (WindowsInfo, error) {
 		})
 	}
 
-	return info, nil
+	return info, retry, nil
 }
 
 // QueryDisplays lists the connected displays, numbered the way
