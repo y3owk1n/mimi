@@ -57,11 +57,17 @@ typedef struct {
 	CGRect from;
 	CGRect to;
 	// alone is whether no other animating window overlaps this one where it
-	// starts, so its picture can be cropped from a composite; picture and
-	// scale hold the capture between the two phases of MimiAnimationBegin.
+	// starts, so its picture can be cropped from a composite; picture, mask
+	// and scale hold the capture between the phases of MimiAnimationBegin.
+	// mask, when there is one, is the window's own capture, whose alpha
+	// clips the picture to the window's shape.
 	BOOL alone;
 	CGImageRef picture;
+	CGImageRef mask;
 	double scale;
+	// depth is the window's place in the on-screen list, front first, so
+	// the proxies stack as the windows do.
+	int depth;
 } MimiProxy;
 
 static struct {
@@ -183,6 +189,38 @@ static void mimiPaint(int cid, uint32_t wid, CGSize size, CGImageRef picture) {
 		CGContextRelease(context);
 	}
 	CGImageRelease(picture);
+}
+
+// Render picture, clipped to mask's alpha when there is one, into memory
+// the paint can copy from. A captured image is materialised the first time
+// it is read, which is most of a proxy's cost, and this is that read. Done
+// here, off the thread that makes the windows, several run at once. Both
+// inputs are released.
+static CGImageRef mimiRender(CGImageRef picture, CGImageRef mask) {
+	size_t width = CGImageGetWidth(picture);
+	size_t height = CGImageGetHeight(picture);
+	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+	CGContextRef context = CGBitmapContextCreate(
+	    NULL, width, height, 8, 0, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+	CGColorSpaceRelease(space);
+	if (!context) {
+		if (mask) {
+			CGImageRelease(mask);
+		}
+		return picture;
+	}
+	CGRect whole = CGRectMake(0, 0, width, height);
+	CGContextSetBlendMode(context, kCGBlendModeCopy);
+	CGContextDrawImage(context, whole, picture);
+	if (mask) {
+		CGContextSetBlendMode(context, kCGBlendModeDestinationIn);
+		CGContextDrawImage(context, whole, mask);
+		CGImageRelease(mask);
+	}
+	CGImageRelease(picture);
+	CGImageRef rendered = CGBitmapContextCreateImage(context);
+	CGContextRelease(context);
+	return rendered;
 }
 
 static void mimiReleaseAllLocked(int cid, CFTypeRef transaction) {
@@ -307,7 +345,13 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 	if (!targets || count <= 0) {
 		return 0;
 	}
-	if (!CGPreflightScreenCaptureAccess()) {
+	// The check is a round trip that was measured at 8 ms, and a grant only
+	// takes effect when the process restarts, so a yes is kept.
+	static BOOL granted = NO;
+	if (!granted) {
+		granted = CGPreflightScreenCaptureAccess();
+	}
+	if (!granted) {
 		return -1;
 	}
 
@@ -349,10 +393,16 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 		// drawn over the proxies. The rest goes under them.
 		// CGWindowListCreateImageFromArray reads the ids as raw values, not
 		// as numbers.
+		// CGWindowListCreateImageFromArray composites the list in the order
+		// given, first on top, so every list keeps the on-screen order. under
+		// is the scene from the first animating window down, moving windows
+		// included, that the apart windows' pictures are cropped from.
 		CFMutableArrayRef others = CFArrayCreateMutable(NULL, 0, NULL);
 		CFMutableArrayRef front = CFArrayCreateMutable(NULL, 0, NULL);
+		CFMutableArrayRef under = CFArrayCreateMutable(NULL, 0, NULL);
 		pid_t self = getpid();
 		BOOL passed = NO;
+		int depth = 0;
 		CFArrayRef onScreen = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
 		for (NSDictionary *info in (__bridge NSArray *)onScreen) {
 			if ([info[(id)kCGWindowOwnerPID] intValue] == self ||
@@ -363,11 +413,18 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			BOOL inFlight = NO;
 			for (int i = 0; i < nextCount && !inFlight; i++) {
 				inFlight = next[i].number == number;
+				if (inFlight) {
+					next[i].depth = depth;
+				}
 			}
+			depth++;
 			if (inFlight) {
 				passed = YES;
 			} else {
 				CFArrayAppendValue(passed ? others : front, (const void *)(uintptr_t)number);
+			}
+			if (passed) {
+				CFArrayAppendValue(under, (const void *)(uintptr_t)number);
 			}
 		}
 		if (onScreen) {
@@ -405,7 +462,12 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			// Deprecated for ScreenCaptureKit, whose screenshot is asynchronous
 			// and far slower to start; this composes the display in a few
 			// milliseconds, which an animation that starts on the same frame
-			// as the event needs.
+			// as the event needs. SLSHWCaptureWindowList, the hardware
+			// capture yabai uses, was measured on macOS 26 at 6 to 10 ms per
+			// window, the cost of one of these composites of a whole display,
+			// and returns one clipped image for a list, so it captures
+			// nothing faster here. The window server serialises captures, so
+			// issuing them concurrently was measured to gain nothing.
 #pragma clang diagnostic push
 #pragma clang diagnostic ignored "-Wdeprecated-declarations"
 			// The windows that overlap another animating window, as under a monocle
@@ -437,6 +499,14 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			CGImageRef flight = CFArrayGetCount(apart) > 0
 			                        ? CGWindowListCreateImageFromArray(bounds, apart, kCGWindowImageBestResolution)
 			                        : NULL;
+			// A window captured on its own comes out opaque, with its
+			// translucent parts a flat tint, since the window server has
+			// nothing behind it to blend with. Composited with what is under
+			// it, it looks as it does on screen, so the apart windows take
+			// their picture from that scene, cropped, and their own capture
+			// only clips it to the window's shape.
+			CGImageRef scene =
+			    flight ? CGWindowListCreateImageFromArray(bounds, under, kCGWindowImageBestResolution) : NULL;
 			CFRelease(apart);
 			CGImageRef measure = still ? still : (cover ? cover : flight);
 			double scale = measure ? (double)CGImageGetWidth(measure) / bounds.size.width : 1;
@@ -463,7 +533,10 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 					    (proxy->from.origin.x - bounds.origin.x) * scale,
 					    (proxy->from.origin.y - bounds.origin.y) * scale, proxy->from.size.width * scale,
 					    proxy->from.size.height * scale);
-					proxy->picture = CGImageCreateWithImageInRect(flight, crop);
+					proxy->picture = CGImageCreateWithImageInRect(scene ? scene : flight, crop);
+					if (scene && proxy->picture) {
+						proxy->mask = CGImageCreateWithImageInRect(flight, crop);
+					}
 				} else if (!proxy->alone) {
 					proxy->picture = CGWindowListCreateImage(
 					    proxy->from, kCGWindowListOptionIncludingWindow, proxy->number, kCGWindowImageBestResolution);
@@ -478,9 +551,51 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 			if (flight) {
 				CGImageRelease(flight);
 			}
+			if (scene) {
+				CGImageRelease(scene);
+			}
 		}
 		CFRelease(others);
 		CFRelease(front);
+		CFRelease(under);
+
+		// Every picture is rendered before any window is made, at once on
+		// as many threads as there are pictures. The rendering is the bulk of
+		// a paint, so the paints below only copy.
+		int renderCount = backdropCount;
+		for (int i = 0; i < nextCount; i++) {
+			if (next[i].picture) {
+				renderCount++;
+			}
+		}
+		CGImageRef *pictures = calloc((size_t)renderCount, sizeof(CGImageRef));
+		CGImageRef *masks = calloc((size_t)renderCount, sizeof(CGImageRef));
+		int r = 0;
+		for (int i = 0; i < backdropCount; i++) {
+			pictures[r++] = backdropStills[i];
+		}
+		for (int i = 0; i < nextCount; i++) {
+			if (next[i].picture) {
+				pictures[r] = next[i].picture;
+				masks[r] = next[i].mask;
+				r++;
+			}
+		}
+		dispatch_apply((size_t)renderCount, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^(size_t k) {
+			pictures[k] = mimiRender(pictures[k], masks[k]);
+		});
+		r = 0;
+		for (int i = 0; i < backdropCount; i++) {
+			backdropStills[i] = pictures[r++];
+		}
+		for (int i = 0; i < nextCount; i++) {
+			if (next[i].picture) {
+				next[i].picture = pictures[r++];
+				next[i].mask = NULL;
+			}
+		}
+		free(pictures);
+		free(masks);
 
 		// Then the windows, each painted the moment it exists: the window
 		// server stalls for half a second on a request that arrives while
@@ -533,10 +648,19 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 				SLSTransactionOrderWindow(transaction, backdrops[i], kMimiOrderAbove, 0);
 			}
 		}
+		// The proxies go in back to front, each above everything, so they
+		// stack as their windows do on screen.
 		for (int i = 0; i < kept; i++) {
+			int back = 0;
+			for (int j = 1; j < kept; j++) {
+				if (next[j].depth > next[back].depth) {
+					back = j;
+				}
+			}
 			SLSTransactionSetWindowTransform(
-			    transaction, next[i].proxy, 0, 0, mimiPlacement(next[i].from.size, next[i].from));
-			SLSTransactionOrderWindow(transaction, next[i].proxy, kMimiOrderAbove, 0);
+			    transaction, next[back].proxy, 0, 0, mimiPlacement(next[back].from.size, next[back].from));
+			SLSTransactionOrderWindow(transaction, next[back].proxy, kMimiOrderAbove, 0);
+			next[back].depth = -1;
 		}
 		for (int i = 0; i < backdropCount; i++) {
 			if (backdropOver[i]) {

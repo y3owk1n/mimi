@@ -2,6 +2,7 @@ package action_test
 
 import (
 	"slices"
+	"sync"
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/action"
@@ -33,6 +34,10 @@ type fakeWindow struct {
 // back in these fields, so a test asserts what the desktop looks like
 // afterwards rather than which methods ran.
 type fakeDesktop struct {
+	mu sync.Mutex
+	// frameWrites is every window written by SetWindowFrame, in order.
+	frameWrites []action.WindowID
+
 	accessibilityErr error
 
 	windows      []fakeWindow
@@ -241,6 +246,12 @@ func (d *fakeDesktop) ReopenApplication(pid int) error {
 }
 
 func (d *fakeDesktop) SetWindowFrame(windowID action.WindowID, frame geometry.Rect) error {
+	// apply_frames writes to different applications at once.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.frameWrites = append(d.frameWrites, windowID)
+
 	index, err := d.indexOf(windowID)
 	if err != nil {
 		return err

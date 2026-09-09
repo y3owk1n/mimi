@@ -20,7 +20,10 @@ import (
 // previous generation is released — so no action above this seam ever holds,
 // or has to release, a native reference.
 type nativeDesktop struct {
-	mu      sync.Mutex
+	// mu is held for writing while the window set is replaced, and for
+	// reading around every use of a window in it, so frames can be written to
+	// several windows at once.
+	mu      sync.RWMutex
 	lastID  WindowID
 	windows map[WindowID]*native.Element
 }
@@ -334,8 +337,8 @@ func (d *nativeDesktop) withWindow(
 	windowID WindowID,
 	apply func(*native.Element) error,
 ) error {
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.mu.RLock()
+	defer d.mu.RUnlock()
 
 	element, ok := d.windows[windowID]
 	if !ok || element == nil {

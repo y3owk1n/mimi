@@ -440,3 +440,47 @@ func TestExecutor_ApplyFrames_WithoutAnAnimationNeverTouchesTheAnimator(t *testi
 		t.Fatalf("window 4242 frame = %v, want %v", got, want)
 	}
 }
+
+// TestExecutor_ApplyFrames_WritesOneApplicationsFramesInPayloadOrder pins
+// that the frames of one application land in the order the payload lists
+// them, whatever the other applications' frames are doing at the time.
+func TestExecutor_ApplyFrames_WritesOneApplicationsFramesInPayloadOrder(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithWindows(4, 1)
+	for index := range desktop.windows {
+		desktop.windows[index].pid = 100 + index%2
+		desktop.windows[index].number = uint32(5000 + index)
+	}
+
+	frames := make([]action.WindowFrame, 0, 4)
+	for _, number := range []uint32{5003, 5000, 5001, 5002} {
+		frames = append(frames, action.WindowFrame{
+			Number: number,
+			Frame:  action.Frame{X: 0, Y: 0, Width: 100, Height: 100},
+		})
+	}
+
+	err := action.NewExecutor(desktop).ExecuteCommand(applyFramesCommandFor(t, frames...))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+	}
+
+	var even, odd []action.WindowID
+
+	for _, id := range desktop.frameWrites {
+		if desktop.windows[id-1].pid == 100 {
+			even = append(even, id)
+		} else {
+			odd = append(odd, id)
+		}
+	}
+
+	if want := []action.WindowID{1, 3}; !slices.Equal(even, want) {
+		t.Fatalf("pid 100 writes = %v, want %v", even, want)
+	}
+
+	if want := []action.WindowID{4, 2}; !slices.Equal(odd, want) {
+		t.Fatalf("pid 101 writes = %v, want %v", odd, want)
+	}
+}

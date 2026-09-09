@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"slices"
 	"strings"
+	"sync"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
@@ -217,31 +218,7 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 		animating = beginErr == nil && count > 0
 	}
 
-	var (
-		failures []string
-		dropped  []uint32
-	)
-
-	for _, entry := range args.Frames {
-		windowID, ok := byNumber[entry.Number]
-		if !ok {
-			failures = append(
-				failures,
-				fmt.Sprintf("window %d is not on the active space", entry.Number),
-			)
-
-			continue
-		}
-
-		setErr := e.desktop.SetWindowFrame(windowID, rectOfFrame(entry.Frame))
-		if setErr != nil {
-			dropped = append(dropped, entry.Number)
-			failures = append(
-				failures,
-				fmt.Sprintf("window %d: %s", entry.Number, derrors.Message(setErr)),
-			)
-		}
-	}
+	failures, dropped := e.writeFrames(args.Frames, windows)
 
 	if animating {
 		animator.StartFrameAnimation(dropped)
@@ -258,4 +235,80 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 	}
 
 	return nil
+}
+
+// writeFrames writes every frame, one goroutine per owning application. A
+// write is a synchronous round trip into the application, some ten
+// milliseconds for a heavy one, and writes to different applications do not
+// wait on each other, so a layout takes as long as its slowest application
+// rather than the sum. Writes to one application stay in payload order, on
+// one goroutine, since an application may apply concurrent requests out of
+// order.
+// The failures come back in payload order, and the dropped windows are the
+// ones whose frame did not land.
+func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string, []uint32) {
+	byNumber := make(map[uint32]Window, len(windows))
+	for _, win := range windows {
+		byNumber[win.Number] = win
+	}
+
+	// messages holds each frame's failure in payload order, empty for one
+	// that landed. errs is what the writers report, one slot each, so they
+	// share nothing.
+	messages := make([]string, len(frames))
+	errs := make([]error, len(frames))
+	groups := make(map[int][]int)
+
+	for index, entry := range frames {
+		win, ok := byNumber[entry.Number]
+		if !ok {
+			messages[index] = fmt.Sprintf("window %d is not on the active space", entry.Number)
+
+			continue
+		}
+
+		groups[win.PID] = append(groups[win.PID], index)
+	}
+
+	var writers sync.WaitGroup
+
+	for _, indexes := range groups {
+		writers.Add(1)
+
+		go func(indexes []int) {
+			defer writers.Done()
+
+			for _, index := range indexes {
+				entry := frames[index]
+				errs[index] = e.desktop.SetWindowFrame(
+					byNumber[entry.Number].ID,
+					rectOfFrame(entry.Frame),
+				)
+			}
+		}(indexes)
+	}
+
+	writers.Wait()
+
+	var (
+		failures []string
+		dropped  []uint32
+	)
+
+	for index, entry := range frames {
+		if errs[index] != nil {
+			dropped = append(dropped, entry.Number)
+			messages[index] = fmt.Sprintf(
+				"window %d: %s",
+				entry.Number,
+				derrors.Message(errs[index]),
+			)
+		}
+
+		if messages[index] != "" {
+			failures = append(failures, messages[index])
+		}
+	}
+
+	return failures, dropped
 }
