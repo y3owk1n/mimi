@@ -144,6 +144,22 @@ void *MimiGetFrontmostWindow(void) {
 	}
 }
 
+// The bounds of every on-screen window by number, from the window server.
+static NSDictionary<NSNumber *, NSValue *> *mimiOnScreenBounds(void) {
+	NSMutableDictionary<NSNumber *, NSValue *> *bounds = [NSMutableDictionary dictionary];
+	CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID);
+	for (NSDictionary *info in (__bridge NSArray *)list) {
+		CGRect rect;
+		if (CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect)) {
+			bounds[info[(id)kCGWindowNumber]] = [NSValue valueWithBytes:&rect objCType:@encode(CGRect)];
+		}
+	}
+	if (list) {
+		CFRelease(list);
+	}
+	return bounds;
+}
+
 static CGPoint getWindowPosition(AXUIElementRef window) {
 	CFTypeRef positionValue = NULL;
 	if (AXUIElementCopyAttributeValue(window, kAXPositionAttribute, &positionValue) == kAXErrorSuccess &&
@@ -156,6 +172,93 @@ static CGPoint getWindowPosition(AXUIElementRef window) {
 		return point;
 	}
 	return CGPointZero;
+}
+
+// The application's windows that are focusable and on the active space, or
+// NULL for a process that is not a regular, visible application. The
+// window list and each window's attributes are round trips into the
+// application.
+static CFMutableArrayRef mimiCollectFocusableWindowsOfApplication(pid_t pid) {
+	@autoreleasepool {
+		NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
+		if (!app || app.activationPolicy != NSApplicationActivationPolicyRegular || app.hidden)
+			return NULL;
+
+		AXUIElementRef appElement = AXUIElementCreateApplication(pid);
+		if (!appElement)
+			return NULL;
+
+		CFTypeRef windowsValue = NULL;
+		AXError error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute, &windowsValue);
+		CFRelease(appElement);
+		if (error != kAXErrorSuccess || !windowsValue)
+			return NULL;
+		if (CFGetTypeID(windowsValue) != CFArrayGetTypeID()) {
+			CFRelease(windowsValue);
+			return NULL;
+		}
+
+		CFMutableArrayRef collected = CFArrayCreateMutable(NULL, 0, &kCFTypeArrayCallBacks);
+		CFArrayRef windows = (CFArrayRef)windowsValue;
+		CFIndex windowCount = CFArrayGetCount(windows);
+
+		for (CFIndex i = 0; i < windowCount; i++) {
+			AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
+			if (!window)
+				continue;
+
+			CFStringRef attrs[] = {
+			    kAXRoleAttribute,
+			    kAXMinimizedAttribute,
+			    CFSTR("AXWindowIsOnActiveSpace"),
+			};
+			CFArrayRef attrArray = CFArrayCreate(NULL, (const void **)attrs, 3, &kCFTypeArrayCallBacks);
+			if (!attrArray)
+				continue;
+
+			CFArrayRef values = NULL;
+			AXUIElementCopyMultipleAttributeValues(window, attrArray, 0, &values);
+			CFRelease(attrArray);
+
+			if (!values) {
+				continue;
+			}
+
+			bool shouldInclude = false;
+
+			if (CFArrayGetCount(values) > 0) {
+				CFTypeRef roleVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 0);
+				if (roleVal && CFGetTypeID(roleVal) == CFStringGetTypeID() &&
+				    CFStringCompare((CFStringRef)roleVal, CFSTR("AXWindow"), 0) == kCFCompareEqualTo) {
+					shouldInclude = true;
+				}
+			}
+
+			if (shouldInclude && CFArrayGetCount(values) > 1) {
+				CFTypeRef minVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 1);
+				if (minVal && CFGetTypeID(minVal) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)minVal)) {
+					shouldInclude = false;
+				}
+			}
+
+			if (shouldInclude && CFArrayGetCount(values) > 2) {
+				CFTypeRef spaceVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 2);
+				if (spaceVal && CFGetTypeID(spaceVal) == CFBooleanGetTypeID() &&
+				    !CFBooleanGetValue((CFBooleanRef)spaceVal)) {
+					shouldInclude = false;
+				}
+			}
+
+			CFRelease(values);
+
+			if (shouldInclude) {
+				CFArrayAppendValue(collected, window);
+			}
+		}
+
+		CFRelease(windowsValue);
+		return collected;
+	}
 }
 
 // Internal helper: returns CFArrayRef of focusable windows on the active
@@ -211,95 +314,23 @@ static CFArrayRef mimiCollectFocusableWindowsOnActiveSpace(int *outCount, int *o
 			CFRelease(focusedApp);
 		}
 
-		for (NSNumber *ownerPID in ownerPIDs) {
-			pid_t pid = (pid_t)ownerPID.intValue;
-
-			NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-			if (!app)
-				continue;
-			if (app.activationPolicy != NSApplicationActivationPolicyRegular)
-				continue;
-			if (app.hidden)
-				continue;
-
-			AXUIElementRef appElement = AXUIElementCreateApplication(pid);
-			if (!appElement)
-				continue;
-
-			CFTypeRef windowsValue = NULL;
-			AXError error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute, &windowsValue);
-			if (error != kAXErrorSuccess || !windowsValue) {
-				CFRelease(appElement);
+		// Each application is asked on a thread of its own, since a window
+		// list is a round trip into the application, and one that is busy,
+		// as the one just focused tends to be, answers late. The windows
+		// are then collected in application order, as one thread would.
+		NSUInteger appCount = ownerPIDs.count;
+		CFMutableArrayRef *perApp = calloc(appCount, sizeof(CFMutableArrayRef));
+		dispatch_apply(appCount, dispatch_get_global_queue(QOS_CLASS_USER_INTERACTIVE, 0), ^(size_t index) {
+			perApp[index] = mimiCollectFocusableWindowsOfApplication((pid_t)ownerPIDs[index].intValue);
+		});
+		for (NSUInteger index = 0; index < appCount; index++) {
+			if (!perApp[index]) {
 				continue;
 			}
-
-			if (CFGetTypeID(windowsValue) != CFArrayGetTypeID()) {
-				CFRelease(windowsValue);
-				CFRelease(appElement);
-				continue;
-			}
-
-			CFArrayRef windows = (CFArrayRef)windowsValue;
-			CFIndex windowCount = CFArrayGetCount(windows);
-
-			for (CFIndex i = 0; i < windowCount; i++) {
-				AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
-				if (!window)
-					continue;
-
-				CFStringRef attrs[] = {
-				    kAXRoleAttribute,
-				    kAXMinimizedAttribute,
-				    CFSTR("AXWindowIsOnActiveSpace"),
-				};
-				CFArrayRef attrArray = CFArrayCreate(NULL, (const void **)attrs, 3, &kCFTypeArrayCallBacks);
-				if (!attrArray)
-					continue;
-
-				CFArrayRef values = NULL;
-				AXUIElementCopyMultipleAttributeValues(window, attrArray, 0, &values);
-				CFRelease(attrArray);
-
-				if (!values) {
-					continue;
-				}
-
-				bool shouldInclude = false;
-
-				if (CFArrayGetCount(values) > 0) {
-					CFTypeRef roleVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 0);
-					if (roleVal && CFGetTypeID(roleVal) == CFStringGetTypeID() &&
-					    CFStringCompare((CFStringRef)roleVal, CFSTR("AXWindow"), 0) == kCFCompareEqualTo) {
-						shouldInclude = true;
-					}
-				}
-
-				if (shouldInclude && CFArrayGetCount(values) > 1) {
-					CFTypeRef minVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 1);
-					if (minVal && CFGetTypeID(minVal) == CFBooleanGetTypeID() &&
-					    CFBooleanGetValue((CFBooleanRef)minVal)) {
-						shouldInclude = false;
-					}
-				}
-
-				if (shouldInclude && CFArrayGetCount(values) > 2) {
-					CFTypeRef spaceVal = (CFTypeRef)CFArrayGetValueAtIndex(values, 2);
-					if (spaceVal && CFGetTypeID(spaceVal) == CFBooleanGetTypeID() &&
-					    !CFBooleanGetValue((CFBooleanRef)spaceVal)) {
-						shouldInclude = false;
-					}
-				}
-
-				CFRelease(values);
-
-				if (shouldInclude) {
-					CFArrayAppendValue(windowsCollector, window);
-				}
-			}
-
-			CFRelease(windowsValue);
-			CFRelease(appElement);
+			CFArrayAppendArray(windowsCollector, perApp[index], CFRangeMake(0, CFArrayGetCount(perApp[index])));
+			CFRelease(perApp[index]);
 		}
+		free(perApp);
 
 		// After enumeration, find the focused window's position in the
 		// collected list via CFEqual (matches the Go-side equality check
@@ -346,9 +377,27 @@ void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focus
 		CFIndex total = *count;
 		NSMutableDictionary<NSValue *, NSValue *> *positions = [NSMutableDictionary dictionaryWithCapacity:total];
 		NSMutableDictionary<NSValue *, NSNumber *> *pids = [NSMutableDictionary dictionaryWithCapacity:total];
+		// A position read through Accessibility is a round trip into the
+		// window's application, and one just activated answers late. The
+		// window server knows where every window is, in one call for all
+		// of them; a window it does not list, one without a number, is
+		// asked itself.
+		NSDictionary<NSNumber *, NSValue *> *onScreen = mimiOnScreenBounds();
 		for (CFIndex i = 0; i < total; i++) {
 			AXUIElementRef w = (AXUIElementRef)CFArrayGetValueAtIndex(windowsCollector, i);
-			CGPoint pos = getWindowPosition(w);
+			CGWindowID number = 0;
+			NSValue *known = nil;
+			if (_AXUIElementGetWindow(w, &number) == kAXErrorSuccess && number != 0) {
+				known = onScreen[@(number)];
+			}
+			CGPoint pos;
+			if (known) {
+				CGRect bounds;
+				[known getValue:&bounds];
+				pos = bounds.origin;
+			} else {
+				pos = getWindowPosition(w);
+			}
 			positions[[NSValue valueWithPointer:w]] = [NSValue valueWithBytes:&pos objCType:@encode(CGPoint)];
 
 			pid_t pid = 0;
@@ -474,6 +523,148 @@ double *MimiGetWindowFrame(void *window) {
 		}
 
 		return result;
+	}
+}
+
+double *MimiCopyWindowList(int onScreenOnly, int *count, char ***names) {
+	if (!count) {
+		return NULL;
+	}
+	*count = 0;
+	if (names) {
+		*names = NULL;
+	}
+
+	@autoreleasepool {
+		CGWindowListOption option = onScreenOnly ? kCGWindowListOptionOnScreenOnly : kCGWindowListOptionAll;
+		CFArrayRef list = CGWindowListCopyWindowInfo(option, kCGNullWindowID);
+		if (!list) {
+			return NULL;
+		}
+		CFIndex total = CFArrayGetCount(list);
+		double *rows = calloc((size_t)total * MIMI_WINDOW_DOUBLES, sizeof(double));
+		char **titles = calloc((size_t)total + 1, sizeof(char *));
+		// Whether each owner is a regular, visible application, looked up
+		// once per owner: it is what makes a window's owner an application
+		// rather than a border drawer or an overlay.
+		NSMutableDictionary<NSNumber *, NSNumber *> *regular = [NSMutableDictionary dictionary];
+		int kept = 0;
+		for (NSDictionary *info in (__bridge NSArray *)list) {
+			CGRect rect;
+			if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect)) {
+				continue;
+			}
+			NSNumber *pid = info[(id)kCGWindowOwnerPID];
+			NSNumber *isRegular = regular[pid];
+			if (!isRegular) {
+				NSRunningApplication *app =
+				    [NSRunningApplication runningApplicationWithProcessIdentifier:(pid_t)pid.intValue];
+				isRegular = @(app && app.activationPolicy == NSApplicationActivationPolicyRegular && !app.hidden);
+				regular[pid] = isRegular;
+			}
+			double *row = rows + (size_t)kept * MIMI_WINDOW_DOUBLES;
+			row[0] = [info[(id)kCGWindowNumber] doubleValue];
+			row[1] = rect.origin.x;
+			row[2] = rect.origin.y;
+			row[3] = rect.size.width;
+			row[4] = rect.size.height;
+			// The name is absent without Screen Recording; "" then.
+			NSString *name = info[(id)kCGWindowName];
+			row[5] = name != nil;
+			row[6] = pid.doubleValue;
+			row[7] = [info[(id)kCGWindowLayer] doubleValue];
+			row[8] = isRegular.boolValue;
+			titles[kept] = strdup(name ? name.UTF8String : "");
+			kept++;
+		}
+		CFRelease(list);
+		*count = kept;
+		if (names) {
+			*names = titles;
+		} else {
+			for (int i = 0; i < kept; i++) {
+				free(titles[i]);
+			}
+			free(titles);
+		}
+		return rows;
+	}
+}
+
+void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **numbers, int **windows) {
+	if (!count) {
+		return NULL;
+	}
+	*count = 0;
+
+	@autoreleasepool {
+		AXUIElementRef appElement = AXUIElementCreateApplication((pid_t)pid);
+		if (!appElement) {
+			return NULL;
+		}
+		CFTypeRef value = NULL;
+		AXError error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute, &value);
+		CFRelease(appElement);
+		if (error != kAXErrorSuccess || !value) {
+			return NULL;
+		}
+		if (CFGetTypeID(value) != CFArrayGetTypeID()) {
+			CFRelease(value);
+			return NULL;
+		}
+		CFArrayRef list = (CFArrayRef)value;
+		CFIndex total = CFArrayGetCount(list);
+		void **elements = calloc((size_t)total + 1, sizeof(void *));
+		unsigned int *ids = calloc((size_t)total + 1, sizeof(unsigned int));
+		int *roles = calloc((size_t)total + 1, sizeof(int));
+		int kept = 0;
+		for (CFIndex i = 0; i < total; i++) {
+			AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(list, i);
+			if (!window) {
+				continue;
+			}
+			CGWindowID number = 0;
+			if (_AXUIElementGetWindow(window, &number) != kAXErrorSuccess || number == 0) {
+				continue;
+			}
+			CFTypeRef role = NULL;
+			int isWindow = 0;
+			if (AXUIElementCopyAttributeValue(window, kAXRoleAttribute, &role) == kAXErrorSuccess && role) {
+				isWindow = CFGetTypeID(role) == CFStringGetTypeID() &&
+				           CFStringCompare((CFStringRef)role, CFSTR("AXWindow"), 0) == kCFCompareEqualTo;
+				CFRelease(role);
+			}
+			elements[kept] = (void *)CFRetain(window);
+			ids[kept] = number;
+			roles[kept] = isWindow;
+			kept++;
+		}
+		CFRelease(value);
+		*count = kept;
+		*numbers = ids;
+		*windows = roles;
+		return elements;
+	}
+}
+
+int MimiSetWindowPosition(void *window, double x, double y) {
+	if (!window)
+		return 0;
+
+	@autoreleasepool {
+		CGPoint point = CGPointMake((CGFloat)x, (CGFloat)y);
+		AXValueRef positionValue = AXValueCreate(kAXValueCGPointType, &point);
+		if (!positionValue)
+			return 0;
+
+		AXError posError = AXUIElementSetAttributeValue((AXUIElementRef)window, kAXPositionAttribute, positionValue);
+		CFRelease(positionValue);
+		if (posError != kAXErrorSuccess) {
+			MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
+			return 0;
+		}
+
+		return 1;
 	}
 }
 

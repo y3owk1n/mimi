@@ -72,6 +72,13 @@ type Desktop interface {
 	// focused window — or -1 when no window in the list holds focus.
 	FocusableWindows() ([]Window, int, error)
 
+	// KnownWindows is what the last FocusableWindows call reported, in the
+	// same order, when it was recent enough to still trust, else nil. An
+	// action that names its windows by number can find them here without
+	// asking every application again: an enumeration is a round trip into
+	// each one, and an application just activated answers late.
+	KnownWindows() []Window
+
 	// WindowFrame reads one window's frame, in window coordinates. It is its
 	// own call rather than part of the enumeration because reading a frame
 	// costs a round trip to the owning application, and the cycling path never

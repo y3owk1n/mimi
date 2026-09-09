@@ -95,6 +95,12 @@ func StartFrameAnimation(dropped []uint32) {
 	C.MimiAnimationStart((*C.uint32_t)(unsafe.Pointer(&dropped[0])), C.int(len(dropped)))
 }
 
+// WarmFrameAnimation makes the window per display the frame animation
+// draws in, ahead of the first animation.
+func WarmFrameAnimation() {
+	C.MimiAnimationWarm()
+}
+
 // ScreenCaptureGranted reports whether macOS lets mimi capture the screen,
 // which animating frames needs. It never prompts.
 func ScreenCaptureGranted() bool {

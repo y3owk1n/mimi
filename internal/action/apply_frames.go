@@ -150,9 +150,9 @@ func (e *Executor) FocusWindowNumber(number uint32) error {
 		return err
 	}
 
-	windows, _, err := e.desktop.FocusableWindows()
+	windows, err := e.windowsNamed([]uint32{number})
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
+		return err
 	}
 
 	for _, win := range windows {
@@ -181,9 +181,14 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 		return err
 	}
 
-	windows, _, err := e.desktop.FocusableWindows()
+	numbers := make([]uint32, 0, len(args.Frames))
+	for _, entry := range args.Frames {
+		numbers = append(numbers, entry.Number)
+	}
+
+	windows, err := e.windowsNamed(numbers)
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
+		return err
 	}
 
 	byNumber := make(map[uint32]WindowID, len(windows))
@@ -235,6 +240,38 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 	}
 
 	return nil
+}
+
+// windowsNamed is the focusable windows, from the desktop's recent
+// enumeration when it has every number asked for, else enumerated afresh.
+func (e *Executor) windowsNamed(numbers []uint32) ([]Window, error) {
+	known := e.desktop.KnownWindows()
+	if len(known) > 0 {
+		seen := make(map[uint32]bool, len(known))
+		for _, win := range known {
+			seen[win.Number] = true
+		}
+
+		complete := true
+		for _, number := range numbers {
+			if !seen[number] {
+				complete = false
+
+				break
+			}
+		}
+
+		if complete {
+			return known, nil
+		}
+	}
+
+	windows, _, err := e.desktop.FocusableWindows()
+	if err != nil {
+		return nil, derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get focusable windows")
+	}
+
+	return windows, nil
 }
 
 // writeFrames writes every frame, one goroutine per owning application. A

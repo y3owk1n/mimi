@@ -551,6 +551,10 @@ func tilingConfigFor(
 		}
 	}
 
+	if tilingCfg.Enabled && tilingCfg.Animation.Enabled {
+		native.WarmFrameAnimation()
+	}
+
 	return tilingCfg
 }
 

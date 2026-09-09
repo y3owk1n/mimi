@@ -107,6 +107,15 @@ func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
 	return windows, d.focused, nil
 }
 
+func (d *fakeDesktop) KnownWindows() []action.Window {
+	windows, _, err := d.FocusableWindows()
+	if err != nil {
+		return nil
+	}
+
+	return windows
+}
+
 func (d *fakeDesktop) WindowFrame(windowID action.WindowID) (geometry.Rect, error) {
 	index, err := d.indexOf(windowID)
 	if err != nil {

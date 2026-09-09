@@ -36,6 +36,10 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 /// whose frames did not land. Without a prepared animation it does nothing.
 void MimiAnimationStart(const uint32_t *dropped, int count);
 
+/// Make the window per display the animation draws in, ahead of the first
+/// animation.
+void MimiAnimationWarm(void);
+
 /// Report whether the process may capture the screen, without prompting.
 int MimiScreenCaptureGranted(void);
 

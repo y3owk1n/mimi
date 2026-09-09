@@ -225,6 +225,146 @@ func (e *Element) SetFrame(posX, posY, width, height float64) error {
 	return nil
 }
 
+// SetPosition moves the window to (x, y) in screen coordinates, leaving its
+// size alone: one round trip into the application where SetFrame makes
+// three.
+func (e *Element) SetPosition(posX, posY float64) error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot set window position: element reference is nil",
+		)
+	}
+
+	result := C.MimiSetWindowPosition(
+		e.ref,
+		C.double(posX),
+		C.double(posY), //nolint:nlreturn
+	)
+	if result == 0 {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to set window position",
+		)
+	}
+
+	return nil
+}
+
+// ListedWindow is one window as the window server lists it: its number, its
+// frame in screen coordinates, its owner, its layer, whether the owner is a
+// regular, visible application, and its title when the window server gives
+// it, which it does only with Screen Recording granted.
+type ListedWindow struct {
+	Number  uint32
+	Frame   Frame
+	PID     int
+	Layer   int
+	Regular bool
+	Title   string
+	Named   bool
+}
+
+// WindowList lists every window the window server has, front to back, in
+// one call: on screen only, or on every space. No application is asked
+// anything.
+func WindowList(onScreenOnly bool) []ListedWindow {
+	var (
+		count C.int
+		names **C.char
+	)
+
+	flag := C.int(0)
+	if onScreenOnly {
+		flag = 1
+	}
+
+	rows := C.MimiCopyWindowList(flag, &count, &names) //nolint:nlreturn // cgo call expansion
+	if rows == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	total := int(count)
+	perWindow := int(C.MIMI_WINDOW_DOUBLES)
+	values := unsafe.Slice((*C.double)(unsafe.Pointer(rows)), total*perWindow)
+	titles := unsafe.Slice(names, total)
+	windows := make([]ListedWindow, total)
+
+	for index := range windows {
+		row := values[index*perWindow : (index+1)*perWindow]
+		windows[index] = ListedWindow{
+			Number: uint32(row[0]),
+			Frame: Frame{
+				X: float64(row[1]),
+				Y: float64(row[2]),
+				W: float64(row[3]),
+				H: float64(row[4]),
+			},
+			Named:   row[5] != 0,
+			PID:     int(row[6]),
+			Layer:   int(row[7]),
+			Regular: row[8] != 0,
+			Title:   C.GoString(titles[index]),
+		}
+
+		C.free(unsafe.Pointer(titles[index]))
+	}
+
+	C.free(unsafe.Pointer(names))
+
+	return windows
+}
+
+// ApplicationWindow is one of an application's windows as Accessibility
+// lists it: the element, its window server number, and whether its role is
+// a window rather than a sheet, a popover or the like.
+type ApplicationWindow struct {
+	Element  *Element
+	Number   uint32
+	IsWindow bool
+}
+
+// ApplicationWindowElements asks one application for its windows: a round
+// trip into it, so a caller asks only when it must.
+func ApplicationWindowElements(pid int) []ApplicationWindow {
+	var (
+		count   C.int
+		numbers *C.uint
+		roles   *C.int
+	)
+
+	elements := C.MimiCopyApplicationWindowElements(
+		C.int(pid),
+		&count,
+		&numbers,
+		&roles, //nolint:nlreturn
+	)
+	if elements == nil {
+		return nil
+	}
+
+	total := int(count)
+	refs := unsafe.Slice((*unsafe.Pointer)(unsafe.Pointer(elements)), total)
+	ids := unsafe.Slice(numbers, total)
+	isWindow := unsafe.Slice(roles, total)
+	windows := make([]ApplicationWindow, total)
+
+	for index := range windows {
+		windows[index] = ApplicationWindow{
+			Element:  &Element{ref: refs[index]},
+			Number:   uint32(ids[index]),
+			IsWindow: isWindow[index] != 0,
+		}
+	}
+
+	C.free(unsafe.Pointer(elements))
+	C.free(unsafe.Pointer(numbers))
+	C.free(unsafe.Pointer(roles))
+
+	return windows
+}
+
 // PrimaryScreenHeight returns the height of the primary display (the one with the menu bar).
 // This is needed to convert between AX (y-down) and NSScreen (y-up) coordinate systems.
 func PrimaryScreenHeight() (float64, error) {
