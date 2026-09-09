@@ -34,6 +34,10 @@ Commands the layout answers (mimi gives them no meaning; this file does):
   mimi tiling cmd togglemax              fill the display with the focused
                                          window, for now
 
+PRIORITY, at the top of the file, lists bundle identifiers whose windows
+open at a fixed place on the strip, each in a column of its own beside the
+app's others. Anything else opens right of the focused column.
+
 With tiling.relayout_on_drag set, dragging a column's edge sets its width,
 and dropping a window on another column moves it into that column. Use the
 focus command rather than mimi action focus_window --left/--right: the
@@ -55,6 +59,13 @@ MIN_WIDTH, MAX_WIDTH = 0.2, 1.0
 # on the space can be. It is reached with the focus command, not by sight.
 # (paneru, the other sliding tiler for macOS, parks at 5 for the same reason.)
 PEEK = 4
+# Bundle identifiers whose windows open at a fixed place on the strip,
+# leftmost first, each in a column of its own beside the app's others.
+# Everything else opens right of the focused column. Only
+# a new window is placed this way: move, consume, expel, and dragging still
+# rearrange what is there, and that order stays. On startup and reload every
+# window is new, so the strip comes up in this order.
+PRIORITY = []  # e.g. ["com.apple.Terminal", "com.apple.Safari"]
 
 
 # --- the strip ----------------------------------------------------------------
@@ -68,21 +79,44 @@ def column_of(columns, number):
     return None
 
 
-def sync(columns, present, focused):
-    """Drop what closed, add what opened as a column right of the focused one."""
+def rank(number, by_number):
+    """Where number's app sits in PRIORITY, or None when it is not listed."""
+    window = by_number.get(number)
+    if window is None or window.get("bundleId") not in PRIORITY:
+        return None
+    return PRIORITY.index(window["bundleId"])
+
+
+def sync(columns, windows, focused):
+    """Drop what closed, add what opened: a listed app at its place in
+    PRIORITY, anything else as a column right of the focused one."""
+    by_number = {w["number"]: w for w in windows}
     for column in columns:
-        column["windows"] = [n for n in column["windows"] if n in present]
+        column["windows"] = [n for n in column["windows"] if n in by_number]
     columns[:] = [c for c in columns if c["windows"]]
 
     known = {n for c in columns for n in c["windows"]}
     at = column_of(columns, focused)
-    for number in present:
+    for number in by_number:
         if number in known:
             continue
-        new = {"windows": [number], "width": DEFAULT}
-        at = len(columns) if at is None else at + 1
-        columns.insert(at, new)
         known.add(number)
+        mine = rank(number, by_number)
+        if mine is None:
+            at = len(columns) if at is None else at + 1
+            columns.insert(at, {"windows": [number], "width": DEFAULT})
+            continue
+        # A column of its own, after the last column ranked at or above
+        # this one, so an app's windows sit side by side; unranked
+        # columns the user placed among them stay where they are.
+        to = 0
+        for index, column in enumerate(columns):
+            ranks = [r for r in (rank(n, by_number) for n in column["windows"]) if r is not None]
+            if ranks and min(ranks) <= mine:
+                to = index + 1
+        columns.insert(to, {"windows": [number], "width": DEFAULT})
+        if at is not None and to <= at:
+            at += 1
 
 
 def col_width(column, box, gap):
@@ -186,7 +220,7 @@ def main():
     if focused not in by_number:
         focused = None
 
-    sync(columns, [w["number"] for w in windows], focused)
+    sync(columns, windows, focused)
     if not columns:
         write_output([], {"columns": [], "offset": 0, "floating": state.get("floating", [])})
         return
