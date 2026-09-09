@@ -53,7 +53,16 @@ type Engine struct {
 	// the startup pass from a reload's.
 	configured bool
 	layout     Layout
-	settle     time.Duration
+	// resident is the layout when it is kept running between passes, so
+	// a reload or shutdown can stop it; nil otherwise.
+	resident *Resident
+	// pending is each command a pass is waiting to run for, by name. A
+	// command that arrives while one of its name already waits is dropped:
+	// a held key sends them faster than passes run, and without this they
+	// queue up and keep scrolling after the key is released.
+	pendingMu sync.Mutex
+	pending   map[string]bool
+	settle    time.Duration
 	// states is what the layout returned last time, keyed by display and
 	// the space in front on it (stateKey), so a space switched on one
 	// display never touches what the other remembers.
@@ -90,6 +99,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		serialize:   serialize,
 		logger:      logger,
 		states:      map[string]json.RawMessage{},
+		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
 		resizeGrace: defaultResizeGrace,
 		wake:        make(chan Event, 1),
@@ -135,10 +145,26 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.configured = true
 	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
-	e.layout = Program{
-		Shell:   shell,
-		Command: cfg.Layout,
-		Timeout: time.Duration(cfg.TimeoutSecs) * time.Second,
+
+	// A resident layout survives a reload that leaves it as it was: what it
+	// runs, and how. Anything else stops it, and the next pass starts what
+	// the config names now.
+	timeout := time.Duration(cfg.TimeoutSecs) * time.Second
+	resident := cfg.Enabled && cfg.LayoutMode == config.LayoutModeResident
+
+	keep := e.resident != nil && resident && e.resident.Shell == shell &&
+		e.resident.Command == cfg.Layout && e.resident.Timeout == timeout
+	if !keep {
+		e.stopResidentLocked()
+	}
+
+	switch {
+	case keep:
+	case resident:
+		e.resident = NewResident(shell, cfg.Layout, timeout, e.logger)
+		e.layout = e.resident
+	default:
+		e.layout = Program{Shell: shell, Command: cfg.Layout, Timeout: timeout}
 	}
 
 	if !cfg.Enabled || (wasEnabled && hadCommand == cfg.Layout) {
@@ -240,6 +266,8 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				timer.Stop()
 			}
 
+			e.Close()
+
 			return
 		case evt, ok := <-sub:
 			if !ok {
@@ -285,6 +313,88 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	return e.passLocked(ctx, event)
+}
+
+// Command is a Pass a user asked for, by hotkey or by hand: unlike an event
+// from the bus, it is refused rather than dropped while the engine is
+// disabled, so the user learns why nothing moved. Commands of one name are
+// run one at a time with at most one more waiting; the rest are dropped, so
+// a key held down scrolls in step with the screen and stops when released.
+func (e *Engine) Command(ctx context.Context, event Event) error {
+	key := event.Kind + " " + event.Name
+
+	e.pendingMu.Lock()
+	if e.pending[key] {
+		e.pendingMu.Unlock()
+
+		return nil
+	}
+
+	e.pending[key] = true
+	e.pendingMu.Unlock()
+
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.pendingMu.Lock()
+	delete(e.pending, key)
+	e.pendingMu.Unlock()
+
+	if !e.enabled {
+		return derrors.New(
+			derrors.CodeActionFailed,
+			"tiling is disabled (set tiling.enabled = true, and grant Accessibility)",
+		)
+	}
+
+	return e.passLocked(ctx, event)
+}
+
+// Close stops a resident layout. The engine is not used after it.
+func (e *Engine) Close() {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.stopResidentLocked()
+}
+
+// Preview runs the layout the way Pass would, once per display, and returns
+// what each run was given and what it would apply instead of applying it.
+// It runs whether or not the engine is enabled, so a layout can be tried
+// before it is switched on, and it keeps no state.
+func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, error) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	inputs, err := e.inputsLocked(event)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	if e.layout == nil {
+		return inputs, nil, derrors.New(
+			derrors.CodeInvalidConfig,
+			"no tiling layout configured",
+		)
+	}
+
+	outputs := make([]Output, 0, len(inputs))
+
+	for _, input := range inputs {
+		out, reduceErr := e.layout.Reduce(ctx, input)
+		if reduceErr != nil {
+			return inputs, outputs, reduceErr
+		}
+
+		outputs = append(outputs, out)
+	}
+
+	return inputs, outputs, nil
+}
+
+// passLocked is Pass under the lock.
+func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	if !e.enabled {
 		return nil
 	}
@@ -381,52 +491,16 @@ func (e *Engine) Pass(ctx context.Context, event Event) error {
 	return nil
 }
 
-// Command is a Pass a user asked for, by hotkey or by hand: unlike an event
-// from the bus, it is refused rather than dropped while the engine is
-// disabled, so the user learns why nothing moved.
-func (e *Engine) Command(ctx context.Context, event Event) error {
-	if !e.Enabled() {
-		return derrors.New(
-			derrors.CodeActionFailed,
-			"tiling is disabled (set tiling.enabled = true, and grant Accessibility)",
-		)
+// stopResidentLocked ends the resident layout, if there is one. The caller
+// holds the lock.
+func (e *Engine) stopResidentLocked() {
+	if e.resident == nil {
+		return
 	}
 
-	return e.Pass(ctx, event)
-}
-
-// Preview runs the layout the way Pass would, once per display, and returns
-// what each run was given and what it would apply instead of applying it.
-// It runs whether or not the engine is enabled, so a layout can be tried
-// before it is switched on, and it keeps no state.
-func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, error) {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	inputs, err := e.inputsLocked(event)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	if e.layout == nil {
-		return inputs, nil, derrors.New(
-			derrors.CodeInvalidConfig,
-			"no tiling layout configured",
-		)
-	}
-
-	outputs := make([]Output, 0, len(inputs))
-
-	for _, input := range inputs {
-		out, reduceErr := e.layout.Reduce(ctx, input)
-		if reduceErr != nil {
-			return inputs, outputs, reduceErr
-		}
-
-		outputs = append(outputs, out)
-	}
-
-	return inputs, outputs, nil
+	e.resident.Stop()
+	e.resident = nil
+	e.layout = nil
 }
 
 // stateKey names the state for one display and the space in front on it.

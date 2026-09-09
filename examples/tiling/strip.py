@@ -47,7 +47,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, gap, maximised, read_input, write_output
+from rules import area, clamp, command, gap, maximised, serve, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -198,8 +198,7 @@ def column_at(columns, box, gap, offset, x):
 # --- one run ------------------------------------------------------------------
 
 
-def main():
-    inp = read_input()
+def main(inp):
     state = inp.get("state") or {}
     columns = state.get("columns") or []
     offset = float(state.get("offset") or 0)
@@ -340,4 +339,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    serve(main)

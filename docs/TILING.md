@@ -126,6 +126,10 @@ The `[tiling]` keys are `enabled`, `layout`, `debounce_ms`, `timeout_secs`,
 ## The contract
 
 Your program reads one JSON document on stdin and prints one on stdout.
+With `layout_mode = "resident"` in the config, it keeps going. It reads one
+document per line on stdin for as long as stdin stays open, and prints one
+line of output per document, flushed after each. The shipped layouts do
+both, through `serve()` in `rules.py`.
 
 ### Input
 
@@ -261,7 +265,9 @@ Anything that reads stdin, speaks JSON, and writes stdout will do: Go, Rust,
 Swift, Ruby, Lua, a shell script. Two things matter more than the language.
 Startup time, since the program runs once per display on every window event
 and a compiled binary starts in a few milliseconds where Node takes tens.
-And a JSON codec, since `state` is how a layout remembers anything. The
+`layout_mode = "resident"` takes startup out of every pass but the first for
+a program that reads a line at a time and flushes its answers. And a JSON
+codec, since `state` is how a layout remembers anything. The
 examples are Python because it ships with the Xcode Command Line Tools and
 needs no library. A whole layout in shell and jq, one column per window:
 

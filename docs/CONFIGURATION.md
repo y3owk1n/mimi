@@ -211,6 +211,7 @@ show_workspace_number = true   # show active space number in menu bar — restar
 [tiling]
 enabled = true
 layout = "~/.config/mimi/tiling/columns.py"
+layout_mode = "oneshot"   # or "resident", one process kept running between passes
 debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
@@ -228,6 +229,25 @@ the frames to apply as JSON on stdout. The daemon runs it whenever a window is
 created, closed or focused, an application hides, unhides or quits, or the
 space changes, waiting `debounce_ms` for the burst to settle so one pass covers
 it.
+
+`layout_mode` is how the daemon runs it. With `oneshot`, the default, every
+pass starts a new process, writes the input, and reads until it exits. With
+`resident`, the daemon starts the process once and keeps it running. Each
+pass writes the input as one line on its stdin and reads one line of output
+from its stdout, so a layout in an interpreted language skips its startup on
+every pass after the first. That is what lets a held scroll key keep up.
+A resident layout must flush its output after every line, and must exit when
+stdin closes. The daemon stops it on a reload that changes the command, when
+tiling is disabled, and when it quits. A layout that exits between passes is
+started again on the next pass. One that fails a pass is started again after
+a wait that doubles with each failure in a row, up to five seconds. The
+layouts in `examples/tiling/` work in both modes.
+
+A command sent with `mimi tiling cmd` runs one pass. While that pass runs,
+one more command of the same name may wait, and further copies are dropped.
+A held key repeats faster than passes run, and dropping the extra copies is
+what keeps the screen in step with the key and stops the scrolling when the
+key is released.
 
 Moves and resizes are opt-in, with `relayout_on_drag = true`, because every
 frame the engine writes is one and a layout that ran on its own writes would

@@ -695,3 +695,76 @@ func TestEngine_Pass_AnimatesTheFramesButNotADraggedWindow(t *testing.T) {
 		t.Fatal("animation off in the config still marked the dragged window")
 	}
 }
+
+// TestEngine_Command_DropsRepeatsWhileOneWaits pins the key-repeat rule: with
+// a pass running and one command of the same name already waiting, further
+// copies are dropped rather than queued, so a held key never scrolls on
+// after it is released.
+func TestEngine_Command_DropsRepeatsWhileOneWaits(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled("sleep 0.3; "+echoLayout), shell)
+
+	scroll := tiling.Event{Kind: tiling.EventCommand, Name: "scroll", Args: []string{"right"}}
+
+	var commands sync.WaitGroup
+
+	commands.Go(func() {
+		_ = engine.Command(context.Background(), scroll)
+	})
+
+	time.Sleep(100 * time.Millisecond)
+
+	for range 4 {
+		commands.Go(func() {
+			_ = engine.Command(context.Background(), scroll)
+		})
+	}
+
+	commands.Wait()
+
+	if got := desktop.appliedCount(); got != 2 {
+		t.Fatalf("passes applied = %d, want 2: the running one and one waiting", got)
+	}
+}
+
+// TestEngine_Update_KeepsAResidentLayoutUnlessItChanges pins what a reload
+// does to a resident layout: the same command keeps its process, a
+// different one gets a fresh one.
+func TestEngine_Update_KeepsAResidentLayoutUnlessItChanges(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+
+	engine := tiling.New(desktop, nil, nil)
+	defer engine.Close()
+
+	cfg := enabled(countingLayout)
+	cfg.LayoutMode = config.LayoutModeResident
+	engine.Update(cfg, shell)
+
+	pass := func(want int) {
+		t.Helper()
+
+		_, outs, err := engine.Preview(context.Background(), tiling.Event{Kind: created})
+		if err != nil {
+			t.Fatalf("Preview() error = %v, want nil", err)
+		}
+
+		if got := stateOf(t, outs[0]); got != want {
+			t.Fatalf("state = %d, want %d", got, want)
+		}
+	}
+
+	pass(1)
+	pass(2)
+
+	engine.Update(cfg, shell)
+	pass(3)
+
+	cfg.Layout = "true; " + countingLayout
+	engine.Update(cfg, shell)
+	pass(1)
+}

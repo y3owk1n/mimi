@@ -16,7 +16,10 @@ do when nothing happens, is the
 
 All in Python with the standard library only, so `python3` from the Xcode
 Command Line Tools is enough. Each reads stdin, prints stdout, and imports
-`rules.py` from its own directory, so copy the directory as a whole.
+`rules.py` from its own directory, so copy the directory as a whole. They
+run in both of mimi's layout modes: one process per pass, or, with
+`layout_mode = "resident"`, one process kept running that answers a line
+per pass.
 
 | File | What it does |
 | --- | --- |
@@ -25,7 +28,7 @@ Command Line Tools is enough. Each reads stdin, prints stdout, and imports
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
 | `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. Answers `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction|prev|+d|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`; a dragged edge sets a column's width and a window dropped on a column joins it. `PRIORITY` fixes where listed apps open. |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
-| `rules.py` | What the others share: the float rules (edit the bundle ids and title patterns here), the area to fill, reading the input and writing the output, and the temporary maximise every layout answers as `togglemax`. |
+| `rules.py` | What the others share: the float rules (edit the bundle ids and title patterns here), the area to fill, `serve()`, which reads the input and runs the layout in either mode, `write_output`, and the temporary maximise every layout answers as `togglemax`. |
 
 Run any of them with nothing on stdin and it lays the desktop out once by
 itself: the inputs the daemon would build, one run per display, frames
