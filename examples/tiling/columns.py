@@ -11,11 +11,10 @@ stdout. Copy, edit, own. Standard library only.
 Usage: columns.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
-from rules import area, gap, maximised, read_input, write_output
+from rules import area, gap, maximised, serve, write_output
 
 
-def main():
-    inp = read_input()
+def main(inp):
     GAP = gap(inp)
     state = inp.get("state") or {}
     windows = inp["windows"]
@@ -42,4 +41,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    serve(main)

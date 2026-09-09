@@ -70,6 +70,10 @@ show_workspace_number = true
 enabled = false
 # A command line, run through hook_shell above. Required when enabled.
 # layout = "~/.config/mimi/tiling/bsp.py"
+# How the layout runs. "oneshot" starts a process per pass and reads it to
+# exit. "resident" keeps one running and sends an input line per pass, so
+# the layout skips its own startup. The shipped layouts work either way.
+layout_mode = "oneshot"
 # Settle a burst of window events into one run.
 debounce_ms = 100
 # Kill the layout past this.

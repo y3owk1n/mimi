@@ -189,6 +189,10 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.TimeoutSecs = defaultTilingTimeoutSecs
 	}
 
+	if cfg.Tiling.LayoutMode == "" {
+		cfg.Tiling.LayoutMode = LayoutModeOneshot
+	}
+
 	if cfg.Tiling.Animation.DurationMS == 0 {
 		cfg.Tiling.Animation.DurationMS = defaultTilingAnimationMS
 	}
@@ -242,6 +246,10 @@ func validate(cfg *Config) error {
 
 	if cfg.Tiling.TimeoutSecs < 1 {
 		errs = append(errs, "tiling.timeout_secs must be >= 1")
+	}
+
+	if cfg.Tiling.LayoutMode != LayoutModeOneshot && cfg.Tiling.LayoutMode != LayoutModeResident {
+		errs = append(errs, "tiling.layout_mode must be oneshot or resident")
 	}
 
 	animationMS := cfg.Tiling.Animation.DurationMS

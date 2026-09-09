@@ -11,14 +11,13 @@ stdout. Copy, edit, own. Standard library only.
 Usage: monocle.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
-from rules import area, gap, read_input, write_output
+from rules import area, gap, serve, write_output
 
 
-def main():
-    inp = read_input()
+def main(inp):
     box = area(inp, gap(inp))
     write_output([(w["number"], box) for w in inp["windows"]], None)
 
 
 if __name__ == "__main__":
-    main()
+    serve(main)

@@ -1,8 +1,9 @@
 """Shared pieces the layout programs import: which windows to leave alone,
 and which display to fill. Copy, edit, own.
 
-Every layout here reads one JSON document on stdin and prints one on
-stdout; see README.md for the shapes. mimi runs a layout once per display,
+Every layout here reads a JSON document per line on stdin and prints one
+per line on stdout, once or for as long as stdin stays open. See README.md
+for the shapes. mimi runs a layout once per display,
 with that display's windows and a state of that display's own, so a layout
 only ever thinks about one display. This file is the one place to add a
 bundle identifier or a title pattern that should never be tiled.
@@ -33,9 +34,14 @@ def floating(win):
     )
 
 
-def read_input():
-    """The layout input from stdin, with `windows` narrowed to the tileable
-    ones and `focused` re-pointed at the same window, or -1 if it went.
+def serve(layout):
+    """Run `layout(inp)` for every input the daemon sends, in either mode
+    mimi runs a layout: once, for one document on stdin (`layout_mode =
+    "oneshot"`, the default), or once per line for as long as stdin stays
+    open (`layout_mode = "resident"`), which skips the interpreter's startup
+    on every pass after the first. Each input's `windows` is narrowed to
+    the tileable ones and `focused` re-pointed at the same window, or -1 if
+    it went.
 
     Run with nothing on stdin, from a terminal or a hotkey, a layout drives
     itself instead: it builds the inputs the daemon would, runs itself once
@@ -43,9 +49,17 @@ def read_input():
     used as a one-shot command with tiling off and no daemon running."""
     if sys.stdin.isatty():
         run_once()
-        sys.exit(0)
+        return
 
-    inp = json.load(sys.stdin)
+    for line in sys.stdin:
+        if line.strip():
+            layout(narrow(json.loads(line)))
+            sys.stdout.flush()
+
+
+def narrow(inp):
+    """The input with `windows` narrowed to the tileable ones and `focused`
+    re-pointed at the same window, or -1 if it went."""
     focused_number = (
         inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
     )
@@ -134,6 +148,7 @@ def write_output(frames, state, focus=None):
     if focus is not None:
         out["focus"] = focus
     json.dump(out, sys.stdout)
+    sys.stdout.write("\n")
 
 
 def maximised(inp, state, frames, area):

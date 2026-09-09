@@ -65,6 +65,12 @@ type SystrayConfig struct {
 	ShowWorkspaceNumber bool `json:"showWorkspaceNumber" reload:"restart-only" toml:"show_workspace_number"`
 }
 
+// The values tiling.layout_mode takes.
+const (
+	LayoutModeOneshot  = "oneshot"
+	LayoutModeResident = "resident"
+)
+
 // TilingConfig holds the [tiling] section of the config: whether the daemon
 // runs a layout at all, and the program that is the layout.
 //
@@ -74,8 +80,13 @@ type SystrayConfig struct {
 // examples/tiling/). The whole section is reloadable: the engine re-reads it
 // on every reload, and enabling it at runtime is how a layout is tried out.
 type TilingConfig struct {
-	Enabled        bool   `json:"enabled"        toml:"enabled"`
-	Layout         string `json:"layout"         toml:"layout"`
+	Enabled bool   `json:"enabled" toml:"enabled"`
+	Layout  string `json:"layout"  toml:"layout"`
+	// LayoutMode is how the layout runs: LayoutModeOneshot, a process per
+	// pass given the input on stdin and read to exit, or
+	// LayoutModeResident, one process kept running that reads an input
+	// line and prints an output line per pass.
+	LayoutMode     string `json:"layoutMode"     toml:"layout_mode"`
 	DebounceMS     int    `json:"debounceMs"     toml:"debounce_ms"`
 	TimeoutSecs    int    `json:"timeoutSecs"    toml:"timeout_secs"`
 	RelayoutOnDrag bool   `json:"relayoutOnDrag" toml:"relayout_on_drag"`

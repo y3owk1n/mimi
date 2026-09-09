@@ -65,3 +65,39 @@ func TestLoad_RejectsATilingAnimationItCannotRun(t *testing.T) {
 		})
 	}
 }
+
+func TestLoad_TilingLayoutMode(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(writeConfig(t, "[tiling]\nenabled = true\nlayout = \"cat\"\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	if cfg.Tiling.LayoutMode != LayoutModeOneshot {
+		t.Fatalf(
+			"tiling.layout_mode = %q, want %q by default",
+			cfg.Tiling.LayoutMode,
+			LayoutModeOneshot,
+		)
+	}
+
+	cfg, err = Load(
+		writeConfig(t, "[tiling]\nenabled = true\nlayout = \"cat\"\nlayout_mode = \"resident\"\n"),
+	)
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	if cfg.Tiling.LayoutMode != LayoutModeResident {
+		t.Fatalf("tiling.layout_mode = %q, want %q", cfg.Tiling.LayoutMode, LayoutModeResident)
+	}
+
+	_, err = Load(
+		writeConfig(t, "[tiling]\nenabled = true\nlayout = \"cat\"\nlayout_mode = \"daemon\"\n"),
+	)
+	if err == nil ||
+		!strings.Contains(err.Error(), "tiling.layout_mode must be oneshot or resident") {
+		t.Fatalf("Load() error = %v, want the layout_mode message", err)
+	}
+}

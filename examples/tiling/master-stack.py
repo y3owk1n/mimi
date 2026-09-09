@@ -24,13 +24,12 @@ Usage: master-stack.py [ratio]     (the gap is tiling.gap, else the macOS tiled-
 
 import sys
 
-from rules import area, clamp, command, gap, maximised, read_input, write_output
+from rules import area, clamp, command, gap, maximised, serve, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 
 
-def main():
-    inp = read_input()
+def main(inp):
     GAP = gap(inp)
     state = inp.get("state") or {}
     windows = inp["windows"]
@@ -104,4 +103,4 @@ def main():
 
 
 if __name__ == "__main__":
-    main()
+    serve(main)
