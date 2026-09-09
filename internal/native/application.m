@@ -7,6 +7,7 @@
 #import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
+#import <dlfcn.h>
 
 #pragma mark - SkyLight External Declarations
 
@@ -23,6 +24,39 @@ extern uint32_t SLSWindowIteratorGetWindowID(CFTypeRef iterator);
 extern uint64_t SLSWindowIteratorGetTags(CFTypeRef iterator);
 extern uint64_t SLSWindowIteratorGetAttributes(CFTypeRef iterator);
 extern int SLSWindowIteratorGetLevel(CFTypeRef iterator);
+
+// The corner radii of the window under an iterator, in points, as macOS 26
+// added it. Looked up at first use, since earlier releases have no such
+// function.
+typedef CFArrayRef (*MimiCornerRadiiFn)(CFTypeRef iterator);
+
+static MimiCornerRadiiFn mimiCornerRadii(void) {
+	static MimiCornerRadiiFn fn;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		fn = (MimiCornerRadiiFn)dlsym(RTLD_DEFAULT, "SLSWindowIteratorGetCornerRadii");
+	});
+	return fn;
+}
+
+// The corner radius of the window under iterator, or -1 when unknown.
+static double mimiIteratorRadius(CFTypeRef iterator) {
+	MimiCornerRadiiFn fn = mimiCornerRadii();
+	if (!fn)
+		return -1;
+	CFArrayRef radii = fn(iterator);
+	if (!radii)
+		return -1;
+	double radius = -1;
+	if (CFArrayGetCount(radii) > 0) {
+		CFNumberRef value = CFArrayGetValueAtIndex(radii, 0);
+		if (value)
+			CFNumberGetValue(value, kCFNumberDoubleType, &radius);
+	}
+	CFRelease(radii);
+	return radius;
+}
+
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
 
 /// Every space a window can be on: current, other, and full-screen ones.
@@ -71,20 +105,20 @@ static NSArray<NSNumber *> *mimiAllSpaceIDs(void) {
 	return ids;
 }
 
-/// Window numbers of every real, unminimized window on any space, whoever
-/// owns them.
-static NSSet<NSNumber *> *mimiRealWindowNumbers(void) {
-	NSMutableSet<NSNumber *> *real = [NSMutableSet set];
-	NSArray<NSNumber *> *spaces = mimiAllSpaceIDs();
-	if (spaces.count == 0)
-		return real;
+CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii) {
+	NSMutableArray<NSNumber *> *real = [NSMutableArray array];
+	NSMutableArray<NSNumber *> *corners = [NSMutableArray array];
+	if (radii)
+		*radii = CFBridgingRetain(corners);
+	if (!spaceIDs || CFArrayGetCount(spaceIDs) == 0)
+		return CFBridgingRetain(real);
 
 	uint64_t setTags = 0;
 	uint64_t clearTags = 0;
 	CFArrayRef windows = SLSCopyWindowsWithOptionsAndTags(
-	    SLSMainConnectionID(), 0, (__bridge CFArrayRef)spaces, kMimiWindowsNotMinimized, &setTags, &clearTags);
+	    SLSMainConnectionID(), 0, spaceIDs, kMimiWindowsNotMinimized, &setTags, &clearTags);
 	if (!windows)
-		return real;
+		return CFBridgingRetain(real);
 
 	CFIndex count = CFArrayGetCount(windows);
 	if (count > 0) {
@@ -97,6 +131,7 @@ static NSSet<NSNumber *> *mimiRealWindowNumbers(void) {
 					        SLSWindowIteratorGetTags(iterator), SLSWindowIteratorGetAttributes(iterator),
 					        SLSWindowIteratorGetParentID(iterator), SLSWindowIteratorGetLevel(iterator))) {
 						[real addObject:@(SLSWindowIteratorGetWindowID(iterator))];
+						[corners addObject:@(radii ? mimiIteratorRadius(iterator) : -1)];
 					}
 				}
 				CFRelease(iterator);
@@ -106,7 +141,15 @@ static NSSet<NSNumber *> *mimiRealWindowNumbers(void) {
 	}
 
 	CFRelease(windows);
-	return real;
+	return CFBridgingRetain(real);
+}
+
+/// Window numbers of every real, unminimized window on any space, whoever
+/// owns them.
+static NSSet<NSNumber *> *mimiRealWindowNumbers(void) {
+	NSArray<NSNumber *> *spaces = mimiAllSpaceIDs();
+	NSArray<NSNumber *> *real = CFBridgingRelease(MimiCopyRealWindowsOnSpaces((__bridge CFArrayRef)spaces, NULL));
+	return [NSSet setWithArray:real];
 }
 
 #pragma mark - Helpers

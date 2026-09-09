@@ -25,6 +25,7 @@ failure is logged.
 - `settings.resize_debounce_ms`
 - `[hooks]` (every hook kind)
 - `[tiling]` (every field)
+- `[border]` (every field)
 
 **Restart-only**. The daemon reads these once at startup. Restart it to apply
 (`mimi daemon stop && mimi daemon start`):
@@ -255,6 +256,40 @@ macOS gates every screen capture behind Screen Recording.
 - Until it is granted, windows move at once and a warning says so.
 - Grant it in System Settings > Privacy & Security > Screen & System Audio
   Recording, then restart mimi. macOS applies the grant on the next start.
+
+---
+
+## Borders
+
+```toml
+[border]
+enabled = true
+width = 4                   # points, 1 to 32
+# radius = 12               # force one corner radius; unset follows each window's own, 0 is square
+active_color = "#e2e2e3"    # the focused window, #rrggbb or #rrggbbaa
+inactive_color = "#414141"  # every other window
+```
+
+With `[border]` enabled, the daemon draws a ring around every window on the
+spaces in front, the way JankyBorders does. The focused window gets
+`active_color` and every other window gets `inactive_color`. A border follows
+its window as it moves or resizes, changes colour when focus moves, and goes
+away when the window closes, leaves the space or its application hides. A
+full-screen window gets none.
+
+Each border is a window of mimi's own, ordered directly under the window it
+belongs to. The border never covers another application's content, and a
+window that overlaps a bordered one covers the border as it covers the
+window. A colour with an alpha channel draws a translucent border.
+
+Windows have different corner radii. With `radius` unset, each border uses
+the radius the window server reports for its window, which macOS 26 added.
+Earlier releases report none, and every border uses 12 points there. Set
+`radius` to draw every border with one radius.
+
+Borders need Accessibility, as window hooks do, because focus and moves come
+from the same observers. Without it, borders stay off and the daemon logs a
+warning. When the tiling animation moves a window, its border moves with it.
 
 ---
 

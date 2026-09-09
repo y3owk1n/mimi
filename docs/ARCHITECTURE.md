@@ -143,6 +143,7 @@ internal/
   observe/          Hook daemon event routing
   hooks/            Hook registry and executor
   tiling/           The engine that runs the user's layout program on events
+  border/           The engine that keeps a border under every window on events
   config/           TOML config loading
   daemon/           Daemon lifecycle
   permissions/      Accessibility permission checks

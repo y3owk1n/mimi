@@ -73,6 +73,7 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | List every display               | `mimi query displays`                                                     |
 | Apply a layout from a script     | `my-layout \| mimi action apply_frames` (see `examples/tiling/`)           |
 | Tile automatically, your way     | `[tiling]` in the config, see `docs/TILING.md`                            |
+| Outline the focused window       | `[border]` in the config, see `docs/CONFIGURATION.md`                     |
 
 Full reference → [CLI Guide](docs/CLI.md)
 

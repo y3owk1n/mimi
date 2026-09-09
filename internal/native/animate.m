@@ -1,5 +1,6 @@
 #import "animate.h"
 
+#import "border.h"
 #import "mimi_log.h"
 #import "workspace.h"
 
@@ -69,6 +70,12 @@ typedef struct {
 @property(nonatomic) CGImageRef picture;
 @property(nonatomic) CGImageRef mask;
 @property(nonatomic, strong) CALayer *layer;
+// ring is the border drawn under the window, carried along under the
+// proxy while the real one waits under the still, or nil when the window
+// has none. ringWidth and ringRadius are how it is drawn.
+@property(nonatomic, strong) CAShapeLayer *ring;
+@property(nonatomic) double ringWidth;
+@property(nonatomic) double ringRadius;
 @end
 
 @implementation MimiProxy
@@ -396,6 +403,28 @@ static void mimiShow(void) {
 	usleep((useconds_t)(1e6 / refresh));
 }
 
+// The ring of a border, as the border draws it, over the window frame
+// `frame` in screen coordinates.
+static CAShapeLayer *mimiRingLayer(CGRect frame, double width, double radius, MimiColor color, double scale) {
+	CAShapeLayer *ring = [CAShapeLayer layer];
+	ring.fillRule = kCAFillRuleEvenOdd;
+	ring.contentsScale = scale;
+	ring.frame = CGRectInset(frame, -width, -width);
+	CGPathRef path = MimiBorderRingPath(frame.size, width, radius);
+	ring.path = path;
+	CGPathRelease(path);
+	CGColorRef fill = CGColorCreateSRGB(color.red, color.green, color.blue, color.alpha);
+	ring.fillColor = fill;
+	CGColorRelease(fill);
+	return ring;
+}
+
+// Take a proxy's layers off screen.
+static void mimiRemoveProxy(MimiProxy *proxy) {
+	[proxy.layer removeFromSuperlayer];
+	[proxy.ring removeFromSuperlayer];
+}
+
 // A layer showing image over `frame`, in screen coordinates, clipped to
 // mask's alpha when there is one. The image is shown as it is, without a
 // copy.
@@ -481,7 +510,7 @@ static void mimiRetire(NSArray<MimiProxy *> *carried) {
 	[CATransaction setDisableActions:YES];
 	for (MimiProxy *proxy in gProxies) {
 		if (![carried containsObject:proxy]) {
-			[proxy.layer removeFromSuperlayer];
+			mimiRemoveProxy(proxy);
 		}
 	}
 	for (MimiBackdrop *backdrop in gBackdrops) {
@@ -697,6 +726,21 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		return 0;
 	}
 
+	// Our own windows to leave out of the stills: the hosts, and the borders
+	// under the animating windows, which move with them as rings under the
+	// proxies. The borders under every other window stay in the stills where
+	// they are.
+	NSMutableSet<NSNumber *> *own = [NSMutableSet set];
+	for (MimiHost *host in gHosts.allValues) {
+		[own addObject:@(host.windowNumber)];
+	}
+	for (MimiProxy *proxy in next) {
+		uint32_t border = MimiBorderWindowNumber(proxy.number);
+		if (border) {
+			[own addObject:@(border)];
+		}
+	}
+
 	// Everything on screen but the animating windows and our own. The list
 	// runs front to back, and is split at the first animating window.
 	// Whatever comes before it is in front of every moving window, a
@@ -711,11 +755,10 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	MimiEntry *front = calloc((size_t)onScreenCount + 1, sizeof(MimiEntry));
 	MimiEntry *under = calloc((size_t)onScreenCount + 1, sizeof(MimiEntry));
 	int othersCount = 0, frontCount = 0, underCount = 0;
-	pid_t self = getpid();
 	BOOL passed = NO;
 	int depth = 0;
 	for (NSDictionary *info in (__bridge NSArray *)onScreen) {
-		if ([info[(id)kCGWindowOwnerPID] intValue] == self || [info[(id)kCGWindowLayer] intValue] > kMimiHostLayer) {
+		if ([own containsObject:info[(id)kCGWindowNumber]] || [info[(id)kCGWindowLayer] intValue] > kMimiHostLayer) {
 			continue;
 		}
 		MimiEntry entry = {.number = [info[(id)kCGWindowNumber] unsignedIntValue]};
@@ -958,6 +1001,13 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				CGImageRelease(proxy.mask);
 				proxy.mask = NULL;
 			}
+			double width = 0, radius = 0;
+			MimiColor color;
+			if (MimiBorderRing(proxy.number, &width, &radius, &color)) {
+				proxy.ring = mimiRingLayer(proxy.from, width, radius, color, proxy.scale);
+				proxy.ringWidth = width;
+				proxy.ringRadius = radius;
+			}
 		}
 		// Every proxy goes to the top of its host, carried ones included,
 		// so they stack as their windows do.
@@ -970,7 +1020,10 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				}
 			}
 		}
-		[proxy.layer removeFromSuperlayer];
+		mimiRemoveProxy(proxy);
+		if (proxy.ring) {
+			[root addSublayer:proxy.ring];
+		}
 		[root addSublayer:proxy.layer];
 	}
 	for (MimiBackdrop *backdrop in backdrops) {
@@ -1023,7 +1076,7 @@ void MimiAnimationStart(const uint32_t *dropped, int count) {
 				}
 			}
 			if (drop) {
-				[proxy.layer removeFromSuperlayer];
+				mimiRemoveProxy(proxy);
 			} else {
 				[kept addObject:proxy];
 			}
@@ -1067,6 +1120,36 @@ void MimiAnimationStart(const uint32_t *dropped, int count) {
 			layer.bounds = CGRectMake(0, 0, to.size.width, to.size.height);
 			[layer addAnimation:move forKey:@"position"];
 			[layer addAnimation:size forKey:@"bounds"];
+
+			// The ring goes with it, grown by its width, its path drawn
+			// again for the size it ends at.
+			CAShapeLayer *ring = proxy.ring;
+			if (!ring) {
+				continue;
+			}
+			double width = proxy.ringWidth;
+			CGRect ringShown = mimiPresented(ring);
+			CGRect ringTo = CGRectInset(to, -width, -width);
+			CGPathRef ringPath = MimiBorderRingPath(to.size, width, proxy.ringRadius);
+
+			CABasicAnimation *ringMove = [CABasicAnimation animationWithKeyPath:@"position"];
+			ringMove.fromValue =
+			    [NSValue valueWithPoint:NSMakePoint(CGRectGetMidX(ringShown), CGRectGetMidY(ringShown))];
+			ringMove.toValue = [NSValue valueWithPoint:NSMakePoint(CGRectGetMidX(ringTo), CGRectGetMidY(ringTo))];
+			CABasicAnimation *ringSize = [CABasicAnimation animationWithKeyPath:@"bounds"];
+			ringSize.fromValue = [NSValue valueWithRect:NSMakeRect(0, 0, ringShown.size.width, ringShown.size.height)];
+			ringSize.toValue = [NSValue valueWithRect:NSMakeRect(0, 0, ringTo.size.width, ringTo.size.height)];
+			CABasicAnimation *ringShape = [CABasicAnimation animationWithKeyPath:@"path"];
+			ringShape.fromValue = (__bridge id)(ring.presentationLayer ?: ring).path;
+			ringShape.toValue = (__bridge id)ringPath;
+
+			ring.position = CGPointMake(CGRectGetMidX(ringTo), CGRectGetMidY(ringTo));
+			ring.bounds = CGRectMake(0, 0, ringTo.size.width, ringTo.size.height);
+			ring.path = ringPath;
+			CGPathRelease(ringPath);
+			[ring addAnimation:ringMove forKey:@"position"];
+			[ring addAnimation:ringSize forKey:@"bounds"];
+			[ring addAnimation:ringShape forKey:@"path"];
 		}
 		[CATransaction commit];
 		[CATransaction flush];

@@ -48,6 +48,12 @@ char *MimiCopyApplicationName(int pid);
 /// Copy a running application's bundle identifier as a UTF-8 string the
 /// caller frees, or NULL when no application has that pid or it has none.
 char *MimiCopyApplicationBundleID(int pid);
+/// Copy the numbers of every real, unminimized window on the given spaces
+/// (an array of space ids), whoever owns them, as an array of NSNumber in
+/// the window server's order. With radii given, it is set to a parallel
+/// array of each window's corner radius in points, or -1 where the window
+/// server does not say (before macOS 26). The caller releases both.
+CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii);
 /// Copy an application's real, unminimized windows on every space, front to
 /// back. Sets *count; the caller frees the array. Auxiliary windows (popovers,
 /// sheets, tab previews) are left out.

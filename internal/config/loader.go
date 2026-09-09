@@ -125,6 +125,7 @@ func Load(path string) (*Config, error) {
 		Settings:        raw.Settings,
 		Hooks:           hooks,
 		Tiling:          raw.Tiling,
+		Border:          raw.Border,
 		UnknownHookKeys: unknownHookKeys,
 	}
 
@@ -157,6 +158,15 @@ const (
 	defaultTilingTimeoutSecs     = 5
 	defaultTilingAnimationMS     = 150
 	defaultTilingAnimationEasing = "ease-out"
+)
+
+// The [border] defaults: a ring a few points wide, light on the focused
+// window and dark on the rest.
+const (
+	defaultBorderWidth         = 4.0
+	defaultBorderActiveColor   = "#e2e2e3"
+	defaultBorderInactiveColor = "#414141"
+	maxBorderWidth             = 32.0
 )
 
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
@@ -199,6 +209,18 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.Animation.Easing == "" {
 		cfg.Tiling.Animation.Easing = defaultTilingAnimationEasing
+	}
+
+	if cfg.Border.Width == 0 {
+		cfg.Border.Width = defaultBorderWidth
+	}
+
+	if cfg.Border.ActiveColor == "" {
+		cfg.Border.ActiveColor = defaultBorderActiveColor
+	}
+
+	if cfg.Border.InactiveColor == "" {
+		cfg.Border.InactiveColor = defaultBorderInactiveColor
 	}
 
 	if settings.PIDFile == "" {
@@ -270,6 +292,8 @@ func validate(cfg *Config) error {
 		)
 	}
 
+	errs = append(errs, validateBorder(cfg.Border)...)
+
 	// HookKinds is a slice, so these errors come out in its declared order.
 	// The map this replaced meant validate reported the same broken config in
 	// a different order on every run.
@@ -306,6 +330,33 @@ func validate(cfg *Config) error {
 	}
 
 	return nil
+}
+
+func validateBorder(border BorderConfig) []string {
+	var errs []string
+
+	if border.Width < 1 || border.Width > maxBorderWidth {
+		errs = append(
+			errs,
+			fmt.Sprintf("border.width must be between 1 and %d", int(maxBorderWidth)),
+		)
+	}
+
+	if border.Radius != nil && *border.Radius < 0 {
+		errs = append(errs, "border.radius must be >= 0")
+	}
+
+	_, err := ParseColor(border.ActiveColor)
+	if err != nil {
+		errs = append(errs, "border.active_color must be #rrggbb or #rrggbbaa")
+	}
+
+	_, err = ParseColor(border.InactiveColor)
+	if err != nil {
+		errs = append(errs, "border.inactive_color must be #rrggbb or #rrggbbaa")
+	}
+
+	return errs
 }
 
 func expandPaths(cfg *Config) {

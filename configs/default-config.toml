@@ -95,6 +95,28 @@ duration_ms = 150
 easing = "ease-out"
 
 # =============================================================================
+# Borders
+# =============================================================================
+# Draw a ring around every window on the spaces in front, the way JankyBorders
+# does. The focused window gets active_color and the rest get inactive_color.
+# Each ring is a window of mimi's own, ordered under the window it belongs to,
+# so it never covers another window. Needs Accessibility. Every key here is
+# reloadable.
+# =============================================================================
+
+[border]
+enabled = false
+# Points, 1 to 32.
+width = 4
+# The window corner radius the ring follows on its inside. Leave unset to
+# follow each window's own corners (macOS 26 and later; earlier releases get
+# a document window's). Set a number to draw every ring alike; 0 is square.
+# radius = 12
+# #rrggbb or #rrggbbaa.
+active_color = "#e2e2e3"
+inactive_color = "#414141"
+
+# =============================================================================
 # Hooks
 # =============================================================================
 # Each hook is an array of entries. An entry can be either:
