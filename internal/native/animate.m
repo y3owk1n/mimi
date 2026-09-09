@@ -114,6 +114,9 @@ typedef struct {
 // in screen coordinates whatever the window's frame is.
 @interface MimiHost : NSWindow
 @property(nonatomic) CGDirectDisplayID display;
+// root holds the layers, under the content view's own layer, whose bounds
+// AppKit resets as it lays the view out.
+@property(nonatomic, strong) CALayer *root;
 @end
 
 @implementation MimiHost
@@ -278,6 +281,12 @@ static NSRect mimiCocoaRect(CGRect rect) {
 // The host for a display, made on first use, at the floating level so it
 // sits over every ordinary window and under the Dock and menu bar, passing
 // events through.
+// A host covers its display and half a display's width to either side,
+// where a strip parks the column beside the one on screen, so a proxy
+// starting there is drawn. It is never resized: moving a window that shows
+// an animation would show it shifted for a frame.
+static CGRect mimiHostFrame(CGRect bounds) { return CGRectInset(bounds, -bounds.size.width / 2, 0); }
+
 static MimiHost *mimiHost(CGDirectDisplayID display, CGRect bounds) {
 	if (!gHosts) {
 		gHosts = [NSMutableDictionary new];
@@ -286,7 +295,7 @@ static MimiHost *mimiHost(CGDirectDisplayID display, CGRect bounds) {
 	if (host) {
 		return host;
 	}
-	host = [[MimiHost alloc] initWithContentRect:mimiCocoaRect(bounds)
+	host = [[MimiHost alloc] initWithContentRect:mimiCocoaRect(mimiHostFrame(bounds))
 	                                   styleMask:NSWindowStyleMaskBorderless
 	                                     backing:NSBackingStoreBuffered
 	                                       defer:NO];
@@ -302,18 +311,37 @@ static MimiHost *mimiHost(CGDirectDisplayID display, CGRect bounds) {
 	                          NSWindowCollectionBehaviorIgnoresCycle | NSWindowCollectionBehaviorFullScreenAuxiliary;
 	NSView *view = host.contentView;
 	view.wantsLayer = YES;
-	view.layer.geometryFlipped = YES;
-	view.layer.masksToBounds = NO;
+	// The root layer fills the view, and its coordinate space is screen
+	// coordinates, y down.
+	CGRect frame = mimiHostFrame(bounds);
+	CALayer *root = [CALayer layer];
+	root.geometryFlipped = YES;
+	root.masksToBounds = NO;
+	root.anchorPoint = CGPointZero;
+	root.position = CGPointZero;
+	root.bounds = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+	root.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
+	[view.layer addSublayer:root];
+	host.root = root;
 	gHosts[@(display)] = host;
 	return host;
 }
 
-// Place the host over `frame`, in screen coordinates, with its root layer's
-// coordinate space kept as screen coordinates.
-static void mimiPlaceHost(MimiHost *host, CGRect frame) {
-	[host setFrame:mimiCocoaRect(frame) display:NO];
-	CALayer *root = host.contentView.layer;
-	root.bounds = CGRectMake(frame.origin.x, frame.origin.y, frame.size.width, frame.size.height);
+// Push the committed transaction to the render server and wait for the
+// display to show it. A commit made on the main thread from a dispatched
+// block is otherwise held until the run loop turns, and the caller writes
+// the real frames as soon as this returns: they must already be covered.
+static void mimiShow(void) {
+	[CATransaction flush];
+	double refresh = 60;
+	CGDisplayModeRef mode = CGDisplayCopyDisplayMode(CGMainDisplayID());
+	if (mode) {
+		if (CGDisplayModeGetRefreshRate(mode) > 0) {
+			refresh = CGDisplayModeGetRefreshRate(mode);
+		}
+		CGDisplayModeRelease(mode);
+	}
+	usleep((useconds_t)(1e6 / refresh));
 }
 
 // A layer showing image over `frame`, in screen coordinates, clipped to
@@ -411,7 +439,7 @@ static void mimiRetire(NSArray<MimiProxy *> *carried) {
 	}
 	[CATransaction commit];
 	for (MimiHost *host in gHosts.allValues) {
-		if (host.contentView.layer.sublayers.count == 0) {
+		if (host.root.sublayers.count == 0) {
 			[host orderOut:nil];
 		}
 	}
@@ -759,14 +787,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			CGImageRelease(scene);
 		}
 
-		// The host covers the display and wherever a proxy starts off it.
-		CGRect reach = bounds;
-		for (MimiProxy *proxy in next) {
-			if ((proxy.picture || proxy.carried) && mimiAnimatesOn(proxy, bounds)) {
-				reach = CGRectUnion(reach, proxy.from);
-			}
-		}
-		mimiPlaceHost(mimiHost(displays[d], bounds), reach);
+		mimiHost(displays[d], bounds);
 	}
 	free(others);
 	free(front);
@@ -784,7 +805,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		backdrop.layer = mimiImageLayer(backdrop.still, NULL, backdrop.bounds, 1);
 		CGImageRelease(backdrop.still);
 		backdrop.still = NULL;
-		[mimiHost(backdrop.display, backdrop.bounds).contentView.layer addSublayer:backdrop.layer];
+		[mimiHost(backdrop.display, backdrop.bounds).root addSublayer:backdrop.layer];
 	}
 	NSMutableArray<MimiProxy *> *made = [NSMutableArray array];
 	for (MimiProxy *proxy in next) {
@@ -811,7 +832,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		if (!root) {
 			for (MimiHost *host in gHosts.allValues) {
 				if (mimiAnimatesOn(proxy, CGDisplayBounds(host.display))) {
-					root = host.contentView.layer;
+					root = host.root;
 					break;
 				}
 			}
@@ -829,15 +850,16 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			backdrop.still = NULL;
 		}
 		[backdrop.layer removeFromSuperlayer];
-		[mimiHost(backdrop.display, backdrop.bounds).contentView.layer addSublayer:backdrop.layer];
+		[mimiHost(backdrop.display, backdrop.bounds).root addSublayer:backdrop.layer];
 	}
 	[CATransaction commit];
 	mimiRetire(carried);
 	for (MimiHost *host in gHosts.allValues) {
-		if (host.contentView.layer.sublayers.count > 0 && !host.visible) {
+		if (host.root.sublayers.count > 0 && !host.visible) {
 			[host orderFrontRegardless];
 		}
 	}
+	mimiShow();
 
 	gProxies = made;
 	gBackdrops = backdrops;
@@ -914,6 +936,7 @@ void MimiAnimationStart(const uint32_t *dropped, int count) {
 			[layer addAnimation:size forKey:@"bounds"];
 		}
 		[CATransaction commit];
+		[CATransaction flush];
 		gRunning = YES;
 	});
 }
