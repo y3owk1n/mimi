@@ -250,10 +250,15 @@ window server slide the pictures into place. No application does any work
 while the animation runs. Taking those pictures is a screen capture, and
 macOS gates every screen capture behind Screen Recording.
 
-- The daemon asks for the permission once, at startup and on reload, and only
-  while the animation is enabled. With it disabled, the default, mimi
-  captures nothing and never asks.
-- Until it is granted, windows move at once and a warning says so.
+- The daemon asks for the permission once, at startup, and only while the
+  animation is enabled. With it disabled, the default, mimi captures nothing
+  and never asks. A dialog offers to open the macOS permission flow, to
+  continue once granted, or to skip the animation for this run.
+- Requesting clears the standing decision first. An unsigned build is a new
+  program to macOS on every rebuild while System Settings keeps showing the
+  old entry as allowed, so without the reset macOS would never prompt again.
+- Until it is granted, windows move at once and a warning says so. Enabling
+  the animation on a reload does not prompt. Restart mimi to be asked.
 - Grant it in System Settings > Privacy & Security > Screen & System Audio
   Recording, then restart mimi. macOS applies the grant on the next start.
 

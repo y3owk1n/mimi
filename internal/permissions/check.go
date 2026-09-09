@@ -20,6 +20,10 @@ type ConfigOnboardingChoice int
 // AccessibilityStartupChoice represents the user's choice in the startup permission alert.
 type AccessibilityStartupChoice int
 
+// ScreenCaptureStartupChoice represents the user's choice in the startup
+// Screen Recording alert.
+type ScreenCaptureStartupChoice int
+
 const (
 	// ConfigOnboardingCreate indicates the user chose to create a config file.
 	ConfigOnboardingCreate ConfigOnboardingChoice = 1
@@ -32,6 +36,13 @@ const (
 	AccessibilityStartupQuit AccessibilityStartupChoice = 2
 	// AccessibilityStartupRestartRequired indicates user needs to restart the app after granting permission.
 	AccessibilityStartupRestartRequired AccessibilityStartupChoice = 3
+
+	// ScreenCaptureStartupGranted indicates Screen Recording permission is granted.
+	ScreenCaptureStartupGranted ScreenCaptureStartupChoice = 1
+	// ScreenCaptureStartupSkip indicates the user chose to run without animation.
+	ScreenCaptureStartupSkip ScreenCaptureStartupChoice = 2
+	// ScreenCaptureStartupRestartRequired indicates the user needs to restart the app after granting permission.
+	ScreenCaptureStartupRestartRequired ScreenCaptureStartupChoice = 3
 )
 
 // CheckResult holds the results of a permissions check.
@@ -64,11 +75,22 @@ func RequestAccessibility() bool {
 	return C.MimiRequestAccessibilityPermissions() != 0
 }
 
-// RequestScreenCapture asks macOS for Screen Recording permission, which
-// animating tiling frames needs. macOS prompts the first time and remembers
-// the answer; a grant takes effect when mimi next starts.
+// ScreenCaptureGranted reports whether macOS lets mimi capture the screen,
+// which animating tiling frames needs. It never prompts.
+func ScreenCaptureGranted() bool {
+	return C.MimiCheckScreenCapturePermission() != 0
+}
+
+// RequestScreenCapture clears the standing Screen Recording decision and
+// asks macOS again, which prompts. A grant takes effect when mimi next starts.
 func RequestScreenCapture() bool {
 	return C.MimiRequestScreenCapturePermission() != 0
+}
+
+// ShowScreenCaptureStartupAlert displays startup guidance for granting
+// Screen Recording permission.
+func ShowScreenCaptureStartupAlert() ScreenCaptureStartupChoice {
+	return ScreenCaptureStartupChoice(C.MimiShowScreenCapturePermissionStartupAlert())
 }
 
 // ShowConfigOnboardingAlert displays startup guidance for creating the first config file.
