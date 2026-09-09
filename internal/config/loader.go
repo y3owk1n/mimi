@@ -4,11 +4,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 
 	"github.com/BurntSushi/toml"
 
 	"github.com/y3owk1n/mimi/configs"
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
 )
@@ -148,10 +150,13 @@ func Load(path string) (*Config, error) {
 }
 
 // The [tiling] defaults: how long a burst of window events settles before one
-// relayout runs, and how long the layout program may take.
+// relayout runs, how long the layout program may take, and how the frames
+// move when animated.
 const (
-	defaultTilingDebounceMS  = 100
-	defaultTilingTimeoutSecs = 5
+	defaultTilingDebounceMS      = 100
+	defaultTilingTimeoutSecs     = 5
+	defaultTilingAnimationMS     = 150
+	defaultTilingAnimationEasing = "ease-out"
 )
 
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
@@ -182,6 +187,14 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.TimeoutSecs == 0 {
 		cfg.Tiling.TimeoutSecs = defaultTilingTimeoutSecs
+	}
+
+	if cfg.Tiling.Animation.DurationMS == 0 {
+		cfg.Tiling.Animation.DurationMS = defaultTilingAnimationMS
+	}
+
+	if cfg.Tiling.Animation.Easing == "" {
+		cfg.Tiling.Animation.Easing = defaultTilingAnimationEasing
 	}
 
 	if settings.PIDFile == "" {
@@ -229,6 +242,24 @@ func validate(cfg *Config) error {
 
 	if cfg.Tiling.TimeoutSecs < 1 {
 		errs = append(errs, "tiling.timeout_secs must be >= 1")
+	}
+
+	animationMS := cfg.Tiling.Animation.DurationMS
+	if animationMS < 1 || animationMS > action.MaxAnimationMS {
+		errs = append(
+			errs,
+			fmt.Sprintf(
+				"tiling.animation.duration_ms must be between 1 and %d",
+				action.MaxAnimationMS,
+			),
+		)
+	}
+
+	if !slices.Contains(action.Easings, cfg.Tiling.Animation.Easing) {
+		errs = append(
+			errs,
+			"tiling.animation.easing must be one of "+strings.Join(action.Easings, ", "),
+		)
 	}
 
 	// HookKinds is a slice, so these errors come out in its declared order.

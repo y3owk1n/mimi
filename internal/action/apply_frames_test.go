@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"slices"
 	"strings"
 	"testing"
 
@@ -193,5 +194,249 @@ func TestApplyFramesCommand_RejectsAMalformedPayloadOnBothPaths(t *testing.T) {
 				)
 			}
 		})
+	}
+}
+
+// animatingDesktop is a fake desktop that can animate: it records what the
+// executor asks of the animation and when, relative to the frame writes.
+type animatingDesktop struct {
+	*fakeDesktop
+
+	beginTargets   []action.WindowFrame
+	beginAnimation action.Animation
+	// writesAtBegin is how many frames had been written when the animation
+	// began; the animation must be prepared before the first one.
+	writesAtBegin int
+	beginErr      error
+	started       bool
+	dropped       []uint32
+}
+
+func (d *animatingDesktop) BeginFrameAnimation(
+	targets []action.WindowFrame,
+	animation action.Animation,
+) (int, error) {
+	d.beginTargets = targets
+	d.beginAnimation = animation
+
+	for _, win := range d.windows {
+		d.writesAtBegin += win.setFrameWrites
+	}
+
+	if d.beginErr != nil {
+		return 0, d.beginErr
+	}
+
+	return len(targets), nil
+}
+
+func (d *animatingDesktop) StartFrameAnimation(dropped []uint32) {
+	d.started = true
+	d.dropped = dropped
+}
+
+const linearEasing = "linear"
+
+func animatedApplyFramesCommand(
+	animation *action.Animation,
+	frames ...action.WindowFrame,
+) action.Command {
+	return action.Command{
+		Name:        action.NameApplyFrames,
+		ApplyFrames: action.ApplyFramesArgs{Frames: frames, Animation: animation},
+	}
+}
+
+func TestExecutor_ApplyFrames_BracketsTheWritesWithTheAnimation(t *testing.T) {
+	t.Parallel()
+
+	desktop := &animatingDesktop{fakeDesktop: desktopWithListedWindows()}
+	desktop.windows[1].setFrameErr = derrors.New(derrors.CodeAccessibilityFailed, "refused")
+	animation := action.Animation{DurationMS: 150, Easing: "ease-out"}
+	still := false
+	cmd := animatedApplyFramesCommand(
+		&animation,
+		action.WindowFrame{
+			Number: 4242,
+			Frame:  action.Frame{X: 0, Y: 25, Width: 640, Height: 1055},
+		},
+		action.WindowFrame{
+			Number: 4243,
+			Frame:  action.Frame{X: 640, Y: 25, Width: 640, Height: 1055},
+		},
+		action.WindowFrame{Number: 9999, Frame: action.Frame{Width: 100, Height: 100}},
+		action.WindowFrame{
+			Number:  4244,
+			Frame:   action.Frame{Width: 100, Height: 100},
+			Animate: &still,
+		},
+	)
+
+	desktop.windows = append(desktop.windows, fakeWindow{id: 3, pid: 101, number: 4244})
+
+	err := action.NewExecutor(desktop).ExecuteCommand(cmd)
+	if !derrors.IsCode(err, derrors.CodeActionFailed) {
+		t.Fatalf(
+			"ExecuteCommand(apply_frames) error = %v, want CodeActionFailed for the refused frame",
+			err,
+		)
+	}
+
+	if desktop.writesAtBegin != 0 {
+		t.Fatalf(
+			"animation began after %d frame writes, want before the first",
+			desktop.writesAtBegin,
+		)
+	}
+
+	if desktop.beginAnimation != animation {
+		t.Fatalf("animation = %+v, want %+v", desktop.beginAnimation, animation)
+	}
+
+	// Only windows on the space and not opted out are animated: 9999 is not
+	// listed and 4244 said animate: false.
+	targets := make([]uint32, 0, len(desktop.beginTargets))
+	for _, target := range desktop.beginTargets {
+		targets = append(targets, target.Number)
+	}
+
+	if want := []uint32{4242, 4243}; !slices.Equal(targets, want) {
+		t.Fatalf("animated windows = %v, want %v", targets, want)
+	}
+
+	if !desktop.started {
+		t.Fatal("the animation was prepared but never started")
+	}
+
+	// The refused write is dropped from the animation; the missing window
+	// was never in it.
+	if want := []uint32{4243}; !slices.Equal(desktop.dropped, want) {
+		t.Fatalf("dropped = %v, want %v", desktop.dropped, want)
+	}
+
+	if got, want := desktop.windows[0].frame, (geometry.Rect{X: 0, Y: 25, W: 640, H: 1055}); got != want {
+		t.Fatalf("window 4242 frame = %v, want %v (the frames still land)", got, want)
+	}
+}
+
+func TestExecutor_ApplyFrames_MovesAtOnceWhenTheAnimationCannotBegin(t *testing.T) {
+	t.Parallel()
+
+	animation := &action.Animation{DurationMS: 150, Easing: linearEasing}
+	frame := action.WindowFrame{
+		Number: 4242,
+		Frame:  action.Frame{X: 0, Y: 25, Width: 640, Height: 1055},
+	}
+
+	cases := map[string]action.Desktop{
+		"desktop that cannot animate": desktopWithListedWindows(),
+		"animation refused": &animatingDesktop{
+			fakeDesktop: desktopWithListedWindows(),
+			beginErr:    derrors.New(derrors.CodeActionFailed, "no screen recording"),
+		},
+	}
+
+	for name, desktop := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.NewExecutor(desktop).
+				ExecuteCommand(animatedApplyFramesCommand(animation, frame))
+			if err != nil {
+				t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+			}
+
+			var fake *fakeDesktop
+			switch typed := desktop.(type) {
+			case *fakeDesktop:
+				fake = typed
+			case *animatingDesktop:
+				fake = typed.fakeDesktop
+
+				if typed.started {
+					t.Fatal("an animation that could not begin was started")
+				}
+			}
+
+			if got, want := fake.windows[0].frame, (geometry.Rect{X: 0, Y: 25, W: 640, H: 1055}); got != want {
+				t.Fatalf("window 4242 frame = %v, want %v", got, want)
+			}
+		})
+	}
+}
+
+func TestExecutor_ApplyFrames_RejectsAnAnimationItCannotRun(t *testing.T) {
+	t.Parallel()
+
+	frame := action.WindowFrame{Number: 4242, Frame: action.Frame{Width: 100, Height: 100}}
+
+	cases := map[string]struct {
+		animation action.Animation
+		fragment  string
+	}{
+		"zero duration": {
+			action.Animation{DurationMS: 0, Easing: linearEasing},
+			"animation.durationMs",
+		},
+		"too long": {
+			action.Animation{DurationMS: 5000, Easing: linearEasing},
+			"animation.durationMs",
+		},
+		"unknown easing": {action.Animation{DurationMS: 100, Easing: "bouncy"}, "animation.easing"},
+	}
+
+	for name, testCase := range cases {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := desktopWithListedWindows()
+			cmd := animatedApplyFramesCommand(&testCase.animation, frame)
+
+			err := action.NewExecutor(desktop).ExecuteCommand(cmd)
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf("error = %v, want CodeInvalidInput", err)
+			}
+
+			if !strings.Contains(err.Error(), testCase.fragment) {
+				t.Errorf("error %q does not mention %q", err.Error(), testCase.fragment)
+			}
+
+			if desktop.windows[0].setFrameWrites != 0 {
+				t.Error("a rejected payload wrote a frame")
+			}
+		})
+	}
+}
+
+// TestExecutor_ApplyFrames_WithoutAnAnimationNeverTouchesTheAnimator pins
+// the off switch: a payload with no animation drives a desktop that could
+// animate exactly as one that cannot.
+func TestExecutor_ApplyFrames_WithoutAnAnimationNeverTouchesTheAnimator(t *testing.T) {
+	t.Parallel()
+
+	desktop := &animatingDesktop{fakeDesktop: desktopWithListedWindows()}
+	cmd := applyFramesCommandFor(
+		t,
+		action.WindowFrame{
+			Number: 4242,
+			Frame:  action.Frame{X: 0, Y: 25, Width: 640, Height: 1055},
+		},
+	)
+
+	err := action.NewExecutor(desktop).ExecuteCommand(cmd)
+	if err != nil {
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+	}
+
+	if desktop.beginTargets != nil || desktop.started {
+		t.Fatalf(
+			"animator was used: begin targets %v, started %v",
+			desktop.beginTargets,
+			desktop.started,
+		)
+	}
+
+	if got, want := desktop.windows[0].frame, (geometry.Rect{X: 0, Y: 25, W: 640, H: 1055}); got != want {
+		t.Fatalf("window 4242 frame = %v, want %v", got, want)
 	}
 }

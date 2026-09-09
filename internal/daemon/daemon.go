@@ -155,6 +155,7 @@ func runCore(
 		pipeline.axTracker,
 		pipeline.router,
 		pipeline.tiler,
+		logger,
 	)
 
 	onChange := func() {
@@ -264,7 +265,7 @@ func setupEventPipeline(
 	// the config says: it could read no window, and would log a failure on
 	// every event.
 	tiler := tiling.New(tiling.LiveDesktop{}, serialize, logger)
-	tiler.Update(tilingConfigFor(cfg, accessibilityGranted), cfg.Settings.HookShell)
+	tiler.Update(tilingConfigFor(cfg, accessibilityGranted, logger), cfg.Settings.HookShell)
 	tileSub := bus.SubscribeWithFilter(tileSubBufSize, tiler.KindFilter())
 
 	// The event log is opt-in via [settings].log_file; when present, write
@@ -524,11 +525,30 @@ func hasWindowEvents(cfg *config.Config) bool {
 }
 
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,
-// except that without Accessibility it is disabled.
-func tilingConfigFor(cfg *config.Config, accessibilityGranted bool) config.TilingConfig {
+// except that without Accessibility it is disabled, and without Screen
+// Recording its animation is. The daemon asks for Screen Recording only when
+// the animation is on, so a config that leaves it off never prompts. macOS
+// prompts once and keeps the answer, and a grant takes effect on the next
+// start.
+func tilingConfigFor(
+	cfg *config.Config,
+	accessibilityGranted bool,
+	logger *zap.SugaredLogger,
+) config.TilingConfig {
 	tilingCfg := cfg.Tiling
 	if !accessibilityGranted {
 		tilingCfg.Enabled = false
+	}
+
+	if tilingCfg.Enabled && tilingCfg.Animation.Enabled && !native.ScreenCaptureGranted() {
+		if !permissions.RequestScreenCapture() {
+			logger.Warn(
+				"screen recording permission not granted, tiling animation disabled. " +
+					"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording, then restart mimi",
+			)
+
+			tilingCfg.Animation.Enabled = false
+		}
 	}
 
 	return tilingCfg

@@ -32,8 +32,10 @@ type fakeDesktop struct {
 	displays []action.DisplayEntry
 	spaces   map[uint32]int
 	applied  [][]action.WindowFrame
-	applyErr error
-	focused  []uint32
+	// animations is the animation each Apply was asked for, nil for none.
+	animations []*action.Animation
+	applyErr   error
+	focused    []uint32
 }
 
 func (d *fakeDesktop) Focus(number uint32) error {
@@ -64,7 +66,7 @@ func (d *fakeDesktop) Margins() (action.MarginsInfo, error) {
 	return action.MarginsInfo{Enabled: true, Size: 8}, nil
 }
 
-func (d *fakeDesktop) Apply(frames []action.WindowFrame) error {
+func (d *fakeDesktop) Apply(frames []action.WindowFrame, animation *action.Animation) error {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
@@ -73,6 +75,7 @@ func (d *fakeDesktop) Apply(frames []action.WindowFrame) error {
 	}
 
 	d.applied = append(d.applied, frames)
+	d.animations = append(d.animations, animation)
 
 	return nil
 }
@@ -626,5 +629,69 @@ func TestEngine_Pass_FocusesTheWindowTheLayoutAsksFor(t *testing.T) {
 			len(desktop.applied),
 			desktop.focused,
 		)
+	}
+}
+
+// TestEngine_Pass_AnimatesTheFramesButNotADraggedWindow pins how the
+// [tiling.animation] section reaches apply_frames: as the animation every
+// pass asks for, with the window the user just dragged left out of it.
+func TestEngine_Pass_AnimatesTheFramesButNotADraggedWindow(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(echoLayout)
+	cfg.Animation = config.AnimationConfig{Enabled: true, DurationMS: 120, Easing: "ease-in-out"}
+	engine.Update(cfg, shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: created})
+	if err != nil {
+		t.Fatalf("Pass() error = %v, want nil", err)
+	}
+
+	err = engine.Pass(context.Background(), tiling.Event{Kind: "window_move", Windows: []uint32{1}})
+	if err != nil {
+		t.Fatalf("Pass(window_move) error = %v, want nil", err)
+	}
+
+	want := action.Animation{DurationMS: 120, Easing: "ease-in-out"}
+	for index, got := range desktop.animations {
+		if got == nil || *got != want {
+			t.Fatalf("animations[%d] = %+v, want %+v", index, got, want)
+		}
+	}
+
+	if len(desktop.animations) != 2 {
+		t.Fatalf("len(animations) = %d, want 2", len(desktop.animations))
+	}
+
+	if desktop.applied[0][0].Animate != nil {
+		t.Fatal("a window nobody dragged was left out of the animation")
+	}
+
+	if dragged := desktop.applied[1][0].Animate; dragged == nil || *dragged {
+		t.Fatal("the window the user dragged was animated")
+	}
+
+	cfg.Animation.Enabled = false
+	engine.Update(cfg, shell)
+
+	err = engine.Pass(context.Background(), tiling.Event{Kind: created})
+	if err != nil {
+		t.Fatalf("Pass() error = %v, want nil", err)
+	}
+
+	if desktop.animations[2] != nil {
+		t.Fatal("animation off in the config still animated")
+	}
+
+	// Off, a drag is not marked either: the frames go out untouched.
+	err = engine.Pass(context.Background(), tiling.Event{Kind: "window_move", Windows: []uint32{1}})
+	if err != nil {
+		t.Fatalf("Pass(window_move) error = %v, want nil", err)
+	}
+
+	if desktop.applied[3][0].Animate != nil {
+		t.Fatal("animation off in the config still marked the dragged window")
 	}
 }

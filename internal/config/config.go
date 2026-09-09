@@ -84,6 +84,18 @@ type TilingConfig struct {
 	// setting resize_window honors; set, it replaces that setting for
 	// layouts, 0 included.
 	Gap *int `json:"gap" toml:"gap"`
+	// Animation is how the frames a layout returns move into place.
+	Animation AnimationConfig `json:"animation" toml:"animation"`
+}
+
+// AnimationConfig holds the [tiling.animation] section: whether windows
+// move to the frames a layout returns over time rather than at once, over
+// how long, and along which curve. Off, the daemon neither captures the
+// screen nor asks for the Screen Recording permission that takes.
+type AnimationConfig struct {
+	Enabled    bool   `json:"enabled"    toml:"enabled"`
+	DurationMS int    `json:"durationMs" toml:"duration_ms"`
+	Easing     string `json:"easing"     toml:"easing"`
 }
 
 // HooksConfig holds all hook entries grouped by event kind.

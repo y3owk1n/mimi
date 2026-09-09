@@ -4,6 +4,8 @@ import (
 	"sync"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/hooks"
@@ -42,6 +44,7 @@ type reloader struct {
 	axTracker *observe.AXTracker
 	router    *observe.Router
 	tiler     *tiling.Engine
+	logger    *zap.SugaredLogger
 }
 
 // newReloader bundles the dependencies a reload touches — the config the
@@ -60,7 +63,12 @@ func newReloader(
 	axTracker *observe.AXTracker,
 	router *observe.Router,
 	tiler *tiling.Engine,
+	logger *zap.SugaredLogger,
 ) *reloader {
+	if logger == nil {
+		logger = zap.NewNop().Sugar()
+	}
+
 	return &reloader{
 		running:   running,
 		reg:       reg,
@@ -68,6 +76,7 @@ func newReloader(
 		axTracker: axTracker,
 		router:    router,
 		tiler:     tiler,
+		logger:    logger,
 	}
 }
 
@@ -118,7 +127,7 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	}
 
 	if rl.tiler != nil {
-		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility), cfg.Settings.HookShell)
+		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility, rl.logger), cfg.Settings.HookShell)
 	}
 
 	return reloadChanges{

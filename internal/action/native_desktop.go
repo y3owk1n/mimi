@@ -1,7 +1,9 @@
 package action
 
 import (
+	"slices"
 	"sync"
+	"time"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
@@ -171,6 +173,34 @@ func (d *nativeDesktop) SetWindowFrame(id WindowID, frame geometry.Rect) error {
 	return d.withWindow(id, func(element *native.Element) error {
 		return element.SetFrame(frame.X, frame.Y, frame.W, frame.H)
 	})
+}
+
+// BeginFrameAnimation prepares to fly the given windows to their frames.
+func (d *nativeDesktop) BeginFrameAnimation(
+	targets []WindowFrame,
+	animation Animation,
+) (int, error) {
+	frames := make([]native.FrameTarget, 0, len(targets))
+	for _, target := range targets {
+		frames = append(frames, native.FrameTarget{
+			Number: target.Number,
+			X:      target.Frame.X,
+			Y:      target.Frame.Y,
+			Width:  target.Frame.Width,
+			Height: target.Frame.Height,
+		})
+	}
+
+	return native.BeginFrameAnimation(
+		frames,
+		time.Duration(animation.DurationMS)*time.Millisecond,
+		native.Easing(slices.Index(Easings, animation.Easing)),
+	)
+}
+
+// StartFrameAnimation runs the animation BeginFrameAnimation prepared.
+func (d *nativeDesktop) StartFrameAnimation(dropped []uint32) {
+	native.StartFrameAnimation(dropped)
 }
 
 // ActivateWindow raises a window's application and focuses the window.
