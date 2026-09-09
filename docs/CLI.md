@@ -10,6 +10,7 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 - [Interrupting a Command](#interrupting-a-command)
 - [Window & Space Actions](#window--space-actions)
 - [Queries](#queries)
+- [Tiling](#tiling)
 - [Hook Daemon](#hook-daemon)
 - [Service Management](#service-management)
 - [Configuration Management](#configuration-management)
@@ -28,9 +29,8 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 
 ## Interrupting a Command
 
-Ctrl-C ends any mimi command. What the **first** one does depends on the
-command; the **second** always ends the process immediately, with exit status
-130.
+A second Ctrl-C always ends the process immediately with exit status 130. What
+the first one does depends on the command:
 
 | Command                      | First Ctrl-C                                                                    |
 | ---------------------------- | ------------------------------------------------------------------------------- |
@@ -38,7 +38,7 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi services uninstall`    | Stops, keeping the plist, exactly as a failed unload does.                      |
 | `mimi services start`/`stop`/`restart` | Stops before or during the `launchctl` call, and says so.             |
 | `mimi services status`       | Stops asking `launchctl` and prints the unknown state. Exits 0.                 |
-| `mimi start`                 | Shuts the daemon down gracefully, as it always has.                             |
+| `mimi start`                 | Shuts the daemon down gracefully.                                               |
 | `mimi action *`              | Does not reach the action; it finishes. Press Ctrl-C again to end the process.   |
 | `mimi config *`              | Does not reach the command; it finishes. Each is one local file read or write.   |
 | `mimi status`, `mimi stop`   | Does not reach the command; it finishes. Each is a file read and one syscall.    |
@@ -46,30 +46,21 @@ command; the **second** always ends the process immediately, with exit status
 | `mimi tiling preview`        | Kills the layout program if it is still running; nothing is applied either way. |
 | `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
 
-A command in the bottom four rows that the first Ctrl-C did not reach still
-succeeds and exits 0, because it did in fact finish — `mimi config init`
-interrupted once has still written the file. Press Ctrl-C twice to be sure a
-command did not run.
+A command the first Ctrl-C did not reach still finishes and exits 0.
 
-[`mimi services install`](#mimi-services-install) is the command where this is
-worth knowing about: it is the only one that waits, and the only one that
-replaces a file another program reads. An interrupt leaves it exactly where a
-failure does, on either side of that replacement and never in between.
-
-`mimi start` is unchanged in the case that matters: the daemon has always
-watched `SIGINT` itself and still does, so one Ctrl-C shuts it down gracefully.
-Two exceptions are worth knowing. Before the daemon reaches that watch — while
-the first-run config alert is up, say — the first Ctrl-C does nothing and the
-second is what ends it. And a second Ctrl-C during a shutdown that has stalled
-now ends the process where it used to be ignored; that skips the daemon's own
-cleanup, so a PID file may be left behind. `mimi status` reports such a file as
-stale, and the next `mimi start` overwrites it.
+For `mimi start`, before the daemon installs its signal watch
+(while the first-run config alert is up, say) the first Ctrl-C does nothing.
+And a second Ctrl-C during a stalled shutdown skips the daemon's cleanup, so a
+PID file may be left behind. `mimi status` reports it as stale and the next
+`mimi start` overwrites it.
 
 ---
 
 ## Window & Space Actions
 
-These commands run directly in the CLI process when the daemon is not running. When the daemon **is** running, mimi routes actions over its Unix socket (`settings.socket_file`, default `~/.local/share/mimi/mimi.sock`) so hotkeys feel instant. **Accessibility permission is required.**
+Actions run in the CLI process when no daemon is running. With a daemon,
+the CLI sends them over its Unix socket (`settings.socket_file`), which is
+faster than starting the action from scratch. **Accessibility permission is required.**
 
 ```bash
 mimi action focus_window
@@ -96,7 +87,8 @@ mimi action apply_frames < frames.json
 
 ### `mimi action focus_window`
 
-Cycle keyboard focus through all focusable windows on the current space, or move focus spatially with direction flags.
+Cycle keyboard focus through the focusable windows on the current space, or
+move focus spatially.
 
 | Flag         | Description                                                      |
 | ------------ | ---------------------------------------------------------------- |
@@ -107,56 +99,66 @@ Cycle keyboard focus through all focusable windows on the current space, or move
 | `--right`    | Move focus to the nearest window to the right of the current one |
 | `--same-app` | Stay within the focused window's application, cycling or directional |
 
-`--same-app` is the keyboard's Cmd-backtick: it cycles through the windows of the frontmost application only, and combines with `--backward` or a direction flag. It needs a focused window to take the application from, and reports so when there is none.
+`--same-app` is the keyboard's Cmd-backtick. It combines with `--backward` or
+a direction flag, and needs a focused window to take the application from.
 
 ### `mimi action focus_app <name|bundle-id>`
 
-Bring an application's window to the front, switching to the space it is on first with the same instant gesture `mimi action space` uses, so macOS has nothing left to animate. This is the fast replacement for `open -a Safari` when Safari's window is on another space. The application is named by its name (case does not matter) or its bundle identifier, and has to be running: pair with `open` for the other case.
+Bring a running application's window to the front, switching space first with
+the same instant gesture `mimi action space` uses. Name it by app name (case
+does not matter) or bundle identifier. Pair with `open` for the not-running
+case:
 
 ```bash
 mimi action focus_app Safari || open -a Safari
 ```
 
-Which window is chosen depends on where focus is:
-
-- When the application is **not in front**, its most recently used window is chosen, wherever it is.
-- When it **is already in front**, running the command again moves on to its next window. Windows are visited by space, left to right, and by age within a space, wrapping at the end, so repeated presses reach every window the application has, and the order never depends on which window was used last.
-
-Minimized windows are skipped. A window assigned to every space is raised without a switch. An application with no window is reopened, as if its Dock icon were clicked, so it opens a fresh window and comes to the front. Finder is the one you will notice, since it is always running and used to end up in front with nothing to show. The switch across spaces is the same dock-swipe gesture as `space`, including the pointer warp when the window is on another display. **Accessibility permission is required.**
+- When the application is **not in front**, its most recently used window is
+  chosen, wherever it is.
+- When it **is in front**, each press moves to its next window, ordered by
+  space then age, wrapping at the end.
+- Minimized windows are skipped. A window assigned to every space is raised
+  without a space switch. An application with no window is reopened as if
+  its Dock icon were clicked.
 
 ### `mimi action space <number|next|prev>`
 
-Focus a Mission Control space by its 1-based index, or cycle to the next/previous space with wrapping. Uses a synthetic dock-swipe gesture (no public macOS API exists for direct space switching).
-
-When the destination space sits on another display, the mouse pointer is warped to the center of that display first so the gesture lands on the right screen, and it stays there afterwards. The same applies to `move_window_to_space --follow`.
+Focus a Mission Control space by 1-based index, or cycle with wrapping. Uses
+a synthetic dock-swipe gesture, since no public macOS API switches spaces.
+When the destination is on another display, the pointer is warped to that
+display's center first and stays there. The same applies to
+`move_window_to_space --follow`.
 
 ### `mimi action move_window_to_space <number|next|prev>`
 
-Move the frontmost window to a space by its 1-based index, or cycle to the next/previous space with wrapping. Uses private SkyLight APIs; does not require disabling SIP.
+Move the frontmost window to a space by 1-based index, or cycle with
+wrapping. Uses private SkyLight APIs and does not require disabling SIP.
 
 | Flag       | Description                                                      |
 | ---------- | ---------------------------------------------------------------- |
 | `--follow` | Switch to the destination space once the window is there         |
 
-Without `--follow` the window leaves and the current space stays in front. With it, the switch is the same dock-swipe gesture `mimi action space` makes, so it is subject to the same timing, and the moved window is raised again once the switch lands, since macOS would otherwise bring forward whatever was last in front on that space. If the move lands but the switch or the raise fails, the error says the window moved and the window stays on its new space.
+With `--follow`, the switch is the same dock-swipe gesture as `space`, and the
+moved window is raised again once the switch lands. If the move lands but the
+switch or raise fails, the error says so and the window stays on its new
+space.
 
 ### `mimi action move_window_to_display <number|next|prev>`
 
-Move the frontmost window to another display by its 1-based index, or cycle to the next/previous display with wrapping. Displays are counted left to right, then top to bottom, across every connected display. Goes through Accessibility, so the window lands on the destination's active space and the display becomes the active one. **Accessibility permission is required.**
-
-The window keeps the share of the display it had: a window filling the left half of one display fills the left half of the other, whatever their sizes or resolutions. A window already on the destination stays where it is, which is also what `next` does with a single display.
-
-```bash
-mimi action move_window_to_display 2
-mimi action move_window_to_display next
-mimi action move_window_to_display prev
-```
+Move the frontmost window to another display by 1-based index, or cycle with
+wrapping. Displays are counted left to right, then top to bottom. The window
+lands on the destination's active space and keeps the share of the display it
+had. A window already on the destination does not move. **Accessibility permission
+is required.**
 
 ### `mimi action resize_window [preset] [flags]`
 
-Resize and reposition the frontmost window using presets or custom flags. Respects the macOS tiled window margins setting (`com.apple.WindowManager.EnableTiledWindowMargins`), applying full margins on screen-facing edges and half margins on internal (split) edges. Margins are skipped entirely when they would leave the window no width or height, so a window smaller than its margins is sized as you asked for it.
+Resize and reposition the frontmost window. Respects the macOS tiled window
+margins setting, with full margins on screen edges and half margins on split
+edges. Margins are skipped when they would leave the window no width or
+height.
 
-**Presets** provide quick tiling layouts:
+**Presets:**
 
 | Preset         | Effect                               |
 | -------------- | ------------------------------------ |
@@ -176,7 +178,10 @@ Resize and reposition the frontmost window using presets or custom flags. Respec
 | `center`       | Center window at 60% × 80% of screen |
 | `fill`         | Fill entire screen                   |
 
-**Cycling:** with `--cycle`, `left-half` and `right-half` step through their sizes on repeated presses: half, then two thirds, then a third, then back to half. A window at none of those sizes starts at the half, so one hotkey bound to `resize_window left-half --cycle` covers all three. The step is decided from where the window is now, so it works the same with or without the daemon. `--cycle` takes no size, position or anchor flag, and only those two presets accept it; margins still apply to every step.
+**Cycling:** `--cycle` makes `left-half` and `right-half` step through half,
+two thirds, a third, then half again on repeated presses. The step is decided
+from where the window is now, so it works with or without the daemon. It
+takes no size, position or anchor flag, and only those two presets accept it.
 
 **Custom sizing flags:**
 
@@ -187,7 +192,7 @@ Resize and reposition the frontmost window using presets or custom flags. Respec
 | `--width-percent <pct>`  | Width as percentage of screen (0–100)  |
 | `--height-percent <pct>` | Height as percentage of screen (0–100) |
 
-**Positioning flags** (use anchors to align the window):
+**Positioning flags:**
 
 | Flag           | Description              |
 | -------------- | ------------------------ |
@@ -195,7 +200,8 @@ Resize and reposition the frontmost window using presets or custom flags. Respec
 | `--y <pixels>` | Absolute Y position      |
 | `--anchor, -a` | Anchor point (see below) |
 
-**Anchor system** places the window's anchor point at the computed or specified position. Valid anchors (use 2 letters: vertical + horizontal):
+**Anchors** are two letters, vertical then horizontal, naming the point of
+the window placed at the computed position:
 
 ```
 tl  tc  tr       (top-left, top-center, top-right)
@@ -210,59 +216,41 @@ bl  bc  br       (bottom-left, bottom-center, bottom-right)
 | `--margin`    | Enable tiled margins (overrides system setting) |
 | `--no-margin` | Disable tiled margins                           |
 
-Give one or neither: omitting both defers to the system tiled-window-margins setting, and giving both is rejected rather than resolved by picking one of them.
+Give one or neither. Omitting both follows the system setting. Giving both is
+rejected.
 
 **Examples:**
 
 ```bash
-# Presets
 mimi action resize_window left-half
-mimi action resize_window right-half
-mimi action resize_window top-left
 mimi action resize_window center
-
-# Fixed dimensions, centered
 mimi action resize_window --width 800 --height 600 --anchor cc
-
-# Percentage of screen, top-left
 mimi action resize_window --width-percent 50 --height-percent 75 --anchor tl
-
-# Absolute position, top-left anchor
 mimi action resize_window --width 1024 --height 768 --x 100 --y 50 --anchor tl
-
-# Override margins for a preset
 mimi action resize_window left-half --no-margin
-
-# One hotkey: half, then two thirds, then a third, then half again
 mimi action resize_window left-half --cycle
-
-# Mix preset with custom size
 mimi action resize_window center --width-percent 80 --height-percent 90
 ```
 
 ### `mimi action apply_frames [--file path]`
 
-Move and resize several windows on the active space in one action. The frames
-come in as a JSON array on stdin, or from a file with `--file`, each naming a
-window by the `number` that `mimi query windows` reported and the frame to give
-it, in window coordinates. **Accessibility permission is required.**
+Move and resize several windows on the active space in one action. Frames come
+as a JSON array on stdin or from `--file`, each naming a window by the `number`
+from `mimi query windows` and its frame in window coordinates.
+**Accessibility permission is required.**
 
 ```
 [{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}},
  {"number":4243,"frame":{"x":720,"y":25,"width":720,"height":875}}]
 ```
 
-Every frame is attempted in order, whatever happened to the ones before it: a
-layout is more useful mostly applied than abandoned at its first failure. The
-action fails when any frame did not land, naming each window it could not place
-and why. A window that is not on the active space cannot be placed. The payload
-is rejected before anything moves when it is empty, names a window twice, names
-window 0, or gives a frame without a positive width and height.
+The action attempts every frame in order. The action fails when any frame did not
+land, naming each window it could not place and why. The payload is rejected
+before anything moves when it is empty, names a window twice, names window 0,
+or gives a frame without a positive width and height.
 
-Together with `mimi query windows` and `mimi query displays` this is the whole
-of what a tiling script needs from mimi: list, decide, apply. mimi ships no
-layout of its own. `examples/tiling/` in the repository holds scripts to copy
-and make your own.
+With `mimi query windows` and `mimi query displays`, this is all a tiling
+script needs: list, decide, apply. `examples/tiling/` holds scripts to copy.
 
 ```bash
 mimi action apply_frames < frames.json
@@ -274,9 +262,9 @@ my-layout | jq .frames | mimi action apply_frames
 
 ## Queries
 
-Queries read the desktop and print what they find as one line of JSON on
-stdout. They never move focus, a window, or a space, and they always run in the
-CLI's own process. A running daemon is neither consulted nor required.
+Queries read the desktop and print one line of JSON on stdout. They never
+move focus, a window, or a space, and always run in the CLI's own process. A
+failed query prints nothing on stdout.
 
 ```bash
 mimi query space
@@ -286,28 +274,28 @@ mimi query displays
 mimi query margins
 ```
 
-A query that fails prints nothing on stdout and reports the error the way every
-other command does, so a script can read stdout as the answer or nothing.
+Pipe through `jq` to pick one field:
+
+```bash
+mimi query space | jq .index
+```
 
 ### `mimi query space`
 
-Report the active Mission Control space and how many there are, in the same
-1-based ordering `mimi action space` takes. Needs no Accessibility permission.
+The active space and the count, in the 1-based ordering `mimi action space`
+takes. `index` is the space in front on the display holding the cursor. Needs
+no Accessibility permission.
 
 ```
 $ mimi query space
 {"index":2,"count":5}
 ```
 
-`index` is the space in front on the display holding the cursor, which is the
-one `space next` and `space prev` step from.
-
 ### `mimi query window`
 
-Report the frontmost window, the one `resize_window` would act on, with the
-process ID of its owner and its frame. The frame is in window coordinates: the
-origin is the top-left corner of the primary display and y grows downward,
-which is what `--x` and `--y` take. **Accessibility permission is required.**
+The frontmost window, with its owner's PID and frame in window coordinates
+(origin at the top-left of the primary display, y growing downward).
+**Accessibility permission is required.**
 
 ```
 $ mimi query window
@@ -316,13 +304,11 @@ $ mimi query window
 
 ### `mimi query windows`
 
-List every focusable window on the active space, the ones `focus_window`
-cycles, in that order. `focused` is the index of the focused window among them,
-or -1 when none holds focus. `number` is the window server's number, stable for
-the window's lifetime, and what `apply_frames` takes to name a window. Frames
-are in window coordinates. A window whose frame cannot be read is left out; a
-window whose title or application cannot be read is kept with those fields
-empty. **Accessibility permission is required.**
+Every focusable window on the active space, in `focus_window` cycle order.
+`focused` is the index of the focused window, or -1. `number` is the window
+server's number, stable for the window's lifetime, and what `apply_frames`
+takes. A window whose frame cannot be read is left out. **Accessibility
+permission is required.**
 
 ```
 $ mimi query windows
@@ -331,11 +317,9 @@ $ mimi query windows
 
 ### `mimi query displays`
 
-List every connected display, numbered the way `move_window_to_display` counts
-them: left to right, then top to bottom. `frame` is the whole display and
-`visible` is the part a window may occupy, less the menu bar and the Dock. Both
-are in window coordinates, so a frame computed from `visible` can be handed to
-`apply_frames` as it is. Needs no Accessibility permission.
+Every connected display, numbered as `move_window_to_display` counts them.
+`frame` is the whole display and `visible` excludes the menu bar and Dock.
+Both are in window coordinates. Needs no Accessibility permission.
 
 ```
 $ mimi query displays
@@ -344,8 +328,7 @@ $ mimi query displays
 
 ### `mimi query margins`
 
-Report the macOS tiled-window margins setting, the one `resize_window`
-honours and a tiling layout defaults its gap to. `size` is in points. Needs no
+The macOS tiled-window margins setting. `size` is in points. Needs no
 Accessibility permission.
 
 ```
@@ -353,29 +336,26 @@ $ mimi query margins
 {"enabled":true,"size":8}
 ```
 
-Pipe through `jq` to pick one field:
-
-```bash
-mimi query space | jq .index
-```
-
 ---
 
 ## Tiling
 
-The daemon runs the layout program named in `[tiling]` on window events; see
-`docs/TILING.md` for the guide and `docs/CONFIGURATION.md` for the section.
-mimi ships no layout. `examples/tiling/` in the repository holds programs to
-copy.
+The daemon runs the layout program named in `[tiling]` on window events. See
+[TILING.md](TILING.md) for the guide and
+[CONFIGURATION.md](CONFIGURATION.md#tiling) for the settings. mimi ships no
+layout. `examples/tiling/` holds programs to copy.
+
+Tiling needs Accessibility permission. Animating the moves
+(`[tiling.animation]`) also needs Screen Recording, because the animation is
+drawn from captured pictures of the windows. See
+[CONFIGURATION.md](CONFIGURATION.md#animation).
 
 ### `mimi tiling preview [--input]`
 
-Run `tiling.layout` once per display against the desktop as it is now, with a
-`preview` event and a null state, and print what each run returned as one line
-of JSON without applying any of it. It runs whether or not `tiling.enabled` is
-set, which is how a layout is tried before it is switched on. With `--input`
-the JSON that would be handed to each run is printed instead, and the layout
-is not run. **Accessibility permission is required.**
+Run `tiling.layout` once per display with a `preview` event and a null
+state, and print what it returned without applying it. Runs whether or not
+`tiling.enabled` is set. `--input` prints the JSON each run would receive
+instead of running the layout. **Accessibility permission is required.**
 
 ```
 $ mimi tiling preview
@@ -385,27 +365,23 @@ $ mimi tiling preview --input | jq '.[].windows[].app'
 
 ### `mimi tiling relayout`
 
-Run the layout once, with a `relayout` event, and apply the frames it returns.
-With the daemon running its engine runs it, with the state it holds for the
-active space, and `tiling.enabled` has to be set. Without a daemon the layout
-runs in the CLI with a null state, whether or not tiling is enabled.
+Run the layout once with a `relayout` event and apply the frames. With a
+daemon, its engine runs it with the state it holds, and `tiling.enabled` must
+be set. Without one, the layout runs in the CLI with a null state.
 **Accessibility permission is required.**
 
 ### `mimi tiling cmd <name> [args...]`
 
 Send a named command to the layout. mimi gives the name no meaning: the layout
-reads it from the event (`"kind": "command"`, `"name"`, `"args"`) and decides
-what it does, which is how a layout defines its own hotkeys. The example
-master-stack layout answers `swap` and `ratio +0.05`. Routed exactly as
-`relayout` is. **Accessibility permission is required.**
+reads `name` and `args` from a `command` event and decides, which is how a
+layout defines its own hotkeys. The example master-stack layout answers `swap`
+and `ratio +0.05`. Routed as `relayout` is. A blank name is rejected.
+**Accessibility permission is required.**
 
 ```bash
 mimi tiling cmd swap
 mimi tiling cmd ratio +0.05
 ```
-
-A command is rejected in the CLI, before any path is taken, when its name is
-blank.
 
 ---
 
@@ -413,30 +389,22 @@ blank.
 
 ### `mimi start`
 
-Start the background daemon that watches window and space events and runs your hooks.
+Start the daemon that watches window and space events and runs your hooks.
+On first run without a config file, mimi offers to create one.
 
 ```bash
 mimi start
 mimi start -c /path/to/config.toml
 ```
 
-On first run without a config file, mimi offers to create one.
-
 ### `mimi stop`
 
 Stop the running daemon via SIGTERM.
 
-```bash
-mimi stop
-```
-
 ### `mimi status`
 
-Show whether the daemon is running, whether Accessibility permission is granted, and whether the IPC socket is available.
-
-```bash
-mimi status
-```
+Show whether the daemon is running, whether Accessibility permission is
+granted, and whether the IPC socket is available.
 
 ---
 
@@ -444,109 +412,64 @@ mimi status
 
 ### `mimi services install`
 
-Install mimi as a launchd user agent for automatic startup at login.
+Install mimi as a launchd user agent that starts at login.
 
 ```bash
 mimi services install
 ```
 
-The generated plist captures the daemon's stdout and stderr beside
-`settings.log_file`, creating that directory if missing, or in `/tmp` when
-`log_file` is unset. It also names those two paths in the service's
-environment, which is how the daemon knows to empty them once at each start —
-nothing rotates them otherwise. See
-[Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
-
-The `PATH` the service runs its hooks with comes from
-[`settings.service_path`](CONFIGURATION.md#service_path), defaulting to
-`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`. Nothing else reads that
-setting, so this command is what makes a change to it take effect.
-
-The plist is a snapshot of the config taken at install time, so running install
-again is how an installed service is brought back in line with a config that
-has moved since. It is idempotent and reports which of three things it did:
+The plist is a snapshot of the config at install time. Run install again to
+bring the service in line with a changed config. It is idempotent:
 
 | Output                                       | What happened                                                              |
 | -------------------------------------------- | -------------------------------------------------------------------------- |
-| `Service installed and loaded successfully`  | The service was not loaded; the plist was written and the service loaded.   |
-| `Service plist updated and service reloaded` | The plist disagreed with the config; it was replaced and the service reloaded. |
-| `Service already up to date`                 | The installed plist already matched. Nothing was written or reloaded.       |
+| `Service installed and loaded successfully`  | The plist was written and the service loaded.                              |
+| `Service plist updated and service reloaded` | The plist was replaced and the service reloaded.                           |
+| `Service already up to date`                 | Nothing was written or reloaded.                                           |
 
-Replacing the plist unloads the running service first, and waits for it to
-actually be gone before handing launchd the new one: `launchctl bootout`
-returns as soon as launchd accepts the request, not once the daemon has
-finished exiting, and a load fired into that window fails. The wait is bounded
-at five seconds, after which the install fails with the old plist untouched —
-stop whatever is holding the service and run it again. It ends the same way,
-without waiting out the bound, if `launchctl` stops answering while it waits:
-an unload nothing can confirm is not an unload.
+The plist also sets:
 
-Ctrl-C is the third way out of that wait, and the only one a user chooses. It
-ends at the next poll rather than at the bound, and leaves the install exactly
-where the other two do: old plist untouched, service unloaded, nothing to undo
-before running it again. The same holds anywhere else in the install — every
-`launchctl` call is cut short with it, and the context is checked once more
-immediately before the new plist is written, so an interrupted install never
-replaces a plist on its way out. An interrupted `mimi services uninstall`
-likewise keeps the plist, which is what a failed unload does, and what makes
-the uninstall re-runnable.
+- The daemon's stdout and stderr, captured beside `settings.log_file` (or in
+  `/tmp` when unset) and emptied at each start. See
+  [Troubleshooting](TROUBLESHOOTING.md#where-a-service-installed-daemons-console-output-lands).
+- The service `PATH`, from
+  [`settings.service_path`](CONFIGURATION.md#service_path). Only this command
+  applies a change to it.
 
-A load that fails for any other reason leaves the new plist on disk, so the
-config change is already made and only the load is missing; that error says so,
-and running install again retries just the load.
+Replacing the plist unloads the running service and waits up to five seconds
+for it to be gone before loading the new one. If the wait runs out, or
+`launchctl` stops answering, the install fails with the old plist untouched.
+Ctrl-C leaves it in the same state. A load that fails after the plist is
+written leaves the plist on disk, and running install again retries only the
+load.
 
-Install refuses rather than replaces when what it finds is not a plist it
-wrote: a symlink at `~/Library/LaunchAgents/com.y3owk1n.mimi.plist` — the shape
-a plist linked out of the Nix store has — or a loaded `com.y3owk1n.mimi` with
-no plist of mimi's behind it. Both look at that one label and nothing else, and
-both errors say so. An installation under any other label is invisible to them,
-and the nix-darwin and home-manager modules each register one of their own —
-[INSTALLATION.md](INSTALLATION.md#post-installation) has what to check by hand.
-
-It also refuses when `launchctl` itself cannot be run at all — missing from
-`PATH`, or unable to be spawned. Both of the checks above
-rest on knowing whether the service is loaded, so an install that guessed would
-be loading a plist over a service that may well be up. Nothing is written; fix
-`launchctl` and run it again.
+Install refuses when the plist at `~/Library/LaunchAgents/com.y3owk1n.mimi.plist`
+is a symlink (a Nix-managed plist), when `com.y3owk1n.mimi` is loaded with no
+plist of mimi's behind it, or when `launchctl` cannot be run. The nix-darwin
+and home-manager modules register under their own labels. See
+[INSTALLATION.md](INSTALLATION.md#post-installation).
 
 ### `mimi services uninstall`
 
-Remove the launchd agent.
-
-A service that is not loaded is uninstalled without complaint — there is
-nothing to unload, and the leftover plist is removed. When a loaded service
-cannot be unloaded, the plist is left in place and the command fails, because a
-service that keeps running until logout with no plist behind it is one nothing
-can uninstall any more. Fix what blocked the unload and run it again.
-
-Forgiving a failed unload takes knowing there was nothing to unload. If
-`launchctl` could not be asked whether the service was loaded, an unload that
-then fails is reported as a failure and the plist is kept — the same as for a
-service known to be loaded. An unload that succeeds is unaffected: it did the
-job either way, and the uninstall finishes.
+Remove the launchd agent. A service that is not loaded is uninstalled without
+complaint. When a loaded service cannot be unloaded, or `launchctl` could not
+say whether it is loaded, the plist is kept and the command fails, so it can
+be run again once the unload works.
 
 ### `mimi services start` / `stop` / `restart` / `status`
 
 Control the launchd service directly.
 
-`restart` restarts the loaded job with a single `launchctl kickstart -k`, in
-place of the `stop` whose failure was thrown away followed by a `start`. launchd
-only kickstarts a job it holds, so the restart is preceded by a check that there
-is one — and when there is not, that is what the command says:
+`restart` uses one `launchctl kickstart -k`, and checks first that a job is
+loaded:
 
 ```
 $ mimi services restart
 Error: [SERVICE_FAILED] there is no loaded service to restart; run `mimi services install` first
 ```
 
-It used to report that same machine as a failure to start the service that was
-not there. `launchctl` failing to run at all is reported as itself and gets no
-such advice — nothing there knows whether a service is installed, and the
-install it would recommend runs through the same `launchctl`.
-
-`status` separates a loaded service from a running one — the installed plist
-sets `KeepAlive`, so a daemon that crashes at startup is relaunched forever
-while staying loaded:
+`status` separates a loaded service from a running one, since `KeepAlive`
+relaunches a crashing daemon while it stays loaded:
 
 ```
 Service loaded and running (pid 1478)
@@ -556,31 +479,17 @@ Service not loaded
 Service state unknown: launchctl could not be run
 ```
 
-The last line is not the same as `Service not loaded`: it means `launchctl`
-itself could not be run — missing from `PATH`, or unable to be spawned — so
-nothing here knows whether the service is up. The captured stream lines below it
-are still printed, since those are files on disk.
-
-The bare `Service loaded` is the fallback, printed whenever neither number is
-available — the daemon has never run, it was killed by a signal rather than
-exiting, or launchd's description of the job could not be read. That
-description is undocumented text, so output mimi cannot parse costs the detail,
-never the answer.
-
-Under that line come the captured console streams the installed plist names,
-with how large each has grown:
+The bare `Service loaded` means neither a PID nor an exit status was
+available. The last line means `launchctl` itself could not be run, so
+nothing is known about the service. Under the state line come the captured
+console streams and their sizes, one run's output each:
 
 ```
-Service loaded and running (pid 1478)
 Captured stdout: /Users/me/.local/state/mimi/mimi.out.log (2.0 KB)
 Captured stderr: /Users/me/.local/state/mimi/mimi.err.log (not created yet)
 ```
 
-A daemon launchd started empties both at startup, so each size is one run's
-console output. `not created yet` is a file launchd has never spawned the
-daemon against, and a stream gets no line at all when there is no plist of
-mimi's to read its path from. See
-[TROUBLESHOOTING.md](TROUBLESHOOTING.md#reading-mimi-services-status).
+See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#reading-mimi-services-status).
 
 ---
 
@@ -592,12 +501,9 @@ Create a default config at `~/.config/mimi/config.toml`.
 
 ### `mimi config validate`
 
-Parse and validate the config file. Exits 0 and prints the hook count when the
-config is good, exits 1 and prints the problems to stderr when it is not.
-
-A key under `[hooks]` that names no hook kind is a failure here — it is a hook
-that would never fire. The daemon is more forgiving: it logs a warning and runs
-with the hooks it did understand, so a typo does not stop mimi from starting.
+Parse and validate the config. Exits 0 with the hook count when good, exits 1
+with the problems on stderr when not. A key under `[hooks]` that names no hook
+kind fails here. The daemon only warns about it and runs the rest.
 
 ```
 $ mimi config validate

@@ -13,14 +13,12 @@ mimi config reload     # reload running daemon (SIGHUP)
 
 ## Reloading
 
-`mimi config reload` (SIGHUP) and the systray's reload menu item both trigger
-the same reload, and the daemon also picks up an edit to the config file on
-disk automatically (fsnotify). All three routes reload `[hooks]` and the
-subset of `[settings]` listed below; a bad config (e.g. an invalid `title`
-regex) leaves the previous, working config in place and logs the failure
-rather than applying it partially.
+`mimi config reload`, the systray's reload item, and an edit to the config
+file on disk all trigger the same reload. A bad config (for example an invalid
+`title` regex) is rejected whole: the previous config stays in place and the
+failure is logged.
 
-**Reloadable** — picked up by every reload:
+**Reloadable**. Every reload picks these up:
 
 - `settings.hook_timeout_secs`
 - `settings.hook_shell`
@@ -28,9 +26,8 @@ rather than applying it partially.
 - `[hooks]` (every hook kind)
 - `[tiling]` (every field)
 
-**Restart-only** — read once at daemon startup and never re-read, so changing
-one takes effect only after the daemon is restarted (`mimi daemon stop &&
-mimi daemon start`, or equivalent):
+**Restart-only**. The daemon reads these once at startup. Restart it to apply
+(`mimi daemon stop && mimi daemon start`):
 
 - `settings.log_file`
 - `settings.log_level`
@@ -41,50 +38,28 @@ mimi daemon start`, or equivalent):
 - `systray.enabled`
 - `systray.show_workspace_number`
 
-**Reinstall-only** — never read by the daemon at all. It is baked into the
-launchd plist by `mimi services install`, so the value in effect is the one in
-the installed plist, and only installing the service again replaces it. A
-restart does not:
+**Reinstall-only**. `mimi services install` writes this into the launchd
+plist. Run it again to apply. A restart does not:
 
 - `settings.service_path`
 
-A reload that changes a restart-only or reinstall-only setting still applies
-everything reloadable, and then logs a warning naming the settings it could not
-apply and what each of them needs, for example:
+A reload still applies everything reloadable, then logs a warning naming the
+settings it could not apply and what each needs:
 
 ```text
 config reloaded; restart required for changed restart-only settings
   trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
-```
-
-```text
 config reloaded; run `mimi services install` for changed reinstall-only settings
   trigger=sighup reinstall_only=["settings.service_path"]
 ```
 
-A reload that changes both logs both lines, in that order.
+The comparison is against the config the daemon started with, so the warning
+repeats on every reload until the file and the running daemon agree. With
+`systray.enabled = true`, a line under **Reload Config** shows the last
+outcome (`Reloaded 14:32`, `Reloaded 14:32 — restart required`,
+`Reloaded 14:32 — run mimi services install`, `Reload failed 14:32`).
 
-A reload that changes only reloadable settings logs the plain
-`config reloaded` line, with neither notice.
-
-The comparison is against the config the daemon started with, not the previous
-edit, so the notice keeps appearing on every reload for as long as the file and
-the running daemon disagree — and stops on its own if you put the old value
-back.
-
-With `systray.enabled = true`, the menu shows the same outcome to someone who
-has no log in front of them: a disabled line under **Reload Config** reading
-`Reloaded 14:32`, `Reloaded 14:32 — restart required`,
-`Reloaded 14:32 — run mimi services install`, or `Reload failed 14:32`, and
-`No config reload yet` until the daemon has reloaded once. It reports the
-daemon's own reload, so every route above updates it, not just the menu item.
-The line shows one outcome, so a reload that needs both a restart and a
-reinstall shows the restart — the instruction that holds however the daemon
-was started — and the log names both.
-
-These lists are not maintained by hand: each config field is classified on the
-type itself, and a test fails if this document and that classification
-disagree.
+A test checks these lists against the classification on the config type.
 
 ---
 
@@ -92,106 +67,63 @@ disagree.
 
 ```toml
 [settings]
-log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only — restart-only
-log_level = "info"                           # debug | info | warn | error — restart-only
-log_format = "text"                          # text | json — console output only — restart-only
+log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only. restart-only
+log_level = "info"                           # debug | info | warn | error. restart-only
+log_format = "text"                          # text | json, console output only. restart-only
 hook_timeout_secs = 10
 hook_shell = "/bin/sh"
 max_hook_workers = 4                         # restart-only
 pid_file = "~/.local/share/mimi/mimi.pid"    # restart-only
 socket_file = "~/.local/share/mimi/mimi.sock" # restart-only
 resize_debounce_ms = 250                     # on_window_resize debounce window
-service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" # PATH for the installed service — reinstall-only
+service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" # PATH for the installed service. reinstall-only
 ```
 
-`log_format` selects the **console** encoder only: `text` is the human-readable
-line (colorized when the console is a terminal), `json` is one JSON object per
-line with no color. The `log_file` log is always JSON, whatever `log_format`
-says, so anything already piping that file through `jq` keeps working. An
-unrecognized value logs a warning and falls back to `text`.
+`log_format` selects the console encoder only. The `log_file` log is always
+JSON, so piping it through `jq` keeps working. An unrecognized value warns and
+falls back to `text`.
 
 ### socket_file
 
-`socket_file` is the Unix socket the daemon listens on and `mimi action …`
-looks for it on. Every `mimi action` invocation resolves its config path
-first (the default path when `-c`/`--config` is not given) and reads
-`socket_file` from it, then checks that socket:
+The Unix socket the daemon listens on. Every `mimi action` reads `socket_file`
+from its config and checks it:
 
-- **A daemon is listening** — the action is sent over the socket and runs on
-  the daemon's dedicated OS thread.
-- **Nothing is listening** — the CLI falls back to running the action
-  directly, in the CLI's own process.
+- When a daemon is listening, the action runs on the daemon.
+- When nothing is listening, the CLI runs the action in its own process.
 
-Both paths produce the same result, but not with the same timing: the daemon
-path is a socket round trip; the direct path runs in-process with no daemon
-involved at all. If you run the daemon with a non-default `socket_file`, that
-value is what routes `mimi action` to it — a mismatch between the two (or a
-daemon that hasn't picked up a changed `socket_file`, since it is
-restart-only) means actions silently execute directly instead of reaching the
-daemon. See [Troubleshooting](TROUBLESHOOTING.md#mimi-action-runs-but-seems-to-ignore-the-running-daemon)
-for how to tell which path an action actually took.
+A mismatch between the daemon's socket and the CLI's config means actions
+silently run directly. See
+[Troubleshooting](TROUBLESHOOTING.md#mimi-action-runs-but-seems-to-ignore-the-running-daemon).
 
 ### service_path
 
-`service_path` is the `PATH` `mimi services install` writes into the launchd
-plist, and therefore the `PATH` the installed daemon — and every hook it runs
-— inherits. Unset, it is
-`/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin`, which is what the plist has
-always hardcoded.
-
-Set it when a hook works from your shell but does nothing under the installed
-service. A login shell's `PATH` never reaches a launchd agent, so a hook
-calling something in `~/.local/bin`, a Nix profile, or a language version
-manager needs that directory listed here:
+The `PATH` written into the launchd plist by `mimi services install`, and so
+the `PATH` the installed daemon and every hook inherit. Set it when a hook
+works from your shell but not under the service: a login shell's `PATH` never
+reaches a launchd agent.
 
 ```toml
 [settings]
 service_path = "/Users/me/.local/bin:/run/current-system/sw/bin:/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin"
 ```
 
-It is the whole `PATH`, not an addition to one: what you write is what the
-service gets, so keep the directories you still need. Write absolute
-directories: unlike `log_file` and the other path settings, `~` is not expanded
-here, and launchd does not expand it either — a `~/.local/bin` entry is a
-directory the service will never find anything in.
-
-It is reinstall-only. The daemon never reads it — the value that matters is the
-one already in the installed plist — so run `mimi services install` after
-changing it. That re-renders the plist and reloads the service; a `mimi
-services restart`, or a plain daemon restart, keeps the old `PATH`. Running
-`mimi start` by hand ignores this setting entirely: that daemon inherits the
-`PATH` of whatever started it.
-
-If your service comes from the nix-darwin or home-manager module rather than
-from `mimi services install`, that module renders its own agent and this
-setting does not reach it — set `services.mimi.extraEnvironment.PATH` there
-instead.
+- It is the whole `PATH`, not an addition. Keep the directories you still need.
+- Write absolute directories. `~` is not expanded here.
+- Run `mimi services install` after changing it. A restart keeps the old `PATH`.
+- `mimi start` by hand ignores it and inherits the caller's `PATH`.
+- The nix-darwin and home-manager modules render their own agent. Set
+  `services.mimi.extraEnvironment.PATH` there instead.
 
 ### Debug logging
 
-`log_level = "debug"` adds two extra lines per routed event: a router
-`"event"` line (one per event reaching the bus) and, for each hook
-registered on that event's kind, an executor `"hook matched"` or
-`"hook skipped"` line.
+`log_level = "debug"` logs one `"event"` line per routed event and one
+`"hook matched"` / `"hook skipped"` line per hook on that kind. These carry
+only counts, IDs, kinds, PIDs, booleans, and the hook's `index` within its
+kind. Window titles and `run` commands are never logged.
 
-Both record only counts, IDs, kinds, PIDs, and booleans: `kind`, `app`,
-`bundle`, `pid`, `event_id`, the hook's `index` within its kind (0-based,
-scoped to hooks of the same kind — enough to tell two hooks apart in the
-log), the `reason` a hook was skipped (a fixed string, e.g.
-`"app filter mismatch"`), and `title_present` (whether the window has a
-non-empty title). They never record the window title itself or a hook's
-`run` command text, even at `debug`.
-
-The `"hook ok"` / `"hook timed out"` / `"hook failed"` lines emitted after a
-hook finishes running follow the same rule: they identify the hook by the
-same `index`, and none of them records the `run` command text.
-
-One gap remains. The `"hook ok"` line still logs the hook's own captured
-stdout and stderr as `output` (trimmed, and capped at 64 KiB). That is hook
-output, i.e. a user payload, and it is an open exception to AGENTS.md's
-"never log ... other user payloads" rule. It is emitted only at
-`log_level = "debug"`; at `info` and above no hook output reaches the log,
-and the `"hook failed"` line reports the failure through `exit` alone.
+One exception: at `debug`, the `"hook ok"` line includes the hook's captured
+stdout and stderr as `output` (trimmed, capped at 64 KiB). At `info` and above
+no hook output reaches the log.
 
 ---
 
@@ -200,7 +132,7 @@ and the `"hook failed"` line reports the failure through `exit` alone.
 ```toml
 [systray]
 enabled = true                 # restart-only
-show_workspace_number = true   # show active space number in menu bar — restart-only
+show_workspace_number = true   # show active space number in menu bar. restart-only
 ```
 
 ---
@@ -225,52 +157,54 @@ easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
 
 mimi ships no layout. `layout` is a command line, run through
 `settings.hook_shell`, that reads the tiling input as JSON on stdin and prints
-the frames to apply as JSON on stdout. The daemon runs it whenever a window is
-created, closed or focused, an application hides, unhides or quits, or the
-space changes, waiting `debounce_ms` for the burst to settle so one pass covers
-it.
+the frames to apply as JSON on stdout. `examples/tiling/` holds layouts to
+copy, and [TILING.md](TILING.md) is the guide to writing one.
 
-`layout_mode` is how the daemon runs it. With `oneshot`, the default, every
-pass starts a new process, writes the input, and reads until it exits. With
-`resident`, the daemon starts the process once and keeps it running. Each
-pass writes the input as one line on its stdin and reads one line of output
-from its stdout, so a layout in an interpreted language skips its startup on
-every pass after the first. That is what lets a held scroll key keep up.
-A resident layout must flush its output after every line, and must exit when
-stdin closes. The daemon stops it on a reload that changes the command, when
-tiling is disabled, and when it quits. A layout that exits between passes is
-started again on the next pass. One that fails a pass is started again after
-a wait that doubles with each failure in a row, up to five seconds. The
-layouts in `examples/tiling/` work in both modes.
+`enabled = true` requires `layout` and Accessibility permission. Without the
+permission tiling stays off and a warning says so. `mimi tiling preview` runs
+the layout once and prints what it would apply, whether or not tiling is
+enabled.
 
-A command sent with `mimi tiling cmd` runs one pass. While that pass runs,
-one more command of the same name may wait, and further copies are dropped.
-A held key repeats faster than passes run, and dropping the extra copies is
-what keeps the screen in step with the key and stops the scrolling when the
-key is released.
+### When a pass runs
 
-Moves and resizes are opt-in, with `relayout_on_drag = true`, because every
-frame the engine writes is one and a layout that ran on its own writes would
-never stop. With it set, the engine remembers where each window it placed
-actually landed and treats a move or resize as the user's only when a placed
-window is somewhere else, which is what lets a layout read a dragged edge as a
-new split ratio, or a window dropped on another as a swap. A move or resize
-within a second of the engine's own write is taken as that write settling.
+The daemon runs the layout after `debounce_ms` of quiet following a window
+create, close or focus, an application hide, unhide or quit, or a space
+change. It runs once per display that has a window on it.
 
-The layout runs once per display that has a window on it. The input is the
-same JSON `mimi query windows` and `mimi query displays` print, narrowed to
-that display's windows, plus the display itself, the event that woke the
-engine, the space in front on that display, the gap to leave (`tiling.gap`
-when set, else the macOS tiled-window margin that `resize_window` honours,
-or 0 when that is off), and the `state` the layout returned last time for
-that display and space, or `null` the first time.
-`event.kind` is the hook event name; `startup` for the pass the daemon runs
-as it starts with tiling enabled; `reload` for the pass a reload runs when it
-switches tiling on or names another layout; or `preview`, `relayout` or
-`command` from the `mimi tiling` subcommands. A `command` carries `name` and
-`args`, and what they mean is the layout's to decide; a `window_resize`
-or a `window_move` carries `windows`, the numbers of the windows the user
-dragged:
+Moves and resizes run a pass only with `relayout_on_drag = true`, since the
+engine's own writes are moves too. The engine remembers where it placed each
+window and treats a move or resize as the user's only when a placed window is
+elsewhere, so a layout can read a dragged edge as a new split ratio or a drop
+as a swap. A move within a second of the engine's write counts as that write
+settling.
+
+`mimi tiling cmd` runs one pass. While it runs, one more command of the same
+name may wait and the daemon drops further copies, so a held key does not
+queue up passes.
+
+### layout_mode
+
+- `oneshot` (default): every pass starts a new process.
+- `resident`: one process, started once. Each pass writes one line of input
+  to stdin and reads one line from stdout, so an interpreted layout starts
+  up only once. The layout must flush after every line and exit when
+  stdin closes. The daemon restarts it if it exits, backing off up to five
+  seconds after repeated failures, and stops it on disable, on a reload that
+  changes the command, and on quit.
+
+The layouts in `examples/tiling/` work in both modes.
+
+### Input and output
+
+Input is the JSON `mimi query windows` and `mimi query displays` print,
+narrowed to one display, plus the display, the waking event, the space in
+front, the `gap` to leave, and the `state` the layout returned last time for
+that display and space (`null` the first time).
+
+`event.kind` is a hook event name, or `startup`, `reload`, `preview`,
+`relayout` or `command`. A `command` carries `name` and `args`, whose meaning
+is the layout's to decide. A `window_resize` or `window_move` carries
+`windows`, the numbers the user dragged.
 
 ```json
 {"version":1,
@@ -284,49 +218,47 @@ dragged:
  "state":null}
 ```
 
-The output is the frames, in the shape `mimi action apply_frames` takes, the
-state to hand back next time, and optionally `focus`, a window number to give
-keyboard focus once the frames are applied. Printing nothing changes nothing:
+Output is the frames in the shape `mimi action apply_frames` takes, the
+`state` to hand back next time, and optionally `focus`, a window number to
+focus once applied. Printing nothing changes nothing:
 
 ```json
 {"frames":[{"number":4242,"frame":{"x":0,"y":25,"width":720,"height":875}}],
  "state":{"master":4242}}
 ```
 
-`version` moves when a field is renamed, removed or changes meaning, so a
-layout can refuse an input it was not written for. A layout that exits
-non-zero, times out, or prints something that is not this shape is logged and
-applies nothing; the next event tries again.
+`version` changes when a field is renamed, removed or changes meaning. The
+daemon logs a layout that exits non-zero, times out, or prints the wrong
+shape, and applies nothing.
 
-With `[tiling.animation]` enabled, the windows move to the frames a pass
-returns over `duration_ms`, along the `easing` curve, instead of at once. The
-window server draws the animation from pictures of the windows, so the
-applications do no more work than for an instant move. A pass that arrives
-while an animation is running continues from where the windows are on
-screen. A window the user just dragged moves at once, and a layout can
-exclude any window with `animate: false` on its frame (see
-[TILING.md](TILING.md)). Taking the pictures needs the Screen Recording
-permission. With the animation enabled the daemon asks for it once, at
-startup and on reload. Until it is granted the windows move at once and a
-warning says so. macOS applies a grant when mimi next starts. With the
-animation disabled, the default, the daemon captures nothing and asks for
-nothing.
+### Animation
 
-`enabled = true` requires `layout`, and Accessibility permission, which the
-daemon checks at startup and on every reload: without it tiling stays off and
-a warning says so. `mimi tiling preview` runs the layout once against the
-desktop and prints what it would apply, whether or not tiling is enabled.
-`examples/tiling/` in the repository holds layouts to copy and make your own,
-and [TILING.md](TILING.md) is the guide from first run to writing one.
+With `[tiling.animation]` enabled, windows move to their frames over
+`duration_ms` along the `easing` curve. A pass that lands mid-animation
+continues from where the windows are. A window the user just dragged moves at
+once, and a layout can opt a window out with `animate: false` on its frame.
+
+**Animation requires Screen Recording permission.** macOS lets a process
+move another application's window, but not fade, transform or reorder it.
+So mimi takes a picture of each window and of the rest of the screen, moves
+the real windows to their frames at once behind that still, and has the
+window server slide the pictures into place. No application does any work
+while the animation runs. Taking those pictures is a screen capture, and
+macOS gates every screen capture behind Screen Recording.
+
+- The daemon asks for the permission once, at startup and on reload, and only
+  while the animation is enabled. With it disabled, the default, mimi
+  captures nothing and never asks.
+- Until it is granted, windows move at once and a warning says so.
+- Grant it in System Settings > Privacy & Security > Screen & System Audio
+  Recording, then restart mimi. macOS applies the grant on the next start.
 
 ---
 
 ## Hooks
 
-The hook kinds below are the complete set — `[hooks]` accepts no other keys. A
-key that is not one of them is a hook that can never fire, so `mimi config
-validate` rejects it and the daemon logs a warning at startup and on reload
-while running the hooks it did understand.
+The hook kinds below are the complete set. `mimi config validate` rejects any
+other key under `[hooks]`, and the daemon warns about it on startup and reload.
 
 ### Application Lifecycle
 
@@ -377,7 +309,10 @@ on_window_focus = [
 | `timeout_secs` | Override global timeout |
 | `async` | Run in background (default: false) |
 
-**Negating a filter:** an `app`, `bundle_id`, `title` or `space` filter that begins with `!` matches everything the pattern does not. `app = "!Safari"` fires for every application but Safari; `space = "!2"` fires for every space but the second. A filter that is only `!` is rejected. The space filter is written as a bare number (`space = 2`) or, when negated, as a string.
+**Negating a filter:** a filter that begins with `!` matches everything the
+pattern does not. `app = "!Safari"` fires for every app but Safari. A filter
+that is only `!` is rejected. Write `space` as a bare number, or as a string
+when negated:
 
 ```toml
 [hooks]
@@ -390,7 +325,8 @@ on_window_focus = [
 ]
 ```
 
-A workspace event that could not resolve its space (Mission Control could not be enumerated) carries no space number; it fails every `space` filter and passes every negated one.
+A workspace event whose space could not be resolved fails every `space`
+filter and passes every negated one.
 
 ---
 
@@ -412,21 +348,15 @@ Every hook receives:
 | `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
 | `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
 
-Use `$mimi_APP_NAME` or `${mimi_WINDOW_TITLE}` in hook commands. Each value is
-substituted as a single, self-quoted shell token, so write the reference
-**without** wrapping it in your own quotes:
+Write references **without** your own quotes. Each value is substituted as a
+single, self-quoted shell token, so a crafted window title cannot break out of
+the command. A reference inside your own double quotes shows the wrapping
+quotes literally.
 
 ```toml
-# Correct — the value quotes itself:
+# Correct, the value quotes itself:
 on_window_title_change = [{ run = "notify-send $mimi_WINDOW_TITLE" }]
 ```
-
-This matters because a value can contain anything — a window title is chosen by
-whatever web page or document is open — and mimi runs the command through a
-shell. Self-quoting stops a crafted title from breaking out and running as its
-own command. One consequence: a reference placed inside your own double quotes
-(`"... $mimi_WINDOW_TITLE ..."`) will show the wrapping quotes literally; leave
-it unquoted instead.
 
 ---
 
