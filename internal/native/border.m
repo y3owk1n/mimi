@@ -36,6 +36,8 @@ static const int kMimiOrderBelow = -1;
 // does not say.
 @property(nonatomic) double radius;
 @property(nonatomic) BOOL active;
+// space is the space the border was shown on.
+@property(nonatomic) uint64_t space;
 @property(nonatomic, strong) CAShapeLayer *ring;
 @end
 
@@ -105,20 +107,37 @@ static uint32_t mimiFocusedWindowNumber(void) {
 	return number;
 }
 
-// The space ids in front on every display, and the displays' bounds.
-static NSArray<NSNumber *> *mimiSpacesInFront(CGRect *displays, uint32_t *displayCount) {
+// The space ids in front on every display. displays and front get each
+// display's bounds and the id of the space in front of it.
+static NSArray<NSNumber *> *mimiSpacesInFront(CGRect *displays, uint64_t *front, uint32_t *displayCount) {
 	NSMutableArray<NSNumber *> *spaces = [NSMutableArray array];
 	CGDirectDisplayID ids[16];
 	uint32_t count = 0;
 	CGGetActiveDisplayList(16, ids, &count);
 	for (uint32_t i = 0; i < count; i++) {
 		displays[i] = CGDisplayBounds(ids[i]);
-		uint64_t sid = MimiDisplayActiveSpaceID(ids[i]);
-		if (sid)
-			[spaces addObject:@(sid)];
+		front[i] = MimiDisplayActiveSpaceID(ids[i]);
+		if (front[i])
+			[spaces addObject:@(front[i])];
 	}
 	*displayCount = count;
 	return spaces;
+}
+
+// The id of the space in front on the display that frame overlaps most, or
+// 0 when frame overlaps no display.
+static uint64_t mimiSpaceUnder(CGRect frame, const CGRect *displays, const uint64_t *front, uint32_t displayCount) {
+	uint64_t space = 0;
+	double best = 0;
+	for (uint32_t i = 0; i < displayCount; i++) {
+		CGRect overlap = CGRectIntersection(frame, displays[i]);
+		double area = overlap.size.width * overlap.size.height;
+		if (area > best) {
+			best = area;
+			space = front[i];
+		}
+	}
+	return space;
 }
 
 // Whether frame fills a display, which is how a full-screen window sits: a
@@ -241,8 +260,9 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	}
 
 	CGRect displays[16];
+	uint64_t front[16];
 	uint32_t displayCount = 0;
-	NSArray<NSNumber *> *spaces = mimiSpacesInFront(displays, &displayCount);
+	NSArray<NSNumber *> *spaces = mimiSpacesInFront(displays, front, &displayCount);
 	CFArrayRef radiiRef = NULL;
 	NSArray<NSNumber *> *numbers =
 	    CFBridgingRelease(MimiCopyRealWindowsOnSpaces((__bridge CFArrayRef)spaces, &radiiRef));
@@ -252,6 +272,7 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	pid_t self = getpid();
 	NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
 	int made = 0;
+	int moved = 0;
 	for (NSDictionary *info in (__bridge NSArray *)described) {
 		if ([info[(id)kCGWindowOwnerPID] intValue] == self)
 			continue;
@@ -264,10 +285,20 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		NSNumber *key = info[(id)kCGWindowNumber];
 		uint32_t number = key.unsignedIntValue;
 		BOOL active = number == gFocused;
+		uint64_t space = mimiSpaceUnder(bounds, displays, front, displayCount);
 		MimiBorder *border = gBorders[key];
+		// A border stays on the space it was shown on, so a window that
+		// moved to another space left its border behind. Close that one
+		// and make a new one on the window's space.
+		if (border && border.space != space) {
+			[border close];
+			border = nil;
+			moved++;
+		}
 		BOOL fresh = border == nil;
 		if (fresh) {
 			border = mimiNewBorder();
+			border.space = space;
 			gBorders[key] = border;
 			made++;
 		}
@@ -301,7 +332,9 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	}
 
 	if (made || dropped) {
-		MIMI_LOG("borders synced: %lu shown, %d added, %d dropped", (unsigned long)gBorders.count, made, dropped);
+		MIMI_LOG(
+		    "borders synced: %lu shown, %d added, %d dropped, %d moved across spaces", (unsigned long)gBorders.count,
+		    made, dropped, moved);
 	}
 }
 
