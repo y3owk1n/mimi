@@ -27,9 +27,10 @@
 // here. Every layer and window lives on the main thread, where the daemon
 // runs its application loop, and the calls below go there.
 
-// Window layers at and above the Dock's are never covered, so they are left
-// out of the backdrop.
-static const int kMimiDockLayer = 20;
+// Window layers above the floating level, where the host window sits, show
+// through it on their own: a picture-in-picture player, the Dock, the menu
+// bar. They are left out of the backdrop, and need no still of their own.
+static const int kMimiHostLayer = 3;
 
 // How many window masks are remembered.
 enum {
@@ -160,6 +161,57 @@ typedef struct {
 static MimiMask gMasks[kMimiMaskCacheSize];
 static int gMaskCount;
 static int gMaskNext;
+
+// The pictures of the windows an animation parked off every display, by
+// number, kept while they stay there: nothing draws a window the user
+// cannot see, so the picture it left with is the picture it comes back
+// with, and its capture, a round trip of its own, is saved.
+@interface MimiParked : NSObject
+@property(nonatomic) CGSize size;
+@property(nonatomic) double scale;
+@property(nonatomic) CGImageRef picture;
+@end
+
+@implementation MimiParked
+
+- (void)dealloc {
+	if (_picture) {
+		CGImageRelease(_picture);
+	}
+}
+
+@end
+
+static NSMutableDictionary<NSNumber *, MimiParked *> *gParked;
+
+enum {
+	kMimiParkedLimit = 16,
+};
+
+// The last still taken under the proxies of each display, with what it
+// showed and when: taken again within a second for the same windows at the
+// same places it would show the same, but for what those windows drew
+// since, which a still on screen for the length of an animation hides.
+@interface MimiStill : NSObject
+@property(nonatomic) MimiEntry *shows;
+@property(nonatomic) int showsCount;
+@property(nonatomic) double taken;
+@property(nonatomic) CGImageRef picture;
+@end
+
+@implementation MimiStill
+
+- (void)dealloc {
+	free(_shows);
+	if (_picture) {
+		CGImageRelease(_picture);
+	}
+}
+
+@end
+
+static NSMutableDictionary<NSNumber *, MimiStill *> *gStills;
+static const double kMimiStillFor = 1.0;
 
 #pragma mark - Helpers
 
@@ -473,6 +525,73 @@ static MimiBackdrop *mimiReusable(CGDirectDisplayID display, BOOL over, const Mi
 	return nil;
 }
 
+// The still last taken under this display's proxies, retained, when it
+// showed these very windows where they are now and is recent.
+static CGImageRef mimiRecentStill(CGDirectDisplayID display, const MimiEntry *shows, int showsCount) {
+	MimiStill *still = gStills[@(display)];
+	if (!still || CACurrentMediaTime() - still.taken > kMimiStillFor ||
+	    !mimiSameEntries(still.shows, still.showsCount, shows, showsCount)) {
+		return NULL;
+	}
+	return CGImageRetain(still.picture);
+}
+
+static void mimiRememberStill(CGDirectDisplayID display, const MimiEntry *shows, int showsCount, CGImageRef picture) {
+	if (!gStills) {
+		gStills = [NSMutableDictionary new];
+	}
+	MimiStill *still = [MimiStill new];
+	still.shows = calloc((size_t)showsCount + 1, sizeof(MimiEntry));
+	memcpy(still.shows, shows, (size_t)showsCount * sizeof(MimiEntry));
+	still.showsCount = showsCount;
+	still.taken = CACurrentMediaTime();
+	still.picture = CGImageRetain(picture);
+	gStills[@(display)] = still;
+}
+
+// The picture a window was parked off screen with, retained, when it is
+// still the size it left at.
+static CGImageRef mimiParkedPicture(uint32_t number, CGSize size, double scale) {
+	MimiParked *parked = gParked[@(number)];
+	if (!parked || !mimiSameSize(parked.size, size) || parked.scale != scale) {
+		return NULL;
+	}
+	return CGImageRetain(parked.picture);
+}
+
+static BOOL mimiOffEveryDisplay(CGRect frame) {
+	CGDirectDisplayID displays[16];
+	uint32_t count = 0;
+	CGGetDisplaysWithPoint(CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame)), 16, displays, &count);
+	return count == 0;
+}
+
+// Keep the pictures of the proxies parking off screen, and forget those of
+// the windows on screen now, which may draw before they park again.
+static void mimiRememberParked(NSArray<MimiProxy *> *proxies) {
+	if (!gParked) {
+		gParked = [NSMutableDictionary new];
+	}
+	for (MimiProxy *proxy in proxies) {
+		if (!mimiOffEveryDisplay(proxy.from)) {
+			[gParked removeObjectForKey:@(proxy.number)];
+		}
+	}
+	for (MimiProxy *proxy in proxies) {
+		if (!proxy.picture || !mimiOffEveryDisplay(proxy.to)) {
+			continue;
+		}
+		if (gParked.count >= kMimiParkedLimit && !gParked[@(proxy.number)]) {
+			[gParked removeObjectForKey:gParked.allKeys.firstObject];
+		}
+		MimiParked *parked = [MimiParked new];
+		parked.size = proxy.to.size;
+		parked.scale = proxy.scale;
+		parked.picture = CGImageRetain(proxy.picture);
+		gParked[@(proxy.number)] = parked;
+	}
+}
+
 static MimiBackdrop *mimiNewBackdrop(
     CGDirectDisplayID display, CGRect bounds, BOOL over, const MimiEntry *shows, int showsCount, CGImageRef still,
     MimiBackdrop *reused) {
@@ -596,7 +715,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	BOOL passed = NO;
 	int depth = 0;
 	for (NSDictionary *info in (__bridge NSArray *)onScreen) {
-		if ([info[(id)kCGWindowOwnerPID] intValue] == self || [info[(id)kCGWindowLayer] intValue] >= kMimiDockLayer) {
+		if ([info[(id)kCGWindowOwnerPID] intValue] == self || [info[(id)kCGWindowLayer] intValue] > kMimiHostLayer) {
 			continue;
 		}
 		MimiEntry entry = {.number = [info[(id)kCGWindowNumber] unsignedIntValue]};
@@ -697,9 +816,15 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		if (keptUnder) {
 			[backdrops addObject:mimiNewBackdrop(displays[d], bounds, NO, others, othersCount, NULL, keptUnder)];
 		} else if (othersCount > 0) {
-			CFArrayRef list = mimiNumbers(others, othersCount);
-			CGImageRef still = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
-			CFRelease(list);
+			CGImageRef still = mimiRecentStill(displays[d], others, othersCount);
+			if (!still) {
+				CFArrayRef list = mimiNumbers(others, othersCount);
+				still = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
+				CFRelease(list);
+				if (still) {
+					mimiRememberStill(displays[d], others, othersCount, still);
+				}
+			}
 			if (still) {
 				[backdrops addObject:mimiNewBackdrop(displays[d], bounds, NO, others, othersCount, still, nil)];
 			}
@@ -761,13 +886,20 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				proxy.picture = CGWindowListCreateImage(
 				    proxy.from, kCGWindowListOptionIncludingWindow, proxy.number, kCGWindowImageBestResolution);
 			} else {
-				// Off the display, a window has pixels only when asked for
-				// by its own bounds: a rectangle there comes back empty. Its
-				// picture is opaque, a flat tint where the window is
-				// translucent, since nothing is under it to blend with.
-				proxy.picture = CGWindowListCreateImage(
-				    CGRectNull, kCGWindowListOptionIncludingWindow, proxy.number,
-				    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
+				// A window parked by an earlier animation comes back with
+				// the picture it left with. Otherwise, off the display, a
+				// window has pixels only when asked for by its own bounds: a
+				// rectangle there comes back empty. That picture is opaque,
+				// a flat tint where the window is translucent, since nothing
+				// is under it to blend with.
+				proxy.picture = mimiParkedPicture(proxy.number, proxy.from.size, scale);
+				if (proxy.picture) {
+					proxy.mask = mimiCachedMask(proxy.number, proxy.from.size, scale);
+				} else {
+					proxy.picture = CGWindowListCreateImage(
+					    CGRectNull, kCGWindowListOptionIncludingWindow, proxy.number,
+					    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
+				}
 			}
 			proxy.scale = scale;
 			if (!proxy.picture) {
@@ -807,6 +939,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		backdrop.still = NULL;
 		[mimiHost(backdrop.display, backdrop.bounds).root addSublayer:backdrop.layer];
 	}
+	mimiRememberParked(next);
 	NSMutableArray<MimiProxy *> *made = [NSMutableArray array];
 	for (MimiProxy *proxy in next) {
 		if (proxy.carried || proxy.picture) {
