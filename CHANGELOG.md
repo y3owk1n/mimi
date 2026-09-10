@@ -1,5 +1,48 @@
 # Changelog
 
+## [0.13.0](https://github.com/y3owk1n/mimi/compare/v0.12.0...v0.13.0) (2026-09-10)
+
+
+### Features
+
+* **border:** draw a border under every window with the focused one in its own colour ([#223](https://github.com/y3owk1n/mimi/issues/223)) ([0aa5c15](https://github.com/y3owk1n/mimi/commit/0aa5c1593c15a11c9375ca0afcc5bd8e34b886e9))
+* **permissions:** guide the user through Screen Recording at startup ([#225](https://github.com/y3owk1n/mimi/issues/225)) ([3b5b7d4](https://github.com/y3owk1n/mimi/commit/3b5b7d48a02e065ce6a9623654abea5cd8e1a51f))
+* **tiling:** animate windows into the frames a layout returns ([#217](https://github.com/y3owk1n/mimi/issues/217)) ([c3b2651](https://github.com/y3owk1n/mimi/commit/c3b2651bac2ffc2fc5b1ad48e58e1959dfe97b88))
+* **tiling:** float a window out of the strip example ([#212](https://github.com/y3owk1n/mimi/issues/212)) ([4cf537f](https://github.com/y3owk1n/mimi/commit/4cf537f57b7bd2d8e3a8b8d7fea1e4a12f21aaee))
+* **tiling:** keep the layout running between passes and drop queued repeats ([#218](https://github.com/y3owk1n/mimi/issues/218)) ([7f1eb02](https://github.com/y3owk1n/mimi/commit/7f1eb02822bce53d0e8755a4679235dce392a31e))
+* **tiling:** move a window up or down within a strip column ([#232](https://github.com/y3owk1n/mimi/issues/232)) ([0e86520](https://github.com/y3owk1n/mimi/commit/0e8652060e16a1bfcb8ade42ff03a72b7c9da7e4))
+* **tiling:** open listed apps at a fixed place on the strip ([#216](https://github.com/y3owk1n/mimi/issues/216)) ([190deca](https://github.com/y3owk1n/mimi/commit/190deca1c97ac9760c49fa40be69a2972b20b37a))
+* **tiling:** relayout on minimize and close, leave full-screen spaces alone ([#224](https://github.com/y3owk1n/mimi/issues/224)) ([ca32fc7](https://github.com/y3owk1n/mimi/commit/ca32fc7d92a366e9c696e688dd80435598eeb8b6))
+* **tiling:** step and reverse the strip example's column width ([#211](https://github.com/y3owk1n/mimi/issues/211)) ([aeb8f0d](https://github.com/y3owk1n/mimi/commit/aeb8f0d25b7725e0f8ca7da076bbff3f5c16e542))
+
+
+### Bug Fixes
+
+* **border:** redraw a border on the space its window moved to ([#227](https://github.com/y3owk1n/mimi/issues/227)) ([9c9c5fd](https://github.com/y3owk1n/mimi/commit/9c9c5fda229e4b11a74da2a595686aebe243b0bb))
+* **tiling:** do not take a full-screen switch for a drag ([#230](https://github.com/y3owk1n/mimi/issues/230)) ([97d3bee](https://github.com/y3owk1n/mimi/commit/97d3bee7b7198157d6a410c96cc515f5cdfc71ae))
+* **tiling:** expel and reorder stacked strip windows by drag ([#233](https://github.com/y3owk1n/mimi/issues/233)) ([fbe18e2](https://github.com/y3owk1n/mimi/commit/fbe18e28a5e665f85fe46a0b569a50cc15712447))
+* **tiling:** keep a strip column's neighbour in view past half width ([#208](https://github.com/y3owk1n/mimi/issues/208)) ([6ab0a5a](https://github.com/y3owk1n/mimi/commit/6ab0a5a86d683934fa7f61730719402de0465231))
+* **tiling:** keep floating windows on top while the animation runs ([#220](https://github.com/y3owk1n/mimi/issues/220)) ([4b094a0](https://github.com/y3owk1n/mimi/commit/4b094a0a488d511e1686873fb3e49f7d3f40a6c7))
+* **tiling:** leave focus on a floating window after a close in strip ([#229](https://github.com/y3owk1n/mimi/issues/229)) ([6cd62c0](https://github.com/y3owk1n/mimi/commit/6cd62c0b3cc4dec28060c7b197c59d0f95217f73))
+* **tiling:** scroll edge columns whole and carry proxies across held scrolls ([#226](https://github.com/y3owk1n/mimi/issues/226)) ([3a96bc0](https://github.com/y3owk1n/mimi/commit/3a96bc0f33471f92c4fccfb5bdfece13594c7ea7))
+* **tiling:** scroll the strip example in steps instead of whole columns ([#210](https://github.com/y3owk1n/mimi/issues/210)) ([0cf5c79](https://github.com/y3owk1n/mimi/commit/0cf5c791336e1c14b7e7558e0404a4292a4a2cda))
+* **tiling:** scroll the strip while a floating window has focus ([#215](https://github.com/y3owk1n/mimi/issues/215)) ([f07d79d](https://github.com/y3owk1n/mimi/commit/f07d79d1678cae19225508721deef9601234a40c))
+* **tiling:** take every animation layer down after a held scroll ([#228](https://github.com/y3owk1n/mimi/issues/228)) ([d9a01e0](https://github.com/y3owk1n/mimi/commit/d9a01e05a467120b83ba8e1fc7cadedfe4fd3ae5))
+
+
+### Performance Improvements
+
+* **tiling:** make animated navigation immediate ([#222](https://github.com/y3owk1n/mimi/issues/222)) ([8324c9a](https://github.com/y3owk1n/mimi/commit/8324c9a98c63e7fc6d23d42870bc13a87c018b4d))
+* **tiling:** write frames per app at once and draw translucent proxies as seen ([#221](https://github.com/y3owk1n/mimi/issues/221)) ([a7c3e69](https://github.com/y3owk1n/mimi/commit/a7c3e690cc889430a7ffe6b2161fa5610fd1dd37))
+
+
+### Documentation
+
+* condense CONFIGURATION.md and CLI.md and explain the animation permission ([#219](https://github.com/y3owk1n/mimi/issues/219)) ([eb57b45](https://github.com/y3owk1n/mimi/commit/eb57b45169e88ae120ac2e6de1d4dfad71b9d83a))
+* **tiling:** bring the tiling guide back in line with the code ([#231](https://github.com/y3owk1n/mimi/issues/231)) ([f0283ac](https://github.com/y3owk1n/mimi/commit/f0283ac74fe5517d4f69db186832c171e7a66319))
+* **tiling:** correct the tiling guide against the engine ([#213](https://github.com/y3owk1n/mimi/issues/213)) ([0ac7874](https://github.com/y3owk1n/mimi/commit/0ac7874a4a698364674a5031e9288cc4b9a8c9a4))
+* **tiling:** note what matters when picking a layout language ([#214](https://github.com/y3owk1n/mimi/issues/214)) ([c5e4a91](https://github.com/y3owk1n/mimi/commit/c5e4a916406306202a10ff9cf009e6deb6544731))
+
 ## [0.12.0](https://github.com/y3owk1n/mimi/compare/v0.11.1...v0.12.0) (2026-09-08)
 
 
