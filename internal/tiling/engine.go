@@ -763,6 +763,12 @@ func isDrag(kind string) bool {
 // resizes itself a little on every move, and raises both. A drag that
 // changed position more than it changed size is a move; anything else,
 // which includes a dragged edge, is a resize.
+//
+// A window entering or leaving full screen raises the same events, and
+// nothing is a drag then. macOS animates the space switch and reports every
+// window on the display at a frame along the way, so those frames are
+// neither compared nor remembered. The switch raises the event that lays
+// the space out.
 func (e *Engine) userDragged() (string, []uint32) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -771,14 +777,18 @@ func (e *Engine) userDragged() (string, []uint32) {
 		return "", nil
 	}
 
-	if time.Since(e.appliedAt) < e.resizeGrace {
-		e.rememberLocked()
-
+	windows, displays, fullScreen, err := e.readDesktop()
+	if err != nil {
 		return "", nil
 	}
 
-	windows, err := e.readWindows()
-	if err != nil {
+	if inFullScreenTransition(windows.Windows, displays, fullScreen) {
+		return "", nil
+	}
+
+	if time.Since(e.appliedAt) < e.resizeGrace {
+		e.rememberFrames(windows)
+
 		return "", nil
 	}
 
@@ -818,11 +828,41 @@ func (e *Engine) rememberLocked() {
 		return
 	}
 
+	e.rememberFrames(windows)
+}
+
+// rememberFrames keeps where the windows the engine placed are in windows.
+// The caller holds the lock.
+func (e *Engine) rememberFrames(windows action.WindowsInfo) {
 	for _, win := range windows.Windows {
 		if _, ok := e.applied[win.Number]; ok {
 			e.applied[win.Number] = win.Frame
 		}
 	}
+}
+
+// inFullScreenTransition reports whether the desktop is switching to or from
+// a full-screen space. Either a display shows one, or a window covers a
+// display's whole frame, menu bar included. Only a full-screen window can do
+// that, and it does while its space is not yet, or no longer, in front.
+func inFullScreenTransition(
+	windows []action.WindowEntry,
+	displays []action.DisplayEntry,
+	fullScreen map[uint32]bool,
+) bool {
+	for _, display := range displays {
+		if fullScreen[display.ID] {
+			return true
+		}
+
+		for _, win := range windows {
+			if sameFrame(win.Frame, display.Frame) {
+				return true
+			}
+		}
+	}
+
+	return false
 }
 
 func (e *Engine) readWindows() (action.WindowsInfo, error) {
@@ -837,6 +877,36 @@ func (e *Engine) readWindows() (action.WindowsInfo, error) {
 	})
 
 	return windows, err
+}
+
+// readDesktop reads the windows, the displays, and which displays show a
+// full-screen space, in one turn of the serializer.
+func (e *Engine) readDesktop() (action.WindowsInfo, []action.DisplayEntry, map[uint32]bool, error) {
+	var (
+		windows    action.WindowsInfo
+		displays   []action.DisplayEntry
+		fullScreen map[uint32]bool
+	)
+
+	err := e.run(func() error {
+		var err error
+
+		windows, err = e.desktop.Windows()
+		if err != nil {
+			return err
+		}
+
+		displays, err = e.desktop.Displays()
+		if err != nil {
+			return err
+		}
+
+		fullScreen, err = e.desktop.FullScreenDisplays()
+
+		return err
+	})
+
+	return windows, displays, fullScreen, err
 }
 
 func sameFrame(first, second action.Frame) bool {
