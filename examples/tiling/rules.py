@@ -6,12 +6,11 @@ per line on stdout, once or for as long as stdin stays open. See README.md
 for the shapes. mimi runs a layout once per display,
 with that display's windows and a state of that display's own, so a layout
 only ever thinks about one display. This file is the one place to add a
-bundle identifier or a title pattern that should never be tiled.
+bundle identifier that should never be tiled.
 """
 
 import json
 import os
-import re
 import subprocess
 import sys
 
@@ -22,14 +21,11 @@ FLOATING_BUNDLES = {
     "com.1password.1password",
 }
 
-FLOATING_TITLES = re.compile(r"^(Preferences|Settings)$")
-
 
 def floating(win):
     """True for a window a layout should leave where it is."""
     return (
         win["bundleId"] in FLOATING_BUNDLES
-        or FLOATING_TITLES.match(win["title"]) is not None
         or (win["frame"]["width"] < 400 and win["frame"]["height"] < 300)
     )
 
