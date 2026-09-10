@@ -121,9 +121,17 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   `timeout_secs` (default 5), or prints something that is not the output
   shape is logged and applies nothing. The next event tries again.
 
-The `[tiling]` keys are `enabled`, `layout`, `debounce_ms`, `timeout_secs`,
-`relayout_on_drag`, and `gap`. Every one is reloadable. The reference is in
-[CONFIGURATION.md](CONFIGURATION.md#tiling).
+The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
+`timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
+table with `enabled`, `duration_ms`, and `easing`. Every one is reloadable.
+The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
+
+**Animation is off by default.** With `[tiling.animation]` enabled, windows
+move to their frames over `duration_ms` instead of jumping. The animation
+captures the screen, so the daemon asks for Screen Recording at startup
+while it is on and captures nothing while it is off.
+[CONFIGURATION.md](CONFIGURATION.md#animation) covers the permission prompt,
+including why an unsigned build is asked again after every rebuild.
 
 ---
 
@@ -247,9 +255,10 @@ Save it, make it executable, point `layout` at it, and run
 The shipped layouts import these from `rules.py`, in the order you will want
 them:
 
-- **`read_input()`**: the input with `windows` narrowed by `floating()` and
-  `focused` re-pointed. Run with nothing on stdin, it lays the desktop out
-  once by itself instead (see [Trying a layout](#trying-a-layout-without-turning-it-on)).
+- **`serve(main)`**: runs `main(inp)` on every input mimi sends, oneshot or
+  resident, with `windows` narrowed by `floating()` and `focused` re-pointed.
+  Run with nothing on stdin, it lays the desktop out once by itself instead
+  (see [Trying a layout](#trying-a-layout-without-turning-it-on)).
 - **`gap(inp)`** and **`area(inp, gap)`**: the gap as mimi resolved it, and
   the display's visible frame inset by it.
 - **`command(inp, "name")`**: the args when the event is that command, else
@@ -420,7 +429,7 @@ the desktop out once by itself. It builds the inputs the daemon would from
 `mimi action apply_frames`. Tiling stays off and no daemon is needed, which
 makes any layout a one-shot command to bind to a key. The event is
 `relayout`, the state is null, and the gap is the macOS tiled-window margin,
-since no config is read. A layout of your own that uses `read_input()` gets
+since no config is read. A layout of your own that calls `serve()` gets
 the same.
 
 ---
