@@ -516,39 +516,60 @@ static void mimiRememberMask(uint32_t number, CGSize size, double scale, CGImage
 
 #pragma mark - Teardown
 
-// Take every layer of the current animation off screen, but for the
-// backdrops marked reused and the proxies the next animation carries, and
-// hide the hosts left empty.
-static void mimiRetire(NSArray<MimiProxy *> *carried) {
+// Take every layer of the running animation off screen, but for those in
+// keep, and forget the animation. It sweeps every host whole, so a layer
+// nothing tracks any more cannot stay on screen. It leaves the hosts
+// where they are, since ordering one out and back in the same turn shows
+// the windows under it for a frame.
+static void mimiRetire(NSSet<CALayer *> *keep) {
 	[CATransaction begin];
 	[CATransaction setDisableActions:YES];
-	for (MimiProxy *proxy in gProxies) {
-		if (![carried containsObject:proxy]) {
-			mimiRemoveProxy(proxy);
-		}
-	}
-	for (MimiBackdrop *backdrop in gBackdrops) {
-		if (!backdrop.reused) {
-			[backdrop.layer removeFromSuperlayer];
+	for (MimiHost *host in gHosts.allValues) {
+		for (CALayer *layer in [host.root.sublayers copy]) {
+			if (![keep containsObject:layer]) {
+				[layer removeFromSuperlayer];
+			}
 		}
 	}
 	[CATransaction commit];
-	for (MimiHost *host in gHosts.allValues) {
-		if (host.root.sublayers.count == 0) {
-			[host orderOut:nil];
-		}
-	}
 	gProxies = nil;
 	gBackdrops = nil;
 	gRunning = NO;
 }
 
-static void mimiReleaseAll(void) {
-	for (MimiBackdrop *backdrop in gBackdrops) {
-		backdrop.reused = NO;
+// Hide the hosts left with nothing to show.
+static void mimiHideIdleHosts(void) {
+	for (MimiHost *host in gHosts.allValues) {
+		if (host.root.sublayers.count == 0) {
+			[host orderOut:nil];
+		}
 	}
-	mimiRetire(nil);
 }
+
+static void mimiReleaseAll(void) {
+	mimiRetire(nil);
+	mimiHideIdleHosts();
+}
+
+// The end callback takes the animation down. This guard runs behind it,
+// for when the callback never comes or Start never follows a Begin, so a
+// still of the screen cannot outlive one animation.
+static void mimiReleaseAfter(double seconds, BOOL running) {
+	unsigned generation = gGeneration;
+	dispatch_after(dispatch_time(DISPATCH_TIME_NOW, (int64_t)(seconds * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		if (gGeneration != generation || gRunning != running) {
+			return;
+		}
+		MIMI_LOG("animation: %s; releasing", running ? "end callback never came" : "never started");
+		mimiReleaseAll();
+	});
+}
+
+// How long a Begin waits for its Start before the guard takes the
+// animation down, longer than any frame write.
+static const double kMimiStartWithin = 3.0;
+// How long past its duration a running animation is given to end.
+static const double kMimiEndSlack = 0.5;
 
 #pragma mark - Begin
 
@@ -699,6 +720,13 @@ int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double dur
 }
 
 static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double duration, int easing) {
+	// A Begin that never got its Start left its layers on screen, and
+	// disarmed the end callback that would have taken them down.
+	if (!gRunning && (gProxies.count > 0 || gBackdrops.count > 0)) {
+		MIMI_LOG("animation: stale layers found; releasing");
+		mimiReleaseAll();
+	}
+
 	// Where each window starts: its current animated frame if it is
 	// animating, else where the window server has it. A window in flight
 	// to the very frame asked for again, as when the pass that follows a
@@ -735,6 +763,9 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			proxy.carried = YES;
 			proxy.layer = flight.layer;
 			proxy.scale = flight.scale;
+			proxy.ring = flight.ring;
+			proxy.ringWidth = flight.ringWidth;
+			proxy.ringRadius = flight.ringRadius;
 			[carried addObject:flight];
 			if (!mimiSameRect(flight.to, to)) {
 				retargeted = YES;
@@ -1013,9 +1044,25 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	free(front);
 	free(under);
 
-	// Then the layers, in one transaction: the under backdrops come in, the
-	// proxies over them back to front, the over backdrops on top, and the
-	// previous animation, if any, goes out, but for what this one keeps.
+	// The previous animation, if any, goes out, but for the carried proxies
+	// and the backdrops this one reuses. Then the new layers go in, in one
+	// transaction, with the under backdrops first, the proxies over them
+	// back to front, and the over backdrops on top. Nothing reaches the
+	// screen before the flush below, so the order costs no frame.
+	NSMutableSet<CALayer *> *keep = [NSMutableSet set];
+	for (MimiProxy *proxy in carried) {
+		[keep addObject:proxy.layer];
+		if (proxy.ring) {
+			[keep addObject:proxy.ring];
+		}
+	}
+	for (MimiBackdrop *backdrop in backdrops) {
+		if (backdrop.reused) {
+			[keep addObject:backdrop.layer];
+		}
+	}
+	mimiRetire(keep);
+
 	[CATransaction begin];
 	[CATransaction setDisableActions:YES];
 	for (MimiBackdrop *backdrop in backdrops) {
@@ -1084,7 +1131,17 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		[mimiHost(backdrop.display, backdrop.bounds).root addSublayer:backdrop.layer];
 	}
 	[CATransaction commit];
-	mimiRetire(carried);
+
+	// Every capture failed, so there is nothing to move. The stills go out
+	// before they are ever shown, or they would cover the windows with no
+	// animation to end.
+	if (made.count == 0) {
+		MIMI_LOG("animation: no window could be pictured; releasing");
+		mimiReleaseAll();
+		return 0;
+	}
+
+	mimiHideIdleHosts();
 	for (MimiHost *host in gHosts.allValues) {
 		if (host.root.sublayers.count > 0 && !host.visible) {
 			[host orderFrontRegardless];
@@ -1097,6 +1154,8 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	gDuration = duration;
 	gEasing = easing;
 	gRunning = NO;
+	gGeneration++;
+	mimiReleaseAfter(kMimiStartWithin, NO);
 	return (int)made.count;
 }
 
@@ -1199,5 +1258,6 @@ void MimiAnimationStart(const uint32_t *dropped, int count) {
 		[CATransaction commit];
 		[CATransaction flush];
 		gRunning = YES;
+		mimiReleaseAfter(gDuration + kMimiEndSlack, YES);
 	});
 }
