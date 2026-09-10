@@ -87,10 +87,14 @@ type TilingConfig struct {
 	// pass given the input on stdin and read to exit, or
 	// LayoutModeResident, one process kept running that reads an input
 	// line and prints an output line per pass.
-	LayoutMode     string `json:"layoutMode"     toml:"layout_mode"`
-	DebounceMS     int    `json:"debounceMs"     toml:"debounce_ms"`
-	TimeoutSecs    int    `json:"timeoutSecs"    toml:"timeout_secs"`
-	RelayoutOnDrag bool   `json:"relayoutOnDrag" toml:"relayout_on_drag"`
+	LayoutMode  string `json:"layoutMode"  toml:"layout_mode"`
+	DebounceMS  int    `json:"debounceMs"  toml:"debounce_ms"`
+	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
+	// CommandTimeoutSecs bounds each before and after command line a
+	// layout returns. A before line holds the frames until it finishes,
+	// so its bound is its own, and tighter than the layout's.
+	CommandTimeoutSecs int  `json:"commandTimeoutSecs" toml:"command_timeout_secs"`
+	RelayoutOnDrag     bool `json:"relayoutOnDrag"     toml:"relayout_on_drag"`
 	// Gap is the space between tiled windows and at the display's edges, in
 	// points. Left unset, the macOS tiled-window margin applies, the same
 	// setting resize_window honors; set, it replaces that setting for

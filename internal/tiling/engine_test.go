@@ -6,6 +6,7 @@ import (
 	"os"
 	"path/filepath"
 	"slices"
+	"strconv"
 	"strings"
 	"sync"
 	"testing"
@@ -1073,5 +1074,164 @@ func TestEngine_Pass_RunsTheBeforeCommandsAndWaitsForThem(t *testing.T) {
 
 	if len(desktop.applied) != 1 {
 		t.Fatalf("applied %d passes, want 1", len(desktop.applied))
+	}
+}
+
+// commandTimeout is the before and after bound the tests run with.
+func commandTimeout(cfg config.TilingConfig, secs int) config.TilingConfig {
+	cfg.CommandTimeoutSecs = secs
+
+	return cfg
+}
+
+// TestEngine_Pass_RunsTheBeforeCommandsAtOnce pins that the before lines
+// start together. Two that each take 200ms hold the pass for one of them,
+// not both.
+func TestEngine_Pass_RunsTheBeforeCommandsAtOnce(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		enabled(`jq -c '{frames: [], state: null, before: ["sleep 0.2", "sleep 0.2"]}'`),
+		shell,
+	)
+
+	start := time.Now()
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
+		t.Fatalf("pass took %s, want the two before lines overlapped", elapsed)
+	}
+}
+
+// TestEngine_Pass_KillsABeforeCommandPastTheCommandTimeout pins that a
+// before line runs under tiling.command_timeout_secs, not the layout's
+// timeout, and that the frames still apply once it is killed.
+func TestEngine_Pass_KillsABeforeCommandPastTheCommandTimeout(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		commandTimeout(
+			enabled(
+				`jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 10, height: 10}}], state: null, before: ["sleep 5"]}'`,
+			),
+			1,
+		),
+		shell,
+	)
+
+	start := time.Now()
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if elapsed := time.Since(start); elapsed >= 3*time.Second {
+		t.Fatalf("pass took %s, want the before line killed after 1s", elapsed)
+	}
+
+	if desktop.appliedCount() != 1 {
+		t.Fatalf("applied %d passes, want 1", desktop.appliedCount())
+	}
+}
+
+// TestEngine_Wait_ReturnsWhenAnAfterCommandHangs pins that the timeout
+// covers an after line too, so a one-shot engine's Wait cannot hang on one.
+func TestEngine_Wait_ReturnsWhenAnAfterCommandHangs(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		commandTimeout(enabled(`jq -c '{frames: [], state: null, after: ["sleep 5"]}'`), 1),
+		shell,
+	)
+
+	start := time.Now()
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	if elapsed := time.Since(start); elapsed >= 3*time.Second {
+		t.Fatalf("Wait() returned after %s, want the after line killed after 1s", elapsed)
+	}
+}
+
+// TestEngine_Pass_RunsTheLayoutOnEveryDisplayAtOnce pins that a one-shot
+// layout runs for both displays together, and that the engine still keeps
+// its outputs by display, so each display's state names its own id.
+func TestEngine_Pass_RunsTheLayoutOnEveryDisplayAtOnce(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.displays = []action.DisplayEntry{
+		{
+			Index:   1,
+			ID:      7,
+			Frame:   action.Frame{Width: 1000, Height: 1000},
+			Visible: action.Frame{Width: 1000, Height: 1000},
+		},
+		{
+			Index:   2,
+			ID:      8,
+			Frame:   action.Frame{X: 1000, Width: 1000, Height: 1000},
+			Visible: action.Frame{X: 1000, Width: 1000, Height: 1000},
+		},
+	}
+	desktop.windows = action.WindowsInfo{Focused: 0, Windows: []action.WindowEntry{
+		{
+			Number: 1,
+			PID:    10,
+			App:    "A",
+			Frame:  action.Frame{X: 100, Y: 100, Width: 500, Height: 500},
+		},
+		{
+			Number: 2,
+			PID:    11,
+			App:    "B",
+			Frame:  action.Frame{X: 1100, Y: 100, Width: 500, Height: 500},
+		},
+	}}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		enabled(`sleep 0.2; jq -c '{frames: [], state: {display: .display.id}}'`),
+		shell,
+	)
+
+	ctx := context.Background()
+	start := time.Now()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
+		t.Fatalf("pass took %s, want the two layout runs overlapped", elapsed)
+	}
+
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	for _, input := range inputs {
+		want := `{"display":` + strconv.Itoa(int(input.Display.ID)) + `}`
+		if got := string(input.State); got != want {
+			t.Fatalf("display %d state = %s, want %s", input.Display.ID, got, want)
+		}
 	}
 }
