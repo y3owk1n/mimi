@@ -59,13 +59,16 @@ def serve(layout):
 
 def narrow(inp):
     """The input with `windows` narrowed to the tileable ones and `focused`
-    re-pointed at the same window, or -1 if it went."""
+    re-pointed at the same window, or -1 if it went. `focusFloating` is
+    True when it went because the focused window floats, so a layout can
+    tell focus on a floating window from focus on nothing."""
     focused_number = (
         inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
     )
     inp["windows"] = [w for w in inp["windows"] if not floating(w)]
     numbers = [w["number"] for w in inp["windows"]]
     inp["focused"] = numbers.index(focused_number) if focused_number in numbers else -1
+    inp["focusFloating"] = focused_number is not None and inp["focused"] < 0
     return inp
 
 

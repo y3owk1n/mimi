@@ -216,6 +216,7 @@ def main(inp):
         state["floating"] = sorted(floats)
     windows = [w for w in inp["windows"] if w["number"] not in state.get("floating", [])]
     by_number = {w["number"]: w for w in windows}
+    focus_floating = inp["focusFloating"] or (focused is not None and focused not in by_number)
     if focused not in by_number:
         focused = None
 
@@ -324,9 +325,10 @@ def main(inp):
         offset = scroll_into_view(columns, nearest, box, GAP, offset)
 
     # A window that went away leaves focus wherever macOS put it, which may
-    # be nothing tiled at all. Then the first column in view takes it; on any
-    # other event focus outside the strip is the user's choice and stays.
-    if focus is None and at is None and event["kind"] in ("window_closed", "app_quit", "app_hide"):
+    # be nothing at all. Then the first column in view takes it. Focus on a
+    # floating window stays, as when a Quick Look panel closes and Finder
+    # takes focus back. So does focus outside the strip on any other event.
+    if focus is None and at is None and not focus_floating and event["kind"] in ("window_closed", "app_quit", "app_hide"):
         xs, _ = starts(columns, box, GAP)
         for column, left in zip(columns, xs):
             if left >= offset - 0.5:
