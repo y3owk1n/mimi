@@ -3,6 +3,8 @@ package tiling_test
 import (
 	"context"
 	"encoding/json"
+	"os"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -46,6 +48,8 @@ type fakeDesktop struct {
 	focused    []uint32
 	// calls is the order of Apply and Focus, by name.
 	calls []string
+	// onApply, when set, runs inside each Apply.
+	onApply func()
 }
 
 func (d *fakeDesktop) Focus(number uint32) error {
@@ -104,6 +108,10 @@ func (d *fakeDesktop) Apply(frames []action.WindowFrame, animation *action.Anima
 	d.animations = append(d.animations, animation)
 	d.calls = append(d.calls, "apply")
 
+	if d.onApply != nil {
+		d.onApply()
+	}
+
 	return nil
 }
 
@@ -125,6 +133,9 @@ func newDesktop() *fakeDesktop {
 		},
 	}
 }
+
+// easing is the animation curve the tests name.
+const easing = "ease-in-out"
 
 func enabled(layout string) config.TilingConfig {
 	return config.TilingConfig{Enabled: true, Layout: layout, DebounceMS: 10, TimeoutSecs: 5}
@@ -843,7 +854,7 @@ func TestEngine_Pass_AnimatesTheFramesButNotADraggedWindow(t *testing.T) {
 	desktop := newDesktop()
 	engine := tiling.New(desktop, nil, nil)
 	cfg := enabled(echoLayout)
-	cfg.Animation = config.AnimationConfig{Enabled: true, DurationMS: 120, Easing: "ease-in-out"}
+	cfg.Animation = config.AnimationConfig{Enabled: true, DurationMS: 120, Easing: easing}
 	engine.Update(cfg, shell)
 
 	err := engine.Pass(context.Background(), tiling.Event{Kind: created})
@@ -856,7 +867,7 @@ func TestEngine_Pass_AnimatesTheFramesButNotADraggedWindow(t *testing.T) {
 		t.Fatalf("Pass(window_move) error = %v, want nil", err)
 	}
 
-	want := action.Animation{DurationMS: 120, Easing: "ease-in-out"}
+	want := action.Animation{DurationMS: 120, Easing: easing}
 	for index, got := range desktop.animations {
 		if got == nil || *got != want {
 			t.Fatalf("animations[%d] = %+v, want %+v", index, got, want)
@@ -969,4 +980,98 @@ func TestEngine_Update_KeepsAResidentLayoutUnlessItChanges(t *testing.T) {
 	cfg.Layout = "true; " + countingLayout
 	engine.Update(cfg, shell)
 	pass(1)
+}
+
+// TestEngine_Pass_RunsTheCommandsTheLayoutAsksForAfterApplying pins the
+// after key: each line runs through the shell once the frames are applied,
+// and a pass that returns only commands still runs them.
+func TestEngine_Pass_RunsTheCommandsTheLayoutAsksForAfterApplying(t *testing.T) {
+	t.Parallel()
+
+	mark := filepath.Join(t.TempDir(), "ran")
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null, after: ["touch `+mark+`"]}'`), shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	_, statErr := os.Stat(mark)
+	if statErr != nil {
+		t.Fatalf("after command never ran: %v", statErr)
+	}
+}
+
+// TestEngine_Pass_RunsTheCommandsAfterTheAnimation pins that with
+// [tiling.animation] on, the after lines wait for the animation to end, so a
+// command that reads a window's frame sees where it stopped.
+func TestEngine_Pass_RunsTheCommandsAfterTheAnimation(t *testing.T) {
+	t.Parallel()
+
+	mark := filepath.Join(t.TempDir(), "ran")
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(
+		`jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 10, height: 10}}], state: null, after: ["touch ` + mark + `"]}'`,
+	)
+	cfg.Animation = config.AnimationConfig{Enabled: true, DurationMS: 300, Easing: easing}
+	engine.Update(cfg, shell)
+
+	start := time.Now()
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	_, statErr := os.Stat(mark)
+	if statErr == nil {
+		t.Fatal("after command ran before the animation ended")
+	}
+
+	engine.Wait()
+
+	_, statErr = os.Stat(mark)
+	if statErr != nil {
+		t.Fatalf("after command never ran: %v", statErr)
+	}
+
+	if elapsed := time.Since(start); elapsed < 300*time.Millisecond {
+		t.Fatalf("after command ran after %s, want the 300ms animation first", elapsed)
+	}
+}
+
+// TestEngine_Pass_RunsTheBeforeCommandsAndWaitsForThem pins the before
+// key: each line runs and finishes before the frames are applied.
+func TestEngine_Pass_RunsTheBeforeCommandsAndWaitsForThem(t *testing.T) {
+	t.Parallel()
+
+	mark := filepath.Join(t.TempDir(), "ran")
+	desktop := newDesktop()
+	desktop.onApply = func() {
+		_, statErr := os.Stat(mark)
+		if statErr != nil {
+			t.Errorf("frames applied before the before command finished: %v", statErr)
+		}
+	}
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		enabled(
+			`jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 10, height: 10}}], state: null, before: ["sleep 0.1; touch `+mark+`"]}'`,
+		),
+		shell,
+	)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if len(desktop.applied) != 1 {
+		t.Fatalf("applied %d passes, want 1", len(desktop.applied))
+	}
 }

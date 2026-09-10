@@ -154,7 +154,12 @@ func (s *cliState) runTiling(cobraCmd *cobra.Command, cmd action.Command) error 
 	engine := tiling.New(tiling.LiveDesktop{}, nil, nil)
 	engine.Update(local, cfg.Settings.HookShell)
 
-	return engine.Command(cobraCmd.Context(), tiling.EventFromArgs(cmd.Tiling))
+	err = engine.Command(cobraCmd.Context(), tiling.EventFromArgs(cmd.Tiling))
+
+	// The after lines would die with this process. Wait for them.
+	engine.Wait()
+
+	return err
 }
 
 func buildTilingPreviewCommand(state *cliState) *cobra.Command {

@@ -193,7 +193,9 @@ both, through `serve()` in `rules.py`.
 {
   "frames": [{"number": 4242, "frame": {"x": 8, "y": 33, "width": 1424, "height": 859}}],
   "state": {"anything": "you like"},
-  "focus": 4242
+  "focus": 4242,
+  "before": ["osascript -e 'beep'"],
+  "after": ["~/.config/mimi/warp.py 720 462"]
 }
 ```
 
@@ -202,6 +204,8 @@ both, through `serve()` in `rules.py`.
 | `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
+| `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, in order. mimi waits for each and kills one past `tiling.timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
 
 ### Coordinates
 
@@ -293,6 +297,68 @@ jq -c '(.display.visible) as $v | (.windows | length) as $n
                  width: ($v.width / $n), height: $v.height}}],
      state: null}'
 ```
+
+### Running commands around the frames
+
+A hook fires on the raw event, before the engine has settled the burst and
+written the frames, so a hook that reads the focused window's frame may read
+its old one. The `before` and `after` keys run command lines from inside the
+pass instead. `before` lines run first, and the pass waits for each of them
+to finish before it writes the frames. `after` lines run once the frames
+have been applied, and the pass does not wait for them. The layout decides
+on every run whether to print either key, since it reads `event.kind`.
+Nothing runs on a pass where a key is absent or empty, and nothing runs on
+a pass the engine skips because the space changed under it.
+
+Warping the cursor to the window that gained focus, on the two events that
+mean focus moved, with the centre taken from the frame the layout is about
+to return:
+
+```python
+import os, sys
+
+def cursor_run(inp, frames):
+    if inp["event"]["kind"] not in ("window_focus", "app_activate") or inp["focused"] < 0:
+        return []
+    focused = inp["windows"][inp["focused"]]["number"]
+    for number, f in frames:
+        if number == focused:
+            x, y = f["x"] + f["width"] / 2, f["y"] + f["height"] / 2
+            return [f"{sys.executable} ~/.config/mimi/warp.py {x:.0f} {y:.0f}"]
+    return []
+
+out = {"frames": ..., "state": state}
+after = cursor_run(inp, frames)
+if after:
+    out["after"] = after
+```
+
+And `warp.py`, standard library only, taking the point in the same
+window coordinates the frames use:
+
+```python
+import ctypes, sys
+
+class CGPoint(ctypes.Structure):
+    _fields_ = [("x", ctypes.c_double), ("y", ctypes.c_double)]
+
+cg = ctypes.CDLL("/System/Library/Frameworks/CoreGraphics.framework/CoreGraphics")
+cg.CGWarpMouseCursorPosition.argtypes = [CGPoint]
+x, y = (float(v) for v in sys.argv[1:3])
+cg.CGWarpMouseCursorPosition(CGPoint(x, y))
+```
+
+Each `after` line runs through `settings.hook_shell`, detached, so a slow
+command never holds a pass. mimi drops its output and logs a non-zero exit
+at debug. With `[tiling.animation]` on, the lines start once the animation
+has ended, so a command that reads a window's frame reads the final one.
+The lines run in order, one after another.
+
+A `before` line is for something that must have happened by the time the
+frames are written. An application told to leave a window alone, or a
+border hidden for the move. mimi waits for it and kills it past
+`tiling.timeout_secs`, the same bound as the layout, so keep it quick. A
+`before` line that fails does not stop the frames.
 
 ---
 
