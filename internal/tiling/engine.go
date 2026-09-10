@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os/exec"
 	"slices"
 	"sync"
 	"time"
@@ -87,6 +88,14 @@ type Engine struct {
 	// after the write, and the frame it snapped to is the one to remember.
 	resizeGrace time.Duration
 
+	// shell is what Before and After command lines run under, as
+	// settings.hook_shell, and timeout bounds each Before line.
+	shell   string
+	timeout time.Duration
+	// after counts the After command runs still going, so a one-shot
+	// engine can wait for them before its process ends.
+	after sync.WaitGroup
+
 	// wake carries the passes the engine asks of itself, on startup and on
 	// a reload that switches it on; Run drains it alongside the bus. It
 	// holds one, so an Update before Run starts is not lost.
@@ -148,6 +157,8 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	}
 
 	e.configured = true
+	e.shell = shell
+	e.timeout = time.Duration(cfg.TimeoutSecs) * time.Second
 	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 
@@ -358,6 +369,13 @@ func (e *Engine) Command(ctx context.Context, event Event) error {
 	return e.passLocked(ctx, event)
 }
 
+// Wait blocks until every After line a pass started has finished. The CLI
+// calls it before it exits, because the lines would die with the process.
+// The daemon never needs to.
+func (e *Engine) Wait() {
+	e.after.Wait()
+}
+
 // Close stops a resident layout. The engine is not used after it.
 func (e *Engine) Close() {
 	e.mu.Lock()
@@ -414,6 +432,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	var (
 		frames []action.WindowFrame
 		focus  uint32
+		before []string
+		after  []string
 	)
 
 	for _, input := range inputs {
@@ -431,9 +451,12 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		if out.Focus != 0 {
 			focus = out.Focus
 		}
+
+		before = append(before, out.Before...)
+		after = append(after, out.After...)
 	}
 
-	if len(frames) == 0 && focus == 0 {
+	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
 		return nil
 	}
 
@@ -455,6 +478,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 			}
 		}
 	}
+
+	e.runBefore(ctx, before)
 
 	// Focus goes first: it is what the user pressed a key for, and it is
 	// one round trip, while the frames wait on a screen capture when they
@@ -490,6 +515,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		return err
 	}
 
+	e.runAfterLocked(after, e.animationDelay(frames))
+
 	e.logger.Debugw(
 		"tiling pass applied",
 		"kind",
@@ -503,6 +530,65 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	)
 
 	return nil
+}
+
+// animationDelay is how long after the write the frames reach where the
+// layout put them. It is the animation's length when one moved them, and
+// zero otherwise.
+func (e *Engine) animationDelay(frames []action.WindowFrame) time.Duration {
+	if e.animation == nil || len(frames) == 0 {
+		return 0
+	}
+
+	return time.Duration(e.animation.DurationMS) * time.Millisecond
+}
+
+// runBefore runs every Before line in order and waits for each, so a line
+// has finished by the time the frames move. It kills a line past the
+// layout's timeout and logs a failure without reporting it, so the frames
+// still apply.
+func (e *Engine) runBefore(ctx context.Context, lines []string) {
+	for _, line := range lines {
+		err := e.runBeforeLine(ctx, line)
+		if err != nil {
+			e.logger.Debugw("tiling before command failed", "err", err)
+		}
+	}
+}
+
+func (e *Engine) runBeforeLine(ctx context.Context, line string) error {
+	if e.timeout > 0 {
+		var cancel context.CancelFunc
+
+		ctx, cancel = context.WithTimeout(ctx, e.timeout)
+		defer cancel()
+	}
+
+	return exec.CommandContext(ctx, e.shell, "-c", line).Run()
+}
+
+// runAfterLocked starts every After line once delay has passed, detached,
+// so the pass does not wait. It logs a failure without reporting it. The
+// caller holds the lock.
+func (e *Engine) runAfterLocked(lines []string, delay time.Duration) {
+	if len(lines) == 0 {
+		return
+	}
+
+	shell, logger := e.shell, e.logger
+
+	e.after.Go(func() {
+		time.Sleep(delay)
+
+		for _, line := range lines {
+			// The command outlives the pass, so the pass's context
+			// must not bound it.
+			err := exec.CommandContext(context.Background(), shell, "-c", line).Run()
+			if err != nil {
+				logger.Debugw("tiling after command failed", "err", err)
+			}
+		}
+	})
 }
 
 // stopResidentLocked ends the resident layout, if there is one. The caller
