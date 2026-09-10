@@ -379,7 +379,9 @@ Now a drag runs your layout with the event saying what happened and
 - `window_move` when the position changed more than the size. `bsp.py` swaps
   the window with the one it was dropped on. `master-stack.py` makes a stack
   window dropped on the master the master. `strip.py` moves the window into
-  the column it was dropped on.
+  the column it was dropped on. A stacked window dropped on empty strip or
+  its own column's outer quarter gets a column of its own. Dropped higher or
+  lower in its column, it takes that row.
 
 The engine decides which by comparing where the windows landed against where
 it last placed them, so a terminal that snaps its width to the character grid
