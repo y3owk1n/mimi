@@ -75,8 +75,8 @@ config sets it, otherwise the macOS tiled-window margin that
 up.
 
 Windows that should never be tiled (System Settings, Finder, Activity
-Monitor, 1Password, windows titled Preferences or Settings, and anything
-smaller than 400 by 300 points) are listed in `rules.py`. Edit it to taste.
+Monitor, 1Password, and anything smaller than 400 by 300 points) are
+listed in `rules.py`. Edit it to taste.
 
 ---
 
