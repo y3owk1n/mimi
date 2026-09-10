@@ -40,7 +40,10 @@ open at a fixed place on the strip, each in a column of its own beside the
 app's others. Anything else opens right of the focused column.
 
 With tiling.relayout_on_drag set, dragging a column's edge sets its width,
-and dropping a window on another column moves it into that column. Use the
+and dropping a window on another column moves it into that column. A
+stacked window dropped on empty strip, or in the outer quarter of its own
+column, gets a column of its own on that side. Dropped higher or lower in
+its column, it takes that row. Use the
 focus command rather than mimi action focus_window --left/--right: the
 parked columns all sit at the edge, so spatial focus cannot tell them apart.
 
@@ -313,12 +316,37 @@ def main(inp):
             if index is None or number not in by_number:
                 continue
             f = by_number[number]["frame"]
-            target = column_at(columns, box, GAP, offset, f["x"] + f["width"] / 2)
+            centre = f["x"] + f["width"] / 2
+            target = column_at(columns, box, GAP, offset, centre)
             if target is not None and target != index:
                 columns[index]["windows"].remove(number)
                 columns[target]["windows"].append(number)
                 if not columns[index]["windows"]:
                     columns.pop(index)
+                at = column_of(columns, focused)
+            elif len(columns[index]["windows"]) > 1:
+                # Empty strip or the outer quarter of its own column expels
+                # a stacked window to that side. The middle half moves it to
+                # the row its centre landed on.
+                xs, _ = starts(columns, box, GAP)
+                stack = columns[index]["windows"]
+                if target is None:
+                    to = sum(1 for left in xs if box["x"] + left - offset < centre)
+                else:
+                    left = box["x"] + xs[index] - offset
+                    width = col_width(columns[index], box, GAP)
+                    if centre < left + width / 4:
+                        to = index
+                    elif centre >= left + width * 3 / 4:
+                        to = index + 1
+                    else:
+                        middle = f["y"] + f["height"] / 2 - box["y"]
+                        row = int(clamp(middle // ((box["height"] + GAP) / len(stack)), 0, len(stack) - 1))
+                        stack.remove(number)
+                        stack.insert(row, number)
+                        continue
+                stack.remove(number)
+                columns.insert(to, {"windows": [number], "width": columns[index]["width"]})
                 at = column_of(columns, focused)
 
     # Whatever happened, the focused column ends up in view. And when no
