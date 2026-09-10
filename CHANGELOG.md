@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.13.1](https://github.com/y3owk1n/mimi/compare/v0.13.0...v0.13.1) (2026-09-10)
+
+
+### Bug Fixes
+
+* **native:** build window capture against Xcode 26 SDKs ([#234](https://github.com/y3owk1n/mimi/issues/234)) ([b033ba2](https://github.com/y3owk1n/mimi/commit/b033ba281e0911070eaa9c9b11ebf5025434e04d))
+
 ## [0.13.0](https://github.com/y3owk1n/mimi/compare/v0.12.0...v0.13.0) (2026-09-10)
 
 
