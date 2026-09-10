@@ -6,6 +6,7 @@
 
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
+#import <dlfcn.h>
 #import <unistd.h>
 
 // The animation never touches the real windows beyond the one frame write the
@@ -259,6 +260,30 @@ static BOOL mimiSameEntries(const MimiEntry *a, int aCount, const MimiEntry *b, 
 	return YES;
 }
 
+// The window-server captures. The Xcode 26 SDK marks them obsoleted and
+// refuses a direct call, though CoreGraphics still exports them. dlsym at
+// first use replaces the link, so the file builds against any SDK.
+typedef CGImageRef (*MimiCaptureFn)(CGRect, CGWindowListOption, CGWindowID, CGWindowImageOption);
+typedef CGImageRef (*MimiCaptureArrayFn)(CGRect, CFArrayRef, CGWindowImageOption);
+
+static CGImageRef mimiCapture(CGRect bounds, CGWindowListOption option, CGWindowID number, CGWindowImageOption image) {
+	static MimiCaptureFn fn;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		fn = (MimiCaptureFn)dlsym(RTLD_DEFAULT, "CGWindowListCreateImage");
+	});
+	return fn ? fn(bounds, option, number, image) : NULL;
+}
+
+static CGImageRef mimiCaptureArray(CGRect bounds, CFArrayRef numbers, CGWindowImageOption image) {
+	static MimiCaptureArrayFn fn;
+	static dispatch_once_t once;
+	dispatch_once(&once, ^{
+		fn = (MimiCaptureArrayFn)dlsym(RTLD_DEFAULT, "CGWindowListCreateImageFromArray");
+	});
+	return fn ? fn(bounds, numbers, image) : NULL;
+}
+
 // The window numbers of entries, as CGWindowListCreateImageFromArray reads
 // them: raw values, not CFNumbers.
 static CFArrayRef mimiNumbers(const MimiEntry *entries, int count) {
@@ -454,12 +479,9 @@ static CALayer *mimiImageLayer(CGImageRef image, CGImageRef mask, CGRect frame, 
 // translucent, since nothing is under it to blend with. Its alpha carries
 // the window's shape.
 static CGImageRef mimiWholeWindow(uint32_t number) {
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
-	return CGWindowListCreateImage(
+	return mimiCapture(
 	    CGRectNull, kCGWindowListOptionIncludingWindow, number,
 	    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
-#pragma clang diagnostic pop
 }
 
 // The remembered mask for a window of this size, retained, or NULL.
@@ -923,8 +945,6 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		// faster here. The window server serialises captures, so issuing
 		// them concurrently was measured to gain nothing, and a smaller
 		// area or a lower resolution was measured to cost the same.
-#pragma clang diagnostic push
-#pragma clang diagnostic ignored "-Wdeprecated-declarations"
 		MimiBackdrop *keptUnder = mimiReusable(displays[d], NO, others, othersCount);
 		if (keptUnder) {
 			[backdrops addObject:mimiNewBackdrop(displays[d], bounds, NO, others, othersCount, NULL, keptUnder)];
@@ -932,7 +952,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			CGImageRef still = mimiRecentStill(displays[d], others, othersCount);
 			if (!still) {
 				CFArrayRef list = mimiNumbers(others, othersCount);
-				still = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
+				still = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
 				CFRelease(list);
 				if (still) {
 					mimiRememberStill(displays[d], others, othersCount, still);
@@ -947,7 +967,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			[backdrops addObject:mimiNewBackdrop(displays[d], bounds, YES, front, frontCount, NULL, keptOver)];
 		} else if (frontCount > 0) {
 			CFArrayRef list = mimiNumbers(front, frontCount);
-			CGImageRef cover = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
+			CGImageRef cover = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
 			CFRelease(list);
 			if (cover) {
 				[backdrops addObject:mimiNewBackdrop(displays[d], bounds, YES, front, frontCount, cover, nil)];
@@ -956,7 +976,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		CGImageRef flight = NULL;
 		if (apartCount > 0) {
 			CFArrayRef list = mimiNumbers(apart, apartCount);
-			flight = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
+			flight = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
 			CFRelease(list);
 		}
 		// A window captured on its own comes out opaque, with its
@@ -968,7 +988,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		CGImageRef scene = NULL;
 		if (anyAlone) {
 			CFArrayRef list = mimiNumbers(under, underCount);
-			scene = CGWindowListCreateImageFromArray(bounds, list, kCGWindowImageBestResolution);
+			scene = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
 			CFRelease(list);
 		}
 		free(apart);
@@ -1002,7 +1022,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 					proxy.mask = NULL;
 				}
 			} else if (CGRectContainsRect(bounds, proxy.from)) {
-				proxy.picture = CGWindowListCreateImage(
+				proxy.picture = mimiCapture(
 				    proxy.from, kCGWindowListOptionIncludingWindow, proxy.number, kCGWindowImageBestResolution);
 			} else if (mimiOnDisplay(proxy.from, bounds)) {
 				proxy.picture = mimiWholeWindow(proxy.number);
@@ -1029,7 +1049,6 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				}
 			}
 		}
-#pragma clang diagnostic pop
 
 		if (flight) {
 			CGImageRelease(flight);
