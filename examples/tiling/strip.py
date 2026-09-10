@@ -14,7 +14,8 @@ Commands the layout answers (mimi gives them no meaning; this file does):
 
   mimi tiling cmd focus <left|right>    focus the next column that way,
                                         scrolling to it; up/down within one
-  mimi tiling cmd move <left|right>     move the focused column along the strip
+  mimi tiling cmd move <left|right>     move the focused column along the strip;
+                                        up/down swaps the window within one
   mimi tiling cmd consume                pull the focused window into the column
                                          on its left, stacked below
   mimi tiling cmd expel                  push the focused window out into a
@@ -257,9 +258,15 @@ def main(inp):
                 row = rows.index(focused)
                 focus = rows[clamp(row + (1 if args[0] == "down" else -1), 0, len(rows) - 1)]
         elif name == "move" and args:
-            to = clamp(at + (1 if args[0] == "right" else -1), 0, len(columns) - 1)
-            columns.insert(to, columns.pop(at))
-            at = to
+            if args[0] in ("left", "right"):
+                to = clamp(at + (1 if args[0] == "right" else -1), 0, len(columns) - 1)
+                columns.insert(to, columns.pop(at))
+                at = to
+            else:
+                rows = column["windows"]
+                row = rows.index(focused)
+                to = clamp(row + (1 if args[0] == "down" else -1), 0, len(rows) - 1)
+                rows[row], rows[to] = rows[to], rows[row]
         elif name == "consume" and at > 0:
             column["windows"].remove(focused)
             columns[at - 1]["windows"].append(focused)
