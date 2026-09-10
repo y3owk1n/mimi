@@ -332,8 +332,10 @@ alt - h         : mimi tiling cmd focus left
 alt - l         : mimi tiling cmd focus right
 alt - j         : mimi tiling cmd focus down
 alt - k         : mimi tiling cmd focus up
-alt - shift - h : mimi tiling cmd move left
-alt - shift - l : mimi tiling cmd move right
+alt + shift - h : mimi tiling cmd move left
+alt + shift - l : mimi tiling cmd move right
+alt + shift - j : mimi tiling cmd move down
+alt + shift - k : mimi tiling cmd move up
 alt - r         : mimi tiling cmd width
 alt - c         : mimi tiling cmd center
 alt - comma     : mimi tiling cmd consume
