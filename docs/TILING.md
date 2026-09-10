@@ -122,7 +122,7 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   shape is logged and applies nothing. The next event tries again.
 
 The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
-`timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
+`timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
 table with `enabled`, `duration_ms`, and `easing`. Every one is reloadable.
 The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
 
@@ -204,8 +204,8 @@ both, through `serve()` in `rules.py`.
 | `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
-| `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, in order. mimi waits for each and kills one past `tiling.timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
-| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
 
 ### Coordinates
 
@@ -352,13 +352,17 @@ Each `after` line runs through `settings.hook_shell`, detached, so a slow
 command never holds a pass. mimi drops its output and logs a non-zero exit
 at debug. With `[tiling.animation]` on, the lines start once the animation
 has ended, so a command that reads a window's frame reads the final one.
-The lines run in order, one after another.
+The lines run in order, one after another, and mimi kills one past
+`tiling.command_timeout_secs`.
 
 A `before` line is for something that must have happened by the time the
 frames are written. An application told to leave a window alone, or a
-border hidden for the move. mimi waits for it and kills it past
-`tiling.timeout_secs`, the same bound as the layout, so keep it quick. A
-`before` line that fails does not stop the frames.
+border hidden for the move. mimi starts every `before` line at once and
+waits for all of them, so the pass waits as long as the slowest line.
+Do not make one depend on another. mimi kills a line past
+`tiling.command_timeout_secs` (default 1). The bound is tighter than the
+layout's because the frames wait on it. A `before` line that fails does
+not stop the frames.
 
 ---
 

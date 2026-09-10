@@ -147,6 +147,7 @@ layout = "~/.config/mimi/tiling/columns.py"
 layout_mode = "oneshot"   # or "resident", one process kept running between passes
 debounce_ms = 100     # settle a burst of window events into one pass
 timeout_secs = 5      # kill the layout past this
+command_timeout_secs = 1     # kill a before or after line the layout returned past this
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
 # gap = 12                   # points between windows; unset follows the macOS tiled-window margin
 

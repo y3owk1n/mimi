@@ -89,12 +89,13 @@ type Engine struct {
 	resizeGrace time.Duration
 
 	// shell is what Before and After command lines run under, as
-	// settings.hook_shell, and timeout bounds each Before line.
-	shell   string
-	timeout time.Duration
-	// after counts the After command runs still going, so a one-shot
-	// engine can wait for them before its process ends.
-	after sync.WaitGroup
+	// settings.hook_shell, and commandTimeout bounds each line.
+	shell          string
+	commandTimeout time.Duration
+	// background counts what a pass left running past its return, the
+	// After command runs and the read-back of where the frames landed, so
+	// a one-shot engine can wait for them before its process ends.
+	background sync.WaitGroup
 
 	// wake carries the passes the engine asks of itself, on startup and on
 	// a reload that switches it on; Run drains it alongside the bus. It
@@ -158,7 +159,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 
 	e.configured = true
 	e.shell = shell
-	e.timeout = time.Duration(cfg.TimeoutSecs) * time.Second
+	e.commandTimeout = time.Duration(cfg.CommandTimeoutSecs) * time.Second
 	e.onDrag = cfg.RelayoutOnDrag
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 
@@ -369,11 +370,12 @@ func (e *Engine) Command(ctx context.Context, event Event) error {
 	return e.passLocked(ctx, event)
 }
 
-// Wait blocks until every After line a pass started has finished. The CLI
-// calls it before it exits, because the lines would die with the process.
-// The daemon never needs to.
+// Wait blocks until everything a pass left running has finished, its After
+// lines and the read-back of where its frames landed. The CLI calls it
+// before it exits, because the lines would die with the process. The daemon
+// never needs to.
 func (e *Engine) Wait() {
-	e.after.Wait()
+	e.background.Wait()
 }
 
 // Close stops a resident layout. The engine is not used after it.
@@ -404,18 +406,43 @@ func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, e
 		)
 	}
 
-	outputs := make([]Output, 0, len(inputs))
+	outputs, err := e.reduceAll(ctx, inputs)
 
-	for _, input := range inputs {
-		out, reduceErr := e.layout.Reduce(ctx, input)
-		if reduceErr != nil {
-			return inputs, outputs, reduceErr
-		}
+	return inputs, outputs, err
+}
 
-		outputs = append(outputs, out)
+// reduceAll runs the layout on every input at once, one goroutine each,
+// and returns the outputs in input order. A one-shot layout on two displays
+// starts twice in the time of one start. A resident layout answers one
+// input at a time either way. The first failure cancels the rest, and
+// reduceAll returns it with the outputs that came back before it.
+func (e *Engine) reduceAll(ctx context.Context, inputs []Input) ([]Output, error) {
+	ctx, cancel := context.WithCancel(ctx)
+	defer cancel()
+
+	outputs := make([]Output, len(inputs))
+	errs := make([]error, len(inputs))
+
+	var runs sync.WaitGroup
+
+	for index, input := range inputs {
+		runs.Go(func() {
+			outputs[index], errs[index] = e.layout.Reduce(ctx, input)
+			if errs[index] != nil {
+				cancel()
+			}
+		})
 	}
 
-	return inputs, outputs, nil
+	runs.Wait()
+
+	for index, err := range errs {
+		if err != nil {
+			return outputs[:index], err
+		}
+	}
+
+	return outputs, nil
 }
 
 // passLocked is Pass under the lock.
@@ -436,11 +463,13 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		after  []string
 	)
 
-	for _, input := range inputs {
-		out, reduceErr := e.layout.Reduce(ctx, input)
-		if reduceErr != nil {
-			return reduceErr
-		}
+	outputs, err := e.reduceAll(ctx, inputs)
+	if err != nil {
+		return err
+	}
+
+	for index, out := range outputs {
+		input := inputs[index]
 
 		if out.State != nil {
 			e.states[stateKey(input)] = out.State
@@ -509,7 +538,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	}
 
 	e.appliedAt = time.Now()
-	e.rememberLocked()
+	e.rememberLater(e.appliedAt)
 
 	if err != nil {
 		return err
@@ -543,47 +572,56 @@ func (e *Engine) animationDelay(frames []action.WindowFrame) time.Duration {
 	return time.Duration(e.animation.DurationMS) * time.Millisecond
 }
 
-// runBefore runs every Before line in order and waits for each, so a line
-// has finished by the time the frames move. It kills a line past the
-// layout's timeout and logs a failure without reporting it, so the frames
+// runBefore starts every Before line at once and waits for all of them, so
+// the pass waits as long as the slowest line. It kills a line past the
+// command timeout and logs a failure without reporting it, so the frames
 // still apply.
 func (e *Engine) runBefore(ctx context.Context, lines []string) {
+	var runs sync.WaitGroup
+
 	for _, line := range lines {
-		err := e.runBeforeLine(ctx, line)
-		if err != nil {
-			e.logger.Debugw("tiling before command failed", "err", err)
-		}
+		runs.Go(func() {
+			err := runLine(ctx, e.shell, line, e.commandTimeout)
+			if err != nil {
+				e.logger.Debugw("tiling before command failed", "err", err)
+			}
+		})
 	}
+
+	runs.Wait()
 }
 
-func (e *Engine) runBeforeLine(ctx context.Context, line string) error {
-	if e.timeout > 0 {
+// runLine runs one command line through the shell and kills it past
+// timeout, when there is one.
+func runLine(ctx context.Context, shell, line string, timeout time.Duration) error {
+	if timeout > 0 {
 		var cancel context.CancelFunc
 
-		ctx, cancel = context.WithTimeout(ctx, e.timeout)
+		ctx, cancel = context.WithTimeout(ctx, timeout)
 		defer cancel()
 	}
 
-	return exec.CommandContext(ctx, e.shell, "-c", line).Run()
+	return exec.CommandContext(ctx, shell, "-c", line).Run()
 }
 
-// runAfterLocked starts every After line once delay has passed, detached,
-// so the pass does not wait. It logs a failure without reporting it. The
-// caller holds the lock.
+// runAfterLocked starts every After line once delay has passed, in order
+// and detached, so the pass does not wait. It kills a line past the command
+// timeout and logs a failure without reporting it. The caller holds the
+// lock.
 func (e *Engine) runAfterLocked(lines []string, delay time.Duration) {
 	if len(lines) == 0 {
 		return
 	}
 
-	shell, logger := e.shell, e.logger
+	shell, timeout, logger := e.shell, e.commandTimeout, e.logger
 
-	e.after.Go(func() {
+	e.background.Go(func() {
 		time.Sleep(delay)
 
 		for _, line := range lines {
 			// The command outlives the pass, so the pass's context
 			// must not bound it.
-			err := exec.CommandContext(context.Background(), shell, "-c", line).Run()
+			err := runLine(context.Background(), shell, line, timeout)
 			if err != nil {
 				logger.Debugw("tiling after command failed", "err", err)
 			}
@@ -906,15 +944,24 @@ func (e *Engine) userDragged() (string, []uint32) {
 	return string(events.WindowMove), dragged
 }
 
-// rememberLocked reads back where the windows the engine placed actually
-// are, and keeps that. The caller holds the lock.
-func (e *Engine) rememberLocked() {
-	windows, err := e.readWindows()
-	if err != nil {
-		return
-	}
+// rememberLater reads back where the windows the engine placed actually
+// are, and keeps that. Nothing in the pass needs the answer, so the read
+// runs after the pass has returned rather than holding it, and it keeps
+// what it read only while the apply it was started for is the latest.
+func (e *Engine) rememberLater(appliedAt time.Time) {
+	e.background.Go(func() {
+		windows, err := e.readWindows()
+		if err != nil {
+			return
+		}
 
-	e.rememberFrames(windows)
+		e.mu.Lock()
+		defer e.mu.Unlock()
+
+		if e.appliedAt.Equal(appliedAt) {
+			e.rememberFrames(windows)
+		}
+	})
 }
 
 // rememberFrames keeps where the windows the engine placed are in windows.

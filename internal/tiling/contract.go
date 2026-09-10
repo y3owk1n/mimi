@@ -65,14 +65,16 @@ type Output struct {
 	// cannot.
 	Focus uint32 `json:"focus,omitempty"`
 	// Before is command lines the engine runs through settings.hook_shell
-	// before the focus and the frames. It waits for each, bounded by the
-	// layout's timeout, so the line has finished when the frames move.
+	// before the focus and the frames, all at once. It waits for every one,
+	// each bounded by tiling.command_timeout_secs, so they have finished
+	// when the frames move.
 	Before []string `json:"before,omitempty"`
 	// After is command lines the engine runs through settings.hook_shell
 	// once the frames have been applied, and once the animation has ended
-	// when one runs. Each runs detached with its output dropped. A layout
-	// uses it to act on the frames it returned, warping the cursor to the
-	// focused window say, once they are known to be applied.
+	// when one runs. They run detached from the pass, in order, each
+	// bounded by tiling.command_timeout_secs, with their output dropped. A
+	// layout uses it to act on the frames it returned, warping the cursor
+	// to the focused window say, once they are known to be applied.
 	After []string `json:"after,omitempty"`
 }
 

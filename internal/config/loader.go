@@ -156,6 +156,7 @@ func Load(path string) (*Config, error) {
 const (
 	defaultTilingDebounceMS      = 100
 	defaultTilingTimeoutSecs     = 5
+	defaultTilingCommandSecs     = 1
 	defaultTilingAnimationMS     = 150
 	defaultTilingAnimationEasing = "ease-out"
 )
@@ -197,6 +198,10 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.TimeoutSecs == 0 {
 		cfg.Tiling.TimeoutSecs = defaultTilingTimeoutSecs
+	}
+
+	if cfg.Tiling.CommandTimeoutSecs == 0 {
+		cfg.Tiling.CommandTimeoutSecs = defaultTilingCommandSecs
 	}
 
 	if cfg.Tiling.LayoutMode == "" {
@@ -268,6 +273,10 @@ func validate(cfg *Config) error {
 
 	if cfg.Tiling.TimeoutSecs < 1 {
 		errs = append(errs, "tiling.timeout_secs must be >= 1")
+	}
+
+	if cfg.Tiling.CommandTimeoutSecs < 1 {
+		errs = append(errs, "tiling.command_timeout_secs must be >= 1")
 	}
 
 	if cfg.Tiling.LayoutMode != LayoutModeOneshot && cfg.Tiling.LayoutMode != LayoutModeResident {
