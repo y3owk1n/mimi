@@ -575,21 +575,44 @@ static void mimiRememberStill(CGDirectDisplayID display, const MimiEntry *shows,
 	    });
 }
 
-// An image in memory of its own, or NULL.
+// An image in memory of its own, or NULL. Its rows are copied straight
+// from the source's bytes: drawing the source through a context would
+// leave a cache of it in CoreGraphics, a copy the size of the picture that
+// CoreGraphics lets go on a schedule of its own, and once per parked
+// window those added up to the daemon's footprint.
 static CGImageRef mimiCopyImage(CGImageRef image) {
 	size_t width = CGImageGetWidth(image);
 	size_t height = CGImageGetHeight(image);
-	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-	CGContextRef context = CGBitmapContextCreate(
-	    NULL, width, height, 8, 0, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-	CGColorSpaceRelease(space);
-	if (!context) {
+	size_t rowBytes = width * 4;
+	size_t sourceRowBytes = CGImageGetBytesPerRow(image);
+	if (CGImageGetBitsPerPixel(image) != 32 || sourceRowBytes < rowBytes) {
 		return NULL;
 	}
-	CGContextSetBlendMode(context, kCGBlendModeCopy);
-	CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
-	CGImageRef copy = CGBitmapContextCreateImage(context);
-	CGContextRelease(context);
+	CFDataRef source = CGDataProviderCopyData(CGImageGetDataProvider(image));
+	if (!source) {
+		return NULL;
+	}
+	// A picture cropped from a larger one starts at its first pixel and
+	// keeps the larger one's row length, so its last row may end short.
+	const uint8_t *from = CFDataGetBytePtr(source);
+	size_t available = (size_t)CFDataGetLength(source);
+	if (available < (height - 1) * sourceRowBytes + rowBytes) {
+		CFRelease(source);
+		return NULL;
+	}
+	CFMutableDataRef data = CFDataCreateMutable(NULL, (CFIndex)(rowBytes * height));
+	CFDataSetLength(data, (CFIndex)(rowBytes * height));
+	uint8_t *to = CFDataGetMutableBytePtr(data);
+	for (size_t row = 0; row < height; row++) {
+		memcpy(to + row * rowBytes, from + row * sourceRowBytes, rowBytes);
+	}
+	CFRelease(source);
+	CGDataProviderRef provider = CGDataProviderCreateWithCFData(data);
+	CFRelease(data);
+	CGImageRef copy = CGImageCreate(
+	    width, height, 8, 32, rowBytes, CGImageGetColorSpace(image), CGImageGetBitmapInfo(image), provider, NULL, false,
+	    kCGRenderingIntentDefault);
+	CGDataProviderRelease(provider);
 	return copy;
 }
 
