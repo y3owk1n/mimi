@@ -54,6 +54,10 @@ char *MimiCopyApplicationBundleID(int pid);
 /// array of each window's corner radius in points, or -1 where the window
 /// server does not say (before macOS 26). The caller releases both.
 CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii);
+/// Fill radii with the corner radius in points of each window in numbers,
+/// or -1 where the window server does not say (before macOS 26) or the
+/// window is gone.
+void MimiWindowCornerRadii(const uint32_t *numbers, int count, double *radii);
 /// Copy an application's real, unminimized windows on every space, front to
 /// back. Sets *count; the caller frees the array. Auxiliary windows (popovers,
 /// sheets, tab previews) are left out.

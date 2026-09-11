@@ -144,6 +144,32 @@ CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii) {
 	return CFBridgingRetain(real);
 }
 
+void MimiWindowCornerRadii(const uint32_t *numbers, int count, double *radii) {
+	for (int i = 0; i < count; i++)
+		radii[i] = -1;
+	if (count <= 0 || !mimiCornerRadii())
+		return;
+
+	NSMutableArray<NSNumber *> *list = [NSMutableArray arrayWithCapacity:(NSUInteger)count];
+	for (int i = 0; i < count; i++)
+		[list addObject:@(numbers[i])];
+	CFTypeRef query = SLSWindowQueryWindows(SLSMainConnectionID(), (__bridge CFArrayRef)list, count);
+	if (!query)
+		return;
+	CFTypeRef iterator = SLSWindowQueryResultCopyWindows(query);
+	if (iterator) {
+		while (SLSWindowIteratorAdvance(iterator)) {
+			uint32_t number = SLSWindowIteratorGetWindowID(iterator);
+			for (int i = 0; i < count; i++) {
+				if (numbers[i] == number)
+					radii[i] = mimiIteratorRadius(iterator);
+			}
+		}
+		CFRelease(iterator);
+	}
+	CFRelease(query);
+}
+
 /// Window numbers of every real, unminimized window on any space, whoever
 /// owns them.
 static NSSet<NSNumber *> *mimiRealWindowNumbers(void) {
