@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.14.0](https://github.com/y3owk1n/mimi/compare/v0.13.1...v0.14.0) (2026-09-10)
+
+
+### Features
+
+* **tiling:** run layout commands before and after the frames ([#238](https://github.com/y3owk1n/mimi/issues/238)) ([7d24ea0](https://github.com/y3owk1n/mimi/commit/7d24ea064c22f3311f5ee3091b8f9a5158eaaae4))
+
+
+### Bug Fixes
+
+* **tiling:** stop floating browser windows titled Settings ([#236](https://github.com/y3owk1n/mimi/issues/236)) ([428626c](https://github.com/y3owk1n/mimi/commit/428626c0130161524b4211656258f4ea72beedd8))
+
+
+### Performance Improvements
+
+* **tiling:** shorten a pass and bound the before and after lines ([#239](https://github.com/y3owk1n/mimi/issues/239)) ([b605012](https://github.com/y3owk1n/mimi/commit/b60501261437d6c997b5dbfed63ba65be6f99342))
+
 ## [0.13.1](https://github.com/y3owk1n/mimi/compare/v0.13.0...v0.13.1) (2026-09-10)
 
 
