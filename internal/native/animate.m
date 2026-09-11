@@ -1,6 +1,7 @@
 #import "animate.h"
 
 #import "border.h"
+#import "mimi.h"
 #import "mimi_log.h"
 #import "workspace.h"
 
@@ -34,10 +35,9 @@
 // bar. They are left out of the backdrop, and need no still of their own.
 static const int kMimiHostLayer = 3;
 
-// How many window masks are remembered.
-enum {
-	kMimiMaskCacheSize = 32,
-};
+// The corner radius macOS gives a document window, in points, taken for a
+// window whose radius the window server does not report.
+static const double kMimiDocumentRadius = 12;
 
 #pragma mark - Types
 
@@ -66,10 +66,13 @@ typedef struct {
 // proxies stack as the windows do.
 @property(nonatomic) int depth;
 @property(nonatomic) double scale;
-// picture and mask hold the capture between the phases of Begin; layer is
+// radius is the window's corner radius in points, which the proxy's layer
+// is clipped by, as the window server reports it; a document window's
+// where it does not.
+@property(nonatomic) double radius;
+// picture holds the capture between the phases of Begin; layer is
 // the proxy once made.
 @property(nonatomic) CGImageRef picture;
-@property(nonatomic) CGImageRef mask;
 @property(nonatomic, strong) CALayer *layer;
 // ring is the border drawn under the window, carried along under the
 // proxy while the real one waits under the still, or nil when the window
@@ -84,9 +87,6 @@ typedef struct {
 - (void)dealloc {
 	if (_picture) {
 		CGImageRelease(_picture);
-	}
-	if (_mask) {
-		CGImageRelease(_mask);
 	}
 }
 
@@ -154,21 +154,6 @@ static int gEasing;
 // generation tells an animation's end callback whether it is still the one
 // on screen.
 static unsigned gGeneration;
-
-// The masks remembered by window number, each for the size the window had
-// and the scale of the display it was on. A window's shape only changes
-// with its size, and taking the mask is a capture, the cost of a whole
-// display's composite.
-typedef struct {
-	uint32_t number;
-	CGSize size;
-	double scale;
-	CGImageRef mask;
-} MimiMask;
-
-static MimiMask gMasks[kMimiMaskCacheSize];
-static int gMaskCount;
-static int gMaskNext;
 
 // The pictures of the windows an animation parked off every display, by
 // number, kept while they stay there: nothing draws a window the user
@@ -450,28 +435,25 @@ static void mimiRemoveProxy(MimiProxy *proxy) {
 	[proxy.ring removeFromSuperlayer];
 }
 
-// A layer showing image over `frame`, in screen coordinates, clipped to
-// mask's alpha when there is one. The image is shown as it is, without a
-// copy.
-static CALayer *mimiImageLayer(CGImageRef image, CGImageRef mask, CGRect frame, double scale) {
+// A layer showing image over `frame`, in screen coordinates, its corners
+// rounded by radius. The image is shown as it is, without a copy. A
+// picture cropped from a composite of the screen is square at the corners,
+// where what was under the window shows; the clip cuts that off, and
+// follows the layer through a resize.
+static CALayer *mimiImageLayer(CGImageRef image, double radius, CGRect frame, double scale) {
 	CALayer *layer = [CALayer layer];
 	layer.contents = (__bridge id)image;
 	layer.contentsGravity = kCAGravityResize;
 	layer.contentsScale = scale;
 	layer.frame = frame;
-	if (mask) {
-		CALayer *clip = [CALayer layer];
-		clip.contents = (__bridge id)mask;
-		clip.contentsGravity = kCAGravityResize;
-		clip.contentsScale = scale;
-		clip.frame = layer.bounds;
-		clip.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-		layer.mask = clip;
+	if (radius > 0) {
+		layer.cornerRadius = radius;
+		layer.masksToBounds = YES;
 	}
 	return layer;
 }
 
-#pragma mark - Masks
+#pragma mark - Captures
 
 // A window's own picture, asked for by its number. It is whole even where
 // the window hangs past the display's edge, where a capture of the screen
@@ -482,58 +464,6 @@ static CGImageRef mimiWholeWindow(uint32_t number) {
 	return mimiCapture(
 	    CGRectNull, kCGWindowListOptionIncludingWindow, number,
 	    kCGWindowImageBoundsIgnoreFraming | kCGWindowImageBestResolution);
-}
-
-// The remembered mask for a window of this size, retained, or NULL.
-static CGImageRef mimiCachedMask(uint32_t number, CGSize size, double scale) {
-	for (int i = 0; i < gMaskCount; i++) {
-		if (gMasks[i].number == number && mimiSameSize(gMasks[i].size, size) && gMasks[i].scale == scale) {
-			return CGImageRetain(gMasks[i].mask);
-		}
-	}
-	return NULL;
-}
-
-// Remember a mask, copied into memory of its own so the capture it was
-// cropped from can go. The window's older mask, if any, is replaced;
-// otherwise the oldest entry is.
-static void mimiRememberMask(uint32_t number, CGSize size, double scale, CGImageRef mask) {
-	size_t width = CGImageGetWidth(mask);
-	size_t height = CGImageGetHeight(mask);
-	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
-	CGContextRef context = CGBitmapContextCreate(
-	    NULL, width, height, 8, 0, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
-	CGColorSpaceRelease(space);
-	if (!context) {
-		return;
-	}
-	CGContextSetBlendMode(context, kCGBlendModeCopy);
-	CGContextDrawImage(context, CGRectMake(0, 0, width, height), mask);
-	CGImageRef copy = CGBitmapContextCreateImage(context);
-	CGContextRelease(context);
-	if (!copy) {
-		return;
-	}
-
-	int slot = -1;
-	for (int i = 0; i < gMaskCount; i++) {
-		if (gMasks[i].number == number) {
-			slot = i;
-			break;
-		}
-	}
-	if (slot < 0) {
-		if (gMaskCount < kMimiMaskCacheSize) {
-			slot = gMaskCount++;
-		} else {
-			slot = gMaskNext;
-			gMaskNext = (gMaskNext + 1) % kMimiMaskCacheSize;
-		}
-	}
-	if (gMasks[slot].mask) {
-		CGImageRelease(gMasks[slot].mask);
-	}
-	gMasks[slot] = (MimiMask){.number = number, .size = size, .scale = scale, .mask = copy};
 }
 
 #pragma mark - Teardown
@@ -711,6 +641,31 @@ void MimiAnimationWarm(void) {
 	});
 }
 
+// Ask the window server for the corner radius of every proxy not carried
+// over, in one query. Where it does not say, before macOS 26, a document
+// window's is taken, as the borders do.
+static void mimiReadRadii(NSArray<MimiProxy *> *proxies) {
+	uint32_t numbers[proxies.count > 0 ? proxies.count : 1];
+	double radii[proxies.count > 0 ? proxies.count : 1];
+	int count = 0;
+	for (MimiProxy *proxy in proxies) {
+		if (!proxy.carried) {
+			numbers[count++] = proxy.number;
+		}
+	}
+	if (count == 0) {
+		return;
+	}
+	MimiWindowCornerRadii(numbers, count, radii);
+	int at = 0;
+	for (MimiProxy *proxy in proxies) {
+		if (!proxy.carried) {
+			double radius = radii[at++];
+			proxy.radius = radius >= 0 ? radius : kMimiDocumentRadius;
+		}
+	}
+}
+
 static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double duration, int easing);
 
 int MimiAnimationBegin(const MimiAnimationTarget *targets, int count, double duration, int easing) {
@@ -798,6 +753,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	if (next.count == carried.count && !retargeted) {
 		return 0;
 	}
+	mimiReadRadii(next);
 
 	// Our own windows to leave out of the stills: the hosts, and the borders
 	// under the animating windows, which move with them as rings under the
@@ -904,11 +860,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		// The windows that overlap another animating window, as under a
 		// monocle layout, are captured one by one: a composite of the set
 		// shows only the top one. The rest are cropped from one composite
-		// of the scene. Their masks come from one composite of those
-		// windows alone, taken only for the windows whose mask is not
-		// remembered from an earlier animation.
-		MimiEntry *apart = calloc(next.count, sizeof(MimiEntry));
-		int apartCount = 0;
+		// of the scene.
 		BOOL anyAlone = NO;
 		for (MimiProxy *proxy in next) {
 			if (proxy.carried || proxy.picture || !mimiAnimatesOn(proxy, bounds)) {
@@ -928,10 +880,6 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			proxy.alone = !overlaps;
 			if (!overlaps) {
 				anyAlone = YES;
-				proxy.mask = mimiCachedMask(proxy.number, proxy.from.size, scale);
-				if (!proxy.mask) {
-					apart[apartCount++] = (MimiEntry){.number = proxy.number, .bounds = proxy.from};
-				}
 			}
 		}
 
@@ -973,25 +921,17 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				[backdrops addObject:mimiNewBackdrop(displays[d], bounds, YES, front, frontCount, cover, nil)];
 			}
 		}
-		CGImageRef flight = NULL;
-		if (apartCount > 0) {
-			CFArrayRef list = mimiNumbers(apart, apartCount);
-			flight = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
-			CFRelease(list);
-		}
 		// A window captured on its own comes out opaque, with its
 		// translucent parts a flat tint, since the window server has
 		// nothing behind it to blend with. Composited with what is under
-		// it, it looks as it does on screen, so the apart windows take
-		// their picture from that scene, cropped, and their own capture
-		// only clips it to the window's shape.
+		// it, it looks as it does on screen, so the windows alone take
+		// their picture from that scene, cropped.
 		CGImageRef scene = NULL;
 		if (anyAlone) {
 			CFArrayRef list = mimiNumbers(under, underCount);
 			scene = mimiCaptureArray(bounds, list, kCGWindowImageBestResolution);
 			CFRelease(list);
 		}
-		free(apart);
 
 		for (MimiProxy *proxy in next) {
 			if (proxy.carried || proxy.picture || !mimiAnimatesOn(proxy, bounds)) {
@@ -1005,21 +945,12 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 					// Cut at the display's edge, the crop would show only
 					// the part on screen, stretched over the whole.
 					proxy.picture = mimiWholeWindow(proxy.number);
-				} else {
-					if (scene) {
-						proxy.picture = CGImageCreateWithImageInRect(scene, crop);
-					}
-					if (!proxy.mask && flight) {
-						proxy.mask = CGImageCreateWithImageInRect(flight, crop);
-						if (proxy.mask) {
-							mimiRememberMask(proxy.number, proxy.from.size, scale, proxy.mask);
-						}
-					}
+				} else if (scene) {
+					proxy.picture = CGImageCreateWithImageInRect(scene, crop);
 				}
-				if (!proxy.picture && proxy.mask) {
+				if (!proxy.picture) {
 					// No scene: the window's own capture is the picture.
-					proxy.picture = proxy.mask;
-					proxy.mask = NULL;
+					proxy.picture = mimiWholeWindow(proxy.number);
 				}
 			} else if (CGRectContainsRect(bounds, proxy.from)) {
 				proxy.picture = mimiCapture(
@@ -1034,25 +965,16 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 				// a flat tint where the window is translucent, since nothing
 				// is under it to blend with.
 				proxy.picture = mimiParkedPicture(proxy.number, proxy.from.size, scale);
-				if (proxy.picture) {
-					proxy.mask = mimiCachedMask(proxy.number, proxy.from.size, scale);
-				} else {
+				if (!proxy.picture) {
 					proxy.picture = mimiWholeWindow(proxy.number);
 				}
 			}
 			proxy.scale = scale;
 			if (!proxy.picture) {
 				MIMI_LOG("animation: capturing window %u failed", proxy.number);
-				if (proxy.mask) {
-					CGImageRelease(proxy.mask);
-					proxy.mask = NULL;
-				}
 			}
 		}
 
-		if (flight) {
-			CGImageRelease(flight);
-		}
 		if (scene) {
 			CGImageRelease(scene);
 		}
@@ -1088,7 +1010,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 		if (backdrop.reused || backdrop.over) {
 			continue;
 		}
-		backdrop.layer = mimiImageLayer(backdrop.still, NULL, backdrop.bounds, 1);
+		backdrop.layer = mimiImageLayer(backdrop.still, 0, backdrop.bounds, 1);
 		CGImageRelease(backdrop.still);
 		backdrop.still = NULL;
 		[mimiHost(backdrop.display, backdrop.bounds).root addSublayer:backdrop.layer];
@@ -1105,13 +1027,9 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 	}];
 	for (MimiProxy *proxy in made) {
 		if (!proxy.carried) {
-			proxy.layer = mimiImageLayer(proxy.picture, proxy.mask, proxy.from, proxy.scale);
+			proxy.layer = mimiImageLayer(proxy.picture, proxy.radius, proxy.from, proxy.scale);
 			CGImageRelease(proxy.picture);
 			proxy.picture = NULL;
-			if (proxy.mask) {
-				CGImageRelease(proxy.mask);
-				proxy.mask = NULL;
-			}
 			double width = 0, radius = 0;
 			MimiColor color;
 			if (MimiBorderRing(proxy.number, &width, &radius, &color)) {
@@ -1142,7 +1060,7 @@ static int mimiBeginOnMain(const MimiAnimationTarget *targets, int count, double
 			continue;
 		}
 		if (!backdrop.reused) {
-			backdrop.layer = mimiImageLayer(backdrop.still, NULL, backdrop.bounds, 1);
+			backdrop.layer = mimiImageLayer(backdrop.still, 0, backdrop.bounds, 1);
 			CGImageRelease(backdrop.still);
 			backdrop.still = NULL;
 		}
