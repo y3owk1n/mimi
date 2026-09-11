@@ -158,11 +158,16 @@ static unsigned gGeneration;
 // The pictures of the windows an animation parked off every display, by
 // number, kept while they stay there: nothing draws a window the user
 // cannot see, so the picture it left with is the picture it comes back
-// with, and its capture, a round trip of its own, is saved.
+// with, and its capture, a round trip of its own, is saved. Each is a
+// copy of its own, since a picture cropped from a composite of the
+// display keeps the whole composite alive. Together they are held to a
+// budget of bytes, the least recently used going first.
 @interface MimiParked : NSObject
 @property(nonatomic) CGSize size;
 @property(nonatomic) double scale;
 @property(nonatomic) CGImageRef picture;
+@property(nonatomic) size_t bytes;
+@property(nonatomic) double used;
 @end
 
 @implementation MimiParked
@@ -177,14 +182,13 @@ static unsigned gGeneration;
 
 static NSMutableDictionary<NSNumber *, MimiParked *> *gParked;
 
-enum {
-	kMimiParkedLimit = 16,
-};
+static const size_t kMimiParkedBudget = 32 * 1024 * 1024;
 
 // The last still taken under the proxies of each display, with what it
 // showed and when: taken again within a second for the same windows at the
 // same places it would show the same, but for what those windows drew
-// since, which a still on screen for the length of an animation hides.
+// since, which a still on screen for the length of an animation hides. It
+// is let go once that second is up.
 @interface MimiStill : NSObject
 @property(nonatomic) MimiEntry *shows;
 @property(nonatomic) int showsCount;
@@ -563,6 +567,30 @@ static void mimiRememberStill(CGDirectDisplayID display, const MimiEntry *shows,
 	still.taken = CACurrentMediaTime();
 	still.picture = CGImageRetain(picture);
 	gStills[@(display)] = still;
+	dispatch_after(
+	    dispatch_time(DISPATCH_TIME_NOW, (int64_t)(kMimiStillFor * NSEC_PER_SEC)), dispatch_get_main_queue(), ^{
+		    if (gStills[@(display)] == still) {
+			    [gStills removeObjectForKey:@(display)];
+		    }
+	    });
+}
+
+// An image in memory of its own, or NULL.
+static CGImageRef mimiCopyImage(CGImageRef image) {
+	size_t width = CGImageGetWidth(image);
+	size_t height = CGImageGetHeight(image);
+	CGColorSpaceRef space = CGColorSpaceCreateDeviceRGB();
+	CGContextRef context = CGBitmapContextCreate(
+	    NULL, width, height, 8, 0, space, kCGImageAlphaPremultipliedFirst | kCGBitmapByteOrder32Little);
+	CGColorSpaceRelease(space);
+	if (!context) {
+		return NULL;
+	}
+	CGContextSetBlendMode(context, kCGBlendModeCopy);
+	CGContextDrawImage(context, CGRectMake(0, 0, width, height), image);
+	CGImageRef copy = CGBitmapContextCreateImage(context);
+	CGContextRelease(context);
+	return copy;
 }
 
 // The picture a window was parked off screen with, retained, when it is
@@ -572,6 +600,7 @@ static CGImageRef mimiParkedPicture(uint32_t number, CGSize size, double scale) 
 	if (!parked || !mimiSameSize(parked.size, size) || parked.scale != scale) {
 		return NULL;
 	}
+	parked.used = CACurrentMediaTime();
 	return CGImageRetain(parked.picture);
 }
 
@@ -580,6 +609,26 @@ static BOOL mimiOffEveryDisplay(CGRect frame) {
 	uint32_t count = 0;
 	CGGetDisplaysWithPoint(CGPointMake(CGRectGetMidX(frame), CGRectGetMidY(frame)), 16, displays, &count);
 	return count == 0;
+}
+
+// Forget the least recently used parked pictures until those left fit in
+// budget.
+static void mimiEvictParked(size_t budget) {
+	for (;;) {
+		size_t total = 0;
+		NSNumber *oldest = nil;
+		for (NSNumber *number in gParked) {
+			MimiParked *parked = gParked[number];
+			total += parked.bytes;
+			if (!oldest || parked.used < gParked[oldest].used) {
+				oldest = number;
+			}
+		}
+		if (total <= budget || !oldest) {
+			return;
+		}
+		[gParked removeObjectForKey:oldest];
+	}
 }
 
 // Keep the pictures of the proxies parking off screen, and forget those of
@@ -594,16 +643,24 @@ static void mimiRememberParked(NSArray<MimiProxy *> *proxies) {
 		}
 	}
 	for (MimiProxy *proxy in proxies) {
-		if (!proxy.picture || !mimiOffEveryDisplay(proxy.to)) {
+		if (!proxy.picture || !mimiOffEveryDisplay(proxy.to) || gParked[@(proxy.number)]) {
 			continue;
 		}
-		if (gParked.count >= kMimiParkedLimit && !gParked[@(proxy.number)]) {
-			[gParked removeObjectForKey:gParked.allKeys.firstObject];
+		size_t bytes = CGImageGetBytesPerRow(proxy.picture) * CGImageGetHeight(proxy.picture);
+		if (bytes > kMimiParkedBudget) {
+			continue;
 		}
+		CGImageRef copy = mimiCopyImage(proxy.picture);
+		if (!copy) {
+			continue;
+		}
+		mimiEvictParked(kMimiParkedBudget - bytes);
 		MimiParked *parked = [MimiParked new];
 		parked.size = proxy.to.size;
 		parked.scale = proxy.scale;
-		parked.picture = CGImageRetain(proxy.picture);
+		parked.picture = copy;
+		parked.bytes = bytes;
+		parked.used = CACurrentMediaTime();
 		gParked[@(proxy.number)] = parked;
 	}
 }
