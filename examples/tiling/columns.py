@@ -11,7 +11,7 @@ stdout. Copy, edit, own. Standard library only.
 Usage: columns.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 """
 
-from rules import area, gap, maximised, serve, write_output
+from rules import area, gap, maximised, serve, unmanaged_of, write_output
 
 
 def main(inp):
@@ -19,7 +19,7 @@ def main(inp):
     state = inp.get("state") or {}
     windows = inp["windows"]
     if not windows:
-        write_output([], None)
+        write_output([], None, unmanaged=unmanaged_of(inp))
         return
 
     box = area(inp, GAP)
@@ -37,7 +37,9 @@ def main(inp):
         )
         for i, w in enumerate(windows)
     ]
-    write_output(maximised(inp, state, frames, box), state)
+    write_output(
+        maximised(inp, state, frames, box), state, unmanaged=unmanaged_of(inp, state)
+    )
 
 
 if __name__ == "__main__":

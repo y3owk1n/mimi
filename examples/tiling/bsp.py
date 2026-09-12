@@ -30,7 +30,7 @@ Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 
 import sys
 
-from rules import clamp as clamp_to
+from rules import clamp as clamp_to, unmanaged_of
 from rules import area, command, gap, maximised, serve, write_output
 
 # The gap, set from the input once it is read. The tree functions below read
@@ -308,7 +308,7 @@ def main(inp):
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }
-    write_output(frames, state)
+    write_output(frames, state, unmanaged=unmanaged_of(inp, state))
 
 
 if __name__ == "__main__":

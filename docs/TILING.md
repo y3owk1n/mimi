@@ -186,6 +186,7 @@ both, through `serve()` in `rules.py`.
 | `focused` | Index into `windows` of the focused window, or -1 when the focused window is on another display. |
 | `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
 | `state` | What you printed last time for this display and space, or `null`. |
+| `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. Handed back so a layout that keeps its floats outside `state`, or one restarted mid-session, can pick the set up again. |
 
 `displays` and `windows` are exactly what `mimi query displays` and
 `mimi query windows` print, so real data is one command away.
@@ -204,6 +205,7 @@ they compare correctly but need not start at 0 or run without gaps.
   "frames": [{"number": 4242, "frame": {"x": 8, "y": 33, "width": 1424, "height": 859}}],
   "state": {"anything": "you like"},
   "focus": 4242,
+  "unmanaged": [4243],
   "before": ["osascript -e 'beep'"],
   "after": ["~/.config/mimi/warp.py 720 462"]
 }
@@ -214,8 +216,20 @@ they compare correctly but need not start at 0 or run without gaps.
 | `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
+| `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone. A window stays unmanaged until a later run for the same display leaves it out of this list. |
 | `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
 | `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
+
+**Leaving a window out of `frames` is not the same as naming it in
+`unmanaged`.** Omitting a frame says only that the window does not move this
+pass, which is exactly what a temporary maximise does to the windows under the
+maximised one, and mimi keeps watching those so a drag of one still reaches
+you. Naming a window in `unmanaged` says you have no opinion about where it
+goes at all, and mimi stops watching it until you claim it again.
+
+`rules.py` does this for you. `narrow()` records the windows the float rules
+filtered out, `unmanaged_of(inp, state)` adds any the layout floated itself
+with `togglefloat`, and `write_output(..., unmanaged=...)` prints the result.
 
 ### Coordinates
 

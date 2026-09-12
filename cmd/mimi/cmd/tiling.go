@@ -238,10 +238,11 @@ func previewLayout(cobraCmd *cobra.Command, cfg *config.Config, inputOnly bool) 
 		}
 
 		previews[index] = previewOutput{
-			Display: inputs[index].Display.ID,
-			Space:   inputs[index].Space,
-			Frames:  frames,
-			State:   state,
+			Display:   inputs[index].Display.ID,
+			Space:     inputs[index].Space,
+			Frames:    frames,
+			State:     state,
+			Unmanaged: out.Unmanaged,
 		}
 	}
 
@@ -256,4 +257,7 @@ type previewOutput struct {
 	Space   int                  `json:"space"`
 	Frames  []action.WindowFrame `json:"frames"`
 	State   json.RawMessage      `json:"state"`
+	// Unmanaged is the windows the layout said it is leaving alone, absent
+	// when it named none, so a preview reads as the layout printed it.
+	Unmanaged []uint32 `json:"unmanaged,omitempty"`
 }

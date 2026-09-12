@@ -24,7 +24,7 @@ Usage: master-stack.py [ratio]     (the gap is tiling.gap, else the macOS tiled-
 
 import sys
 
-from rules import area, clamp, command, gap, maximised, serve, write_output
+from rules import area, clamp, command, gap, maximised, serve, unmanaged_of, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 
@@ -34,7 +34,7 @@ def main(inp):
     state = inp.get("state") or {}
     windows = inp["windows"]
     if not windows:
-        write_output([], None)
+        write_output([], None, unmanaged=unmanaged_of(inp))
         return
 
     box = area(inp, GAP)
@@ -99,7 +99,9 @@ def main(inp):
         )
 
     state.update(master=master, ratio=ratio)
-    write_output(maximised(inp, state, frames, box), state)
+    write_output(
+        maximised(inp, state, frames, box), state, unmanaged=unmanaged_of(inp, state)
+    )
 
 
 if __name__ == "__main__":

@@ -51,6 +51,12 @@ type Input struct {
 	Focused  int                   `json:"focused"`
 	Windows  []action.WindowEntry  `json:"windows"`
 	State    json.RawMessage       `json:"state"`
+	// Unmanaged is the windows on this display the layout last said it is
+	// not managing, by number. The engine hands the set back so that a
+	// layout restarted mid-session, or one that keeps its floats somewhere
+	// other than state, can pick it up again instead of disagreeing with
+	// the engine about which windows are its own.
+	Unmanaged []uint32 `json:"unmanaged,omitempty"`
 
 	// spaceID is which space Space names, as the window server identifies
 	// it, and it is what the engine files this input's state under. It is
@@ -84,6 +90,17 @@ type Output struct {
 	// layout uses it to act on the frames it returned, warping the cursor
 	// to the focused window say, once they are known to be applied.
 	After []string `json:"after,omitempty"`
+	// Unmanaged is the windows this run was given that the layout is
+	// leaving alone, by number, such as the ones it floats.
+	//
+	// Leaving a window out of Frames says only that it does not move this
+	// pass, which is what a layout maximizing one window over the rest
+	// does. Naming it here says the layout has no opinion about where it
+	// goes at all, so the engine stops watching it. Dragging an unmanaged
+	// window raises no pass and shows no drop zone. A window named on one
+	// run stays unmanaged until a later run for the same display leaves it
+	// out of this list.
+	Unmanaged []uint32 `json:"unmanaged,omitempty"`
 }
 
 // Event kinds the engine reports beyond the hookable ones it forwards from
