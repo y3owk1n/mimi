@@ -57,10 +57,13 @@ def narrow(inp):
     """The input with `windows` narrowed to the tileable ones and `focused`
     re-pointed at the same window, or -1 if it went. `focusFloating` is
     True when it went because the focused window floats, so a layout can
-    tell focus on a floating window from focus on nothing."""
+    tell focus on a floating window from focus on nothing. `unmanaged` is
+    the windows that were filtered out, to hand back to `write_output` so
+    mimi leaves them alone too."""
     focused_number = (
         inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
     )
+    inp["unmanaged"] = [w["number"] for w in inp["windows"] if floating(w)]
     inp["windows"] = [w for w in inp["windows"] if not floating(w)]
     numbers = [w["number"] for w in inp["windows"]]
     inp["focused"] = numbers.index(focused_number) if focused_number in numbers else -1
@@ -135,10 +138,32 @@ def _on(frame, bounds):
     return bounds["x"] <= cx < bounds["x"] + bounds["width"] and bounds["y"] <= cy < bounds["y"] + bounds["height"]
 
 
-def write_output(frames, state, focus=None):
+def unmanaged_of(inp, state=None):
+    """The windows mimi should leave alone: the ones `narrow()` filtered out
+    by the float rules, plus any the layout floated itself and keeps in
+    `state["floating"]`. Hand it to `write_output` so mimi's drag reading and
+    its drop zone agree with the layout about which windows are the layout's.
+
+    Without it mimi keeps watching a window the layout has stopped placing,
+    because not placing a window is also what a temporary maximise does to
+    the windows under it, and those it should keep watching."""
+    numbers = set(inp.get("unmanaged", []))
+    if state:
+        numbers |= set(state.get("floating", []))
+    return sorted(numbers)
+
+
+def write_output(frames, state, focus=None, unmanaged=None):
     """Print the layout output: frames in whole points, the state to get
-    back next time, and the window to focus once the frames are applied,
-    when the layout moved focus along its own structure."""
+    back next time, the window to focus once the frames are applied, when
+    the layout moved focus along its own structure, and the windows this
+    layout is not managing.
+
+    `unmanaged` is what `narrow()` filtered out, so mimi leaves those
+    windows alone too, and dragging one raises no pass and shows no drop
+    zone. Leaving a window out of `frames` says only that it does not move
+    this time, which is what a temporary maximise does to the windows under
+    it."""
     frames = [
         {"number": number, "frame": {k: int(round(v)) for k, v in frame.items()}}
         for number, frame in frames
@@ -146,6 +171,8 @@ def write_output(frames, state, focus=None):
     out = {"frames": frames, "state": state}
     if focus is not None:
         out["focus"] = focus
+    if unmanaged:
+        out["unmanaged"] = list(unmanaged)
     json.dump(out, sys.stdout)
     sys.stdout.write("\n")
 

@@ -78,6 +78,16 @@ type Engine struct {
 	// this the map would only ever grow.
 	writes    uint64
 	writtenAt map[string]uint64
+	// unmanaged is every window the layout said it is leaving alone, by
+	// number, as of the last run that was given that window. The engine
+	// watches nothing in here. It raises no pass for a drag of one and
+	// previews no drop zone over one.
+	//
+	// An entry for a window that has closed stays until the number is
+	// given to a run again, which it never is. That costs a few bytes and
+	// nothing else, because the window server counts window numbers up and
+	// does not hand one out twice.
+	unmanaged map[uint32]bool
 	// seen is every window number the last pass read, nil before the
 	// first, so a window_created pass can tell whether the window it was
 	// raised for has reached the window server's on-screen list yet.
@@ -132,6 +142,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		serialize:   serialize,
 		logger:      logger,
 		states:      map[string]json.RawMessage{},
+		unmanaged:   map[uint32]bool{},
 		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
@@ -538,6 +549,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 
 		before = append(before, out.Before...)
 		after = append(after, out.After...)
+
+		e.keepUnmanaged(input, out.Unmanaged)
 	}
 
 	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
@@ -587,7 +600,12 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 
 	// Whatever the apply reported, some frames may have landed: remember
 	// them all as requested, then read back where they are.
-	e.applied = make(map[uint32]action.Frame, len(frames))
+	//
+	// A window the layout still manages but did not move this pass keeps
+	// the placement it already had, so it is still watched for a drag. A
+	// layout maximizing one window over the rest returns one frame, and
+	// dragging any of the others used to raise nothing at all.
+	e.applied = e.stillPlaced(inputs)
 	for _, frame := range frames {
 		e.applied[frame.Number] = frame.Frame
 	}
@@ -711,6 +729,49 @@ func stateKey(input Input) (string, bool) {
 	}
 
 	return fmt.Sprintf("%d/%d", input.Display.ID, input.spaceID), true
+}
+
+// keepUnmanaged records which of the windows this run was given the layout is
+// leaving alone. Only those windows are reclassified, so a run for one display
+// never speaks for another's, and a window the run was not given keeps
+// whatever it was. The caller holds the lock.
+func (e *Engine) keepUnmanaged(input Input, unmanaged []uint32) {
+	for _, win := range input.Windows {
+		delete(e.unmanaged, win.Number)
+	}
+
+	for _, number := range unmanaged {
+		e.unmanaged[number] = true
+	}
+}
+
+// stillPlaced is where the engine last put every window it is still watching,
+// which is the placements it carries into the next pass.
+//
+// A window the layout has stopped managing is dropped, and so is one this pass
+// did not see at all: a window that closed, or one on a display macOS took
+// over for a full-screen space. Neither is worth comparing against a frame
+// that no longer means anything. The caller holds the lock.
+func (e *Engine) stillPlaced(inputs []Input) map[uint32]action.Frame {
+	seen := make(map[uint32]bool, len(e.applied))
+
+	for _, input := range inputs {
+		for _, win := range input.Windows {
+			seen[win.Number] = true
+		}
+	}
+
+	placed := make(map[uint32]action.Frame, len(e.applied))
+
+	for number, frame := range e.applied {
+		if e.unmanaged[number] || !seen[number] {
+			continue
+		}
+
+		placed[number] = frame
+	}
+
+	return placed
 }
 
 // maxKeptStates is how many display-and-space states the engine remembers at
@@ -955,6 +1016,12 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			continue
 		}
 
+		for _, win := range input.Windows {
+			if e.unmanaged[win.Number] {
+				input.Unmanaged = append(input.Unmanaged, win.Number)
+			}
+		}
+
 		if key, named := stateKey(input); named {
 			input.State = e.states[key]
 		}
@@ -1125,6 +1192,10 @@ func (e *Engine) draggedLocked(windows action.WindowsInfo) (string, []uint32) {
 	)
 
 	for _, win := range windows.Windows {
+		if e.unmanaged[win.Number] {
+			continue
+		}
+
 		placed, ok := e.applied[win.Number]
 		if !ok || sameFrame(placed, win.Frame) {
 			continue

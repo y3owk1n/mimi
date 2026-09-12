@@ -51,7 +51,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, gap, maximised, serve, write_output
+from rules import area, clamp, command, gap, maximised, serve, unmanaged_of, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -226,7 +226,11 @@ def main(inp):
 
     sync(columns, windows, focused)
     if not columns:
-        write_output([], {"columns": [], "offset": 0, "floating": state.get("floating", [])})
+        write_output(
+            [],
+            {"columns": [], "offset": 0, "floating": state.get("floating", [])},
+            unmanaged=unmanaged_of(inp, state),
+        )
         return
 
     at = column_of(columns, focused)
@@ -245,7 +249,11 @@ def main(inp):
             offset += step if args[0] == "right" else -step
             offset = clamp(offset, 0, max(0, total - box["width"]))
             state.update(columns=columns, offset=offset)
-            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
+            write_output(
+                maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box),
+                state,
+                unmanaged=unmanaged_of(inp, state),
+            )
             return
 
     if event["kind"] == "command" and at is not None:
@@ -297,7 +305,11 @@ def main(inp):
             width = col_width(column, box, GAP)
             offset = max(0, xs[at] + width / 2 - box["width"] / 2)
             state.update(columns=columns, offset=offset)
-            write_output(maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box), state)
+            write_output(
+                maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box),
+                state,
+                unmanaged=unmanaged_of(inp, state),
+            )
             return
     elif event["kind"] == "window_resize":
         placed = state.get("placed", {})
@@ -372,7 +384,7 @@ def main(inp):
     frames = maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box)
     state.update(columns=columns, offset=offset)
     state["placed"] = {str(n): {k: int(round(v)) for k, v in f.items()} for n, f in frames}
-    write_output(frames, state, focus)
+    write_output(frames, state, focus, unmanaged=unmanaged_of(inp, state))
 
 
 if __name__ == "__main__":
