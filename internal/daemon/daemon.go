@@ -564,15 +564,15 @@ func borderConfigFor(cfg *config.Config, accessibilityGranted bool) config.Borde
 }
 
 // promptScreenCapture shows the Screen Recording alert once, at startup,
-// when the tiling animation is enabled and macOS has not granted the
-// permission. A config that leaves the animation off never prompts. It
+// when the tiling animation captures the screen and macOS has not granted
+// the permission. A config that leaves the animation off never prompts. It
 // reports false when mimi must quit for a grant to take effect.
 func promptScreenCapture(
 	cfg *config.Config,
 	accessibilityGranted bool,
 	logger *zap.SugaredLogger,
 ) bool {
-	if !accessibilityGranted || !cfg.Tiling.Enabled || !cfg.Tiling.Animation.Enabled ||
+	if !accessibilityGranted || !cfg.Tiling.Enabled || !cfg.Tiling.Animation.UsesCapture() ||
 		permissions.ScreenCaptureGranted() {
 		return true
 	}
@@ -600,7 +600,8 @@ func tilingConfigFor(
 		tilingCfg.Enabled = false
 	}
 
-	if tilingCfg.Enabled && tilingCfg.Animation.Enabled && !permissions.ScreenCaptureGranted() {
+	if tilingCfg.Enabled && tilingCfg.Animation.UsesCapture() &&
+		!permissions.ScreenCaptureGranted() {
 		logger.Warn(
 			"screen recording permission not granted, tiling animation disabled. " +
 				"Grant it in System Settings > Privacy & Security > Screen & System Audio Recording, then restart mimi",

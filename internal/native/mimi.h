@@ -58,6 +58,10 @@ CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii);
 /// or -1 where the window server does not say (before macOS 26) or the
 /// window is gone.
 void MimiWindowCornerRadii(const uint32_t *numbers, int count, double *radii);
+/// Turn an application's AXEnhancedUserInterface on or off, under which some
+/// applications animate every move they are given. Returns whether it was
+/// on, or -1 when the application has no such setting.
+int MimiSetEnhancedUserInterface(int pid, int enabled);
 /// Copy an application's real, unminimized windows on every space, front to
 /// back. Sets *count; the caller frees the array. Auxiliary windows (popovers,
 /// sheets, tab previews) are left out.
@@ -87,6 +91,9 @@ double *MimiCopyScreenFrames(int *count);
 double *MimiGetWindowFrame(void *window);
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
 int MimiSetWindowPosition(void *window, double x, double y);
+/// Log what a stepped animation cost: how many windows and frames, over how
+/// long, and the slowest single write, all in milliseconds.
+void MimiLogAnimationSteps(int windows, int frames, double elapsedMS, double slowestMS);
 
 /// Doubles per window in MimiCopyWindowList's result: number, x, y, width,
 /// height, whether the window server named it, owner pid, layer, and whether

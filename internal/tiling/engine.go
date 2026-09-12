@@ -154,6 +154,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 		e.animation = &action.Animation{
 			DurationMS: cfg.Animation.DurationMS,
 			Easing:     cfg.Animation.Easing,
+			Driver:     cfg.Animation.Driver,
 		}
 	}
 

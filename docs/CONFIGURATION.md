@@ -155,6 +155,7 @@ relayout_on_drag = false     # a window the user moves or resizes runs a pass to
 enabled = false       # move the frames into place over time instead of at once
 duration_ms = 150     # how long the move takes
 easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
+driver = "capture"    # capture (needs Screen Recording) or accessibility
 ```
 
 mimi ships no layout. `layout` is a command line, run through
@@ -243,7 +244,17 @@ screen slides in. A window the user just dragged moves at once, and a layout
 can opt a window out with `animate: false` on its frame. The focus a layout
 asks for lands before its frames move.
 
-**Animation requires Screen Recording permission.** macOS lets a process
+**Two drivers move the windows.** The `capture` driver, the default, is
+described below and needs Screen Recording. The `accessibility` driver
+needs nothing more than tiling itself: it moves the real windows through
+their applications, a frame every ten milliseconds along the curve, every
+application on a thread of its own, with the enhanced accessibility
+interface off for the duration so that applications do not animate each
+step themselves. Its smoothness is each application's to give: a window
+whose application is slow to answer moves in fewer, larger steps, and a
+resize costs an application several times what a move does.
+
+**The capture driver requires Screen Recording permission.** macOS lets a process
 move another application's window, but not fade, transform or reorder it.
 So mimi takes a picture of each window and of the rest of the screen, moves
 the real windows to their frames at once behind that still, and has the

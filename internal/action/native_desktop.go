@@ -367,6 +367,43 @@ func (d *nativeDesktop) SetWindowFrame(windowID WindowID, frame geometry.Rect) e
 	})
 }
 
+// StepWindowFrame writes one step of a window's frame, moving it alone when
+// the application last had it at the size asked for, as SetWindowFrame does,
+// without taking the window server's list again after every step.
+func (d *nativeDesktop) StepWindowFrame(windowID WindowID, frame geometry.Rect) error {
+	return d.withWindow(windowID, func(element *native.Element) error {
+		last, known := d.rememberedSize(windowID)
+		if known && sameLength(last.W, frame.W) && sameLength(last.H, frame.H) {
+			err := element.SetPosition(frame.X, frame.Y)
+			if err != nil {
+				return err
+			}
+		} else {
+			err := element.SetFrame(frame.X, frame.Y, frame.W, frame.H)
+			if err != nil {
+				return err
+			}
+		}
+
+		d.rememberFrame(windowID, frame)
+
+		return nil
+	})
+}
+
+// FinishSteps takes the window server's list once the windows have landed,
+// and logs what the steps cost.
+func (d *nativeDesktop) FinishSteps(report StepReport) {
+	d.relist()
+	native.LogAnimationSteps(report.Windows, report.Frames, report.Elapsed, report.Slowest)
+}
+
+// SetEnhancedUI turns an application's enhanced accessibility interface on
+// or off, reporting whether it was on.
+func (d *nativeDesktop) SetEnhancedUI(pid int, enabled bool) (bool, bool) {
+	return native.SetEnhancedUserInterface(pid, enabled)
+}
+
 // samePoint is how far two lengths may differ and still be the same as
 // macOS stores them, in whole points.
 const samePoint = 0.5

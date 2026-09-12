@@ -5,8 +5,10 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"time"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
 // WindowFrame is one entry of apply_frames' payload: a window, by the number
@@ -21,10 +23,12 @@ type WindowFrame struct {
 }
 
 // Animation is how apply_frames moves the windows when it is asked to: over
-// how long, in milliseconds, and along which curve, named as in Easings.
+// how long, in milliseconds, along which curve, named as in Easings, and by
+// which driver, named as in Drivers; "" is the capture driver.
 type Animation struct {
 	DurationMS int    `json:"durationMs"`
 	Easing     string `json:"easing"`
+	Driver     string `json:"driver,omitempty"`
 }
 
 // Easings are the curves an Animation names, in the order native numbers
@@ -41,6 +45,34 @@ const MaxAnimationMS = 1000
 type ApplyFramesArgs struct {
 	Frames    []WindowFrame `json:"frames"`
 	Animation *Animation    `json:"animation,omitempty"`
+}
+
+// FrameStepper is what a Desktop offers when it can move windows a step at
+// a time through their applications, which is how the accessibility driver
+// animates. A desktop that cannot moves the frames at once.
+type FrameStepper interface {
+	// StepWindowFrame writes one step of a window's frame. Unlike
+	// SetWindowFrame it leaves the desktop's listing alone: a step is one
+	// of a hundred a second.
+	StepWindowFrame(id WindowID, frame geometry.Rect) error
+	// FinishSteps runs once the last window has landed, with what the
+	// steps cost.
+	FinishSteps(report StepReport)
+	// SetEnhancedUI turns an application's enhanced accessibility interface
+	// on or off, under which some applications animate every move they are
+	// given. It reports whether the setting was on, and ok false when the
+	// application has no such setting.
+	SetEnhancedUI(pid int, enabled bool) (was bool, ok bool)
+}
+
+// StepReport is what a stepped animation cost: how many windows moved, how
+// many frames were written over all of them, how long the whole took, and
+// the slowest single write.
+type StepReport struct {
+	Windows int
+	Frames  int
+	Elapsed time.Duration
+	Slowest time.Duration
 }
 
 // FrameAnimator is what a Desktop offers when it can animate frames. A
@@ -138,6 +170,14 @@ func validateAnimation(animation Animation) error {
 		)
 	}
 
+	if animation.Driver != "" && !slices.Contains(Drivers, animation.Driver) {
+		return derrors.Newf(
+			derrors.CodeInvalidInput,
+			"animation.driver must be one of %s",
+			strings.Join(Drivers, ", "),
+		)
+	}
+
 	return nil
 }
 
@@ -196,6 +236,16 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 		byNumber[win.Number] = win.ID
 	}
 
+	// The accessibility driver writes the frames itself, a step at a time,
+	// and returns when the windows have landed.
+	if args.Animation != nil && args.Animation.Driver == DriverAccessibility {
+		if stepper, ok := e.desktop.(FrameStepper); ok {
+			failures, _ := e.stepFrames(stepper, args.Frames, windows, *args.Animation)
+
+			return framesError(failures, len(args.Frames))
+		}
+	}
+
 	// The animation is prepared before the first write and started after
 	// the last, so the writes happen while the animation hides them. A
 	// desktop that cannot animate, or an animation that cannot begin, moves
@@ -229,17 +279,23 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 		animator.StartFrameAnimation(dropped)
 	}
 
-	if len(failures) > 0 {
-		return derrors.Newf(
-			derrors.CodeActionFailed,
-			"%d of %d frames not applied: %s",
-			len(failures),
-			len(args.Frames),
-			strings.Join(failures, "; "),
-		)
+	return framesError(failures, len(args.Frames))
+}
+
+// framesError is apply_frames' error for the frames that did not land, nil
+// when every one did.
+func framesError(failures []string, total int) error {
+	if len(failures) == 0 {
+		return nil
 	}
 
-	return nil
+	return derrors.Newf(
+		derrors.CodeActionFailed,
+		"%d of %d frames not applied: %s",
+		len(failures),
+		total,
+		strings.Join(failures, "; "),
+	)
 }
 
 // windowsNamed is the focusable windows, from the desktop's recent
@@ -327,6 +383,13 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 
 	writers.Wait()
 
+	return collectFailures(frames, messages, errs)
+}
+
+// collectFailures turns the per-frame messages and errors of a write into
+// the failures to report, in payload order, and the windows whose frames did
+// not land.
+func collectFailures(frames []WindowFrame, messages []string, errs []error) ([]string, []uint32) {
 	var (
 		failures []string
 		dropped  []uint32
