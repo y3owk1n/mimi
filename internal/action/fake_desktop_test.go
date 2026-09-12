@@ -13,9 +13,13 @@ import (
 // fakeWindow is one window on the fake desktop: an identity, a frame, and the
 // failures macOS is allowed to report for it.
 type fakeWindow struct {
-	id       action.WindowID
-	pid      int
-	number   uint32
+	id     action.WindowID
+	pid    int
+	number uint32
+	// order is where the window sits in the stacking order, 0 for the one in
+	// front. Left unset it is 0 for every window, which is what a test with
+	// no interest in the stack wants.
+	order    int
 	frame    geometry.Rect
 	title    string
 	frameErr error
@@ -118,7 +122,12 @@ func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
 
 	windows := make([]action.Window, len(d.windows))
 	for index, win := range d.windows {
-		windows[index] = action.Window{ID: win.id, PID: win.pid, Number: win.number}
+		windows[index] = action.Window{
+			ID:     win.id,
+			PID:    win.pid,
+			Number: win.number,
+			Order:  win.order,
+		}
 
 		if win.frameErrOnce && d.enumerations > 0 {
 			d.windows[index].frameErr = nil

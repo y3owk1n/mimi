@@ -722,7 +722,15 @@ func (d *nativeDesktop) listOnScreen(learn bool) ([]Window, int, map[uint32]geom
 			focused = window.Number
 		}
 
-		windows = append(windows, Window{ID: entry.id, PID: entry.pid, Number: window.Number})
+		// onScreen is the window server's own front-to-back order, and the
+		// sort below replaces it with one by position, so the place in the
+		// stack is recorded here while it is still known.
+		windows = append(windows, Window{
+			ID:     entry.id,
+			PID:    entry.pid,
+			Number: window.Number,
+			Order:  len(windows),
+		})
 	}
 
 	frames := make(map[uint32]geometry.Rect, len(onScreen))

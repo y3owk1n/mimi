@@ -324,12 +324,14 @@ $ mimi query window
 Every focusable window on the active space, in `focus_window` cycle order.
 `focused` is the index of the focused window, or -1. `number` is the window
 server's number, stable for the window's lifetime, and what `apply_frames`
-takes. A window whose frame cannot be read is left out. **Accessibility
-permission is required.**
+takes. `order` is where the window sits in the stacking order, 0 for the one
+in front, which is a different question from the cycle order the list is in. A
+window whose frame cannot be read is left out. **Accessibility permission is
+required.**
 
 ```
 $ mimi query windows
-{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875}}]}
+{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875},"order":0}]}
 ```
 
 ### `mimi query displays`
