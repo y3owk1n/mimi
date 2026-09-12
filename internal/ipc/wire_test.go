@@ -46,6 +46,7 @@ func everyPayloadSet() []payloadCase {
 					Backward:  true,
 					Direction: "right",
 					SameApp:   true,
+					Number:    4242,
 				},
 			},
 		},
@@ -195,17 +196,25 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 		{
 			name: "mimi action focus_window --backward",
 			build: func() (action.Command, error) {
-				return action.NewFocusWindowCommand(true, false, false, false, false, false)
+				return action.NewFocusWindowCommand(true, false, false, false, false, false, 0)
 			},
 			want: `{"version":7,"command":{"name":"focus_window",` +
-				`"focusWindow":{"backward":true,"direction":"","sameApp":false}}}`,
+				`"focusWindow":{"backward":true,"direction":"","sameApp":false,"number":0}}}`,
 		},
 		{
 			name: "mimi action focus_window",
 			build: func() (action.Command, error) {
-				return action.NewFocusWindowCommand(false, false, false, false, false, false)
+				return action.NewFocusWindowCommand(false, false, false, false, false, false, 0)
 			},
 			want: `{"version":7,"command":{"name":"focus_window"}}`,
+		},
+		{
+			name: "mimi action focus_window --number 4242",
+			build: func() (action.Command, error) {
+				return action.NewFocusWindowCommand(false, false, false, false, false, false, 4242)
+			},
+			want: `{"version":7,"command":{"name":"focus_window",` +
+				`"focusWindow":{"backward":false,"direction":"","sameApp":false,"number":4242}}}`,
 		},
 		{
 			name: "mimi action space 3",

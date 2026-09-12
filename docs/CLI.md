@@ -70,6 +70,7 @@ mimi action focus_window --right
 mimi action focus_window --up
 mimi action focus_window --down
 mimi action focus_window --same-app
+mimi action focus_window --number 4242
 mimi action focus_app Safari
 mimi action space 1
 mimi action space next
@@ -98,9 +99,25 @@ move focus spatially.
 | `--left`     | Move focus to the nearest window to the left of the current one  |
 | `--right`    | Move focus to the nearest window to the right of the current one |
 | `--same-app` | Stay within the focused window's application, cycling or directional |
+| `--number <n>` | Focus the window with that window-server number |
 
 `--same-app` is the keyboard's Cmd-backtick. It combines with `--backward` or
 a direction flag, and needs a focused window to take the application from.
+
+`--number` names one window instead of saying which way to move from the
+focused one, so it combines with none of the other flags. The number is the
+one `mimi query windows` reports, stable for the window's lifetime, and the
+same number `mimi action apply_frames` and a layout's `frames` take:
+
+```bash
+mimi action focus_window --number 4242
+```
+
+This is the only way to focus a window without saying where it is on screen.
+A layout's `before` and `after` command lines need that, and so does a hotkey
+bound to a window you noted earlier. The window has to be on the current
+space. `mimi action focus_app` is the one that switches space to reach a
+window.
 
 ### `mimi action focus_app <name|bundle-id>`
 

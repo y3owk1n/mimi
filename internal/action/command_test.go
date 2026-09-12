@@ -16,7 +16,7 @@ import (
 func focusCommandFor(t *testing.T, backward, up, down, left, right bool) action.Command {
 	t.Helper()
 
-	cmd, err := action.NewFocusWindowCommand(backward, up, down, left, right, false)
+	cmd, err := action.NewFocusWindowCommand(backward, up, down, left, right, false, 0)
 	if err != nil {
 		t.Fatalf("building %s: %v", action.NameFocusWindow, err)
 	}
@@ -97,6 +97,7 @@ func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 				testCase.left,
 				testCase.right,
 				false,
+				0,
 			)
 			if err != nil {
 				t.Fatalf("NewFocusWindowCommand() error = %v, want nil", err)
@@ -116,7 +117,7 @@ func TestNewFocusWindowCommand_BuildsTheTypedPayload(t *testing.T) {
 func TestNewFocusWindowCommand_RejectsMoreThanOneDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowCommand(false, true, true, false, false, false)
+	_, err := action.NewFocusWindowCommand(false, true, true, false, false, false, 0)
 	if err == nil {
 		t.Fatal("NewFocusWindowCommand(up, down) expected error")
 	}
@@ -126,10 +127,88 @@ func TestNewFocusWindowCommand_RejectsMoreThanOneDirection(t *testing.T) {
 	}
 }
 
+// TestExecuteCommand_FocusWindowByNumberLandsOnTheWindowNamed pins the one way
+// to focus a window without saying where it is: the number names it, and
+// neither the focused window nor the cycling order has any part in it.
+func TestExecuteCommand_FocusWindowByNumberLandsOnTheWindowNamed(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithWindows(3, 0)
+	for index := range desktop.windows {
+		desktop.windows[index].number = uint32(4242 + index)
+	}
+
+	err := action.NewExecutor(desktop).ExecuteCommand(action.Command{
+		Name:        action.NameFocusWindow,
+		FocusWindow: action.FocusWindowArgs{Number: 4244},
+	})
+	if err != nil {
+		t.Fatalf("ExecuteCommand(focus_window --number 4244) error = %v, want nil", err)
+	}
+
+	wantFocused(t, desktop, 3)
+}
+
+// TestExecuteCommand_FocusWindowByNumberReportsAWindowItCannotReach pins that
+// a number naming no window on the active space is an error rather than a
+// silent no-op, since a hotkey that does nothing is indistinguishable from one
+// that is not bound.
+func TestExecuteCommand_FocusWindowByNumberReportsAWindowItCannotReach(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithWindows(1, 0)
+	desktop.windows[0].number = 4242
+
+	err := action.NewExecutor(desktop).ExecuteCommand(action.Command{
+		Name:        action.NameFocusWindow,
+		FocusWindow: action.FocusWindowArgs{Number: 9999},
+	})
+	if err == nil {
+		t.Fatal("ExecuteCommand(focus_window --number 9999) expected an error")
+	}
+
+	if !derrors.IsCode(err, derrors.CodeActionFailed) {
+		t.Fatalf("error code = %v, want %v", derrors.GetCode(err), derrors.CodeActionFailed)
+	}
+}
+
+// TestNewFocusWindowCommand_RejectsANumberWithAnyWayToMove pins that naming a
+// window and saying which way to move from the focused one are two different
+// requests, so the constructor refuses a command that asks for both.
+func TestNewFocusWindowCommand_RejectsANumberWithAnyWayToMove(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name                  string
+		backward, up, sameApp bool
+	}{
+		{name: "--backward", backward: true},
+		{name: "a direction", up: true},
+		{name: "--same-app", sameApp: true},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := action.NewFocusWindowCommand(
+				testCase.backward, testCase.up, false, false, false, testCase.sameApp, 4242,
+			)
+			if err == nil {
+				t.Fatalf("NewFocusWindowCommand(--number with %s) expected an error", testCase.name)
+			}
+
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf("error code = %v, want %v", derrors.GetCode(err), derrors.CodeInvalidInput)
+			}
+		})
+	}
+}
+
 func TestNewFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
 	t.Parallel()
 
-	_, err := action.NewFocusWindowCommand(true, true, false, false, false, false)
+	_, err := action.NewFocusWindowCommand(true, true, false, false, false, false, 0)
 	if err == nil {
 		t.Fatal("NewFocusWindowCommand(backward, up) expected error")
 	}
@@ -581,6 +660,20 @@ func TestExecuteCommand_RejectsAPayloadNoConstructorWouldBuild(t *testing.T) {
 			cmd: action.Command{
 				Name:        action.NameFocusWindow,
 				FocusWindow: action.FocusWindowArgs{Direction: "sideways"},
+			},
+		},
+		{
+			name: "focus_window naming a window and a direction at once",
+			cmd: action.Command{
+				Name:        action.NameFocusWindow,
+				FocusWindow: action.FocusWindowArgs{Number: 4242, Direction: "up"},
+			},
+		},
+		{
+			name: "focus_window naming a window and --same-app at once",
+			cmd: action.Command{
+				Name:        action.NameFocusWindow,
+				FocusWindow: action.FocusWindowArgs{Number: 4242, SameApp: true},
 			},
 		},
 		{

@@ -137,7 +137,7 @@ func TestExecutor_FocusWindow_SameAppNeedsAFocusedWindow(t *testing.T) {
 func TestNewFocusWindowCommand_CarriesSameApp(t *testing.T) {
 	t.Parallel()
 
-	cmd, err := action.NewFocusWindowCommand(true, false, false, false, false, true)
+	cmd, err := action.NewFocusWindowCommand(true, false, false, false, false, true, 0)
 	if err != nil {
 		t.Fatalf("NewFocusWindowCommand(backward, same-app) error = %v, want nil", err)
 	}
