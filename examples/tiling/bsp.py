@@ -2,10 +2,17 @@
 """Dwindle BSP, the way Hyprland tiles by default.
 
 Every window is a leaf of a binary tree. A new window splits the focused
-window's area in two, side by side when that area is wider than tall and
-stacked otherwise; closing a window hands its area back to its sibling.
-The tree lives in the state mimi keeps for the space, so nothing here
-touches a file.
+window's area in two, side by side when that area is wider than tall and one
+above the other otherwise. Closing a window hands its area back to its
+sibling. The tree lives in the state mimi keeps for the space, so nothing
+here touches a file.
+
+A leaf can hold more than one window, as yabai stacks: they share the whole
+area, so only the focused one is seen, and with [tiling.stackbar] enabled mimi
+marks the leaf with one segment per window. stack moves a window into its
+neighbour that way, unstack gives it an area of its own again, and next and
+prev move round the windows sharing one. A swap or a drag moves a whole leaf,
+so a stack travels together.
 
 Commands the layout answers (mimi gives them no meaning; this file does):
 
@@ -17,6 +24,13 @@ Commands the layout answers (mimi gives them no meaning; this file does):
                                               tree, or put it back
   mimi tiling cmd togglemax                   fill the area with the focused
                                               window, for now
+  mimi tiling cmd stack <left|right|up|down>  move the focused window into the
+                                              neighbour that way, sharing its
+                                              area rather than splitting it
+  mimi tiling cmd unstack                     give the focused window an area
+                                              of its own again
+  mimi tiling cmd next / prev                 move round the windows sharing
+                                              one area
 
 With tiling.relayout_on_drag set, dragging any edge of any window resizes the
 split that edge belongs to, and the rest of the tree follows; dragging a
@@ -40,8 +54,38 @@ MIN_RATIO, MAX_RATIO = 0.1, 0.9
 
 
 # --- the tree -------------------------------------------------------------
-# A leaf is {"win": number}. A split is {"dir": "h"|"v", "ratio": r, "a": node,
-# "b": node}: "h" puts a left of b, "v" puts a above b.
+# A leaf is {"win": number}, or {"win": number, "with": [numbers]} when more
+# than one window shares its area. "win" is always the one seen: every window
+# in the leaf gets the leaf's whole rect, so the others are behind it, and
+# focus is what brings one to the front. A split is {"dir": "h"|"v",
+# "ratio": r, "a": node, "b": node}: "h" puts a left of b, "v" puts a above b.
+
+
+def members(leaf):
+    """Every window in a leaf, the one seen first."""
+    return [leaf["win"], *leaf.get("with", [])]
+
+
+def leaf_holding(tree, number):
+    """The leaf number is in, whether it is the one seen or behind it."""
+    for leaf in leaves(tree):
+        if number in members(leaf):
+            return leaf
+    return None
+
+
+def set_members(leaf, numbers):
+    """Put exactly these windows in a leaf, the first the one seen."""
+    leaf["win"] = numbers[0]
+    if len(numbers) > 1:
+        leaf["with"] = numbers[1:]
+    else:
+        leaf.pop("with", None)
+
+
+def surface(leaf, number):
+    """Make number the window seen in its leaf, keeping the others behind."""
+    set_members(leaf, [number, *(n for n in members(leaf) if n != number)])
 
 
 def leaves(node):
@@ -53,9 +97,17 @@ def leaves(node):
 
 
 def remove(node, number):
-    """The tree without number's leaf; its sibling takes the parent's place."""
+    """The tree without number. A leaf holding other windows keeps its place
+    and one of them is seen instead. The last window out takes the leaf with
+    it, and its sibling takes the parent's place."""
     if node is None or "win" in node:
-        return None if node is not None and node["win"] == number else node
+        if node is None or number not in members(node):
+            return node
+        rest = [n for n in members(node) if n != number]
+        if not rest:
+            return None
+        set_members(node, rest)
+        return node
     a, b = remove(node["a"], number), remove(node["b"], number)
     if a is None:
         return b
@@ -190,10 +242,15 @@ def leaf_at(rects, number, point):
 
 
 def swap_leaves(tree, first, second):
+    """Exchange the two leaves' windows. A leaf is a place, so a leaf holding
+    several windows travels whole: swapping one out of a stack and leaving the
+    rest behind would stack them with a window nobody put there."""
     mine = leaves(tree)
     la = next(l for l in mine if l["win"] == first)
     lb = next(l for l in mine if l["win"] == second)
-    la["win"], lb["win"] = lb["win"], la["win"]
+    held_a, held_b = members(la), members(lb)
+    set_members(la, held_b)
+    set_members(lb, held_a)
 
 
 def neighbour(rects, number, direction):
@@ -250,16 +307,26 @@ def main(inp):
     # Sync the tree with what is on the space: drop what closed, add what
     # opened beside the focused window (or the last leaf).
     for leaf in leaves(tree):
-        if leaf["win"] not in present:
-            tree = remove(tree, leaf["win"])
+        for number in members(leaf):
+            if number not in present:
+                tree = remove(tree, number)
     for number in [w["number"] for w in tiled]:
-        if number in {leaf["win"] for leaf in leaves(tree)}:
+        if any(number in members(leaf) for leaf in leaves(tree)):
             continue
         rects = {}
         layout(tree, box, rects)
         known = [leaf["win"] for leaf in leaves(tree)]
         target = focused if focused in known else (known[-1] if known else None)
         tree = insert(tree, target, number, rects) if target else {"win": number}
+
+    # The focused window is the one seen in its leaf. Everything below reads
+    # the tree through rects, which hold only the window seen, so this is what
+    # lets a window behind another be swapped, resized and dropped on.
+    held = leaf_holding(tree, focused) if focused else None
+    if held is not None:
+        surface(held, focused)
+
+    focus = None
 
     # Then the event. mimi has already told a move from a resize, from where
     # the window ended up. A move dropped on another window swaps with it,
@@ -299,16 +366,61 @@ def main(inp):
             other = neighbour(rects, focused, args[0])
             if other:
                 swap_leaves(tree, focused, other)
+        elif name == "stack" and args and focused:
+            # Into the leaf that way, which loses its own area and keeps the
+            # neighbour's. The window that moved keeps focus, so it is the one
+            # left seen.
+            rects = {}
+            layout(tree, box, rects)
+            other = neighbour(rects, focused, args[0])
+            if other:
+                tree = remove(tree, focused)
+                into = leaf_holding(tree, other)
+                if into is not None:
+                    into["with"] = [*into.get("with", []), focused]
+                    surface(into, focused)
+        elif name == "unstack" and focused:
+            # Out of its leaf and into a split beside it, which is where a new
+            # window would have gone.
+            held = leaf_holding(tree, focused)
+            if held is not None and len(members(held)) > 1:
+                tree = remove(tree, focused)
+                rects = {}
+                layout(tree, box, rects)
+                beside = leaf_holding(tree, held["win"])
+                tree = insert(tree, beside["win"], focused, rects)
+                focus = focused
+        elif name in ("next", "prev") and focused:
+            # Round the windows in this leaf. Focus is the whole move: the
+            # one with focus is the one seen.
+            held = leaf_holding(tree, focused)
+            if held is not None and len(members(held)) > 1:
+                order = members(held)
+                step = 1 if name == "next" else -1
+                focus = order[(order.index(focused) + step) % len(order)]
+                surface(held, focus)
 
     rects = {}
     layout(tree, box, rects)
-    frames = [(number, rect) for number, rect in rects.items()]
+
+    # Every window in a leaf gets the leaf's rect, so only the one seen shows.
+    frames = []
+    stacks = []
+    for leaf in leaves(tree):
+        rect = rects.get(leaf["win"])
+        if rect is None:
+            continue
+        held = members(leaf)
+        frames.extend((number, rect) for number in held)
+        if len(held) > 1:
+            stacks.append({"windows": held, "active": leaf["win"]})
+
     state["tree"] = tree
     frames = maximised(inp, state, frames, box)
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }
-    write_output(frames, state, unmanaged=unmanaged_of(inp, state))
+    write_output(frames, state, focus, unmanaged=unmanaged_of(inp, state), stacks=stacks)
 
 
 if __name__ == "__main__":

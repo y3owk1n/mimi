@@ -67,7 +67,7 @@ The layouts shipped, all Python with the standard library only:
 | `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` marks how many there are. The one to copy when starting your own. | none |
 | `columns.py` | Equal-width columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
-| `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
+| `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax`, `stack <dir>`, `unstack`, `next`, `prev` |
 | `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `togglemax` |
 | `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`, `togglestack` |
 
@@ -456,6 +456,9 @@ alt - t      : mimi tiling cmd togglesplit
 alt - f      : mimi tiling cmd togglefloat
 alt - m      : mimi tiling cmd togglemax
 alt - r      : mimi tiling relayout
+alt - s      : mimi tiling cmd stack right
+alt + shift - s : mimi tiling cmd unstack
+alt - n      : mimi tiling cmd next
 ```
 
 ---
@@ -535,7 +538,9 @@ equal columns where a column holds one window or several, answering `stack`,
 `unstack`, `next` and `prev`. `strip.py` answers `togglestack`, which turns
 the focused column's rows into one place, the way niri tabs a column.
 `monocle.py` names every window as one stack, which is what monocle always
-was, so it can say how many are on the display.
+was, so it can say how many are on the display. `bsp.py` lets a leaf of its
+tree hold several windows, as yabai stacks, answering `stack <dir>`,
+`unstack`, `next` and `prev`.
 
 ```
 alt - s         : mimi tiling cmd stack
