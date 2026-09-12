@@ -158,7 +158,7 @@ easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
 
 [tiling.dropzone]
 enabled = false            # while you drag a window, show where the layout would put it
-color = "#e2e2e330"        # the zone's fill, #rrggbb or #rrggbbaa
+color = "#30e2e2e3"        # the zone's fill, #rrggbb or #aarrggbb
 outline_color = "#e2e2e3"  # its outline
 outline_width = 2          # points; 0 draws no outline
 radius = 12                # corner radius in points
@@ -291,7 +291,7 @@ tiling, and nothing more; every key is reloadable.
 enabled = true
 width = 4                   # points, 1 to 32
 # radius = 12               # force one corner radius; unset follows each window's own, 0 is square
-active_color = "#e2e2e3"    # the focused window, #rrggbb or #rrggbbaa
+active_color = "#e2e2e3"    # the focused window, #rrggbb or #aarrggbb
 inactive_color = "#414141"  # every other window
 ```
 

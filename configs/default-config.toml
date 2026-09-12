@@ -94,10 +94,10 @@ duration_ms = 150
 easing = "ease-out"
 
 # While you drag a tiled window, show where the layout would put it if you
-# let go. Needs relayout_on_drag. Colours are #rrggbb or #rrggbbaa.
+# let go. Needs relayout_on_drag. Colours are #rrggbb or #aarrggbb.
 [tiling.dropzone]
 enabled = false
-color = "#e2e2e330"
+color = "#30e2e2e3"
 outline_color = "#e2e2e3"
 outline_width = 2
 radius = 12
@@ -120,7 +120,7 @@ width = 4
 # follow each window's own corners (macOS 26 and later; earlier releases get
 # a document window's). Set a number to draw every ring alike; 0 is square.
 # radius = 12
-# #rrggbb or #rrggbbaa.
+# #rrggbb or #aarrggbb.
 active_color = "#e2e2e3"
 inactive_color = "#414141"
 
