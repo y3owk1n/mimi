@@ -154,7 +154,6 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 		e.animation = &action.Animation{
 			DurationMS: cfg.Animation.DurationMS,
 			Easing:     cfg.Animation.Easing,
-			Driver:     cfg.Animation.Driver,
 		}
 	}
 
@@ -864,6 +863,21 @@ func (e *Engine) spacesChangedLocked(inputs []Input) bool {
 	return false
 }
 
+// animationSettle is how long after an animated apply the windows have
+// landed, with a margin for a slow application; 0 without an animation.
+func (e *Engine) animationSettle() time.Duration {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	if e.animation == nil {
+		return 0
+	}
+
+	const margin = 2
+
+	return time.Duration(e.animation.DurationMS) * time.Millisecond * margin
+}
+
 func (e *Engine) settleWindow() time.Duration {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -951,6 +965,12 @@ func (e *Engine) userDragged() (string, []uint32) {
 // what it read only while the apply it was started for is the latest.
 func (e *Engine) rememberLater(appliedAt time.Time) {
 	e.background.Go(func() {
+		// An animated apply returns as the windows set off, so the read
+		// waits for them to land.
+		if settle := e.animationSettle(); settle > 0 {
+			time.Sleep(settle)
+		}
+
 		windows, err := e.readWindows()
 		if err != nil {
 			return

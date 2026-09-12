@@ -102,6 +102,11 @@ func (d *fakeDesktop) EnsureAccessible() error {
 }
 
 func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
+	// An animation writes frames in the background while a later action
+	// enumerates.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	if d.enumerateErr != nil {
 		return nil, -1, d.enumerateErr
 	}

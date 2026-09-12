@@ -54,10 +54,6 @@ char *MimiCopyApplicationBundleID(int pid);
 /// array of each window's corner radius in points, or -1 where the window
 /// server does not say (before macOS 26). The caller releases both.
 CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii);
-/// Fill radii with the corner radius in points of each window in numbers,
-/// or -1 where the window server does not say (before macOS 26) or the
-/// window is gone.
-void MimiWindowCornerRadii(const uint32_t *numbers, int count, double *radii);
 /// Turn an application's AXEnhancedUserInterface on or off, under which some
 /// applications animate every move they are given. Returns whether it was
 /// on, or -1 when the application has no such setting.
@@ -93,7 +89,7 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
 int MimiSetWindowPosition(void *window, double x, double y);
 /// Log what a stepped animation cost: how many windows and frames, over how
 /// long, and the slowest single write, all in milliseconds.
-void MimiLogAnimationSteps(int windows, int frames, double elapsedMS, double slowestMS);
+void MimiLogAnimationSteps(int windows, int frames, int failed, double elapsedMS, double slowestMS);
 
 /// Doubles per window in MimiCopyWindowList's result: number, x, y, width,
 /// height, whether the window server named it, owner pid, layer, and whether

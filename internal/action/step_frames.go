@@ -9,34 +9,37 @@ import (
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
 
-// DriverCapture and DriverAccessibility name how an Animation moves the
-// windows. The capture driver takes a picture of the screen and slides
-// pictures of the windows, which needs Screen Recording. The accessibility
-// driver moves the real windows through their applications, a step at a
-// time, and needs nothing beyond Accessibility.
-const (
-	DriverCapture       = "capture"
-	DriverAccessibility = "accessibility"
-)
-
-// Drivers are the animation drivers, in the order the config documents them.
-var Drivers = []string{DriverCapture, DriverAccessibility}
-
-// stepInterval is how often the accessibility driver writes a frame: a
-// hundred a second, as the window managers that animate this way do.
+// stepInterval is how often the animation writes a frame: a hundred a
+// second, as the window managers that animate this way do.
 const stepInterval = 10 * time.Millisecond
 
-// stepFrames moves the windows to their frames through their applications,
-// a step every stepInterval along the animation's curve, every application
-// on a thread of its own, and reports the failures the way writeFrames does.
-// It returns once the last window has landed. A frame the payload leaves
-// out of the animation is written at once, before the rest start.
-func (e *Executor) stepFrames(
+// animator moves windows to their frames through their applications, a
+// step every stepInterval along the animation's curve, in the background:
+// an apply returns as the windows set off. Every application has a worker
+// of its own, since an application answers its accessibility calls one at
+// a time, and a window sent somewhere new while on its way turns from where
+// it is.
+type animator struct {
+	mu      sync.Mutex
+	workers map[int]*appWorker
+}
+
+func newAnimator() *animator {
+	return &animator{workers: map[int]*appWorker{}}
+}
+
+// start sends the frames on their way and reports, at once, the frames
+// that cannot go: a window not on the active space, or one whose frame
+// could not be read. A frame the payload leaves out of the animation is
+// written at once, before the rest set off. Writes that fail on the way
+// are counted in the worker's report.
+func (a *animator) start(
 	stepper FrameStepper,
+	desktop Desktop,
 	frames []WindowFrame,
 	windows []Window,
 	animation Animation,
-) ([]string, []uint32) {
+) []string {
 	byNumber := make(map[uint32]Window, len(windows))
 	for _, win := range windows {
 		byNumber[win.Number] = win
@@ -55,7 +58,7 @@ func (e *Executor) stepFrames(
 		}
 
 		if entry.Animate != nil && !*entry.Animate {
-			errs[index] = e.desktop.SetWindowFrame(win.ID, rectOfFrame(entry.Frame))
+			errs[index] = desktop.SetWindowFrame(win.ID, rectOfFrame(entry.Frame))
 
 			continue
 		}
@@ -63,151 +66,205 @@ func (e *Executor) stepFrames(
 		groups[win.PID] = append(groups[win.PID], index)
 	}
 
-	var (
-		steppers sync.WaitGroup
-		reportMu sync.Mutex
-		report   StepReport
-	)
-
 	duration := time.Duration(animation.DurationMS) * time.Millisecond
-	began := time.Now()
+
+	var readers sync.WaitGroup
 
 	for pid, indexes := range groups {
-		steppers.Add(1)
+		readers.Add(1)
 
 		go func(pid int, indexes []int) {
-			defer steppers.Done()
+			defer readers.Done()
 
-			written, slowest := e.stepApplication(
-				stepper,
-				pid,
-				indexes,
-				frames,
-				byNumber,
-				errs,
-				duration,
-				animation.Easing,
-			)
+			worker := a.worker(pid, stepper)
 
-			reportMu.Lock()
-			defer reportMu.Unlock()
+			for _, index := range indexes {
+				entry := frames[index]
+				errs[index] = worker.send(
+					desktop,
+					byNumber[entry.Number].ID,
+					rectOfFrame(entry.Frame),
+					duration,
+					animation.Easing,
+				)
+			}
 
-			report.Windows += len(indexes)
-			report.Frames += written
-			report.Slowest = max(report.Slowest, slowest)
+			worker.wake()
 		}(pid, indexes)
 	}
 
-	steppers.Wait()
+	readers.Wait()
 
-	report.Elapsed = time.Since(began)
-	stepper.FinishSteps(report)
+	failures, _ := collectFailures(frames, messages, errs)
 
-	return collectFailures(frames, messages, errs)
+	return failures
 }
 
-// stepping is one window on its way: where it started, where it goes, and
-// the last frame written, so a step that lands where the last did is not
-// written again.
+// worker is the application's worker, made on first use.
+func (a *animator) worker(pid int, stepper FrameStepper) *appWorker {
+	a.mu.Lock()
+	defer a.mu.Unlock()
+
+	worker, ok := a.workers[pid]
+	if !ok {
+		worker = &appWorker{pid: pid, stepper: stepper, moving: map[WindowID]*stepping{}}
+		a.workers[pid] = worker
+	}
+
+	return worker
+}
+
+// appWorker steps one application's windows, together, on a goroutine
+// that runs while any of them is on its way.
+type appWorker struct {
+	pid     int
+	stepper FrameStepper
+
+	mu      sync.Mutex
+	moving  map[WindowID]*stepping
+	running bool
+}
+
+// stepping is one window on its way: where it set off from and when, where
+// it goes, how, and the last frame written, so a step that lands where the
+// last did is not written again.
 type stepping struct {
-	index  int
-	id     WindowID
-	start  geometry.Rect
-	finish geometry.Rect
-	last   geometry.Rect
+	start    geometry.Rect
+	finish   geometry.Rect
+	last     geometry.Rect
+	began    time.Time
+	duration time.Duration
+	easing   string
 }
 
-// stepApplication steps one application's windows, together, since an
-// application answers its accessibility calls one at a time. It reports how
-// many frames it wrote and the slowest write.
-func (e *Executor) stepApplication(
-	stepper FrameStepper,
-	pid int,
-	indexes []int,
-	frames []WindowFrame,
-	byNumber map[uint32]Window,
-	errs []error,
+// send puts a window on its way to finish. A window already on its way to
+// that very frame keeps going; one on its way elsewhere turns from where it
+// is. A window at rest sets off from where its application has it, which is
+// a round trip.
+func (w *appWorker) send(
+	desktop Desktop,
+	windowID WindowID,
+	finish geometry.Rect,
 	duration time.Duration,
 	easing string,
-) (int, time.Duration) {
+) error {
+	w.mu.Lock()
+	current, inFlight := w.moving[windowID]
+	w.mu.Unlock()
+
+	if inFlight && current.finish == finish {
+		return nil
+	}
+
+	var start geometry.Rect
+
+	if inFlight {
+		start = current.last
+	} else {
+		read, err := desktop.WindowFrame(windowID)
+		if err != nil {
+			return err
+		}
+
+		start = read
+	}
+
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	w.moving[windowID] = &stepping{
+		start:    start,
+		finish:   finish,
+		last:     start,
+		began:    time.Now(),
+		duration: duration,
+		easing:   easing,
+	}
+
+	return nil
+}
+
+// wake runs the worker when it is not running already.
+func (w *appWorker) wake() {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+
+	if w.running || len(w.moving) == 0 {
+		return
+	}
+
+	w.running = true
+
+	go w.run()
+}
+
+// run steps the windows until every one has landed, then reports.
+func (w *appWorker) run() {
 	// Under the enhanced interface some applications animate every move
 	// they are given, which fights the steps.
-	if was, ok := stepper.SetEnhancedUI(pid, false); ok && was {
-		defer stepper.SetEnhancedUI(pid, true)
+	if was, ok := w.stepper.SetEnhancedUI(w.pid, false); ok && was {
+		defer w.stepper.SetEnhancedUI(w.pid, true)
 	}
 
-	moving := make([]*stepping, 0, len(indexes))
-
-	for _, index := range indexes {
-		entry := frames[index]
-		win := byNumber[entry.Number]
-
-		start, err := e.desktop.WindowFrame(win.ID)
-		if err != nil {
-			errs[index] = err
-
-			continue
-		}
-
-		moving = append(moving, &stepping{
-			index:  index,
-			id:     win.ID,
-			start:  start,
-			finish: rectOfFrame(entry.Frame),
-			last:   start,
-		})
-	}
-
-	var (
-		written int
-		slowest time.Duration
-	)
+	var report StepReport
 
 	began := time.Now()
+	seen := map[WindowID]bool{}
 
-	for tick := 1; len(moving) > 0; tick++ {
-		progress := 1.0
-		if duration > 0 {
-			progress = math.Min(1, float64(time.Since(began))/float64(duration))
-		}
+	for tick := 1; ; tick++ {
+		w.mu.Lock()
 
-		eased := ease(easing, progress)
-		landed := progress >= 1
+		for windowID, window := range w.moving {
+			if !seen[windowID] {
+				seen[windowID] = true
+				report.Windows++
+			}
 
-		remaining := moving[:0]
+			progress := 1.0
+			if window.duration > 0 {
+				progress = math.Min(1, float64(time.Since(window.began))/float64(window.duration))
+			}
 
-		for _, window := range moving {
+			landed := progress >= 1
+
 			frame := window.finish
 			if !landed {
-				frame = between(window.start, window.finish, eased)
+				frame = between(window.start, window.finish, ease(window.easing, progress))
 			}
 
 			if frame != window.last {
 				wrote := time.Now()
-				err := stepper.StepWindowFrame(window.id, frame)
-				slowest = max(slowest, time.Since(wrote))
-				written++
+				err := w.stepper.StepWindowFrame(windowID, frame)
+				report.Slowest = max(report.Slowest, time.Since(wrote))
+				report.Frames++
 
 				if err != nil {
-					errs[window.index] = err
-
-					continue
+					report.Failed++
+					landed = true
 				}
 
 				window.last = frame
 			}
 
-			if !landed {
-				remaining = append(remaining, window)
+			if landed {
+				delete(w.moving, windowID)
 			}
 		}
 
-		moving = remaining
+		if len(w.moving) == 0 {
+			w.running = false
+			w.mu.Unlock()
+
+			break
+		}
+
+		w.mu.Unlock()
 
 		time.Sleep(time.Until(began.Add(time.Duration(tick) * stepInterval)))
 	}
 
-	return written, slowest
+	report.Elapsed = time.Since(began)
+	w.stepper.FinishSteps(report)
 }
 
 // between is the frame progress of the way from start to finish, in whole

@@ -1,6 +1,8 @@
 package action
 
 import (
+	"sync"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
@@ -17,6 +19,11 @@ var defaultExecutor = NewExecutor(newNativeDesktop())
 // branch logic below be exercised without a Mac under it.
 type Executor struct {
 	desktop Desktop
+
+	// animation moves windows in the background; nil until the first
+	// animated apply_frames.
+	animationMu sync.Mutex
+	animation   *animator
 }
 
 // NewExecutor returns an Executor that drives the given desktop.
@@ -318,4 +325,16 @@ func cycleTarget(focusedIndex, count int, backward bool) int {
 
 		return focusedIndex + 1
 	}
+}
+
+// animator is the executor's background animation, made on first use.
+func (e *Executor) animator() *animator {
+	e.animationMu.Lock()
+	defer e.animationMu.Unlock()
+
+	if e.animation == nil {
+		e.animation = newAnimator()
+	}
+
+	return e.animation
 }

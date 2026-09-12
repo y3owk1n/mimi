@@ -85,9 +85,8 @@ relayout_on_drag = false
 # follow the macOS tiled-window margin, the setting resize_window honours.
 # gap = 12
 
-# Move the frames into place over time instead of at once. The window server
-# draws the animation from pictures of the windows, which needs the Screen
-# Recording permission. The daemon asks for it only when this is on.
+# Move the frames into place over time instead of at once, through the
+# applications a step at a time; it needs nothing beyond Accessibility.
 # duration_ms is 1 to 1000. easing is linear, ease-in, ease-out or ease-in-out.
 [tiling.animation]
 enabled = false
