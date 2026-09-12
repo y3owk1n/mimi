@@ -25,9 +25,11 @@ func desktopWithListedWindows() *fakeDesktop {
 	desktop.windows[0].number = 4242
 	desktop.windows[0].title = "Start Page"
 	desktop.windows[0].frame = geometry.Rect{X: 0, Y: 25, W: 960, H: 1055}
+	desktop.windows[0].order = 1
 	desktop.windows[1].number = 4243
 	desktop.windows[1].title = "notes.md"
 	desktop.windows[1].frame = geometry.Rect{X: 960, Y: 25, W: 960, H: 1055}
+	desktop.windows[1].order = 0
 	desktop.appInfo = map[int]action.AppInfo{
 		100: {Name: safariName, BundleID: safariBundleID},
 		101: {Name: "TextEdit", BundleID: "com.apple.TextEdit"},
@@ -51,11 +53,13 @@ func TestExecutor_QueryWindows_ListsEveryWindowWithItsApplicationAndFrame(t *tes
 				Number: 4242, PID: 100, App: safariName, BundleID: safariBundleID,
 				Title: "Start Page",
 				Frame: action.Frame{X: 0, Y: 25, Width: 960, Height: 1055},
+				Order: 1,
 			},
 			{
 				Number: 4243, PID: 101, App: "TextEdit", BundleID: "com.apple.TextEdit",
 				Title: "notes.md",
 				Frame: action.Frame{X: 960, Y: 25, Width: 960, Height: 1055},
+				Order: 0,
 			},
 		},
 	}

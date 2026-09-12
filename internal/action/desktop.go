@@ -23,6 +23,12 @@ type Window struct {
 	// how a window found one way is recognized when found another. It is 0
 	// when the desktop cannot read it.
 	Number uint32
+	// Order is where the window sits in the stacking order, 0 for the one in
+	// front and counting back from there, among the windows this listing
+	// reports. The window server lists windows front to back and the listing
+	// is then sorted by position, so this is read off the listing before that
+	// sort and is the only record of it left.
+	Order int
 }
 
 // AppWindow is one window of an application as the window server lists it:

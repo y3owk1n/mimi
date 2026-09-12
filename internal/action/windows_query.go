@@ -15,6 +15,11 @@ type WindowEntry struct {
 	BundleID string `json:"bundleId"`
 	Title    string `json:"title"`
 	Frame    Frame  `json:"frame"`
+	// Order is where the window sits in the stacking order among the windows
+	// listed here: 0 for the one in front, counting back from there. The
+	// listing itself is ordered by position rather than by this, so a caller
+	// that wants the window on top reads it here.
+	Order int `json:"order"`
 }
 
 // WindowsInfo is what a windows query reports: every focusable window on the
@@ -235,6 +240,7 @@ func (e *Executor) listKnown(lister knownLister, known map[uint32]string) Window
 			BundleID: app.BundleID,
 			Title:    title,
 			Frame:    frameOf(frame),
+			Order:    win.Order,
 		})
 	}
 
@@ -282,6 +288,7 @@ func (e *Executor) listWindows(known map[uint32]string) (WindowsInfo, bool, erro
 			BundleID: app.BundleID,
 			Title:    title,
 			Frame:    frameOf(frame),
+			Order:    win.Order,
 		})
 	}
 

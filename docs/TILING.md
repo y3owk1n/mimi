@@ -165,7 +165,8 @@ both, through `serve()` in `rules.py`.
   "focused": 0,
   "windows": [
     {"number": 4242, "pid": 501, "app": "Safari", "bundleId": "com.apple.Safari",
-     "title": "Start Page", "frame": {"x": 0, "y": 25, "width": 1440, "height": 875}}
+     "title": "Start Page", "order": 0,
+     "frame": {"x": 0, "y": 25, "width": 1440, "height": 875}}
   ],
   "state": null
 }
@@ -183,11 +184,18 @@ both, through `serve()` in `rules.py`.
 | `gap` | Points to leave between windows and at the display's edges, resolved by mimi: `tiling.gap` when set, else the macOS tiled-window margin, else 0. |
 | `displays` | Every display, numbered as `move_window_to_display` counts them. |
 | `focused` | Index into `windows` of the focused window, or -1 when the focused window is on another display. |
-| `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. |
+| `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
 | `state` | What you printed last time for this display and space, or `null`. |
 
 `displays` and `windows` are exactly what `mimi query displays` and
 `mimi query windows` print, so real data is one command away.
+
+The `windows` list is ordered by position, which is the order `focus_window`
+cycles through them. `order` answers a different question: which window is on
+top. The two rarely agree. Read `order` when the layout cares which of two
+overlapping windows the user can see, and ignore it otherwise. The numbers
+rank the whole desktop's windows and are then narrowed to this display's, so
+they compare correctly but need not start at 0 or run without gaps.
 
 ### Output
 
