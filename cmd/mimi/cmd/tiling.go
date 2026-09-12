@@ -328,9 +328,7 @@ func previewLayout(cobraCmd *cobra.Command, cfg *config.Config, inputOnly bool) 
 	engine := tiling.New(tiling.LiveDesktop{}, nil, nil)
 
 	if inputOnly {
-		layout := cfg.Tiling
-		layout.Layout = "cat >/dev/null"
-		engine.Update(layout, cfg.Settings.HookShell)
+		engine.Update(inputOnlyLayout(cfg.Tiling), cfg.Settings.HookShell)
 	} else {
 		if cfg.Tiling.Layout == "" {
 			return nil, derrors.New(derrors.CodeInvalidConfig, "tiling.layout is not set")
@@ -371,6 +369,23 @@ func previewLayout(cobraCmd *cobra.Command, cfg *config.Config, inputOnly bool) 
 	}
 
 	return previews, nil
+}
+
+// inputOnlyLayout is the [tiling] section with the layout swapped for one
+// that reads its input and answers nothing, which is what --input runs: the
+// inputs are what is wanted and the layout is not to be run at all.
+//
+// The mode is forced to oneshot along with it. A layout that answers nothing
+// is read as an empty output when it is a process per pass and simply exits,
+// but a resident one is read a line at a time and is expected to print one
+// per input. Left resident, the substitute never answers, the pass fails, and
+// --input reports that the layout exited without answering rather than
+// printing the inputs.
+func inputOnlyLayout(cfg config.TilingConfig) config.TilingConfig {
+	cfg.Layout = "cat >/dev/null"
+	cfg.LayoutMode = config.LayoutModeOneshot
+
+	return cfg
 }
 
 // previewOutput is one display's Output printed the way the layout printed

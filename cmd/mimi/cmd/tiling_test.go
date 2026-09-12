@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/ipc"
 )
@@ -163,4 +164,35 @@ func waitForSocket(t *testing.T, socketPath string) {
 	}
 
 	t.Fatalf("socket %s never came up", socketPath)
+}
+
+// TestInputOnlyLayout_RunsOnceWhateverTheConfigSays pins the fix for a preview
+// that would not answer: --input swaps the layout for one that prints nothing,
+// which reads as an empty output from a process that exits and never answers
+// at all from a resident one. The substitute is run as a one-shot whatever
+// mode the user's own layout is named with.
+func TestInputOnlyLayout_RunsOnceWhateverTheConfigSays(t *testing.T) {
+	t.Parallel()
+
+	tests := []string{config.LayoutModeOneshot, config.LayoutModeResident, ""}
+
+	for _, mode := range tests {
+		t.Run("named as "+mode, func(t *testing.T) {
+			t.Parallel()
+
+			got := inputOnlyLayout(config.TilingConfig{
+				Enabled:    true,
+				Layout:     "my-layout",
+				LayoutMode: mode,
+			})
+
+			if got.LayoutMode != config.LayoutModeOneshot {
+				t.Fatalf("layout_mode = %q, want %q", got.LayoutMode, config.LayoutModeOneshot)
+			}
+
+			if got.Layout == "my-layout" {
+				t.Fatal("the user's layout would be run, and --input runs none")
+			}
+		})
+	}
 }
