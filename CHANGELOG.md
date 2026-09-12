@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.16.0](https://github.com/y3owk1n/mimi/compare/v0.15.0...v0.16.0) (2026-09-12)
+
+
+### Features
+
+* **action:** focus a window by its number ([#254](https://github.com/y3owk1n/mimi/issues/254)) ([8f8cc5d](https://github.com/y3owk1n/mimi/commit/8f8cc5d8a20dd6dd51d911ede5798e96f4c83d5b))
+* **tiling:** draw the windows a layout stacked as a deck of cards ([#262](https://github.com/y3owk1n/mimi/issues/262)) ([0eec774](https://github.com/y3owk1n/mimi/commit/0eec774a7534149c9432867614a25b872bf9a1a3))
+* **tiling:** let a bsp leaf hold more than one window ([#261](https://github.com/y3owk1n/mimi/issues/261)) ([75c2bcd](https://github.com/y3owk1n/mimi/commit/75c2bcdea4fd62a49c2098c778433c6433796dff))
+* **tiling:** let a layout say which windows it is not managing ([#256](https://github.com/y3owk1n/mimi/issues/256)) ([7d3fcbe](https://github.com/y3owk1n/mimi/commit/7d3fcbe62edf9dda58f22c60520f666ff41001db))
+* **tiling:** let a strip column hold its windows in one place ([#260](https://github.com/y3owk1n/mimi/issues/260)) ([4612dd3](https://github.com/y3owk1n/mimi/commit/4612dd3e766cfe221e6996cf05e71bb3a39f5cfd))
+* **tiling:** show the state the daemon holds, and let one space start over ([#257](https://github.com/y3owk1n/mimi/issues/257)) ([1f3dc8a](https://github.com/y3owk1n/mimi/commit/1f3dc8ac8eb84f14207bebde0b6e69076300e70e))
+* **tiling:** stack windows in one place and mark how many are there ([#258](https://github.com/y3owk1n/mimi/issues/258)) ([1f18b98](https://github.com/y3owk1n/mimi/commit/1f18b98f3bb367933f7bf686e3de21c6a67242ce))
+* **tiling:** tell a layout where each window sits in the stacking order ([#255](https://github.com/y3owk1n/mimi/issues/255)) ([4afe26e](https://github.com/y3owk1n/mimi/commit/4afe26efbfe4a54bff912f4147e264b963a96be8))
+
+
+### Bug Fixes
+
+* **cli:** show a layout's input when the layout is resident ([#259](https://github.com/y3owk1n/mimi/issues/259)) ([91e00c2](https://github.com/y3owk1n/mimi/commit/91e00c259f41a5fa0ca732a2c061fd0ea7376a23))
+* **tiling:** key a layout's state to the space itself, not its place in Mission Control ([#253](https://github.com/y3owk1n/mimi/issues/253)) ([5b2bb47](https://github.com/y3owk1n/mimi/commit/5b2bb4738bb71f6968262e63ca6d701cde73a449))
+* **tiling:** lay the desktop out when a display comes or goes ([#251](https://github.com/y3owk1n/mimi/issues/251)) ([0f2d0e9](https://github.com/y3owk1n/mimi/commit/0f2d0e97bd2afba73b08171b722e38ddddfa56f7))
+
 ## [0.15.0](https://github.com/y3owk1n/mimi/compare/v0.14.0...v0.15.0) (2026-09-12)
 
 
