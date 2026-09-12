@@ -314,7 +314,9 @@ Earlier releases report none, and every border uses 12 points there. Set
 
 Borders need Accessibility, as window hooks do, because focus and moves come
 from the same observers. Without it, borders stay off and the daemon logs a
-warning. When the tiling animation moves a window, its border moves with it.
+warning. When the tiling animation moves a window, its border moves with it,
+and a window you drag takes its border along at every step, as the window
+server reports each move.
 
 ---
 

@@ -10,6 +10,20 @@
 
 extern int SLSMainConnectionID(void);
 extern CGError SLSOrderWindow(int cid, uint32_t wid, int mode, uint32_t relativeTo);
+extern CGError SLSGetWindowBounds(int cid, uint32_t wid, CGRect *bounds);
+
+// The window server tells a connection about the windows it asked after, as
+// each event happens: a move at every step of a drag, where Accessibility
+// tells the daemon a few times a second. The events are numbered as yabai
+// and JankyBorders read them.
+typedef void (*MimiWindowServerProc)(uint32_t event, void *data, size_t length, void *context, int cid);
+extern CGError SLSRegisterConnectionNotifyProc(int cid, MimiWindowServerProc proc, uint32_t event, void *context);
+extern CGError SLSRequestNotificationsForWindows(int cid, const uint32_t *windows, int count);
+
+enum {
+	kMimiWindowServerMoved = 806,
+	kMimiWindowServerResized = 807,
+};
 
 // SLSOrderWindow's mode for ordering under the relative window.
 static const int kMimiOrderBelow = -1;
@@ -246,6 +260,69 @@ static void mimiCloseAll(void) {
 	[gBorders removeAllObjects];
 }
 
+#pragma mark - Following
+
+// followed is whether the window server has been asked for its move and
+// resize events, once per process.
+static BOOL gFollowing;
+
+// Move a window's border to where the window server has the window now,
+// at once and on its own, as one step of a drag. A size change redraws the
+// ring; a move alone just moves the window, the cheap case a drag makes
+// at every frame.
+static void mimiFollow(uint32_t number) {
+	MimiBorder *border = gEnabled ? gBorders[@(number)] : nil;
+	if (!border)
+		return;
+	CGRect bounds;
+	if (SLSGetWindowBounds(SLSMainConnectionID(), number, &bounds) != kCGErrorSuccess || CGRectIsEmpty(bounds))
+		return;
+	if (CGRectEqualToRect(bounds, border.targetBounds))
+		return;
+	if (!CGSizeEqualToSize(bounds.size, border.targetBounds.size)) {
+		mimiDrawBorder(border, bounds, border.active);
+		return;
+	}
+	border.targetBounds = bounds;
+	[border setFrame:mimiBorderCocoaRect(CGRectInset(bounds, -gStyle.width, -gStyle.width)) display:NO];
+}
+
+static void mimiWindowServerEvent(uint32_t event, void *data, size_t length, void *context, int cid) {
+	(void)event;
+	(void)context;
+	(void)cid;
+	if (!data || length < sizeof(uint32_t))
+		return;
+	uint32_t number;
+	memcpy(&number, data, sizeof(number));
+	if ([NSThread isMainThread]) {
+		mimiFollow(number);
+		return;
+	}
+	dispatch_async(dispatch_get_main_queue(), ^{
+		mimiFollow(number);
+	});
+}
+
+// Ask the window server for the events of every bordered window. It keeps
+// the last list given, so the whole list goes each time it changes.
+static void mimiFollowBordered(void) {
+	int cid = SLSMainConnectionID();
+	if (!gFollowing) {
+		gFollowing = YES;
+		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerMoved, NULL);
+		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerResized, NULL);
+	}
+	NSArray<NSNumber *> *keys = gBorders.allKeys;
+	uint32_t *numbers = calloc(keys.count + 1, sizeof(uint32_t));
+	int count = 0;
+	for (NSNumber *key in keys) {
+		numbers[count++] = key.unsignedIntValue;
+	}
+	SLSRequestNotificationsForWindows(cid, numbers, count);
+	free(numbers);
+}
+
 #pragma mark - Sync
 
 // Bring the borders up to date, on the main thread. focused is the window
@@ -331,7 +408,8 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		dropped++;
 	}
 
-	if (made || dropped) {
+	if (made || dropped || moved) {
+		mimiFollowBordered();
 		MIMI_LOG(
 		    "borders synced: %lu shown, %d added, %d dropped, %d moved across spaces", (unsigned long)gBorders.count,
 		    made, dropped, moved);
