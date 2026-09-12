@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.15.0](https://github.com/y3owk1n/mimi/compare/v0.14.0...v0.15.0) (2026-09-12)
+
+
+### Features
+
+* **config:** write colours with the alpha first, as #aarrggbb ([#248](https://github.com/y3owk1n/mimi/issues/248)) ([85df286](https://github.com/y3owk1n/mimi/commit/85df2863c0f6b1d98e96e1e9e52c8061a3262dae))
+* **tiling:** animate through Accessibility only, without blocking the pass ([#246](https://github.com/y3owk1n/mimi/issues/246)) ([cb72555](https://github.com/y3owk1n/mimi/commit/cb725557b9e80cf58f68ad48483714afe02ec0d8))
+* **tiling:** animate through Accessibility without capturing the screen ([#245](https://github.com/y3owk1n/mimi/issues/245)) ([3af4232](https://github.com/y3owk1n/mimi/commit/3af423255df304f9cbae272ff79623f3b8fb564a))
+* **tiling:** show where a dragged window would land, and wait for the drop ([#247](https://github.com/y3owk1n/mimi/issues/247)) ([38cf7b5](https://github.com/y3owk1n/mimi/commit/38cf7b50041e0821c1fca334748cfce6d330a994))
+
+
+### Bug Fixes
+
+* **border:** follow a dragged window at every step ([#249](https://github.com/y3owk1n/mimi/issues/249)) ([85dbb8f](https://github.com/y3owk1n/mimi/commit/85dbb8f861e9d1a44081e6ed73cb5e36951a59f5))
+* **tiling:** copy parked pictures without leaving a CoreGraphics cache ([#244](https://github.com/y3owk1n/mimi/issues/244)) ([87bdd9a](https://github.com/y3owk1n/mimi/commit/87bdd9a44d1f718d1af0f57920e13f4dd5321648))
+* **tiling:** keep a drag smooth while the drop zone previews it ([#250](https://github.com/y3owk1n/mimi/issues/250)) ([bdabcaa](https://github.com/y3owk1n/mimi/commit/bdabcaaf9b5a715f06abb3052396580c81709519))
+
+
+### Performance Improvements
+
+* **tiling:** budget the parked pictures and let the screen still go ([#243](https://github.com/y3owk1n/mimi/issues/243)) ([1d3964a](https://github.com/y3owk1n/mimi/commit/1d3964aa0479d64a676f2a377446c63b86fc0199))
+* **tiling:** clip proxies by corner radius instead of mask captures ([#241](https://github.com/y3owk1n/mimi/issues/241)) ([dc43337](https://github.com/y3owk1n/mimi/commit/dc43337ceca495bfb5bad68db31cac61c28be640))
+
 ## [0.14.0](https://github.com/y3owk1n/mimi/compare/v0.13.1...v0.14.0) (2026-09-10)
 
 
