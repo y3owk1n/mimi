@@ -3,6 +3,7 @@ package ipc
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"net"
@@ -38,7 +39,7 @@ type Server struct {
 	// instead of the action worker: the ones whose handler drives the desktop
 	// through Serialize itself, and would deadlock waiting for the worker it
 	// was running on.
-	direct       map[action.Name]func(cmd action.Command) error
+	direct       map[action.Name]func(cmd action.Command) (json.RawMessage, error)
 	directMu     sync.RWMutex
 	once         sync.Once
 	shutdownOnce sync.Once
@@ -56,13 +57,16 @@ func NewServer(path string) *Server {
 		actionCh:       make(chan actionJob),
 		enqueueTimeout: actionEnqueueTimeout,
 		execute:        action.ExecuteCommand,
-		direct:         map[action.Name]func(cmd action.Command) error{},
+		direct:         map[action.Name]func(cmd action.Command) (json.RawMessage, error){},
 	}
 }
 
 // HandleDirect routes every request for name to fn, run on the connection's
 // goroutine rather than the action worker. fn may call Serialize.
-func (s *Server) HandleDirect(name action.Name, fn func(cmd action.Command) error) {
+func (s *Server) HandleDirect(
+	name action.Name,
+	fn func(cmd action.Command) (json.RawMessage, error),
+) {
 	s.directMu.Lock()
 	defer s.directMu.Unlock()
 
@@ -145,7 +149,9 @@ func (s *Server) Serialize(fn func() error) error {
 }
 
 // directHandler is the direct handler for name, if one is registered.
-func (s *Server) directHandler(name action.Name) (func(cmd action.Command) error, bool) {
+func (s *Server) directHandler(
+	name action.Name,
+) (func(cmd action.Command) (json.RawMessage, error), bool) {
 	s.directMu.RLock()
 	defer s.directMu.RUnlock()
 
@@ -185,7 +191,14 @@ func (s *Server) handleConn(conn net.Conn) {
 	}
 
 	if handle, ok := s.directHandler(req.Command.Name); ok {
-		_ = writeResponse(conn, responseFromError(handle(req.Command)))
+		data, handleErr := handle(req.Command)
+
+		resp := responseFromError(handleErr)
+		if handleErr == nil {
+			resp.Data = data
+		}
+
+		_ = writeResponse(conn, resp)
 
 		return
 	}

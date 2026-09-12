@@ -2,6 +2,7 @@ package daemon
 
 import (
 	"context"
+	"encoding/json"
 	"os"
 	"os/signal"
 	"path/filepath"
@@ -148,9 +149,12 @@ func runCore(
 
 	// A tiling command from the CLI reaches the engine here, off the action
 	// worker: the engine puts its own desktop work on that worker.
-	ipcServer.HandleDirect(action.NameTiling, func(cmd action.Command) error {
-		return pipeline.tiler.Command(ctx, tiling.EventFromArgs(cmd.Tiling))
-	})
+	ipcServer.HandleDirect(
+		action.NameTiling,
+		func(cmd action.Command) (json.RawMessage, error) {
+			return tilingAnswer(ctx, pipeline.tiler, cmd.Tiling)
+		},
+	)
 
 	go pipeline.router.Run(ctx)
 	go pipeline.executor.Run(ctx, pipeline.hookSub)
@@ -618,5 +622,32 @@ func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 		// on config.HookKinds.
 		AppLifecycle: hasWindowEvents(cfg) || hasAppEvents(cfg),
 		Workspace:    hasWorkspaceEvents(cfg),
+	}
+}
+
+// tilingAnswer runs one tiling command against the engine and returns what it
+// answered with, which is nothing for the kinds that only do something.
+//
+// The reads live here rather than in internal/action because the state they
+// report is the daemon's own. An engine in a CLI process holds none, so there
+// is nothing for a direct path to answer with (see
+// docs/adr/0005-engine-state-is-read-over-the-socket.md).
+func tilingAnswer(
+	ctx context.Context,
+	tiler *tiling.Engine,
+	args action.TilingArgs,
+) (json.RawMessage, error) {
+	switch args.Kind {
+	case action.TilingState:
+		return json.Marshal(tiler.State())
+	case action.TilingReset:
+		dropped, err := tiler.Reset(args.All)
+		if err != nil {
+			return nil, err
+		}
+
+		return json.Marshal(map[string]int{"dropped": dropped})
+	default:
+		return nil, tiler.Command(ctx, tiling.EventFromArgs(args))
 	}
 }

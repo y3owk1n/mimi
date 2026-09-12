@@ -31,13 +31,18 @@ Available subcommands:
   preview   run the layout once against the desktop and print what it would apply
   relayout  run the layout once and apply it
   cmd       send a named command to the layout, for it to give meaning to
+  state     print the state the running daemon is holding for each space
+  reset     forget that state, so the next pass starts the layout over
 
 Examples:
   mimi tiling preview
   mimi tiling preview --input
   mimi tiling relayout
   mimi tiling cmd swap
-  mimi tiling cmd ratio +0.05`,
+  mimi tiling cmd ratio +0.05
+  mimi tiling state
+  mimi tiling reset
+  mimi tiling reset --all`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			cobraCmd.SilenceUsage = false
 
@@ -51,6 +56,76 @@ Examples:
 	cmd.AddCommand(buildTilingPreviewCommand(state))
 	cmd.AddCommand(buildTilingRelayoutCommand(state))
 	cmd.AddCommand(buildTilingCmdCommand(state))
+	cmd.AddCommand(buildTilingStateCommand(state))
+	cmd.AddCommand(buildTilingResetCommand(state))
+
+	return cmd
+}
+
+func buildTilingStateCommand(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "state",
+		Short: "Print the layout state the running daemon holds",
+		Long: `Print, as one line of JSON, what the daemon's tiling engine is remembering:
+one entry per display and space it has run the layout for, with the state the
+layout last returned there, and the windows the layout said it is not managing.
+
+  {"spaces":[{"display":1,"spaceId":5,"space":2,"state":{...}}],"unmanaged":[]}
+
+Each space is named twice. spaceId is the window server's own identifier for
+it, which is what the engine files the state under and what never changes.
+space is where that space sits in Mission Control right now, or 0 when it is
+not the space in front on any display.
+
+This is a read of the daemon's memory, not of the desktop, so it needs a
+running daemon. Without one it reports nothing, because a layout run from the
+CLI is given a null state and keeps none. mimi tiling preview is the one that
+works either way.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			tilingCmd, err := action.NewTilingCommand(action.TilingState, "", nil)
+			if err != nil {
+				return err
+			}
+
+			return state.printTiling(cobraCmd, tilingCmd, tiling.State{
+				Spaces:    []tiling.SpaceState{},
+				Unmanaged: []uint32{},
+			})
+		},
+	}
+}
+
+func buildTilingResetCommand(state *cliState) *cobra.Command {
+	var all bool
+
+	cmd := &cobra.Command{
+		Use:   "reset",
+		Short: "Forget the layout state the running daemon holds",
+		Long: `Forget what the layout returned for the space in front on each display, so
+the next pass there starts it from a null state. With --all, forget every
+space the daemon remembers instead.
+
+This is the way out of a layout whose state has gone wrong: a tree that no
+longer matches the windows, a master that is not there. Restarting the daemon
+does the same thing to every display at once, which is rarely what is wanted.
+
+It prints how many spaces it forgot. Nothing is laid out by this; the next
+event runs the layout, or mimi tiling relayout does it now. It needs a running
+daemon, since a CLI holds no state to forget.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			tilingCmd, err := action.NewTilingResetCommand(all)
+			if err != nil {
+				return err
+			}
+
+			return state.printTiling(cobraCmd, tilingCmd, map[string]int{"dropped": 0})
+		},
+	}
+
+	cmd.Flags().
+		BoolVar(&all, "all", false, "Forget every space, not just the one in front on each display")
 
 	return cmd
 }
@@ -113,6 +188,55 @@ Examples:
 	cmd.Flags().SetInterspersed(false)
 
 	return cmd
+}
+
+// printTiling sends a tiling command that answers with something, and prints
+// what came back as one line of JSON.
+//
+// There is no falling back to an engine of this process's own, as runTiling
+// does. These commands read and clear state the daemon holds, and an engine
+// built here holds none, so falling back would print an empty answer as
+// though it were the truth. With no daemon it prints empty instead, which is
+// what empty means, and says on stderr that there was nothing to ask.
+func (s *cliState) printTiling(cobraCmd *cobra.Command, cmd action.Command, empty any) error {
+	socketPath := ipc.ResolveSocketPath(s.configPath)
+
+	data, err := ipc.TryExecuteData(socketPath, cmd)
+	if err != nil {
+		if !derrors.IsCode(err, derrors.CodeDaemonUnavailable) &&
+			!derrors.IsCode(err, derrors.CodeProtocolMismatch) {
+			return err
+		}
+
+		_, _ = fmt.Fprintln(
+			cobraCmd.ErrOrStderr(),
+			"mimi: no daemon is holding any tiling state, so there is none to report.",
+		)
+
+		return printJSON(cobraCmd, empty)
+	}
+
+	return printRawJSON(cobraCmd, data)
+}
+
+// printJSON writes one line of JSON for a value built here.
+func printJSON(cobraCmd *cobra.Command, value any) error {
+	err := json.NewEncoder(cobraCmd.OutOrStdout()).Encode(value)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeSerializationFailed, "encoding the answer")
+	}
+
+	return nil
+}
+
+// printRawJSON writes the JSON the daemon answered with, as it sent it.
+func printRawJSON(cobraCmd *cobra.Command, data json.RawMessage) error {
+	_, err := fmt.Fprintf(cobraCmd.OutOrStdout(), "%s\n", data)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeSerializationFailed, "writing the answer")
+	}
+
+	return nil
 }
 
 // runTiling sends a tiling command to the daemon, whose engine holds the

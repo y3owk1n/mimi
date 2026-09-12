@@ -401,6 +401,44 @@ mimi tiling cmd swap
 mimi tiling cmd ratio +0.05
 ```
 
+### `mimi tiling state`
+
+Print, as one line of JSON, what the running daemon's engine is remembering:
+one entry per display and space it has run the layout for, with the state the
+layout last returned there, and the windows the layout said it is not managing.
+
+```
+$ mimi tiling state | jq -c
+{"spaces":[{"display":1,"spaceId":5,"space":2,"state":{"ratio":0.6}}],"unmanaged":[4243]}
+```
+
+Each space is named twice. `spaceId` is the window server's own identifier for
+it, which is what the engine files state under and what never changes. `space`
+is where that space sits in Mission Control right now, or `0` when it is not in
+front on any display.
+
+This reads the daemon's memory, not the desktop, so it needs a running daemon.
+With none it prints an empty state and says so on stderr, because a layout run
+from the CLI is given a null state and keeps none. Needs no Accessibility
+permission of its own.
+
+### `mimi tiling reset [--all]`
+
+Forget what the layout returned for the space in front on each display, so the
+next pass there starts it from a null state. With `--all`, forget every space
+the daemon remembers. Prints how many spaces it forgot.
+
+```bash
+mimi tiling reset
+mimi tiling reset --all
+```
+
+This is the way out of a layout whose state has gone wrong, a tree that no
+longer matches the windows say. Restarting the daemon does the same to every
+display at once, which is rarely what is wanted. Nothing is laid out by this.
+The next event runs the layout, or `mimi tiling relayout` does it now. Needs a
+running daemon.
+
 ---
 
 ## Hook Daemon

@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"context"
+	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
@@ -42,10 +43,10 @@ func TestTilingCommands_ReachTheDaemonAsATilingAction(t *testing.T) {
 	server := ipc.NewServer(socketPath)
 
 	received := make(chan action.Command, 1)
-	server.HandleDirect(action.NameTiling, func(cmd action.Command) error {
+	server.HandleDirect(action.NameTiling, func(cmd action.Command) (json.RawMessage, error) {
 		received <- cmd
 
-		return nil
+		return nil, nil
 	})
 
 	ctx := t.Context()
@@ -107,10 +108,10 @@ func TestTilingCmd_PassesADashArgumentToTheLayout(t *testing.T) {
 	server := ipc.NewServer(socketPath)
 
 	received := make(chan action.Command, 1)
-	server.HandleDirect(action.NameTiling, func(cmd action.Command) error {
+	server.HandleDirect(action.NameTiling, func(cmd action.Command) (json.RawMessage, error) {
 		received <- cmd
 
-		return nil
+		return nil, nil
 	})
 
 	ctx := t.Context()

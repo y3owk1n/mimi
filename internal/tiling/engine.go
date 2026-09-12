@@ -728,7 +728,13 @@ func stateKey(input Input) (string, bool) {
 		return "", false
 	}
 
-	return fmt.Sprintf("%d/%d", input.Display.ID, input.spaceID), true
+	return stateKeyOf(input.Display.ID, input.spaceID), true
+}
+
+// stateKeyOf is the key naming one display and one space, which is the one
+// place the shape of a state key is decided. splitStateKey reads it back.
+func stateKeyOf(display uint32, spaceID uint64) string {
+	return fmt.Sprintf("%d/%d", display, spaceID)
 }
 
 // keepUnmanaged records which of the windows this run was given the layout is

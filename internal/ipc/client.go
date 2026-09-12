@@ -3,6 +3,7 @@ package ipc
 import (
 	"bufio"
 	"context"
+	"encoding/json"
 	"errors"
 	"net"
 	"os"
@@ -22,15 +23,28 @@ const dialTimeout = 100 * time.Millisecond
 // not reachable so callers can fall back to direct execution against the same
 // typed cmd.
 func TryExecute(socketPath string, cmd action.Command) error {
+	_, err := TryExecuteData(socketPath, cmd)
+
+	return err
+}
+
+// TryExecuteData is TryExecute for the actions that answer with something,
+// returning what the daemon read alongside the error. It is the same request
+// on the same socket; only the reply is looked at further.
+//
+// There is no direct-path counterpart, and there cannot be: the actions that
+// use this answer with state the daemon holds, so a CLI with no daemon to ask
+// has nothing to report.
+func TryExecuteData(socketPath string, cmd action.Command) (json.RawMessage, error) {
 	socketPath = paths.ExpandHome(socketPath)
 
 	_, err := os.Stat(socketPath)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return derrors.New(derrors.CodeDaemonUnavailable, "daemon socket not found")
+			return nil, derrors.New(derrors.CodeDaemonUnavailable, "daemon socket not found")
 		}
 
-		return derrors.Wrapf(err, derrors.CodeIPCFailed, "checking daemon socket")
+		return nil, derrors.Wrapf(err, derrors.CodeIPCFailed, "checking daemon socket")
 	}
 
 	dialer := net.Dialer{Timeout: dialTimeout}
@@ -39,10 +53,10 @@ func TryExecute(socketPath string, cmd action.Command) error {
 	if err != nil {
 		var netErr net.Error
 		if errors.As(err, &netErr) && netErr.Timeout() {
-			return derrors.New(derrors.CodeDaemonUnavailable, "daemon socket timed out")
+			return nil, derrors.New(derrors.CodeDaemonUnavailable, "daemon socket timed out")
 		}
 
-		return derrors.New(derrors.CodeDaemonUnavailable, "daemon not reachable")
+		return nil, derrors.New(derrors.CodeDaemonUnavailable, "daemon not reachable")
 	}
 
 	defer func() { _ = conn.Close() }()
@@ -51,15 +65,20 @@ func TryExecute(socketPath string, cmd action.Command) error {
 
 	err = writeRequest(conn, Request{Version: ProtocolVersion, Command: cmd})
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	resp, err := readResponse(reader)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return errorFromResponse(resp)
+	err = errorFromResponse(resp)
+	if err != nil {
+		return nil, err
+	}
+
+	return resp.Data, nil
 }
 
 // ResolveSocketPath returns the configured socket path when --config is set,
