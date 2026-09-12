@@ -22,6 +22,8 @@ import (
 const (
 	shell   = "/bin/sh"
 	created = "window_created"
+	// noState is what a layout is handed for a space it has not run for.
+	noState = "null"
 	// echoLayout prints one frame for window 1 and records the input's
 	// event kind and previous state as its new state.
 	echoLayout = `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 100, height: 100}}], ` +
@@ -35,6 +37,10 @@ type fakeDesktop struct {
 	windows  action.WindowsInfo
 	displays []action.DisplayEntry
 	spaces   map[uint32]int
+	// spaceIDs is which space is in front per display, when a test names
+	// one; otherwise an id is derived from the space's index, so distinct
+	// spaces stay distinct without every test naming ids.
+	spaceIDs map[uint32]uint64
 	// fullScreen is the displays FullScreenDisplays reports.
 	fullScreen map[uint32]bool
 	// late is a window Windows lists only after lateAfter reads, the way
@@ -90,6 +96,29 @@ func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 
 	return spaces, nil
 }
+
+func (d *fakeDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	if d.spaceIDs != nil {
+		return d.spaceIDs, nil
+	}
+
+	ids := map[uint32]uint64{}
+	for _, display := range d.displays {
+		index := d.space
+		if d.spaces != nil {
+			index = d.spaces[display.ID]
+		}
+
+		ids[display.ID] = fakeSpaceID(index)
+	}
+
+	return ids, nil
+}
+
+// fakeSpaceID is the identifier the fake gives the space at a Mission Control
+// index, when a test has not named one itself. It is offset so an id is never
+// mistaken for an index in a failure message.
+func fakeSpaceID(index int) uint64 { return uint64(index) + 1000 }
 
 func (d *fakeDesktop) FullScreenDisplays() (map[uint32]bool, error) { return d.fullScreen, nil }
 
@@ -198,8 +227,103 @@ func TestEngine_Pass_HandsTheLayoutItsOwnStateBack(t *testing.T) {
 		t.Fatalf("Preview() on another space error = %v", err)
 	}
 
-	if string(inputs[0].State) != "null" {
+	if string(inputs[0].State) != noState {
 		t.Fatalf("state on a fresh space = %s, want null", inputs[0].State)
+	}
+}
+
+// TestEngine_Pass_KeepsStateWithTheSpaceNotItsPlaceInMissionControl pins that
+// the state a layout built belongs to the space it was built for. Adding or
+// removing a space changes the number of every space after it, so that number
+// does not identify a space. The state follows its space through such a
+// change, and another space at the same number still starts from null.
+func TestEngine_Pass_KeepsStateWithTheSpaceNotItsPlaceInMissionControl(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.spaceIDs = map[uint32]uint64{7: 5000}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(echoLayout), shell)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: created})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	want := `{"kind":"` + created + `","was":null}`
+
+	// A space added before this one renumbers it from 2 to 5. It is the
+	// same space, so it is the same state.
+	desktop.space = 5
+
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() after a renumbering error = %v", err)
+	}
+
+	if got := string(inputs[0].State); got != want {
+		t.Fatalf("state after a renumbering = %s, want %s", got, want)
+	}
+
+	// Another space that happens to sit where the first one did is still
+	// another space.
+	desktop.space = 2
+	desktop.spaceIDs = map[uint32]uint64{7: 6000}
+
+	inputs, _, err = engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() on another space error = %v", err)
+	}
+
+	if got := string(inputs[0].State); got != noState {
+		t.Fatalf("state on another space at the same index = %s, want null", got)
+	}
+}
+
+// TestEngine_Pass_KeepsNoStateForASpaceItCannotName pins what happens when the
+// window server will not say which space a display shows. The layout still
+// runs, and the engine keeps nothing for it, so the next space it cannot name
+// is not handed the state the last one built.
+func TestEngine_Pass_KeepsNoStateForASpaceItCannotName(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	// An empty map is a display whose space did not resolve.
+	desktop.spaceIDs = map[uint32]uint64{}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(echoLayout), shell)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: created})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	inputs, _, err := engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if got := string(inputs[0].State); got != noState {
+		t.Fatalf("state for an unnamable space = %s, want null", got)
+	}
+
+	// Another space the window server will not name either. Without an
+	// identity to tell the two apart, neither may inherit the other's.
+	desktop.space = 9
+
+	inputs, _, err = engine.Preview(ctx, tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() on a second unnamable space error = %v", err)
+	}
+
+	if got := string(inputs[0].State); got != noState {
+		t.Fatalf("state leaked to a second unnamable space = %s, want null", got)
 	}
 }
 
@@ -749,7 +873,7 @@ func TestEngine_Pass_RunsOncePerDisplayWithStateOfItsOwn(t *testing.T) {
 		t.Fatalf("Preview() error = %v", err)
 	}
 
-	if string(inputs[0].State) != want[0] || string(inputs[1].State) != "null" {
+	if string(inputs[0].State) != want[0] || string(inputs[1].State) != noState {
 		t.Fatalf("after a switch on display 8: states %s and %s; want %s and null",
 			inputs[0].State, inputs[1].State, want[0])
 	}

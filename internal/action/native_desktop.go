@@ -445,6 +445,22 @@ func (d *nativeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	return native.ActiveSpaceIndexes(ids), nil
 }
 
+// ActiveSpaceIDs is the window server's identifier for the space in front on
+// every display.
+func (d *nativeDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	displays, err := native.Displays()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make([]uint32, len(displays))
+	for index, display := range displays {
+		ids[index] = display.ID
+	}
+
+	return native.ActiveSpaceIDs(ids), nil
+}
+
 func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	displays, err := native.Displays()
 	if err != nil {

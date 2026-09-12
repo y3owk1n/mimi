@@ -69,6 +69,12 @@ func QueryActiveSpaces() (map[uint32]int, error) {
 	return defaultExecutor.QueryActiveSpaces()
 }
 
+// QueryActiveSpaceIDs reports which space is in front on every display of the
+// desktop mimi is running on.
+func QueryActiveSpaceIDs() (map[uint32]uint64, error) {
+	return defaultExecutor.QueryActiveSpaceIDs()
+}
+
 // QueryFullScreenDisplays reports the displays of the desktop mimi is
 // running on that show a full-screen space in front.
 func QueryFullScreenDisplays() (map[uint32]bool, error) {
@@ -109,6 +115,24 @@ func (e *Executor) QueryActiveSpaces() (map[uint32]int, error) {
 		return nil, derrors.New(
 			derrors.CodeActionFailed,
 			"failed to enumerate Mission Control spaces",
+		)
+	}
+
+	return spaces, nil
+}
+
+// QueryActiveSpaceIDs reports which space is in front on every display, keyed
+// by display id, the way QueryActiveSpaces reports where that space sits.
+//
+// A display whose space cannot be resolved is left out rather than reported
+// as 0, so a caller keyed by this never takes two such displays for one.
+func (e *Executor) QueryActiveSpaceIDs() (map[uint32]uint64, error) {
+	spaces, err := e.desktop.ActiveSpaceIDs()
+	if err != nil {
+		return nil, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to resolve the active space identifiers",
 		)
 	}
 

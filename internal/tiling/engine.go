@@ -26,6 +26,7 @@ type Desktop interface {
 	Windows() (action.WindowsInfo, error)
 	Displays() ([]action.DisplayEntry, error)
 	ActiveSpaces() (map[uint32]int, error)
+	ActiveSpaceIDs() (map[uint32]uint64, error)
 	FullScreenDisplays() (map[uint32]bool, error)
 	Margins() (action.MarginsInfo, error)
 	Apply(frames []action.WindowFrame, animation *action.Animation) error
@@ -70,6 +71,13 @@ type Engine struct {
 	// the space in front on it (stateKey), so a space switched on one
 	// display never touches what the other remembers.
 	states map[string]json.RawMessage
+	// writes counts the state writes made, and writtenAt is the count at
+	// which each key was last written, so keepState can drop whichever
+	// space went longest without one. The window server never names a
+	// destroyed space again and never reuses its identifier, so without
+	// this the map would only ever grow.
+	writes    uint64
+	writtenAt map[string]uint64
 	// seen is every window number the last pass read, nil before the
 	// first, so a window_created pass can tell whether the window it was
 	// raised for has reached the window server's on-screen list yet.
@@ -124,6 +132,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		serialize:   serialize,
 		logger:      logger,
 		states:      map[string]json.RawMessage{},
+		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
 		titles:      map[uint32]string{},
@@ -509,7 +518,16 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		input := inputs[index]
 
 		if out.State != nil {
-			e.states[stateKey(input)] = out.State
+			key, named := stateKey(input)
+			if named {
+				e.keepState(key, out.State)
+			} else {
+				e.logger.Debugw(
+					"layout state dropped: the space it is for could not be named",
+					"display", input.Display.ID,
+					"space", input.Space,
+				)
+			}
 		}
 
 		frames = append(frames, out.Frames...)
@@ -678,9 +696,50 @@ func (e *Engine) stopResidentLocked() {
 	e.layout = nil
 }
 
-// stateKey names the state for one display and the space in front on it.
-func stateKey(input Input) string {
-	return fmt.Sprintf("%d/%d", input.Display.ID, input.Space)
+// stateKey names the state for one display and the space in front on it, and
+// reports whether that space could be named at all.
+//
+// The key names the space by the window server's identifier rather than by
+// its place in Mission Control. Adding or removing a space changes the place
+// of every space after it, so a key built on the place would hand a layout
+// the state it built for another space. A space the window server will not
+// identify is named by nothing, and its state is neither kept nor read, so
+// two such spaces on one display cannot be given each other's state.
+func stateKey(input Input) (string, bool) {
+	if input.spaceID == 0 {
+		return "", false
+	}
+
+	return fmt.Sprintf("%d/%d", input.Display.ID, input.spaceID), true
+}
+
+// maxKeptStates is how many display-and-space states the engine remembers at
+// once. A desktop has a handful of spaces and a few displays at most, so
+// ordinary use never reaches the bound. It is here because a user creates and
+// destroys spaces over a daemon's lifetime, and nothing else drops the state
+// of a space that is gone.
+const maxKeptStates = 64
+
+// keepState files what the layout returned for one display and space, making
+// room by dropping the state written longest ago when the map is full. The
+// caller holds the lock.
+func (e *Engine) keepState(key string, state json.RawMessage) {
+	e.writes++
+	e.states[key] = state
+	e.writtenAt[key] = e.writes
+
+	for len(e.states) > maxKeptStates {
+		oldest, oldestAt := "", uint64(0)
+
+		for candidate, at := range e.writtenAt {
+			if oldest == "" || at < oldestAt {
+				oldest, oldestAt = candidate, at
+			}
+		}
+
+		delete(e.states, oldest)
+		delete(e.writtenAt, oldest)
+	}
 }
 
 // newWindowWait is how long a window_created pass waits for the window
@@ -755,8 +814,12 @@ type titledWindower interface {
 
 // desktopRead is everything one pass reads of the desktop.
 type desktopRead struct {
-	displays   []action.DisplayEntry
-	spaces     map[uint32]int
+	displays []action.DisplayEntry
+	spaces   map[uint32]int
+	// spaceIDs is which space is in front on each display, as the window
+	// server identifies it, where spaces is only where that space sits in
+	// Mission Control. The state a pass keeps is filed under this.
+	spaceIDs   map[uint32]uint64
 	fullScreen map[uint32]bool
 	margins    action.MarginsInfo
 	windows    action.WindowsInfo
@@ -780,6 +843,11 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		}
 
 		read.spaces, err = e.desktop.ActiveSpaces()
+		if err != nil {
+			return err
+		}
+
+		read.spaceIDs, err = e.desktop.ActiveSpaceIDs()
 		if err != nil {
 			return err
 		}
@@ -868,6 +936,7 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			Displays: displays,
 			Focused:  -1,
 			Windows:  []action.WindowEntry{},
+			spaceID:  read.spaceIDs[display.ID],
 		}
 
 		for _, win := range windows.Windows {
@@ -886,7 +955,10 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			continue
 		}
 
-		input.State = e.states[stateKey(input)]
+		if key, named := stateKey(input); named {
+			input.State = e.states[key]
+		}
+
 		if input.State == nil {
 			input.State = json.RawMessage("null")
 		}

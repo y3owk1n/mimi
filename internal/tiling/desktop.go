@@ -21,6 +21,11 @@ func (LiveDesktop) Displays() ([]action.DisplayEntry, error) { return action.Que
 // ActiveSpaces is the space in front on every display.
 func (LiveDesktop) ActiveSpaces() (map[uint32]int, error) { return action.QueryActiveSpaces() }
 
+// ActiveSpaceIDs is which space is in front on every display.
+func (LiveDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	return action.QueryActiveSpaceIDs()
+}
+
 // FullScreenDisplays is the set of displays showing a full-screen space.
 func (LiveDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	return action.QueryFullScreenDisplays()

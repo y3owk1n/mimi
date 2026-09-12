@@ -33,9 +33,17 @@ it on its own thread and returns the result.
 _Avoid_: IPC path, remote execution, server path
 
 **Space**:
-One Mission Control space, identified by its 1-based index in Mission Control
-ordering across every connected display.
-_Avoid_: desktop, workspace, virtual desktop
+One Mission Control space. It has two numbers and they are not
+interchangeable. Its **index** is its 1-based place in Mission Control
+ordering across every connected display. That is the number the user counts,
+the number every command and query reports, and the number `mimi action space`
+takes. Its **identifier** is the window server's own, assigned when the space
+is created and kept until it is destroyed. Adding or removing a space changes
+the index of every space after it. Nothing changes an identifier. So mimi
+reports the index and stores the identifier, and the one thing mimi stores
+per space today is the tiling engine's layout state.
+_Avoid_: desktop, workspace, virtual desktop. Never "space id" for the index,
+or "space number" for either.
 
 **Hook**:
 A shell command the daemon runs when a desktop event of a given kind occurs.

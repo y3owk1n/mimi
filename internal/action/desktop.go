@@ -155,6 +155,14 @@ type Desktop interface {
 	// space every entry is the same index.
 	ActiveSpaces() (map[uint32]int, error)
 
+	// ActiveSpaceIDs is the window server's own identifier for the space in
+	// front on every connected display, keyed by display id, leaving out a
+	// display whose space cannot be resolved. ActiveSpaces reports where a
+	// space sits in Mission Control. This reports which space it is. Adding
+	// or removing a space changes the first number and not the second, so a
+	// caller that remembers something about a space keys it by this one.
+	ActiveSpaceIDs() (map[uint32]uint64, error)
+
 	// FullScreenDisplays is the set of connected displays, by id, whose
 	// space in front is a full-screen application space. macOS lays that
 	// space out itself, for one window or a split-view pair.

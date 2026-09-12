@@ -110,7 +110,9 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   applied together.
 - **State.** Whatever you print as `state` comes back on the next run for
   the same display and space. A layout remembers a tree or a ratio without
-  touching a file. Each display keeps one state per Mission Control space.
+  touching a file. Each display keeps one state per space, filed under the
+  space rather than its place in Mission Control, so adding or removing a
+  space never hands a layout the state it built for another one.
 - **The engine never fights you.** Its own frame writes never wake it. With
   `relayout_on_drag` it tells your drag from its own write by reading back
   where every window actually landed.
