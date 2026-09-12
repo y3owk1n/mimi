@@ -127,11 +127,10 @@ table with `enabled`, `duration_ms`, and `easing`. Every one is reloadable.
 The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
 
 **Animation is off by default.** With `[tiling.animation]` enabled, windows
-move to their frames over `duration_ms` instead of jumping. The animation
-captures the screen, so the daemon asks for Screen Recording at startup
-while it is on and captures nothing while it is off.
-[CONFIGURATION.md](CONFIGURATION.md#animation) covers the permission prompt,
-including why an unsigned build is asked again after every rebuild.
+move to their frames over `duration_ms` instead of jumping. The daemon moves
+the real windows through their applications a step at a time, which needs
+nothing beyond the Accessibility permission tiling already has.
+[CONFIGURATION.md](CONFIGURATION.md#animation) has the details.
 
 ---
 

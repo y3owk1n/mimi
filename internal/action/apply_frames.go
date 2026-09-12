@@ -23,12 +23,10 @@ type WindowFrame struct {
 }
 
 // Animation is how apply_frames moves the windows when it is asked to: over
-// how long, in milliseconds, along which curve, named as in Easings, and by
-// which driver, named as in Drivers; "" is the capture driver.
+// how long, in milliseconds, and along which curve, named as in Easings.
 type Animation struct {
 	DurationMS int    `json:"durationMs"`
 	Easing     string `json:"easing"`
-	Driver     string `json:"driver,omitempty"`
 }
 
 // Easings are the curves an Animation names, in the order native numbers
@@ -48,15 +46,15 @@ type ApplyFramesArgs struct {
 }
 
 // FrameStepper is what a Desktop offers when it can move windows a step at
-// a time through their applications, which is how the accessibility driver
-// animates. A desktop that cannot moves the frames at once.
+// a time through their applications, which is how the animation moves
+// them. A desktop that cannot moves the frames at once.
 type FrameStepper interface {
 	// StepWindowFrame writes one step of a window's frame. Unlike
 	// SetWindowFrame it leaves the desktop's listing alone: a step is one
 	// of a hundred a second.
 	StepWindowFrame(id WindowID, frame geometry.Rect) error
-	// FinishSteps runs once the last window has landed, with what the
-	// steps cost.
+	// FinishSteps runs once an application's windows have all landed, with
+	// what the steps cost.
 	FinishSteps(report StepReport)
 	// SetEnhancedUI turns an application's enhanced accessibility interface
 	// on or off, under which some applications animate every move they are
@@ -65,26 +63,15 @@ type FrameStepper interface {
 	SetEnhancedUI(pid int, enabled bool) (was bool, ok bool)
 }
 
-// StepReport is what a stepped animation cost: how many windows moved, how
-// many frames were written over all of them, how long the whole took, and
-// the slowest single write.
+// StepReport is what one application's stepped animation cost: how many
+// windows moved, how many frames were written over all of them, how long
+// the whole took, the slowest single write, and how many writes failed.
 type StepReport struct {
 	Windows int
 	Frames  int
 	Elapsed time.Duration
 	Slowest time.Duration
-}
-
-// FrameAnimator is what a Desktop offers when it can animate frames. A
-// desktop that cannot is used as it is, and the frames move at once.
-type FrameAnimator interface {
-	// BeginFrameAnimation prepares to move the given windows to their
-	// frames over the animation, hiding the move the frame writes make, and
-	// reports how many windows it will animate.
-	BeginFrameAnimation(targets []WindowFrame, animation Animation) (int, error)
-	// StartFrameAnimation runs the prepared animation, leaving out the
-	// windows whose frames did not land.
-	StartFrameAnimation(dropped []uint32)
+	Failed  int
 }
 
 // NewApplyFramesCommand builds apply_frames' command from the decoded
@@ -170,14 +157,6 @@ func validateAnimation(animation Animation) error {
 		)
 	}
 
-	if animation.Driver != "" && !slices.Contains(Drivers, animation.Driver) {
-		return derrors.Newf(
-			derrors.CodeInvalidInput,
-			"animation.driver must be one of %s",
-			strings.Join(Drivers, ", "),
-		)
-	}
-
 	return nil
 }
 
@@ -236,48 +215,20 @@ func (e *Executor) ApplyFrames(args ApplyFramesArgs) error {
 		byNumber[win.Number] = win.ID
 	}
 
-	// The accessibility driver writes the frames itself, a step at a time,
-	// and returns when the windows have landed.
-	if args.Animation != nil && args.Animation.Driver == DriverAccessibility {
+	// With an animation, a desktop that can step frames moves the windows
+	// in the background and returns as they set off; a later pass sends a
+	// window still on its way on to its new frame. Any other desktop, and
+	// a payload without an animation, moves the frames at once.
+	if args.Animation != nil {
 		if stepper, ok := e.desktop.(FrameStepper); ok {
-			failures, _ := e.stepFrames(stepper, args.Frames, windows, *args.Animation)
+			failures := e.animator().
+				start(stepper, e.desktop, args.Frames, windows, *args.Animation)
 
 			return framesError(failures, len(args.Frames))
 		}
 	}
 
-	// The animation is prepared before the first write and started after
-	// the last, so the writes happen while the animation hides them. A
-	// desktop that cannot animate, or an animation that cannot begin, moves
-	// the frames at once. Without an animation in the payload none of this
-	// runs.
-	var (
-		animator  FrameAnimator
-		animating bool
-	)
-
-	if args.Animation != nil {
-		animator, animating = e.desktop.(FrameAnimator)
-	}
-
-	if animating {
-		targets := make([]WindowFrame, 0, len(args.Frames))
-
-		for _, entry := range args.Frames {
-			if _, ok := byNumber[entry.Number]; ok && (entry.Animate == nil || *entry.Animate) {
-				targets = append(targets, entry)
-			}
-		}
-
-		count, beginErr := animator.BeginFrameAnimation(targets, *args.Animation)
-		animating = beginErr == nil && count > 0
-	}
-
-	failures, dropped := e.writeFrames(args.Frames, windows)
-
-	if animating {
-		animator.StartFrameAnimation(dropped)
-	}
+	failures, _ := e.writeFrames(args.Frames, windows)
 
 	return framesError(failures, len(args.Frames))
 }

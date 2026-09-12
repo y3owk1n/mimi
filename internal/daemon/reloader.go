@@ -131,7 +131,7 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	}
 
 	if rl.tiler != nil {
-		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility, rl.logger), cfg.Settings.HookShell)
+		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility), cfg.Settings.HookShell)
 	}
 
 	if rl.borders != nil {

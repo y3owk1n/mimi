@@ -3,6 +3,7 @@ package action_test
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -10,21 +11,23 @@ import (
 )
 
 // steppingDesktop is a fake desktop that can step frames: it records every
-// step per window and how the enhanced interface was switched.
+// step per window, how the enhanced interface was switched, and signals
+// each application's report as it lands.
 type steppingDesktop struct {
 	*fakeDesktop
 
 	mu       sync.Mutex
 	steps    map[action.WindowID][]geometry.Rect
 	enhanced []bool
-	report   action.StepReport
-	finished int
+	reports  []action.StepReport
+	landed   chan action.StepReport
 }
 
 func newSteppingDesktop() *steppingDesktop {
 	return &steppingDesktop{
 		fakeDesktop: desktopWithListedWindows(),
 		steps:       map[action.WindowID][]geometry.Rect{},
+		landed:      make(chan action.StepReport, 16),
 	}
 }
 
@@ -38,10 +41,10 @@ func (d *steppingDesktop) StepWindowFrame(id action.WindowID, frame geometry.Rec
 
 func (d *steppingDesktop) FinishSteps(report action.StepReport) {
 	d.mu.Lock()
-	defer d.mu.Unlock()
+	d.reports = append(d.reports, report)
+	d.mu.Unlock()
 
-	d.report = report
-	d.finished++
+	d.landed <- report
 }
 
 func (d *steppingDesktop) SetEnhancedUI(_ int, enabled bool) (bool, bool) {
@@ -53,22 +56,50 @@ func (d *steppingDesktop) SetEnhancedUI(_ int, enabled bool) (bool, bool) {
 	return true, true
 }
 
-func TestExecutor_ApplyFrames_AccessibilityDriverStepsEveryWindowHome(t *testing.T) {
+// waitLanded waits for count applications to report, failing the test past
+// the deadline.
+func (d *steppingDesktop) waitLanded(t *testing.T, count int) {
+	t.Helper()
+
+	deadline := time.After(2 * time.Second)
+
+	for range count {
+		select {
+		case <-d.landed:
+		case <-deadline:
+			t.Fatal("the animation never landed")
+		}
+	}
+}
+
+func (d *steppingDesktop) stepsOf(id action.WindowID) []geometry.Rect {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return append([]geometry.Rect(nil), d.steps[id]...)
+}
+
+func (d *steppingDesktop) frameOf(index int) geometry.Rect {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	return d.windows[index].frame
+}
+
+func TestExecutor_ApplyFrames_StepsEveryWindowHomeInTheBackground(t *testing.T) {
 	t.Parallel()
 
 	desktop := newSteppingDesktop()
 	desktop.windows = append(desktop.windows, fakeWindow{id: 3, pid: 101, number: 4244})
 	still := false
-	animation := action.Animation{
-		DurationMS: 40,
-		Easing:     "ease-out",
-		Driver:     action.DriverAccessibility,
-	}
+	animation := action.Animation{DurationMS: 60, Easing: "ease-out"}
 	targets := []action.WindowFrame{
 		{Number: 4242, Frame: action.Frame{X: 300, Y: 25, Width: 640, Height: 1055}},
 		{Number: 4243, Frame: action.Frame{X: 940, Y: 25, Width: 640, Height: 1055}},
 		{Number: 4244, Frame: action.Frame{Width: 100, Height: 100}, Animate: &still},
 	}
+
+	started := time.Now()
 
 	err := action.NewExecutor(desktop).
 		ExecuteCommand(animatedApplyFramesCommand(&animation, targets...))
@@ -76,27 +107,33 @@ func TestExecutor_ApplyFrames_AccessibilityDriverStepsEveryWindowHome(t *testing
 		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
 	}
 
-	for index, win := range desktop.windows {
-		want := rectOf(targets[index].Frame)
-		if win.frame != want {
-			t.Errorf("window %d landed at %+v, want %+v", win.number, win.frame, want)
-		}
+	if returned := time.Since(started); returned >= 60*time.Millisecond {
+		t.Errorf("apply_frames returned after %s, want before the animation ends", returned)
 	}
 
-	if len(desktop.steps[1]) < 2 || len(desktop.steps[2]) < 2 {
+	if desktop.frameOf(2) != rectOf(targets[2].Frame) {
 		t.Errorf(
-			"windows moved in %d and %d steps, want several each",
-			len(desktop.steps[1]),
-			len(desktop.steps[2]),
+			"the window left out of the animation is at %+v, want placed at once",
+			desktop.frameOf(2),
 		)
 	}
 
-	if len(desktop.steps[3]) != 0 {
-		t.Errorf("the window left out of the animation was stepped %d times", len(desktop.steps[3]))
+	desktop.waitLanded(t, 2)
+
+	for index, win := range desktop.windows {
+		want := rectOf(targets[index].Frame)
+		if got := desktop.frameOf(index); got != want {
+			t.Errorf("window %d landed at %+v, want %+v", win.number, got, want)
+		}
 	}
 
-	for windowID, steps := range desktop.steps {
-		finish := desktop.windows[windowID-1].frame
+	for _, windowID := range []action.WindowID{1, 2} {
+		steps := desktop.stepsOf(windowID)
+		if len(steps) < 2 {
+			t.Errorf("window %d moved in %d steps, want several", windowID, len(steps))
+		}
+
+		finish := desktop.frameOf(int(windowID) - 1)
 		for index := 1; index < len(steps); index++ {
 			if remaining(steps[index], finish) > remaining(steps[index-1], finish) {
 				t.Errorf(
@@ -109,11 +146,10 @@ func TestExecutor_ApplyFrames_AccessibilityDriverStepsEveryWindowHome(t *testing
 		}
 	}
 
-	if desktop.finished != 1 || desktop.report.Windows != 2 || desktop.report.Frames < 4 {
+	if len(desktop.stepsOf(3)) != 0 {
 		t.Errorf(
-			"finished %d times with report %+v, want once for 2 windows and several frames",
-			desktop.finished,
-			desktop.report,
+			"the window left out of the animation was stepped %d times",
+			len(desktop.stepsOf(3)),
 		)
 	}
 
@@ -136,16 +172,77 @@ func TestExecutor_ApplyFrames_AccessibilityDriverStepsEveryWindowHome(t *testing
 	}
 }
 
-func TestExecutor_ApplyFrames_AccessibilityDriverReportsTheWindowThatRefused(t *testing.T) {
+func TestExecutor_ApplyFrames_SendsAWindowOnItsWayOnToItsNewFrame(t *testing.T) {
+	t.Parallel()
+
+	desktop := newSteppingDesktop()
+	animation := action.Animation{DurationMS: 80, Easing: "linear"}
+	executor := action.NewExecutor(desktop)
+
+	first := action.WindowFrame{
+		Number: 4242,
+		Frame:  action.Frame{X: 500, Y: 25, Width: 960, Height: 1055},
+	}
+	second := action.WindowFrame{
+		Number: 4242,
+		Frame:  action.Frame{X: 100, Y: 25, Width: 960, Height: 1055},
+	}
+
+	err := executor.ExecuteCommand(animatedApplyFramesCommand(&animation, first))
+	if err != nil {
+		t.Fatalf("first apply_frames error = %v", err)
+	}
+
+	time.Sleep(25 * time.Millisecond)
+
+	err = executor.ExecuteCommand(animatedApplyFramesCommand(&animation, second))
+	if err != nil {
+		t.Fatalf("second apply_frames error = %v", err)
+	}
+
+	// One application, one run: the second frame joined the first's worker.
+	desktop.waitLanded(t, 1)
+
+	if got := desktop.frameOf(0); got != rectOf(second.Frame) {
+		t.Errorf("window landed at %+v, want the later frame %+v", got, rectOf(second.Frame))
+	}
+
+	steps := desktop.stepsOf(1)
+	if len(steps) < 3 {
+		t.Fatalf("window moved in %d steps, want several", len(steps))
+	}
+
+	// It set off towards the first frame, then turned back without ever
+	// reaching it.
+	turned := false
+	for index := 1; index < len(steps); index++ {
+		if steps[index].X < steps[index-1].X {
+			turned = true
+		}
+
+		if steps[index].X >= 500 {
+			t.Errorf("window reached the first frame at %+v before turning", steps[index])
+		}
+	}
+
+	if !turned {
+		t.Error("window never turned towards the later frame")
+	}
+
+	select {
+	case <-desktop.landed:
+		t.Error("the later frame ran as a second animation, want it to join the first")
+	case <-time.After(150 * time.Millisecond):
+	}
+}
+
+func TestExecutor_ApplyFrames_ReportsTheWindowThatRefused(t *testing.T) {
 	t.Parallel()
 
 	desktop := newSteppingDesktop()
 	desktop.windows[1].setFrameErr = derrors.New(derrors.CodeAccessibilityFailed, "refused")
-	animation := action.Animation{
-		DurationMS: 20,
-		Easing:     "linear",
-		Driver:     action.DriverAccessibility,
-	}
+	desktop.windows[1].frameErr = derrors.New(derrors.CodeAccessibilityFailed, "gone")
+	animation := action.Animation{DurationMS: 20, Easing: "linear"}
 
 	err := action.NewExecutor(desktop).ExecuteCommand(animatedApplyFramesCommand(
 		&animation,
@@ -157,33 +254,16 @@ func TestExecutor_ApplyFrames_AccessibilityDriverReportsTheWindowThatRefused(t *
 			Number: 4243,
 			Frame:  action.Frame{X: 970, Y: 25, Width: 960, Height: 1055},
 		},
+		action.WindowFrame{Number: 9999, Frame: action.Frame{Width: 100, Height: 100}},
 	))
 	if !derrors.IsCode(err, derrors.CodeActionFailed) {
-		t.Fatalf(
-			"ExecuteCommand(apply_frames) error = %v, want CodeActionFailed for the refused frame",
-			err,
-		)
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want CodeActionFailed", err)
 	}
 
-	if desktop.windows[0].frame.X != 10 {
-		t.Errorf("the window that answered landed at %+v, want x 10", desktop.windows[0].frame)
-	}
-}
+	desktop.waitLanded(t, 1)
 
-func TestApplyFrames_RejectsAnUnknownDriver(t *testing.T) {
-	t.Parallel()
-
-	animation := action.Animation{DurationMS: 20, Easing: "linear", Driver: "telepathy"}
-
-	err := action.NewExecutor(desktopWithListedWindows()).ExecuteCommand(animatedApplyFramesCommand(
-		&animation,
-		action.WindowFrame{
-			Number: 4242,
-			Frame:  action.Frame{X: 10, Y: 25, Width: 960, Height: 1055},
-		},
-	))
-	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
-		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want CodeInvalidInput", err)
+	if got := desktop.frameOf(0); got.X != 10 {
+		t.Errorf("the window that answered landed at %+v, want x 10", got)
 	}
 }
 

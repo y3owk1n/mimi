@@ -391,11 +391,17 @@ func (d *nativeDesktop) StepWindowFrame(windowID WindowID, frame geometry.Rect) 
 	})
 }
 
-// FinishSteps takes the window server's list once the windows have landed,
-// and logs what the steps cost.
+// FinishSteps takes the window server's list once an application's windows
+// have landed, and logs what the steps cost.
 func (d *nativeDesktop) FinishSteps(report StepReport) {
 	d.relist()
-	native.LogAnimationSteps(report.Windows, report.Frames, report.Elapsed, report.Slowest)
+	native.LogAnimationSteps(
+		report.Windows,
+		report.Frames,
+		report.Failed,
+		report.Elapsed,
+		report.Slowest,
+	)
 }
 
 // SetEnhancedUI turns an application's enhanced accessibility interface on
@@ -411,34 +417,6 @@ const samePoint = 0.5
 // sameLength is whether two lengths agree in whole points.
 func sameLength(a, b float64) bool {
 	return math.Abs(a-b) < samePoint
-}
-
-// BeginFrameAnimation prepares to fly the given windows to their frames.
-func (d *nativeDesktop) BeginFrameAnimation(
-	targets []WindowFrame,
-	animation Animation,
-) (int, error) {
-	frames := make([]native.FrameTarget, 0, len(targets))
-	for _, target := range targets {
-		frames = append(frames, native.FrameTarget{
-			Number: target.Number,
-			X:      target.Frame.X,
-			Y:      target.Frame.Y,
-			Width:  target.Frame.Width,
-			Height: target.Frame.Height,
-		})
-	}
-
-	return native.BeginFrameAnimation(
-		frames,
-		time.Duration(animation.DurationMS)*time.Millisecond,
-		native.Easing(slices.Index(Easings, animation.Easing)),
-	)
-}
-
-// StartFrameAnimation runs the animation BeginFrameAnimation prepared.
-func (d *nativeDesktop) StartFrameAnimation(dropped []uint32) {
-	native.StartFrameAnimation(dropped)
 }
 
 // ActivateWindow raises a window's application and focuses the window.

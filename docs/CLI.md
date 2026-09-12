@@ -345,9 +345,8 @@ The daemon runs the layout program named in `[tiling]` on window events. See
 [CONFIGURATION.md](CONFIGURATION.md#tiling) for the settings. mimi ships no
 layout. `examples/tiling/` holds programs to copy.
 
-Tiling needs Accessibility permission. Animating the moves
-(`[tiling.animation]`) also needs Screen Recording, because the animation is
-drawn from captured pictures of the windows. See
+Tiling needs Accessibility permission, and animating the moves
+(`[tiling.animation]`) needs nothing more. See
 [CONFIGURATION.md](CONFIGURATION.md#animation).
 
 ### `mimi tiling preview [--input]`

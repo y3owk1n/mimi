@@ -216,10 +216,6 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.Animation.Easing = defaultTilingAnimationEasing
 	}
 
-	if cfg.Tiling.Animation.Driver == "" {
-		cfg.Tiling.Animation.Driver = action.DriverCapture
-	}
-
 	if cfg.Border.Width == 0 {
 		cfg.Border.Width = defaultBorderWidth
 	}
@@ -295,13 +291,6 @@ func validate(cfg *Config) error {
 				"tiling.animation.duration_ms must be between 1 and %d",
 				action.MaxAnimationMS,
 			),
-		)
-	}
-
-	if !slices.Contains(action.Drivers, cfg.Tiling.Animation.Driver) {
-		errs = append(
-			errs,
-			"tiling.animation.driver must be one of "+strings.Join(action.Drivers, ", "),
 		)
 	}
 

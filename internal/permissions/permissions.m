@@ -96,18 +96,6 @@ int MimiRequestAccessibilityPermissions(void) {
 	}
 }
 
-int MimiCheckScreenCapturePermission(void) { return CGPreflightScreenCaptureAccess() ? 1 : 0; }
-
-int MimiRequestScreenCapturePermission(void) {
-	@autoreleasepool {
-		if (!MimiResetPermissionDecision(@"ScreenCapture")) {
-			MIMI_LOG("continuing with ScreenCapture permission request after reset failure");
-		}
-
-		return CGRequestScreenCaptureAccess() ? 1 : 0;
-	}
-}
-
 int MimiShowAccessibilityPermissionStartupAlert(void) {
 	return MimiRunOnMainThreadSync(^int {
 		@autoreleasepool {
@@ -137,47 +125,6 @@ int MimiShowAccessibilityPermissionStartupAlert(void) {
 					}
 
 					MimiShowRestartRequiredAlert(@"Accessibility");
-					return 3;
-				} else if (response == NSAlertThirdButtonReturn) {
-					return 2;
-				}
-			}
-
-			return 1;
-		}
-	});
-}
-
-int MimiShowScreenCapturePermissionStartupAlert(void) {
-	return MimiRunOnMainThreadSync(^int {
-		@autoreleasepool {
-			[NSApplication sharedApplication];
-
-			while (MimiCheckScreenCapturePermission() != 1) {
-				NSAlert *alert = [[NSAlert alloc] init];
-				alert.messageText = @"Screen Recording Permission Needed";
-				alert.informativeText =
-				    @"Mimi needs Screen Recording permission to animate tiling layouts. "
-				    @"Click Request Permission to open the macOS permission flow, grant access in System Settings, "
-				    @"then return here and click Granted, Continue. "
-				    @"Skip Animation starts Mimi with windows moving at once.";
-				alert.alertStyle = NSAlertStyleWarning;
-				alert.icon = [NSImage imageNamed:NSImageNameCaution];
-
-				[alert addButtonWithTitle:@"Request Permission"];
-				[alert addButtonWithTitle:@"Granted, Continue"];
-				[alert addButtonWithTitle:@"Skip Animation"];
-
-				NSModalResponse response = MimiPresentAlert(alert);
-
-				if (response == NSAlertFirstButtonReturn) {
-					MimiRequestScreenCapturePermission();
-				} else if (response == NSAlertSecondButtonReturn) {
-					if (MimiCheckScreenCapturePermission() == 1) {
-						return 1;
-					}
-
-					MimiShowRestartRequiredAlert(@"Screen Recording");
 					return 3;
 				} else if (response == NSAlertThirdButtonReturn) {
 					return 2;
