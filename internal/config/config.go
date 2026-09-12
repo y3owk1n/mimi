@@ -110,7 +110,7 @@ type TilingConfig struct {
 // DropzoneConfig holds the [tiling.dropzone] section: whether, while the
 // user drags a tiled window, mimi shows where the layout would put it if
 // they let go, and how that zone is drawn. It needs relayout_on_drag, since
-// without it a drop changes nothing. Colors are #rrggbb or #rrggbbaa.
+// without it a drop changes nothing. Colors are #rrggbb or #aarrggbb.
 type DropzoneConfig struct {
 	Enabled      bool    `json:"enabled"      toml:"enabled"`
 	Color        string  `json:"color"        toml:"color"`
@@ -132,7 +132,7 @@ type AnimationConfig struct {
 // BorderConfig holds the [border] section: whether the daemon draws a
 // border around every window on the spaces in front, how wide, the radius
 // of the window corner it follows, and the colors for the focused window
-// and for the rest. Colors are written as #rrggbb or #rrggbbaa. The whole
+// and for the rest. Colors are written as #rrggbb or #aarrggbb. The whole
 // section is reloadable; it needs Accessibility, like the window events it
 // follows.
 type BorderConfig struct {

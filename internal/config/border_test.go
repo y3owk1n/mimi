@@ -71,9 +71,9 @@ func TestLoad_RejectsABorderItCannotDraw(t *testing.T) {
 		"thin":     {"width = 0.5\n", widthMessage},
 		"wide":     {"width = 33\n", widthMessage},
 		"radius":   {"radius = -1\n", "border.radius must be >= 0"},
-		"active":   {"active_color = \"red\"\n", "border.active_color must be #rrggbb or #rrggbbaa"},
-		"inactive": {"inactive_color = \"#12345\"\n", "border.inactive_color must be #rrggbb or #rrggbbaa"},
-		"not hex":  {"active_color = \"#gggggg\"\n", "border.active_color must be #rrggbb or #rrggbbaa"},
+		"active":   {"active_color = \"red\"\n", "border.active_color must be #rrggbb or #aarrggbb"},
+		"inactive": {"inactive_color = \"#12345\"\n", "border.inactive_color must be #rrggbb or #aarrggbb"},
+		"not hex":  {"active_color = \"#gggggg\"\n", "border.active_color must be #rrggbb or #aarrggbb"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -106,7 +106,7 @@ func TestParseColor(t *testing.T) {
 	for text, want := range map[string]Color{
 		"#ff0000":   {Red: 1, Alpha: 1},
 		"00ff00":    {Green: 1, Alpha: 1},
-		"#0000ff80": {Blue: 1, Alpha: 128.0 / 255},
+		"#800000ff": {Blue: 1, Alpha: 128.0 / 255},
 		"#FFFFFF":   {Red: 1, Green: 1, Blue: 1, Alpha: 1},
 	} {
 		got, err := ParseColor(text)

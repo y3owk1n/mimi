@@ -35,7 +35,7 @@ func enabledConfig() config.BorderConfig {
 		Enabled:       true,
 		Width:         4,
 		ActiveColor:   "#ff0000",
-		InactiveColor: "#00000080",
+		InactiveColor: "#80000000",
 	}
 }
 

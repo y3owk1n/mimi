@@ -173,7 +173,7 @@ const (
 // The [tiling.dropzone] defaults: a faint fill of the border's light color
 // with a thin outline of it, rounded like a document window.
 const (
-	defaultDropzoneColor        = "#e2e2e330"
+	defaultDropzoneColor        = "#30e2e2e3"
 	defaultDropzoneOutlineColor = "#e2e2e3"
 	defaultDropzoneOutlineWidth = 2.0
 	defaultDropzoneRadius       = 12.0
@@ -380,12 +380,12 @@ func validateDropzone(tiling TilingConfig) []string {
 
 	_, err := ParseColor(zone.Color)
 	if err != nil {
-		errs = append(errs, "tiling.dropzone.color must be #rrggbb or #rrggbbaa")
+		errs = append(errs, "tiling.dropzone.color must be #rrggbb or #aarrggbb")
 	}
 
 	_, err = ParseColor(zone.OutlineColor)
 	if err != nil {
-		errs = append(errs, "tiling.dropzone.outline_color must be #rrggbb or #rrggbbaa")
+		errs = append(errs, "tiling.dropzone.outline_color must be #rrggbb or #aarrggbb")
 	}
 
 	if zone.OutlineWidth < 0 || zone.OutlineWidth > maxBorderWidth {
@@ -421,12 +421,12 @@ func validateBorder(border BorderConfig) []string {
 
 	_, err := ParseColor(border.ActiveColor)
 	if err != nil {
-		errs = append(errs, "border.active_color must be #rrggbb or #rrggbbaa")
+		errs = append(errs, "border.active_color must be #rrggbb or #aarrggbb")
 	}
 
 	_, err = ParseColor(border.InactiveColor)
 	if err != nil {
-		errs = append(errs, "border.inactive_color must be #rrggbb or #rrggbbaa")
+		errs = append(errs, "border.inactive_color must be #rrggbb or #aarrggbb")
 	}
 
 	return errs

@@ -78,7 +78,7 @@ func (f *fakes) hiddenCount() int {
 
 func enabledConfig() config.DropzoneConfig {
 	return config.DropzoneConfig{
-		Enabled: true, Color: "#e2e2e330", OutlineColor: "#e2e2e3", OutlineWidth: 2, Radius: 12,
+		Enabled: true, Color: "#30e2e2e3", OutlineColor: "#e2e2e3", OutlineWidth: 2, Radius: 12,
 	}
 }
 
