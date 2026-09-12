@@ -89,6 +89,17 @@ never travels the socket.
 _Avoid_: action (an action changes the desktop), get, info, status (that is the
 daemon's health report)
 
+**Stack**:
+Windows a layout put in one frame, so that only one of them is seen at a time.
+mimi changes no z-order to arrange this and cannot: macOS will not raise one
+application's window above another's without also focusing it. So the member
+seen is the one with keyboard focus, and the layout names a stack only so that
+the indicator can say how many windows are in that place.
+_Avoid_: group, tab, pile. And note the older informal use in `strip.py` and
+`master-stack.py`, where "stacked" means the rows of a column or the column
+beside the master: those are windows with frames of their own, which is the
+opposite of this.
+
 **Display**:
 One connected screen, identified by its 1-based index counting left to right
 and then top to bottom across every display. A display holds spaces; a space

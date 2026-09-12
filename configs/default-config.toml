@@ -102,6 +102,19 @@ outline_color = "#e2e2e3"
 outline_width = 2
 radius = 12
 
+# A layout can put several windows in one frame, so that only the one with
+# keyboard focus is seen. Nothing on screen says the others are there, so this
+# draws a bar along the top of that frame with one segment per window, the one
+# the layout means to be seen in active_color. It marks only what a layout
+# names, so it costs nothing with a layout that stacks nothing.
+# Colours are #rrggbb or #aarrggbb.
+[tiling.stackbar]
+enabled = false
+color = "#60e2e2e3"
+active_color = "#e2e2e3"
+height = 4
+radius = 2
+
 # =============================================================================
 # Borders
 # =============================================================================

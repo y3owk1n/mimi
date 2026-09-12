@@ -26,6 +26,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/stackbar"
 	"github.com/y3owk1n/mimi/internal/systray"
 	"github.com/y3owk1n/mimi/internal/tiling"
 )
@@ -173,6 +174,7 @@ func runCore(
 		pipeline.tiler,
 		pipeline.borders,
 		pipeline.zone,
+		pipeline.bars,
 		logger,
 	)
 
@@ -240,6 +242,7 @@ type eventPipeline struct {
 	tiler     *tiling.Engine
 	borders   *border.Engine
 	zone      *dropzone.Tracker
+	bars      *stackbar.Tracker
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
 	tileSub   events.Subscriber
@@ -307,6 +310,12 @@ func setupEventPipeline(
 		zone.Nudge()
 	})
 
+	// The stack indicator is drawn from the stacks a pass ends with, so the
+	// engine tells it rather than the bus.
+	bars := stackbar.New(stackbar.NativeDrawer(), logger)
+	bars.Update(stackbarConfigFor(cfg, accessibilityGranted))
+	tiler.SetStacks(bars.Sync)
+
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
 	// always-false filter prevents the bus from sending into a channel
@@ -335,6 +344,7 @@ func setupEventPipeline(
 		tiler:     tiler,
 		borders:   borders,
 		zone:      zone,
+		bars:      bars,
 		logSub:    logSub,
 		hookSub:   hookSub,
 		tileSub:   tileSub,
@@ -589,6 +599,18 @@ func dropzoneConfigFor(cfg *config.Config, accessibilityGranted bool) config.Dro
 	}
 
 	return zoneCfg
+}
+
+// stackbarConfigFor is the [tiling.stackbar] section as the indicator gets
+// it: as written, except that without Accessibility, or with tiling off,
+// there are no stacks to mark and it is disabled.
+func stackbarConfigFor(cfg *config.Config, accessibilityGranted bool) config.StackbarConfig {
+	barCfg := cfg.Tiling.Stackbar
+	if !accessibilityGranted || !cfg.Tiling.Enabled {
+		barCfg.Enabled = false
+	}
+
+	return barCfg
 }
 
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,

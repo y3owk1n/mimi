@@ -54,7 +54,18 @@ func newTestReloader(
 	)
 	executor := hooks.NewExecutor(reg, &initialCfg.Settings, logger)
 
-	cfgReloader := newReloader(initialCfg, reg, executor, axTracker, router, nil, nil, nil, nil)
+	cfgReloader := newReloader(
+		initialCfg,
+		reg,
+		executor,
+		axTracker,
+		router,
+		nil,
+		nil,
+		nil,
+		nil,
+		nil,
+	)
 
 	return cfgReloader, reg
 }

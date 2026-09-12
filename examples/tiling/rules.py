@@ -153,7 +153,7 @@ def unmanaged_of(inp, state=None):
     return sorted(numbers)
 
 
-def write_output(frames, state, focus=None, unmanaged=None):
+def write_output(frames, state, focus=None, unmanaged=None, stacks=None):
     """Print the layout output: frames in whole points, the state to get
     back next time, the window to focus once the frames are applied, when
     the layout moved focus along its own structure, and the windows this
@@ -163,7 +163,13 @@ def write_output(frames, state, focus=None, unmanaged=None):
     windows alone too, and dragging one raises no pass and shows no drop
     zone. Leaving a window out of `frames` says only that it does not move
     this time, which is what a temporary maximise does to the windows under
-    it."""
+    it.
+
+    `stacks` names the sets of windows this layout put in one place, as
+    [{"windows": [...], "active": n}], so mimi marks each with a bar saying
+    how many windows are there. Every member needs a frame of its own in
+    `frames`, and giving them the same frame is what makes a stack. See
+    stacked.py."""
     frames = [
         {"number": number, "frame": {k: int(round(v)) for k, v in frame.items()}}
         for number, frame in frames
@@ -173,6 +179,10 @@ def write_output(frames, state, focus=None, unmanaged=None):
         out["focus"] = focus
     if unmanaged:
         out["unmanaged"] = list(unmanaged)
+    if stacks:
+        out["stacks"] = [
+            {"windows": list(s["windows"]), "active": s["active"]} for s in stacks
+        ]
     json.dump(out, sys.stdout)
     sys.stdout.write("\n")
 

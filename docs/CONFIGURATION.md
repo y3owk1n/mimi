@@ -282,6 +282,37 @@ depends on where the window is dropped, as the shipped `strip.py` does,
 shows the column the window would join. The zone needs Accessibility, like
 tiling, and nothing more; every key is reloadable.
 
+### Stack indicator
+
+```toml
+[tiling.stackbar]
+enabled = true
+color = "#60e2e2e3"
+active_color = "#e2e2e3"
+height = 4
+radius = 2
+```
+
+| Key | Default | Meaning |
+| --- | --- | --- |
+| `enabled` | `false` | Mark the stacks a layout names |
+| `color` | `#60e2e2e3` | The colour of a window in the stack |
+| `active_color` | `#e2e2e3` | The colour of the one the layout means to be seen |
+| `height` | `4` | How tall the bar is, in points, up to 40 |
+| `radius` | `2` | The corner radius of each segment, in points |
+
+A layout can put several windows in one frame, so that only the one with
+keyboard focus is seen. Nothing on screen says the others are there, which is
+what this draws: a bar along the top of that frame with one segment per
+window, the active one in its own colour.
+
+It marks only what a layout names in its output's `stacks` key, so a layout
+that names none has nothing marked and the setting costs nothing.
+`examples/tiling/stacked.py` is the one that names them; `docs/TILING.md` has
+the contract. Colours are `#rrggbb` or `#aarrggbb`, alpha first. It needs
+Accessibility and tiling enabled, like the drop zone, and every key is
+reloadable.
+
 ---
 
 ## Borders
