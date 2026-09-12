@@ -130,6 +130,11 @@ func (d *fakeDesktop) KnownWindows() []action.Window {
 }
 
 func (d *fakeDesktop) WindowFrame(windowID action.WindowID) (geometry.Rect, error) {
+	// The accessibility driver reads frames from one application's thread
+	// while another's writes.
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
 	index, err := d.indexOf(windowID)
 	if err != nil {
 		return geometry.Rect{}, err

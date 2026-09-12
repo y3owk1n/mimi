@@ -652,6 +652,12 @@ void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **num
 	}
 }
 
+void MimiLogAnimationSteps(int windows, int frames, double elapsedMS, double slowestMS) {
+	MIMI_LOG(
+	    "animation: stepped %d windows through %d frames in %.0f ms, slowest write %.1f ms", windows, frames, elapsedMS,
+	    slowestMS);
+}
+
 int MimiSetWindowPosition(void *window, double x, double y) {
 	if (!window)
 		return 0;

@@ -165,3 +165,18 @@ func SpaceIndexes() map[uint64]int {
 
 	return indexes
 }
+
+// SetEnhancedUserInterface turns an application's enhanced accessibility
+// interface on or off, under which some applications animate every move
+// they are given. It reports whether the setting was on, and ok false when
+// the application has no such setting.
+func SetEnhancedUserInterface(pid int, enabled bool) (bool, bool) {
+	on := 0
+	if enabled {
+		on = 1
+	}
+
+	result := int(C.MimiSetEnhancedUserInterface(C.int(pid), C.int(on)))
+
+	return result == 1, result >= 0
+}

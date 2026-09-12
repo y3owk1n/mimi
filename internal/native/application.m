@@ -144,6 +144,25 @@ CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii) {
 	return CFBridgingRetain(real);
 }
 
+int MimiSetEnhancedUserInterface(int pid, int enabled) {
+	@autoreleasepool {
+		AXUIElementRef app = AXUIElementCreateApplication((pid_t)pid);
+		if (!app)
+			return -1;
+		CFStringRef attribute = CFSTR("AXEnhancedUserInterface");
+		CFTypeRef value = NULL;
+		int was = -1;
+		if (AXUIElementCopyAttributeValue(app, attribute, &value) == kAXErrorSuccess && value) {
+			was = (CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(value)) ? 1 : 0;
+			CFRelease(value);
+		}
+		if (was >= 0 && was != enabled)
+			AXUIElementSetAttributeValue(app, attribute, enabled ? kCFBooleanTrue : kCFBooleanFalse);
+		CFRelease(app);
+		return was;
+	}
+}
+
 void MimiWindowCornerRadii(const uint32_t *numbers, int count, double *radii) {
 	for (int i = 0; i < count; i++)
 		radii[i] = -1;

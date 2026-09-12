@@ -6,6 +6,7 @@ import (
 	"strconv"
 	"strings"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
@@ -106,12 +107,22 @@ type TilingConfig struct {
 
 // AnimationConfig holds the [tiling.animation] section: whether windows
 // move to the frames a layout returns over time rather than at once, over
-// how long, and along which curve. Off, the daemon neither captures the
-// screen nor asks for the Screen Recording permission that takes.
+// how long, along which curve, and by which driver. The capture driver
+// slides pictures of the windows over a still of the screen and needs
+// Screen Recording; the accessibility driver moves the real windows
+// through their applications a step at a time and needs nothing more.
+// Off, the daemon neither captures the screen nor asks for the permission.
 type AnimationConfig struct {
 	Enabled    bool   `json:"enabled"    toml:"enabled"`
 	DurationMS int    `json:"durationMs" toml:"duration_ms"`
 	Easing     string `json:"easing"     toml:"easing"`
+	Driver     string `json:"driver"     toml:"driver"`
+}
+
+// UsesCapture reports whether the animation, as configured, captures the
+// screen, which is what needs Screen Recording.
+func (a AnimationConfig) UsesCapture() bool {
+	return a.Enabled && a.Driver != action.DriverAccessibility
 }
 
 // BorderConfig holds the [border] section: whether the daemon draws a
