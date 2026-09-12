@@ -9,6 +9,12 @@ type LiveDesktop struct{}
 // Windows lists the focusable windows on the active space.
 func (LiveDesktop) Windows() (action.WindowsInfo, error) { return action.QueryWindows() }
 
+// WindowsWithTitles is Windows taking the titles in known as they are, so a
+// preview run at every step of a drag asks no application for one.
+func (LiveDesktop) WindowsWithTitles(known map[uint32]string) (action.WindowsInfo, error) {
+	return action.QueryWindowsWithTitles(known)
+}
+
 // Displays lists the connected displays.
 func (LiveDesktop) Displays() ([]action.DisplayEntry, error) { return action.QueryDisplays() }
 

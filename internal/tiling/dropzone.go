@@ -2,6 +2,7 @@ package tiling
 
 import (
 	"context"
+	"time"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -30,24 +31,31 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 		return DropTarget{}, false, nil
 	}
 
-	windows, displays, fullScreen, err := e.readDesktop()
+	// One read serves both the drag and the layout's input, with the
+	// titles of the last full read: at every step of a drag, a round trip
+	// into each application for a title, the dragged one's included, is
+	// what made the drag stutter.
+	readStart := time.Now()
+
+	read, err := e.readInputsLocked(true)
 	if err != nil {
 		return DropTarget{}, false, err
 	}
 
-	if inFullScreenTransition(windows.Windows, displays, fullScreen) {
+	readFor := time.Since(readStart)
+
+	if inFullScreenTransition(read.windows.Windows, read.displays, read.fullScreen) {
 		return DropTarget{}, false, nil
 	}
 
-	kind, dragged := e.draggedLocked(windows)
+	kind, dragged := e.draggedLocked(read.windows)
 	if len(dragged) == 0 {
 		return DropTarget{}, false, nil
 	}
 
-	inputs, err := e.inputsLocked(Event{Kind: kind, Windows: dragged})
-	if err != nil {
-		return DropTarget{}, false, err
-	}
+	inputs := e.buildInputsLocked(Event{Kind: kind, Windows: dragged}, read)
+
+	layoutStart := time.Now()
 
 	outputs, err := e.reduceAll(ctx, inputs)
 	if err != nil {
@@ -57,6 +65,12 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 			"previewing the drop",
 		)
 	}
+
+	e.logger.Debugw("drop preview",
+		"read_ms", readFor.Milliseconds(),
+		"layout_ms", time.Since(layoutStart).Milliseconds(),
+		"windows", len(read.windows.Windows),
+	)
 
 	for _, output := range outputs {
 		for _, frame := range output.Frames {

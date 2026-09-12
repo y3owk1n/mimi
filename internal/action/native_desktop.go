@@ -95,92 +95,18 @@ func (d *nativeDesktop) EnsureAccessible() error {
 // other application's. Asking the Accessibility server instead was measured
 // to wait on the application just activated.
 func (d *nativeDesktop) FocusableWindows() ([]Window, int, error) {
-	onScreen := native.WindowList(true)
-	all := native.WindowList(false)
+	windows, focused, _ := d.listOnScreen(true)
 
-	d.mu.Lock()
-	defer d.mu.Unlock()
+	return windows, focused, nil
+}
 
-	d.evictLocked(all)
-
-	// The numbers the desktop has not seen, by application, each asked
-	// once for every window it has, at the same time as the others.
-	unknown := map[int]bool{}
-
-	for _, window := range onScreen {
-		if window.Layer != 0 || !window.Regular {
-			continue
-		}
-
-		if _, ok := d.entries[window.Number]; ok {
-			continue
-		}
-
-		if asked, ok := d.missing[window.Number]; ok && time.Since(asked) < missingFor {
-			continue
-		}
-
-		unknown[window.PID] = true
-	}
-
-	d.learnLocked(unknown)
-
-	windows := make([]Window, 0, len(onScreen))
-	focused := uint32(0)
-
-	for _, window := range onScreen {
-		if window.Layer != 0 || !window.Regular {
-			continue
-		}
-
-		entry, ok := d.entries[window.Number]
-		if !ok {
-			d.missing[window.Number] = time.Now()
-
-			continue
-		}
-
-		if !entry.isWindow {
-			continue
-		}
-
-		if focused == 0 {
-			focused = window.Number
-		}
-
-		windows = append(windows, Window{ID: entry.id, PID: entry.pid, Number: window.Number})
-	}
-
-	frames := map[uint32]native.Frame{}
-	for _, window := range onScreen {
-		frames[window.Number] = window.Frame
-	}
-
-	slices.SortStableFunc(windows, func(left, right Window) int {
-		leftFrame, rightFrame := frames[left.Number], frames[right.Number]
-		if leftFrame.Y != rightFrame.Y {
-			return cmp.Compare(leftFrame.Y, rightFrame.Y)
-		}
-
-		if leftFrame.X != rightFrame.X {
-			return cmp.Compare(leftFrame.X, rightFrame.X)
-		}
-
-		return cmp.Compare(left.PID, right.PID)
-	})
-
-	focusedIndex := -1
-	for index, window := range windows {
-		if window.Number == focused {
-			focusedIndex = index
-		}
-	}
-
-	d.known = windows
-	d.knownAt = time.Now()
-	d.listed = listing(onScreen)
-
-	return windows, focusedIndex, nil
+// KnownOnScreen lists the on-screen windows the desktop has learned already,
+// with their frames as the window server lists them, asking no application
+// anything: what a preview run at every step of a drag reads, since an
+// application being dragged answers Accessibility only when it gets round
+// to it. A window not learned yet is left out until the next full listing.
+func (d *nativeDesktop) KnownOnScreen() ([]Window, int, map[uint32]geometry.Rect) {
+	return d.listOnScreen(false)
 }
 
 // listing indexes a window list by number.
@@ -717,4 +643,104 @@ func (d *nativeDesktop) forget(windowID WindowID) {
 	d.framesMu.Lock()
 	delete(d.frames, windowID)
 	d.framesMu.Unlock()
+}
+
+// listOnScreen is the on-screen listing behind FocusableWindows and
+// KnownOnScreen: with learn set, applications are asked about the windows
+// the desktop has not seen; without it those windows are skipped.
+func (d *nativeDesktop) listOnScreen(learn bool) ([]Window, int, map[uint32]geometry.Rect) {
+	onScreen := native.WindowList(true)
+
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if learn {
+		d.evictLocked(native.WindowList(false))
+
+		// The numbers the desktop has not seen, by application, each
+		// asked once for every window it has, at the same time as the
+		// others.
+		unknown := map[int]bool{}
+
+		for _, window := range onScreen {
+			if window.Layer != 0 || !window.Regular {
+				continue
+			}
+
+			if _, ok := d.entries[window.Number]; ok {
+				continue
+			}
+
+			if asked, ok := d.missing[window.Number]; ok && time.Since(asked) < missingFor {
+				continue
+			}
+
+			unknown[window.PID] = true
+		}
+
+		d.learnLocked(unknown)
+	}
+
+	windows := make([]Window, 0, len(onScreen))
+	focused := uint32(0)
+
+	for _, window := range onScreen {
+		if window.Layer != 0 || !window.Regular {
+			continue
+		}
+
+		entry, ok := d.entries[window.Number]
+		if !ok {
+			if learn {
+				d.missing[window.Number] = time.Now()
+			}
+
+			continue
+		}
+
+		if !entry.isWindow {
+			continue
+		}
+
+		if focused == 0 {
+			focused = window.Number
+		}
+
+		windows = append(windows, Window{ID: entry.id, PID: entry.pid, Number: window.Number})
+	}
+
+	frames := make(map[uint32]geometry.Rect, len(onScreen))
+	for _, window := range onScreen {
+		frame := window.Frame
+		frames[window.Number] = geometry.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
+	}
+
+	slices.SortStableFunc(windows, func(left, right Window) int {
+		leftFrame, rightFrame := frames[left.Number], frames[right.Number]
+		if leftFrame.Y != rightFrame.Y {
+			return cmp.Compare(leftFrame.Y, rightFrame.Y)
+		}
+
+		if leftFrame.X != rightFrame.X {
+			return cmp.Compare(leftFrame.X, rightFrame.X)
+		}
+
+		return cmp.Compare(left.PID, right.PID)
+	})
+
+	focusedIndex := -1
+	for index, window := range windows {
+		if window.Number == focused {
+			focusedIndex = index
+		}
+	}
+
+	if learn {
+		d.known = windows
+		d.knownAt = time.Now()
+	}
+
+	d.listed = listing(onScreen)
+
+	return windows, focusedIndex, frames
 }
