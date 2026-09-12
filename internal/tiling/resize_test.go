@@ -20,6 +20,9 @@ type snappingDesktop struct {
 	frame   action.Frame
 	applies int
 	snapBy  float64
+	// displays are the displays it reports, or nil for the one display
+	// below.
+	displays []action.DisplayEntry
 }
 
 func (d *snappingDesktop) Windows() (action.WindowsInfo, error) {
@@ -32,6 +35,13 @@ func (d *snappingDesktop) Windows() (action.WindowsInfo, error) {
 }
 
 func (d *snappingDesktop) Displays() ([]action.DisplayEntry, error) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	if d.displays != nil {
+		return d.displays, nil
+	}
+
 	return []action.DisplayEntry{{
 		Index:   1,
 		ID:      1,
@@ -58,6 +68,15 @@ func (d *snappingDesktop) Apply(frames []action.WindowFrame, _ *action.Animation
 	d.frame.Width -= d.snapBy
 
 	return nil
+}
+
+// setDisplays reports these displays from now on, as macOS does when one is
+// plugged in or unplugged.
+func (d *snappingDesktop) setDisplays(displays []action.DisplayEntry) {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+
+	d.displays = displays
 }
 
 func (d *snappingDesktop) count() int {

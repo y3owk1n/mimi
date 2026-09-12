@@ -7,6 +7,7 @@ import (
 	"math"
 	"os/exec"
 	"slices"
+	"strings"
 	"sync"
 	"time"
 
@@ -79,6 +80,9 @@ type Engine struct {
 
 	// onDrag is whether a window the user moved or resized runs a pass.
 	onDrag bool
+	// displays names the displays the last pass read, so the windows macOS
+	// moves when one is plugged in or unplugged are not taken for a drag.
+	displays string
 	// mouseDown reports whether the left button is held, which is when a
 	// settled drag is still going on; nil never is.
 	mouseDown func() bool
@@ -330,7 +334,7 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				}
 
 				kind, windows := e.userDragged()
-				if len(windows) == 0 {
+				if kind == "" {
 					continue
 				}
 
@@ -811,6 +815,10 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		}
 	}
 
+	if !quick {
+		e.displays = displaySignature(read.displays)
+	}
+
 	return read, nil
 }
 
@@ -1005,6 +1013,14 @@ func (e *Engine) userDragged() (string, []uint32) {
 		return "", nil
 	}
 
+	// A display plugged in or unplugged moves every window macOS has to
+	// find a new home for, all at once and none of it the user's doing.
+	// The desktop is laid out afresh instead, which places those windows
+	// by the layout's own reckoning rather than by where they landed.
+	if e.displays != "" && displaySignature(displays) != e.displays {
+		return EventRelayout, nil
+	}
+
 	if time.Since(e.appliedAt) < e.resizeGrace {
 		e.rememberFrames(windows)
 
@@ -1012,6 +1028,19 @@ func (e *Engine) userDragged() (string, []uint32) {
 	}
 
 	return e.draggedLocked(windows)
+}
+
+// displaySignature names a set of displays by their ids and frames, so a
+// display added, removed, or moved in the arrangement reads as a change.
+func displaySignature(displays []action.DisplayEntry) string {
+	ids := make([]string, 0, len(displays))
+	for _, display := range displays {
+		ids = append(ids, fmt.Sprintf("%d:%v", display.ID, display.Frame))
+	}
+
+	slices.Sort(ids)
+
+	return strings.Join(ids, " ")
 }
 
 // draggedLocked is the windows in windows that are no longer where the
