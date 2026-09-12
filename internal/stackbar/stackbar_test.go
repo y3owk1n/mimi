@@ -51,11 +51,12 @@ func (d *fakeDrawer) counts() (int, int) {
 
 func enabled() config.StackbarConfig {
 	return config.StackbarConfig{
-		Enabled:     true,
-		Color:       "#60e2e2e3",
-		ActiveColor: "#e2e2e3",
-		Height:      4,
-		Radius:      2,
+		Enabled:  true,
+		Step:     10,
+		Taper:    6,
+		Radius:   -1,
+		Color:    "#b0636366",
+		FarColor: "#30636366",
 	}
 }
 
@@ -66,25 +67,25 @@ func stackOf(active uint32, windows ...uint32) tiling.PlacedStack {
 	}
 }
 
-// TestTracker_Sync_DrawsOneBarPerStack pins what reaches the drawer: the frame
-// the stack's windows share, how many there are, and where the active one sits
-// among them, since that last is what the mark points at.
-func TestTracker_Sync_DrawsOneBarPerStack(t *testing.T) {
+// TestTracker_Show_DrawsOneBarPerStack pins what reaches the drawer: the
+// frame the stack's windows share, how many windows are in that place, and
+// which of them the cards are drawn under.
+func TestTracker_Show_DrawsOneBarPerStack(t *testing.T) {
 	t.Parallel()
 
 	draw := &fakeDrawer{}
 	tracker := stackbar.New(draw, nil)
 	tracker.Update(enabled())
 
-	tracker.Sync([]tiling.PlacedStack{stackOf(4243, 4242, 4243, 4244)})
+	tracker.Show([]tiling.PlacedStack{stackOf(4243, 4242, 4243, 4244)})
 
 	bars := draw.last()
 	if len(bars) != 1 {
 		t.Fatalf("drew %d bars, want 1", len(bars))
 	}
 
-	if bars[0].Count != 3 || bars[0].Active != 1 {
-		t.Fatalf("bar = %+v, want 3 windows with the second active", bars[0])
+	if bars[0].Count != 3 || bars[0].Front != 4243 {
+		t.Fatalf("bar = %+v, want 3 windows with 4243 in front", bars[0])
 	}
 
 	if bars[0].Frame.Width != 300 {
@@ -92,32 +93,32 @@ func TestTracker_Sync_DrawsOneBarPerStack(t *testing.T) {
 	}
 }
 
-// TestTracker_Sync_MarksTheFirstWhenActiveIsNotAMember pins that a layout
-// naming an active window that is not in the stack marks the first member
-// rather than nothing, since a bar with no mark reads as a bug.
-func TestTracker_Sync_MarksTheFirstWhenActiveIsNotAMember(t *testing.T) {
+// TestTracker_Show_DrawsUnderTheFirstWhenActiveIsNotAMember pins that a
+// layout naming a window that is not in the stack still puts the cards under
+// one of its windows, since cards under nothing would float over the desktop.
+func TestTracker_Show_DrawsUnderTheFirstWhenActiveIsNotAMember(t *testing.T) {
 	t.Parallel()
 
 	draw := &fakeDrawer{}
 	tracker := stackbar.New(draw, nil)
 	tracker.Update(enabled())
 
-	tracker.Sync([]tiling.PlacedStack{stackOf(9999, 4242, 4243)})
+	tracker.Show([]tiling.PlacedStack{stackOf(9999, 4242, 4243)})
 
-	if bars := draw.last(); len(bars) != 1 || bars[0].Active != 0 {
-		t.Fatalf("bars = %+v, want the first member marked", bars)
+	if bars := draw.last(); len(bars) != 1 || bars[0].Front != 4242 {
+		t.Fatalf("bars = %+v, want the cards under the first window", bars)
 	}
 }
 
-// TestTracker_Sync_DrawsNothingWhileDisabled pins that the indicator is off by
+// TestTracker_Show_DrawsNothingWhileDisabled pins that the indicator is off by
 // default and costs a pass nothing when it is.
-func TestTracker_Sync_DrawsNothingWhileDisabled(t *testing.T) {
+func TestTracker_Show_DrawsNothingWhileDisabled(t *testing.T) {
 	t.Parallel()
 
 	draw := &fakeDrawer{}
 	tracker := stackbar.New(draw, nil)
 
-	tracker.Sync([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
+	tracker.Show([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
 
 	if syncs, clears := draw.counts(); syncs != 0 || clears != 0 {
 		t.Fatalf("drew %d times and cleared %d while disabled, want neither", syncs, clears)
@@ -133,7 +134,7 @@ func TestTracker_Update_ClearsWhatIsDrawnWhenSwitchedOff(t *testing.T) {
 	draw := &fakeDrawer{}
 	tracker := stackbar.New(draw, nil)
 	tracker.Update(enabled())
-	tracker.Sync([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
+	tracker.Show([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
 
 	off := enabled()
 	off.Enabled = false
@@ -151,17 +152,17 @@ func TestTracker_Update_ClearsWhatIsDrawnWhenSwitchedOff(t *testing.T) {
 	}
 }
 
-// TestTracker_Sync_StopsDrawingWhenTheStacksGo pins that a pass with no stack
+// TestTracker_Show_StopsDrawingWhenTheStacksGo pins that a pass with no stack
 // takes the last one off screen, and that the pass after it calls nothing.
-func TestTracker_Sync_StopsDrawingWhenTheStacksGo(t *testing.T) {
+func TestTracker_Show_StopsDrawingWhenTheStacksGo(t *testing.T) {
 	t.Parallel()
 
 	draw := &fakeDrawer{}
 	tracker := stackbar.New(draw, nil)
 	tracker.Update(enabled())
 
-	tracker.Sync([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
-	tracker.Sync(nil)
+	tracker.Show([]tiling.PlacedStack{stackOf(4242, 4242, 4243)})
+	tracker.Show(nil)
 
 	syncs, _ := draw.counts()
 	if syncs != 2 {
@@ -172,7 +173,7 @@ func TestTracker_Sync_StopsDrawingWhenTheStacksGo(t *testing.T) {
 		t.Fatalf("last draw = %+v, want no bars", bars)
 	}
 
-	tracker.Sync(nil)
+	tracker.Show(nil)
 
 	if syncs, _ := draw.counts(); syncs != 2 {
 		t.Fatalf("drew %d times, want no call for a second pass with no stack", syncs)

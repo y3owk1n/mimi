@@ -64,7 +64,7 @@ The layouts shipped, all Python with the standard library only:
 
 | Layout | Shape | Commands it answers |
 | --- | --- | --- |
-| `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` marks how many there are. The one to copy when starting your own. | none |
+| `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` shows how many there are. The one to copy when starting your own. | none |
 | `columns.py` | Equal-width columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax`, `stack <dir>`, `unstack`, `next`, `prev` |
@@ -129,7 +129,7 @@ The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
 `timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
 table with `enabled`, `duration_ms`, and `easing`, a `[tiling.dropzone]`
 table that shows where a drag would land, and a `[tiling.stackbar]` table that
-marks the windows a layout stacked. Every one is reloadable.
+draws the windows a layout stacked. Every one is reloadable.
 The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
 
 **Animation is off by default.** With `[tiling.animation]` enabled, windows
@@ -222,7 +222,7 @@ they compare correctly but need not start at 0 or run without gaps.
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
 | `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone. A window stays unmanaged until a later run for the same display leaves it out of this list. |
-| `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. mimi marks each with a small bar, one segment per window, with the `active` one in its own colour. Every member needs its own frame in `frames`; a stack naming a window without one, or naming fewer than two, is dropped and the frames still apply. |
+| `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. mimi draws the ones behind `active` as a deck of cards, taking the room out of the window in front. Every member needs its own frame in `frames`. A stack naming a window without one, or naming fewer than two, is dropped and the frames still apply. |
 | `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
 | `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
 
@@ -510,9 +510,14 @@ frames a layout computed. Add it to your own layout with that one line.
 
 Give two windows the same frame and only one of them is seen. That is the
 whole mechanism, and every layout can already do it. What mimi adds is the
-`stacks` key, which says *this* is a stack rather than an accident, so a small
-bar is drawn on it: one segment per window, the active one in its own colour.
-Without that a column of four windows looks exactly like a column of one.
+`stacks` key, which says *this* is a stack rather than an accident, so the
+windows behind are drawn as a deck of cards. Without that a column of four
+windows looks exactly like a column of one.
+
+The windows before the one in front show above it and the ones after it
+below, each a little narrower than the one in front of it. Where the window in
+front sits between them is where it sits in the stack, so moving focus through
+a stack walks that window from one end of the frame to the other.
 
 ```toml
 [tiling.stackbar]
@@ -527,13 +532,19 @@ application unless mimi is running with the scripting addition, which needs
 SIP disabled. So a layout moves between the windows in a stack with the
 `focus` key, exactly as it moves focus anywhere else.
 
-`active` is the member you mean to be seen, which is what the bar marks. It is
-your own reckoning, not a reading of the desktop, and the two can differ:
-Cmd-Tab puts a buried member in front without telling your layout. The next
-input says which window really is in front, through `focused` and each
-window's `order`, so a layout that cares can reconcile.
+`active` is the member you mean to be seen, which is the card the deck opens
+at. It is your own reckoning rather than a reading of the desktop, and the two
+can differ. Cmd-Tab puts a buried member in front without telling your layout.
+The next input says which window really is in front, through `focused` and
+each window's `order`, so a layout that cares can reconcile. `rules.py` does
+that in `shown()`, which every shipped layout uses.
 
-Three shipped layouts name stacks. `stacked.py` is the clearest example:
+The deck is drawn inside the frame you set aside, never around it. mimi takes
+the room it needs out of the window in front, so a stack uses no more space
+than one window and never covers a neighbour. It takes at most a quarter of
+the frame, so a small area shows fewer cards than a deep stack holds.
+
+Four shipped layouts name stacks. `stacked.py` is the clearest example:
 equal columns where a column holds one window or several, answering `stack`,
 `unstack`, `next` and `prev`. `strip.py` answers `togglestack`, which turns
 the focused column's rows into one place, the way niri tabs a column.

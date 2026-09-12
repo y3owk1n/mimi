@@ -4,21 +4,27 @@ import (
 	"github.com/y3owk1n/mimi/internal/native"
 )
 
-// nativeDrawer draws the indicators with the window server.
+// nativeDrawer draws the cards with the window server.
 type nativeDrawer struct{}
 
-// NativeDrawer draws the indicators on the desktop mimi runs on.
+// NativeDrawer draws the cards on the desktop mimi runs on.
 func NativeDrawer() Drawer {
 	return nativeDrawer{}
 }
 
 func (nativeDrawer) Sync(bars []Bar, style Style) {
-	native.SyncStackbars(barsOf(bars), native.StackbarStyle{
-		Color:       native.Color(style.Color),
-		ActiveColor: native.Color(style.ActiveColor),
-		Height:      style.Height,
-		Radius:      style.Radius,
-	})
+	native.SyncStackbars(barsOf(bars), nativeStyle(style))
+}
+
+// nativeStyle is the style in the shape the window server side takes it.
+func nativeStyle(style Style) native.StackbarStyle {
+	return native.StackbarStyle{
+		Step:     style.Step,
+		Taper:    style.Taper,
+		Radius:   style.Radius,
+		Color:    native.Color(style.Color),
+		FarColor: native.Color(style.FarColor),
+	}
 }
 
 func (nativeDrawer) Clear() {
@@ -34,6 +40,7 @@ func barsOf(bars []Bar) []native.Stackbar {
 			Top:    bar.Frame.Y,
 			Width:  bar.Frame.Width,
 			Height: bar.Frame.Height,
+			Front:  bar.Front,
 			Count:  bar.Count,
 			Active: bar.Active,
 		}

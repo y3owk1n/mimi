@@ -3,9 +3,8 @@
 
 Windows are laid out in equal columns left to right. A column holds one
 window or several, and windows in the same column share one frame, so only
-the one with keyboard focus is seen. mimi marks such a column with a small
-bar, one segment per window, so a column of four does not look like a column
-of one.
+the one with keyboard focus is seen. mimi draws the others as cards behind
+it, so a column of four does not look like a column of one.
 
   mimi tiling cmd stack          put the focused window into the column to
                                  its left, or the one to its right when it
@@ -13,6 +12,9 @@ of one.
   mimi tiling cmd unstack        give the focused window a column of its own
   mimi tiling cmd next           focus the next window in this column
   mimi tiling cmd prev           focus the previous one
+  mimi tiling cmd focus <left|right>
+                                 focus the column that way, landing on the
+                                 window it was last on
   mimi tiling cmd togglemax      the temporary maximise every layout answers
 
 There is no z-order here on purpose. macOS gives no way to raise one
@@ -22,7 +24,7 @@ raising anything. `mimi query windows` reports each window's `order`, which
 is how this layout knows which member is really on top.
 """
 
-from rules import area, command, gap, maximised, serve, unmanaged_of, write_output
+from rules import area, command, gap, maximised, serve, shown, unmanaged_of, write_output
 
 
 def columns_of(state, numbers):
@@ -37,6 +39,24 @@ def columns_of(state, numbers):
             columns.append([number])
 
     return columns
+
+
+def seen_of(column, remembered):
+    """The window of a column that was last looked at, which is the one shown
+    when the column has no focus and the one focus comes back to. A column
+    never looked at shows its first window."""
+    for number in column:
+        if number in remembered:
+            return number
+    return column[0]
+
+
+def remember(remembered, column, number):
+    """Record that this window is the one its column was last on, forgetting
+    whichever of its column-mates held that before."""
+    kept = [n for n in remembered if n not in column]
+    kept.append(number)
+    return kept
 
 
 def find(columns, number):
@@ -60,6 +80,10 @@ def main(inp):
         return
 
     at, _ = find(columns, focused)
+    remembered = [n for n in state.get("seen", []) if n in numbers]
+    if at is not None:
+        remembered = remember(remembered, columns[at], focused)
+
     focus = None
 
     if command(inp, "stack") is not None and at is not None and len(columns) > 1:
@@ -84,6 +108,15 @@ def main(inp):
             column = columns[at]
             focus = column[(column.index(focused) + step) % len(column)]
 
+        # Between columns, landing on the window that one was last on rather
+        # than on its first. Leaving a stack and coming back should not
+        # change which of its windows is shown.
+        side = command(inp, "focus")
+        if side and at is not None and len(columns) > 1:
+            to = at + (1 if side[0] == "right" else -1)
+            to = max(0, min(to, len(columns) - 1))
+            focus = seen_of(columns[to], remembered)
+
     # Every window in a column gets the column's frame. The one with focus
     # is the one seen; the rest are behind it, which is what the stack key
     # tells mimi to mark.
@@ -102,10 +135,15 @@ def main(inp):
             frames.append((number, dict(frame)))
 
         if len(column) > 1:
-            seen = focus if focus in column else (focused if focused in column else column[0])
-            stacks.append({"windows": list(column), "active": seen})
+            stacks.append({"windows": list(column), "active": shown(inp, column, focus)})
+
+    landed = focus or focused
+    where, _ = find(columns, landed)
+    if where is not None:
+        remembered = remember(remembered, columns[where], landed)
 
     state["columns"] = columns
+    state["seen"] = remembered
     out = maximised(inp, state, frames, box)
 
     write_output(out, state, focus, unmanaged=unmanaged_of(inp, state), stacks=stacks)

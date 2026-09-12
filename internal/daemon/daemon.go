@@ -314,7 +314,7 @@ func setupEventPipeline(
 	// engine tells it rather than the bus.
 	bars := stackbar.New(stackbar.NativeDrawer(), logger)
 	bars.Update(stackbarConfigFor(cfg, accessibilityGranted))
-	tiler.SetStacks(bars.Sync)
+	tiler.SetStacks(bars)
 
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the

@@ -93,10 +93,11 @@ type Engine struct {
 	// windows share. The indicator is drawn from these and they are handed
 	// back on the next input.
 	stacks map[uint32][]PlacedStack
-	// onStacks is told every time the stacks change, so whatever draws them
-	// can follow. nil draws nothing, which is the CLI's engine and any
-	// build with the indicator switched off.
-	onStacks func([]PlacedStack)
+	// stacker is what draws the stacks a layout named. It is asked how much
+	// of a frame the cards behind need before the frames are written, and
+	// told what to draw after. nil draws nothing and reserves nothing,
+	// which is the CLI's engine and any build with the mark switched off.
+	stacker Stacker
 	// seen is every window number the last pass read, nil before the
 	// first, so a window_created pass can tell whether the window it was
 	// raised for has reached the window server's on-screen list yet.
@@ -250,14 +251,31 @@ func (e *Engine) SetMouse(down func() bool) {
 	e.mouseDown = down
 }
 
-// SetStacks names what to tell when the stacks a layout named change. The
-// daemon hands in the indicator. A CLI engine hands in nothing, because
-// nothing it drew would outlive the process.
-func (e *Engine) SetStacks(onStacks func([]PlacedStack)) {
+// Stacker draws the stacks a layout named, and says how much of their frame
+// it needs to do it.
+type Stacker interface {
+	// Reserve is the height at the top and at the bottom of a stack's frame
+	// the cards need. The engine takes both out of the frame every member
+	// is given, so the whole stack stays inside the area the layout set
+	// aside for it.
+	//
+	// Two numbers rather than one because the windows before the one in
+	// front are drawn above it and the ones after it below, which is what
+	// makes the deck say where in the stack the user is looking.
+	Reserve(stack PlacedStack) (top, bottom float64)
+	// Show draws exactly these stacks and no others, each with the whole
+	// frame the layout gave it, cards included.
+	Show(stacks []PlacedStack)
+}
+
+// SetStacks names what draws the stacks a layout names. The daemon hands in
+// the mark. A CLI engine hands in nothing, because nothing it drew would
+// outlive the process.
+func (e *Engine) SetStacks(stacker Stacker) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	e.onStacks = onStacks
+	e.stacker = stacker
 }
 
 // Enabled reports whether a pass would run anything.
@@ -574,6 +592,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		e.keepStacks(input, out.Frames, out.Stacks)
 	}
 
+	e.reserveForStacks(frames)
 	e.tellStacks()
 
 	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
@@ -829,11 +848,59 @@ func (e *Engine) keepStacks(input Input, frames []action.WindowFrame, stacks []S
 	e.stacks[input.Display.ID] = kept
 }
 
+// reserveForStacks takes the room the cards behind need out of the frame
+// every window in a stack is given, in place.
+//
+// The frame a layout returns is the whole of the space it set aside, so the
+// cards cannot be drawn outside it without landing on a neighbor or off the
+// screen. They are drawn inside it instead, and the window in front is made
+// shorter by exactly what they take and sits between them. A stack
+// therefore takes no more room than one window, which is what the layout
+// asked for. The caller holds the lock.
+func (e *Engine) reserveForStacks(frames []action.WindowFrame) {
+	if e.stacker == nil {
+		return
+	}
+
+	// Every window in a stack, and the room its own stack needs above and
+	// below it.
+	type room struct{ top, bottom float64 }
+
+	reserved := map[uint32]room{}
+
+	for _, stacks := range e.stacks {
+		for _, stack := range stacks {
+			top, bottom := e.stacker.Reserve(stack)
+			if top <= 0 && bottom <= 0 {
+				continue
+			}
+
+			for _, number := range stack.Windows {
+				reserved[number] = room{top: top, bottom: bottom}
+			}
+		}
+	}
+
+	if len(reserved) == 0 {
+		return
+	}
+
+	for index, frame := range frames {
+		took, stacked := reserved[frame.Number]
+		if !stacked || took.top+took.bottom >= frame.Frame.Height {
+			continue
+		}
+
+		frames[index].Frame.Y += took.top
+		frames[index].Frame.Height -= took.top + took.bottom
+	}
+}
+
 // tellStacks hands every display's stacks to whatever draws them, in one
-// call, so the indicator is a picture of the whole desktop rather than of
+// call, so the mark is a picture of the whole desktop rather than of
 // whichever display ran last. The caller holds the lock.
 func (e *Engine) tellStacks() {
-	if e.onStacks == nil {
+	if e.stacker == nil {
 		return
 	}
 
@@ -850,7 +917,7 @@ func (e *Engine) tellStacks() {
 		all = append(all, e.stacks[display]...)
 	}
 
-	e.onStacks(all)
+	e.stacker.Show(all)
 }
 
 // stillPlaced is where the engine last put every window it is still watching,

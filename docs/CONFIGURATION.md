@@ -282,34 +282,43 @@ depends on where the window is dropped, as the shipped `strip.py` does,
 shows the column the window would join. The zone needs Accessibility, like
 tiling, and nothing more; every key is reloadable.
 
-### Stack indicator
+### Stacked windows
 
 ```toml
 [tiling.stackbar]
 enabled = true
-color = "#60e2e2e3"
-active_color = "#e2e2e3"
-height = 4
-radius = 2
+step = 10
+taper = 6
+radius = -1
+color = "#b0636366"
+far_color = "#30636366"
 ```
 
 | Key | Default | Meaning |
 | --- | --- | --- |
-| `enabled` | `false` | Mark the stacks a layout names |
-| `color` | `#60e2e2e3` | The colour of a window in the stack |
-| `active_color` | `#e2e2e3` | The colour of the one the layout means to be seen |
-| `height` | `4` | How tall the bar is, in points, up to 40 |
-| `radius` | `2` | The corner radius of each segment, in points |
+| `enabled` | `false` | Draw the stacks a layout names |
+| `step` | `10` | How much of each window behind shows above the one in front, in points |
+| `taper` | `6` | How much narrower each window behind is drawn, on either side, in points |
+| `radius` | `-1` | The corner radius the cards follow, or `-1` to follow each window's own |
+| `color` | `#b0636366` | The card nearest the window in front |
+| `far_color` | `#30636366` | The furthest card, so a deep stack fades away |
 
 A layout can put several windows in one frame, so that only the one with
 keyboard focus is seen. Nothing on screen says the others are there, which is
-what this draws: a bar along the top of that frame with one segment per
-window, the active one in its own colour.
+what this draws. The windows before the one in front show above it and the
+ones after it below, each a little narrower than the one in front of it, so
+where that window sits between them is where it sits in the stack.
 
-It marks only what a layout names in its output's `stacks` key, so a layout
-that names none has nothing marked and the setting costs nothing.
-`examples/tiling/stacked.py` is the one that names them; `docs/TILING.md` has
-the contract. Colours are `#rrggbb` or `#aarrggbb`, alpha first. It needs
+The deck stays inside the frame the layout set aside. mimi takes the room it
+needs out of the window in front, so a stack uses no more space than one
+window and never covers a neighbour. It takes at most a quarter of the frame,
+so a small area shows fewer cards than a deep stack holds.
+
+It draws only what a layout names in its output's `stacks` key, so a layout
+that names none draws nothing and the setting costs nothing.
+`examples/tiling/stacked.py`, `strip.py`, `bsp.py` and `monocle.py` all name
+them; `docs/TILING.md` has the contract. Colours are `#rrggbb` or
+`#aarrggbb`, alpha first. It needs
 Accessibility and tiling enabled, like the drop zone, and every key is
 reloadable.
 

@@ -63,10 +63,21 @@ then `kAXRaiseAction`. There is no way to reach the last step alone.
   in front, through `focused` and each window's `order`, so a layout that
   cares can reconcile on the next pass. mimi does not reconcile for it, since
   which of the two is right is the layout's business.
-- **The indicator is the feature.** Windows sharing a frame was always
-  possible and always invisible. `[tiling.stackbar]` draws one segment per
-  member along the top of the shared frame, so a stack of four does not look
-  like a window of one. A layout that names no stack has nothing marked.
+- **Drawing the windows behind is the feature.** Windows sharing a frame was
+  always possible and always invisible. `[tiling.stackbar]` draws the ones
+  behind as a deck of cards inside the shared frame, so a stack of four does
+  not look like a window of one. A layout that names no stack draws nothing.
+- **The cards come out of the window in front.** They are drawn inside the
+  frame the layout set aside rather than around it, because anything outside
+  lands on a neighbour or off the screen. The engine shortens the window in
+  front by what they take, so a stack occupies exactly what one window would.
+  That is the one place mimi changes a frame a layout returned, and it is zero
+  while the setting is off.
+- **Where the window in front sits is where it sits in the stack.** The
+  members before it are drawn above and the ones after it below, so the deck
+  reports position as well as depth. Without that it would say how many
+  windows are there but not which one is being looked at, and focusing up and
+  down would have nothing to point at.
 - **The engine refuses a stack it cannot draw.** Fewer than two windows is
   every window in every layout, and a member with no frame in the same output
   would put a mark where nothing is. Either is dropped with a debug line, and
