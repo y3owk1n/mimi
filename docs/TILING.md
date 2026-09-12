@@ -123,7 +123,8 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
 
 The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
 `timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
-table with `enabled`, `duration_ms`, and `easing`. Every one is reloadable.
+table with `enabled`, `duration_ms`, and `easing`, and a `[tiling.dropzone]`
+table that shows where a drag would land. Every one is reloadable.
 The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
 
 **Animation is off by default.** With `[tiling.animation]` enabled, windows
@@ -451,6 +452,10 @@ Now a drag runs your layout with the event saying what happened and
   the column it was dropped on. A stacked window dropped on empty strip or
   its own column's outer quarter gets a column of its own. Dropped higher or
   lower in its column, it takes that row.
+
+With `[tiling.dropzone]` enabled as well, the drag shows where the window
+would land before you let go, by asking your layout the same question as
+you drag. See [CONFIGURATION.md](CONFIGURATION.md#drop-zone).
 
 The engine decides which by comparing where the windows landed against where
 it last placed them, so a terminal that snaps its width to the character grid

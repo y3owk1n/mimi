@@ -170,6 +170,15 @@ const (
 	maxBorderWidth             = 32.0
 )
 
+// The [tiling.dropzone] defaults: a faint fill of the border's light color
+// with a thin outline of it, rounded like a document window.
+const (
+	defaultDropzoneColor        = "#e2e2e330"
+	defaultDropzoneOutlineColor = "#e2e2e3"
+	defaultDropzoneOutlineWidth = 2.0
+	defaultDropzoneRadius       = 12.0
+)
+
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 	settings := &cfg.Settings
 	if settings.LogLevel == "" {
@@ -214,6 +223,22 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.Animation.Easing == "" {
 		cfg.Tiling.Animation.Easing = defaultTilingAnimationEasing
+	}
+
+	if cfg.Tiling.Dropzone.Color == "" {
+		cfg.Tiling.Dropzone.Color = defaultDropzoneColor
+	}
+
+	if cfg.Tiling.Dropzone.OutlineColor == "" {
+		cfg.Tiling.Dropzone.OutlineColor = defaultDropzoneOutlineColor
+	}
+
+	if cfg.Tiling.Dropzone.OutlineWidth == 0 {
+		cfg.Tiling.Dropzone.OutlineWidth = defaultDropzoneOutlineWidth
+	}
+
+	if cfg.Tiling.Dropzone.Radius == 0 {
+		cfg.Tiling.Dropzone.Radius = defaultDropzoneRadius
 	}
 
 	if cfg.Border.Width == 0 {
@@ -302,6 +327,7 @@ func validate(cfg *Config) error {
 	}
 
 	errs = append(errs, validateBorder(cfg.Border)...)
+	errs = append(errs, validateDropzone(cfg.Tiling)...)
 
 	// HookKinds is a slice, so these errors come out in its declared order.
 	// The map this replaced meant validate reported the same broken config in
@@ -339,6 +365,44 @@ func validate(cfg *Config) error {
 	}
 
 	return nil
+}
+
+// validateDropzone holds the [tiling.dropzone] section to its rules: it
+// needs relayout_on_drag, its colors parse, and its sizes are sane.
+func validateDropzone(tiling TilingConfig) []string {
+	var errs []string
+
+	zone := tiling.Dropzone
+
+	if zone.Enabled && !tiling.RelayoutOnDrag {
+		errs = append(errs, "tiling.dropzone.enabled needs tiling.relayout_on_drag")
+	}
+
+	_, err := ParseColor(zone.Color)
+	if err != nil {
+		errs = append(errs, "tiling.dropzone.color must be #rrggbb or #rrggbbaa")
+	}
+
+	_, err = ParseColor(zone.OutlineColor)
+	if err != nil {
+		errs = append(errs, "tiling.dropzone.outline_color must be #rrggbb or #rrggbbaa")
+	}
+
+	if zone.OutlineWidth < 0 || zone.OutlineWidth > maxBorderWidth {
+		errs = append(
+			errs,
+			fmt.Sprintf(
+				"tiling.dropzone.outline_width must be between 0 and %d",
+				int(maxBorderWidth),
+			),
+		)
+	}
+
+	if zone.Radius < 0 {
+		errs = append(errs, "tiling.dropzone.radius must be >= 0")
+	}
+
+	return errs
 }
 
 func validateBorder(border BorderConfig) []string {

@@ -15,6 +15,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/border"
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/dropzone"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
@@ -157,6 +158,8 @@ func runCore(
 	go pipeline.borders.Run(ctx, pipeline.borderSub)
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
+	defer pipeline.zone.Close()
+
 	cfgReloader := newReloader(
 		cfg,
 		pipeline.reg,
@@ -165,6 +168,7 @@ func runCore(
 		pipeline.router,
 		pipeline.tiler,
 		pipeline.borders,
+		pipeline.zone,
 		logger,
 	)
 
@@ -231,6 +235,7 @@ type eventPipeline struct {
 	executor  *hooks.Executor
 	tiler     *tiling.Engine
 	borders   *border.Engine
+	zone      *dropzone.Tracker
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
 	tileSub   events.Subscriber
@@ -286,7 +291,17 @@ func setupEventPipeline(
 	borders := border.New(border.NativeDrawer())
 	borders.Update(borderConfigFor(cfg, accessibilityGranted))
 	borderSub := bus.SubscribeWithFilter(borderSubBufSize, borders.KindFilter())
-	router.SetRawListener(func(events.Event) { borders.Nudge() })
+
+	// The drop zone hears the same raw drags, and previews the drop with
+	// the tiling engine while the button is down.
+	tiler.SetMouse(native.LeftMouseButtonDown)
+
+	zone := dropzone.New(tiler, dropzone.NativeDrawer(), dropzone.NativeMouse(), logger)
+	zone.Update(dropzoneConfigFor(cfg, accessibilityGranted))
+	router.SetRawListener(func(events.Event) {
+		borders.Nudge()
+		zone.Nudge()
+	})
 
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
@@ -315,6 +330,7 @@ func setupEventPipeline(
 		executor:  executor,
 		tiler:     tiler,
 		borders:   borders,
+		zone:      zone,
 		logSub:    logSub,
 		hookSub:   hookSub,
 		tileSub:   tileSub,
@@ -557,6 +573,18 @@ func borderConfigFor(cfg *config.Config, accessibilityGranted bool) config.Borde
 	}
 
 	return borderCfg
+}
+
+// dropzoneConfigFor is the [tiling.dropzone] section as the tracker gets
+// it: as written, except that without Accessibility, or with tiling off, it
+// is disabled.
+func dropzoneConfigFor(cfg *config.Config, accessibilityGranted bool) config.DropzoneConfig {
+	zoneCfg := cfg.Tiling.Dropzone
+	if !accessibilityGranted || !cfg.Tiling.Enabled {
+		zoneCfg.Enabled = false
+	}
+
+	return zoneCfg
 }
 
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,
