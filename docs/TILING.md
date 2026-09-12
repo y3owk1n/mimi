@@ -550,26 +550,32 @@ Work down this list.
 3. **Does the layout run by hand?** `mimi tiling preview` runs it the way the
    daemon would and shows its stderr. A missing `python3`, a syntax error, or
    a wrong shebang all show up here.
-4. **Read the daemon log.** With `log_level = "debug"` every pass logs
+4. **Ask the daemon what it is holding.** `mimi tiling state` prints the
+   state the engine kept for each display and space, and the windows your
+   layout said it is not managing. When a tree no longer matches the windows,
+   `mimi tiling reset` forgets the space in front and the next pass starts
+   your layout over, without restarting the daemon and losing every other
+   space with it.
+5. **Read the daemon log.** With `log_level = "debug"` every pass logs
    `tiling pass applied` with the event kind, display count, and frame count.
    A failing pass logs `tiling pass failed` with the reason. A slow layout
    logs `layout timed out`. Raise `timeout_secs`.
-5. **Is the window one mimi tiles?** `mimi query windows` lists exactly what
+6. **Is the window one mimi tiles?** `mimi query windows` lists exactly what
    a layout is given: standard windows of regular applications on the current
    space. Sheets, popovers, and minimized windows are not there. The pass
    skips a display showing a full-screen space even though its window is
    listed. If it is listed but not tiled, check `rules.py`.
-6. **A window that will not take its frame.** Some applications enforce a
+7. **A window that will not take its frame.** Some applications enforce a
    minimum size or snap to a grid, and land a little off what was asked. The
    next input shows where things actually are, which is why the shipped
    layouts read ratios off actual frames rather than assuming.
-7. **An app that opens windows but never tiles.** Applications slow to start
+8. **An app that opens windows but never tiles.** Applications slow to start
    refuse the daemon's observer for a moment after launch. The daemon retries
    for several seconds and runs your layout the moment it gets in. If it
    gives up it logs `AX observer install gave up` naming the app. Its windows
    are then tiled only when another event runs a pass, or by
    `mimi tiling relayout`.
-8. **It tiles, then un-tiles, then tiles.** A layout that reads a drag and
+9. **It tiles, then un-tiles, then tiles.** A layout that reads a drag and
    emits a different frame every time will loop with an application that
    refuses that frame. Read the actual frame back from the input and treat a
    difference of a few points as "already there".

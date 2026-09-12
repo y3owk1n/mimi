@@ -138,6 +138,12 @@ var interruptAudit = []auditEntry{
 			"awaited; otherwise as tiling preview, and then the frames are applied"),
 	audited("tiling cmd", interruptRunsOn,
 		"as tiling relayout"),
+	audited("tiling state", interruptRunsOn,
+		"one request written to the daemon and one reply awaited, then one line "+
+			"of output; with no daemon it reports an empty state and returns"),
+	audited("tiling reset", interruptRunsOn,
+		"as tiling state; the daemon clears what it holds either way, since the "+
+			"interrupt reaches this process and not that one"),
 	audited("services install", interruptStopsTheWork,
 		"Service.Install threads the context through every launchctl call "+
 			"and checks it again before the plist is written, so a canceled "+

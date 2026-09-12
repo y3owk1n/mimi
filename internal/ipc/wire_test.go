@@ -265,7 +265,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 				return action.NewTilingCommand(action.TilingCommand, "swap", []string{"left"})
 			},
 			want: `{"version":7,"command":{"name":"tiling",` +
-				`"tiling":{"kind":"command","name":"swap","args":["left"]}}}`,
+				`"tiling":{"kind":"command","name":"swap","args":["left"],"all":false}}}`,
 		},
 		{
 			name: "mimi action resize_window left-half --width 800 --anchor cc --no-margin",

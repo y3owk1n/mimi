@@ -32,10 +32,15 @@ type Request struct {
 }
 
 // Response is a JSON-encoded action result sent back to the client.
+//
+// Data is what the action read, for the few that answer with something rather
+// than only doing something. It is absent for the rest, which is every action
+// that drives the desktop: those report success or a failure and nothing more.
 type Response struct {
-	OK      bool   `json:"ok"`
-	Code    string `json:"code,omitempty"`
-	Message string `json:"message,omitempty"`
+	OK      bool            `json:"ok"`
+	Code    string          `json:"code,omitempty"`
+	Message string          `json:"message,omitempty"`
+	Data    json.RawMessage `json:"data,omitempty"`
 }
 
 func writeRequest(writer io.Writer, req Request) error {
