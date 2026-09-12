@@ -51,6 +51,11 @@ func (d *snappingDesktop) Displays() ([]action.DisplayEntry, error) {
 }
 
 func (d *snappingDesktop) ActiveSpaces() (map[uint32]int, error) { return map[uint32]int{1: 1}, nil }
+
+func (d *snappingDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	return map[uint32]uint64{1: 1001}, nil
+}
+
 func (d *snappingDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	return map[uint32]bool{}, nil
 }
@@ -252,6 +257,10 @@ func (d *transitionDesktop) Displays() ([]action.DisplayEntry, error) {
 }
 
 func (d *transitionDesktop) ActiveSpaces() (map[uint32]int, error) { return map[uint32]int{1: 1}, nil }
+
+func (d *transitionDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	return map[uint32]uint64{1: 1001}, nil
+}
 
 func (d *transitionDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	d.mu.Lock()

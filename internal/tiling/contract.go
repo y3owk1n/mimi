@@ -51,6 +51,14 @@ type Input struct {
 	Focused  int                   `json:"focused"`
 	Windows  []action.WindowEntry  `json:"windows"`
 	State    json.RawMessage       `json:"state"`
+
+	// spaceID is which space Space names, as the window server identifies
+	// it, and it is what the engine files this input's state under. It is
+	// unexported because a layout has no use for it. Space is the number
+	// the user counts, and this is the number that does not change when the
+	// user reorders their spaces in Mission Control. It is 0 when the space
+	// could not be resolved, and the engine then keeps no state at all.
+	spaceID uint64
 }
 
 // Output is what the layout prints back: the frames to apply, in the shape

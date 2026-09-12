@@ -76,6 +76,11 @@ type fakeDesktop struct {
 	// activeSpaces is the space in front per display, when a test sets it;
 	// otherwise every display shows activeSpace.
 	activeSpaces map[uint32]int
+	// activeSpaceIDs is the window server's identifier for the space in
+	// front per display, when a test sets it; otherwise one is derived from
+	// the space's index, so distinct spaces stay distinct without a test
+	// having to name ids it does not care about.
+	activeSpaceIDs map[uint32]uint64
 	// fullScreenDisplays is what FullScreenDisplays reports.
 	fullScreenDisplays map[uint32]bool
 	// enumerations counts FocusableWindows calls.
@@ -358,6 +363,31 @@ func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
 	}
 
 	return spaces, nil
+}
+
+func (d *fakeDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	if d.activeSpaceIDs != nil {
+		return d.activeSpaceIDs, nil
+	}
+
+	spaces, err := d.ActiveSpaces()
+	if err != nil {
+		return nil, err
+	}
+
+	ids := make(map[uint32]uint64, len(spaces))
+	for display, index := range spaces {
+		ids[display] = fakeSpaceID(index)
+	}
+
+	return ids, nil
+}
+
+// fakeSpaceID is the identifier the fake gives the space at a Mission Control
+// index, when a test has not named one itself. It is offset so that an id is
+// never mistaken for an index in a failure message.
+func fakeSpaceID(index int) uint64 {
+	return uint64(index) + 1000
 }
 
 func (d *fakeDesktop) FocusSpace(index int) error {

@@ -86,6 +86,28 @@ func ActiveSpaceIndexes(displayIDs []uint32) map[uint32]int {
 	return active
 }
 
+// ActiveSpaceIDs reports the window server's own identifier for the space in
+// front on each of the given displays, leaving out a display whose space
+// cannot be resolved.
+//
+// The window server assigns the identifier when the space is created and
+// never changes it. ActiveSpaceIndexes reports where that space sits in
+// Mission Control instead, which is the number a user counts. A caller that
+// remembers something about a space keys it by the identifier, because adding
+// or removing a space changes the index of every space after it.
+func ActiveSpaceIDs(displayIDs []uint32) map[uint32]uint64 {
+	active := make(map[uint32]uint64, len(displayIDs))
+
+	for _, did := range displayIDs {
+		sid := uint64(C.MimiDisplayActiveSpaceID(C.uint32_t(did)))
+		if sid != 0 {
+			active[did] = sid
+		}
+	}
+
+	return active
+}
+
 // FullScreenDisplays reports which of the given displays show a full-screen
 // application space in front. macOS lays that window out itself, so nothing
 // else should move it.
