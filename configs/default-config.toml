@@ -104,16 +104,31 @@ radius = 12
 
 # A layout can put several windows in one frame, so that only the one with
 # keyboard focus is seen. Nothing on screen says the others are there, so this
-# draws a bar along the top of that frame with one segment per window, the one
-# the layout means to be seen in active_color. It marks only what a layout
-# names, so it costs nothing with a layout that stacks nothing.
-# Colours are #rrggbb or #aarrggbb.
+# draws them as a deck of cards. The windows before the one in front show
+# above it and the ones after it below, each a little narrower than the one in
+# front of it. Where the window in front sits between them is where it sits in
+# the stack, which is what focusing up and down moves through.
+#
+# The deck stays inside the frame the layout set aside, never around it. mimi
+# takes the room it needs out of the window in front, so a stack uses no more
+# space than one window and never covers a neighbour. It takes at most a
+# quarter of the frame, so a small area shows fewer cards.
+#
+# It draws only what a layout names as a stack, so it costs nothing with a
+# layout that stacks nothing. Colours are #rrggbb or #aarrggbb.
 [tiling.stackbar]
 enabled = false
-color = "#60e2e2e3"
-active_color = "#e2e2e3"
-height = 4
-radius = 2
+# How much of each window behind shows above the one in front of it, and how
+# much narrower it is drawn, in points.
+step = 10
+taper = 6
+# The corner radius the cards follow, or -1 to follow each window's own as the
+# border does.
+radius = -1
+# The card nearest the window in front, and the furthest, so a deep stack
+# fades away rather than ending on a hard edge.
+color = "#b0636366"
+far_color = "#30636366"
 
 # =============================================================================
 # Borders

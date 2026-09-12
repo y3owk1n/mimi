@@ -138,6 +138,29 @@ def _on(frame, bounds):
     return bounds["x"] <= cx < bounds["x"] + bounds["width"] and bounds["y"] <= cy < bounds["y"] + bounds["height"]
 
 
+def shown(inp, windows, focus=None):
+    """Which window of a stack is the one being seen.
+
+    The one this pass is about to focus, if it named one. Otherwise the one
+    with focus now. Otherwise whichever of them is in front on screen, which
+    mimi reports as each window's `order`.
+
+    That last part is what keeps a stack marked correctly while focus is
+    somewhere else entirely. Falling back to the first window in the list
+    instead makes an unfocused stack claim to be showing a window it is not,
+    and makes it jump when focus comes back."""
+    if focus in windows:
+        return focus
+
+    at = inp.get("focused", -1)
+    focused = inp["windows"][at]["number"] if at >= 0 else None
+    if focused in windows:
+        return focused
+
+    order = {w["number"]: w.get("order", 0) for w in inp["windows"]}
+    return min(windows, key=lambda number: order.get(number, 1 << 30))
+
+
 def unmanaged_of(inp, state=None):
     """The windows mimi should leave alone: the ones `narrow()` filtered out
     by the float rules, plus any the layout floated itself and keeps in

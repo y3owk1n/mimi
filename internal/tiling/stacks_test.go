@@ -21,13 +21,36 @@ func twoWindowDesktop() *fakeDesktop {
 	return desktop
 }
 
-// heard collects what the engine tells about stacks.
+// heard collects what the engine tells about stacks, and reserves a fixed
+// amount per window behind the one in front.
 type heard struct {
 	mu     sync.Mutex
 	stacks [][]tiling.PlacedStack
+	// reserve is the room one window behind asks for, so a test can check
+	// the engine took it out of the frame.
+	reserve float64
 }
 
-func (h *heard) note(stacks []tiling.PlacedStack) {
+func (h *heard) Reserve(stack tiling.PlacedStack) (float64, float64) {
+	windows := len(stack.Windows)
+	if windows < 2 {
+		return 0, 0
+	}
+
+	// One card's worth per window before the one in front, and per window
+	// after it, which is the shape the real one reserves in.
+	active := 0
+
+	for index, number := range stack.Windows {
+		if number == stack.Active {
+			active = index
+		}
+	}
+
+	return float64(active) * h.reserve, float64(windows-1-active) * h.reserve
+}
+
+func (h *heard) Show(stacks []tiling.PlacedStack) {
 	h.mu.Lock()
 	defer h.mu.Unlock()
 
@@ -62,7 +85,7 @@ func TestEngine_Pass_TellsTheStacksALayoutNamed(t *testing.T) {
 	told := &heard{}
 
 	engine := tiling.New(desktop, nil, nil)
-	engine.SetStacks(told.note)
+	engine.SetStacks(told)
 	engine.Update(enabled(stacking), shell)
 
 	err := engine.Pass(context.Background(), tiling.Event{Kind: created})
@@ -147,7 +170,7 @@ func TestEngine_Pass_DropsAStackItCannotDraw(t *testing.T) {
 			told := &heard{}
 
 			engine := tiling.New(desktop, nil, nil)
-			engine.SetStacks(told.note)
+			engine.SetStacks(told)
 			engine.Update(enabled(testCase.layout), shell)
 
 			// The frames still apply; only the stack is refused.

@@ -7,9 +7,9 @@ above the other otherwise. Closing a window hands its area back to its
 sibling. The tree lives in the state mimi keeps for the space, so nothing
 here touches a file.
 
-A leaf can hold more than one window, as yabai stacks: they share the whole
+A leaf can hold more than one window, as yabai stacks. They share the whole
 area, so only the focused one is seen, and with [tiling.stackbar] enabled mimi
-marks the leaf with one segment per window. stack moves a window into its
+draws the rest as cards behind it. stack moves a window into its
 neighbour that way, unstack gives it an area of its own again, and next and
 prev move round the windows sharing one. A swap or a drag moves a whole leaf,
 so a stack travels together.
@@ -31,6 +31,9 @@ Commands the layout answers (mimi gives them no meaning; this file does):
                                               of its own again
   mimi tiling cmd next / prev                 move round the windows sharing
                                               one area
+  mimi tiling cmd focus <left|right|up|down>  focus the neighbour that way,
+                                              landing on the window it is
+                                              showing when it holds several
 
 With tiling.relayout_on_drag set, dragging any edge of any window resizes the
 split that edge belongs to, and the rest of the tree follows; dragging a
@@ -44,7 +47,7 @@ Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 
 import sys
 
-from rules import clamp as clamp_to, unmanaged_of
+from rules import clamp as clamp_to, shown, unmanaged_of
 from rules import area, command, gap, maximised, serve, write_output
 
 # The gap, set from the input once it is read. The tree functions below read
@@ -54,16 +57,23 @@ MIN_RATIO, MAX_RATIO = 0.1, 0.9
 
 
 # --- the tree -------------------------------------------------------------
-# A leaf is {"win": number}, or {"win": number, "with": [numbers]} when more
-# than one window shares its area. "win" is always the one seen: every window
-# in the leaf gets the leaf's whole rect, so the others are behind it, and
-# focus is what brings one to the front. A split is {"dir": "h"|"v",
-# "ratio": r, "a": node, "b": node}: "h" puts a left of b, "v" puts a above b.
+# A leaf is {"win": number}, or {"win": number, "order": [numbers]} when more
+# than one window shares its area. "order" is every window in the leaf, in the
+# order they were stacked, and "win" is whichever of them is seen. Every window
+# gets the leaf's whole rect, so the rest are behind it, and focus is what
+# brings one to the front. A split is {"dir": "h"|"v", "ratio": r, "a": node,
+# "b": node}: "h" puts a left of b, "v" puts a above b.
 
 
 def members(leaf):
-    """Every window in a leaf, the one seen first."""
-    return [leaf["win"], *leaf.get("with", [])]
+    """Every window in a leaf, in the order they were stacked.
+
+    The order does not change when another of them is brought to the front:
+    which one is seen is "win", and where it sits in this list is where the
+    user is in the stack. Moving the seen window to the head instead would
+    make "next" swap the same two windows forever, and would leave the mark
+    mimi draws unable to say which one of them is being looked at."""
+    return leaf.get("order") or [leaf["win"]]
 
 
 def leaf_holding(tree, number):
@@ -75,17 +85,20 @@ def leaf_holding(tree, number):
 
 
 def set_members(leaf, numbers):
-    """Put exactly these windows in a leaf, the first the one seen."""
-    leaf["win"] = numbers[0]
+    """Put exactly these windows in a leaf, keeping the one seen when it is
+    still among them."""
+    seen = leaf.get("win")
+    leaf["win"] = seen if seen in numbers else numbers[0]
     if len(numbers) > 1:
-        leaf["with"] = numbers[1:]
+        leaf["order"] = list(numbers)
     else:
-        leaf.pop("with", None)
+        leaf.pop("order", None)
 
 
 def surface(leaf, number):
-    """Make number the window seen in its leaf, keeping the others behind."""
-    set_members(leaf, [number, *(n for n in members(leaf) if n != number)])
+    """Make number the window seen in its leaf, leaving the order alone."""
+    if number in members(leaf):
+        leaf["win"] = number
 
 
 def leaves(node):
@@ -360,6 +373,17 @@ def main(inp):
             node, side = parent
             delta = float(args[0]) * (1 if side == "a" else -1)
             node["ratio"] = clamp(node["ratio"] + delta)
+        elif name == "focus" and args:
+            # To the leaf that way, landing on the window it is showing
+            # rather than on whichever of its windows the window server lists
+            # first. Every window in a stacked leaf has the same frame, so
+            # spatial focus cannot tell them apart.
+            rects = {}
+            layout(tree, box, rects)
+            other = neighbour(rects, focused, args[0])
+            if other:
+                into = leaf_holding(tree, other)
+                focus = into["win"] if into else other
         elif name == "swap" and args:
             rects = {}
             layout(tree, box, rects)
@@ -377,7 +401,7 @@ def main(inp):
                 tree = remove(tree, focused)
                 into = leaf_holding(tree, other)
                 if into is not None:
-                    into["with"] = [*into.get("with", []), focused]
+                    set_members(into, [*members(into), focused])
                     surface(into, focused)
         elif name == "unstack" and focused:
             # Out of its leaf and into a split beside it, which is where a new
@@ -400,6 +424,7 @@ def main(inp):
                 focus = order[(order.index(focused) + step) % len(order)]
                 surface(held, focus)
 
+
     rects = {}
     layout(tree, box, rects)
 
@@ -413,7 +438,7 @@ def main(inp):
         held = members(leaf)
         frames.extend((number, rect) for number in held)
         if len(held) > 1:
-            stacks.append({"windows": held, "active": leaf["win"]})
+            stacks.append({"windows": held, "active": shown(inp, held, focus)})
 
     state["tree"] = tree
     frames = maximised(inp, state, frames, box)

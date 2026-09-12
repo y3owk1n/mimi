@@ -46,8 +46,8 @@ app's others. Anything else opens right of the focused column.
 A column holds its windows as rows by default, each with a share of the
 height. togglestack makes it hold them in one place instead, the way niri
 tabs a column: every window fills the column and only the focused one is
-seen. With [tiling.stackbar] enabled mimi marks such a column, one segment
-per window, which is the only thing that says how many are in there. focus
+seen. With [tiling.stackbar] enabled mimi draws the others as cards behind
+it, which is the only thing that says how many are in there. focus
 up and down still move between them, and move up and down still reorder
 them.
 
@@ -64,7 +64,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, gap, maximised, serve, unmanaged_of, write_output
+from rules import area, clamp, command, gap, maximised, serve, shown, unmanaged_of, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -197,21 +197,28 @@ def frames_for(columns, box, edge, gap, offset):
     return frames
 
 
-def stacks_of(columns, focused):
-    """The tabbed columns holding more than one window, in the shape
-    mimi's stacks key takes, each marking the focused window when it is one of
-    them."""
+def seen(column):
+    """The window of a column that was last looked at, which is the one shown
+    when a tabbed column has no focus and the one focus comes back to."""
+    windows = column["windows"]
+    return windows[clamp(column.get("at", 0), 0, len(windows) - 1)]
+
+
+def remember(column, number):
+    """Record which window of a column was last looked at."""
+    if number in column["windows"]:
+        column["at"] = column["windows"].index(number)
+
+
+def stacks_of(inp, columns, focus):
+    """The tabbed columns holding more than one window, in the shape mimi's
+    stacks key takes, each marking the window it is showing."""
     stacks = []
     for column in columns:
         if not column.get("tabbed") or len(column["windows"]) < 2:
             continue
         windows = column["windows"]
-        stacks.append(
-            {
-                "windows": list(windows),
-                "active": focused if focused in windows else windows[0],
-            }
-        )
+        stacks.append({"windows": list(windows), "active": shown(inp, windows, focus)})
     return stacks
 
 
@@ -269,6 +276,9 @@ def main(inp):
         return
 
     at = column_of(columns, focused)
+    if at is not None and focused is not None:
+        remember(columns[at], focused)
+
     focus = None
 
     if event["kind"] == "command":
@@ -288,7 +298,7 @@ def main(inp):
                 maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box),
                 state,
                 unmanaged=unmanaged_of(inp, state),
-                stacks=stacks_of(columns, focused),
+                stacks=stacks_of(inp, columns, None),
             )
             return
 
@@ -298,7 +308,10 @@ def main(inp):
         if name == "focus" and args:
             if args[0] in ("left", "right"):
                 to = clamp(at + (1 if args[0] == "right" else -1), 0, len(columns) - 1)
-                focus = columns[to]["windows"][0]
+                # Back to the window that column was last on, not its first.
+                # Leaving a tabbed column and coming back should not change
+                # which of its windows is shown.
+                focus = seen(columns[to])
                 at = to
             else:
                 rows = column["windows"]
@@ -347,7 +360,7 @@ def main(inp):
                 maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box),
                 state,
                 unmanaged=unmanaged_of(inp, state),
-                stacks=stacks_of(columns, focused),
+                stacks=stacks_of(inp, columns, None),
             )
             return
     elif event["kind"] == "window_resize":
@@ -427,12 +440,18 @@ def main(inp):
     frames = maximised(inp, state, frames_for(columns, box, edge, GAP, offset), box)
     state.update(columns=columns, offset=offset)
     state["placed"] = {str(n): {k: int(round(v)) for k, v in f.items()} for n, f in frames}
+    landed = focus or focused
+    if landed is not None:
+        where = column_of(columns, landed)
+        if where is not None:
+            remember(columns[where], landed)
+
     write_output(
         frames,
         state,
         focus,
         unmanaged=unmanaged_of(inp, state),
-        stacks=stacks_of(columns, focus or focused),
+        stacks=stacks_of(inp, columns, focus),
     )
 
 

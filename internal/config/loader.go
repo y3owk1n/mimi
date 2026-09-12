@@ -177,10 +177,11 @@ const (
 	defaultDropzoneOutlineColor = "#e2e2e3"
 	defaultDropzoneOutlineWidth = 2.0
 	defaultDropzoneRadius       = 12.0
-	defaultStackbarColor        = "#60e2e2e3"
-	defaultStackbarActiveColor  = "#e2e2e3"
-	defaultStackbarHeight       = 4.0
-	defaultStackbarRadius       = 2.0
+	defaultStackbarColor        = "#b0636366"
+	defaultStackbarFarColor     = "#30636366"
+	defaultStackbarStep         = 10.0
+	defaultStackbarTaper        = 6.0
+	defaultStackbarRadius       = -1.0
 )
 
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
@@ -249,12 +250,16 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.Stackbar.Color = defaultStackbarColor
 	}
 
-	if cfg.Tiling.Stackbar.ActiveColor == "" {
-		cfg.Tiling.Stackbar.ActiveColor = defaultStackbarActiveColor
+	if cfg.Tiling.Stackbar.FarColor == "" {
+		cfg.Tiling.Stackbar.FarColor = defaultStackbarFarColor
 	}
 
-	if cfg.Tiling.Stackbar.Height == 0 {
-		cfg.Tiling.Stackbar.Height = defaultStackbarHeight
+	if cfg.Tiling.Stackbar.Step == 0 {
+		cfg.Tiling.Stackbar.Step = defaultStackbarStep
+	}
+
+	if cfg.Tiling.Stackbar.Taper == 0 {
+		cfg.Tiling.Stackbar.Taper = defaultStackbarTaper
 	}
 
 	if cfg.Tiling.Stackbar.Radius == 0 {
@@ -439,28 +444,32 @@ func validateStackbar(tiling TilingConfig) []string {
 		errs = append(errs, "tiling.stackbar.color must be #rrggbb or #aarrggbb")
 	}
 
-	_, err = ParseColor(bar.ActiveColor)
+	_, err = ParseColor(bar.FarColor)
 	if err != nil {
-		errs = append(errs, "tiling.stackbar.active_color must be #rrggbb or #aarrggbb")
+		errs = append(errs, "tiling.stackbar.far_color must be #rrggbb or #aarrggbb")
 	}
 
-	if bar.Height <= 0 || bar.Height > maxStackbarHeight {
+	if bar.Step <= 0 || bar.Step > maxStackbarStep {
 		errs = append(
 			errs,
-			fmt.Sprintf("tiling.stackbar.height must be between 0 and %d", int(maxStackbarHeight)),
+			fmt.Sprintf("tiling.stackbar.step must be between 0 and %d", int(maxStackbarStep)),
 		)
 	}
 
-	if bar.Radius < 0 {
-		errs = append(errs, "tiling.stackbar.radius must be >= 0")
+	if bar.Taper < 0 || bar.Taper > maxStackbarStep {
+		errs = append(
+			errs,
+			fmt.Sprintf("tiling.stackbar.taper must be between 0 and %d", int(maxStackbarStep)),
+		)
 	}
 
 	return errs
 }
 
-// maxStackbarHeight is as tall as the indicator may be drawn. Past this it
-// stops marking a stack and starts covering its windows.
-const maxStackbarHeight = 40.0
+// maxStackbarStep is as much of a window behind as may show, and as much
+// narrower as it may be drawn. Past this the cards take more of the frame
+// than the window in front can spare.
+const maxStackbarStep = 40.0
 
 func validateBorder(border BorderConfig) []string {
 	var errs []string

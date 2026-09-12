@@ -115,12 +115,24 @@ type TilingConfig struct {
 // one frame, so without a mark there is nothing to say how many are there.
 // Colors are #rrggbb or #aarrggbb.
 type StackbarConfig struct {
-	Enabled bool   `json:"enabled" toml:"enabled"`
-	Color   string `json:"color"   toml:"color"`
-	// ActiveColor marks the member the layout means to be seen.
-	ActiveColor string  `json:"activeColor" toml:"active_color"`
-	Height      float64 `json:"height"      toml:"height"`
-	Radius      float64 `json:"radius"      toml:"radius"`
+	Enabled bool `json:"enabled" toml:"enabled"`
+	// Step is how much of each window behind the one in front shows above
+	// it, in points. It is taken out of the window in front rather than
+	// added around the frame, so a stack of four with a step of 10 makes
+	// that window 30 points shorter and never grows past its frame.
+	Step float64 `json:"step" toml:"step"`
+	// Taper is how much narrower each window behind is drawn than the one
+	// in front of it, on either side, in points. It is what makes the
+	// stack read as a deck going back rather than as lines above a window.
+	Taper float64 `json:"taper" toml:"taper"`
+	// Radius is the corner radius the cards follow, or -1 to follow the
+	// window's own as the border does.
+	Radius float64 `json:"radius" toml:"radius"`
+	// Color is the card nearest the window in front, and FarColor the
+	// furthest, so a deep stack fades away rather than ending on a hard
+	// edge.
+	Color    string `json:"color"    toml:"color"`
+	FarColor string `json:"farColor" toml:"far_color"`
 }
 
 // DropzoneConfig holds the [tiling.dropzone] section: whether, while the
