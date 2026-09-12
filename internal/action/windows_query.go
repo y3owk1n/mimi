@@ -121,6 +121,14 @@ func QueryWindows() (WindowsInfo, error) {
 	return defaultExecutor.QueryWindows()
 }
 
+// QueryWindowsWithTitles is QueryWindows with the titles in known taken
+// as they are, by window number, so only the windows not in it are asked
+// for theirs: a title is a round trip into the application, and a preview
+// run at every step of a drag has no use for a fresh one.
+func QueryWindowsWithTitles(known map[uint32]string) (WindowsInfo, error) {
+	return defaultExecutor.QueryWindowsWithTitles(known)
+}
+
 // QueryDisplays lists the connected displays of the desktop mimi is running
 // on.
 func QueryDisplays() ([]DisplayEntry, error) {
@@ -139,23 +147,79 @@ func QueryDisplays() ([]DisplayEntry, error) {
 // is more useful complete than refused. A missing title or application is
 // reported as "" and the window kept.
 func (e *Executor) QueryWindows() (WindowsInfo, error) {
+	return e.QueryWindowsWithTitles(nil)
+}
+
+// knownLister is a desktop that can list the windows it has learned with
+// their frames, asking no application anything.
+type knownLister interface {
+	KnownOnScreen() ([]Window, int, map[uint32]geometry.Rect)
+}
+
+// QueryWindowsWithTitles is QueryWindows taking the titles in known as they
+// are, by window number. On a desktop that can list its learned windows
+// without asking the applications, that is the whole listing: a window
+// without a known title is left out, since it is one the last full listing
+// did not see. Elsewhere only the windows not in known are asked.
+func (e *Executor) QueryWindowsWithTitles(known map[uint32]string) (WindowsInfo, error) {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
 		return WindowsInfo{}, err
 	}
 
-	info, retry, err := e.listWindows()
+	if lister, ok := e.desktop.(knownLister); ok && known != nil {
+		return e.listKnown(lister, known), nil
+	}
+
+	info, retry, err := e.listWindows(known)
 	if err != nil || !retry {
 		return info, err
 	}
 
-	info, _, err = e.listWindows()
+	info, _, err = e.listWindows(known)
 
 	return info, err
 }
 
+// listKnown lists the learned windows with the titles in known, from the
+// window server alone.
+func (e *Executor) listKnown(lister knownLister, known map[uint32]string) WindowsInfo {
+	windows, focused, frames := lister.KnownOnScreen()
+	info := WindowsInfo{Focused: -1, Windows: make([]WindowEntry, 0, len(windows))}
+
+	for index, win := range windows {
+		title, titled := known[win.Number]
+		if !titled {
+			continue
+		}
+
+		frame, listed := frames[win.Number]
+		if !listed {
+			continue
+		}
+
+		app, _ := e.desktop.ApplicationInfo(win.PID)
+
+		if index == focused {
+			info.Focused = len(info.Windows)
+		}
+
+		info.Windows = append(info.Windows, WindowEntry{
+			Number:   win.Number,
+			PID:      win.PID,
+			App:      app.Name,
+			BundleID: app.BundleID,
+			Title:    title,
+			Frame:    frameOf(frame),
+		})
+	}
+
+	return info
+}
+
 // listWindows is one enumeration, reporting whether a frame read failed.
-func (e *Executor) listWindows() (WindowsInfo, bool, error) {
+// Titles in known are taken as they are.
+func (e *Executor) listWindows(known map[uint32]string) (WindowsInfo, bool, error) {
 	windows, focused, err := e.desktop.FocusableWindows()
 	if err != nil {
 		return WindowsInfo{}, false, derrors.Wrapf(
@@ -176,7 +240,11 @@ func (e *Executor) listWindows() (WindowsInfo, bool, error) {
 			continue
 		}
 
-		title, _ := e.desktop.WindowTitle(win.ID)
+		title, ok := known[win.Number]
+		if !ok {
+			title, _ = e.desktop.WindowTitle(win.ID)
+		}
+
 		app, _ := e.desktop.ApplicationInfo(win.PID)
 
 		if index == focused {

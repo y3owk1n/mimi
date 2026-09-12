@@ -73,6 +73,9 @@ type Engine struct {
 	// first, so a window_created pass can tell whether the window it was
 	// raised for has reached the window server's on-screen list yet.
 	seen map[uint32]bool
+	// titles is every window's title as the last full read had it, by
+	// number, for a preview that would rather not ask the applications.
+	titles map[uint32]string
 
 	// onDrag is whether a window the user moved or resized runs a pass.
 	onDrag bool
@@ -119,6 +122,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		states:      map[string]json.RawMessage{},
 		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
+		titles:      map[uint32]string{},
 		resizeGrace: defaultResizeGrace,
 		wake:        make(chan Event, 1),
 	}
@@ -739,45 +743,92 @@ func (e *Engine) newWindowOf(inputs []Input, pid int) bool {
 
 // inputsLocked reads the desktop into one Input per display that has a
 // window on it and is not showing a full-screen space, in display order. The caller holds the lock.
-func (e *Engine) inputsLocked(event Event) ([]Input, error) {
-	var (
-		displays   []action.DisplayEntry
-		spaces     map[uint32]int
-		fullScreen map[uint32]bool
-		margins    action.MarginsInfo
-		windows    action.WindowsInfo
-	)
+// titledWindower is a desktop that can list windows with titles it is
+// handed rather than read, which the live one can.
+type titledWindower interface {
+	WindowsWithTitles(known map[uint32]string) (action.WindowsInfo, error)
+}
+
+// desktopRead is everything one pass reads of the desktop.
+type desktopRead struct {
+	displays   []action.DisplayEntry
+	spaces     map[uint32]int
+	fullScreen map[uint32]bool
+	margins    action.MarginsInfo
+	windows    action.WindowsInfo
+}
+
+// readInputsLocked reads what the inputs are built from. With quick set,
+// and a desktop that can, the windows keep the titles of the last full
+// read rather than asking the applications; every full read refreshes
+// them. The caller holds the lock.
+func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
+	var read desktopRead
+
+	titled, canReuse := e.desktop.(titledWindower)
 
 	err := e.run(func() error {
 		var err error
 
-		displays, err = e.desktop.Displays()
+		read.displays, err = e.desktop.Displays()
 		if err != nil {
 			return err
 		}
 
-		spaces, err = e.desktop.ActiveSpaces()
+		read.spaces, err = e.desktop.ActiveSpaces()
 		if err != nil {
 			return err
 		}
 
-		fullScreen, err = e.desktop.FullScreenDisplays()
+		read.fullScreen, err = e.desktop.FullScreenDisplays()
 		if err != nil {
 			return err
 		}
 
-		margins, err = e.desktop.Margins()
+		read.margins, err = e.desktop.Margins()
 		if err != nil {
 			return err
 		}
 
-		windows, err = e.desktop.Windows()
+		if quick && canReuse {
+			read.windows, err = titled.WindowsWithTitles(e.titles)
+
+			return err
+		}
+
+		read.windows, err = e.desktop.Windows()
 
 		return err
 	})
 	if err != nil {
+		return desktopRead{}, err
+	}
+
+	if !quick || !canReuse {
+		e.titles = make(map[uint32]string, len(read.windows.Windows))
+		for _, win := range read.windows.Windows {
+			e.titles[win.Number] = win.Title
+		}
+	}
+
+	return read, nil
+}
+
+// inputsLocked is one input per display with windows, built from a full
+// read of the desktop. The caller holds the lock.
+func (e *Engine) inputsLocked(event Event) ([]Input, error) {
+	read, err := e.readInputsLocked(false)
+	if err != nil {
 		return nil, err
 	}
+
+	return e.buildInputsLocked(event, read), nil
+}
+
+// buildInputsLocked is one input per display with windows, from read. The
+// caller holds the lock.
+func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
+	displays, spaces, fullScreen, margins, windows := read.displays, read.spaces, read.fullScreen, read.margins, read.windows
 
 	focused := uint32(0)
 	if windows.Focused >= 0 && windows.Focused < len(windows.Windows) {
@@ -835,7 +886,7 @@ func (e *Engine) inputsLocked(event Event) ([]Input, error) {
 		inputs = append(inputs, input)
 	}
 
-	return inputs, nil
+	return inputs
 }
 
 // displayOf is the id of the display whose frame holds the center of frame,

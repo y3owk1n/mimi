@@ -83,3 +83,62 @@ func TestEngine_DropPreview_NeedsRelayoutOnDrag(t *testing.T) {
 		)
 	}
 }
+
+// titledDesktop is a fake desktop that can take titles as given, and
+// counts how each listing was asked for.
+type titledDesktop struct {
+	*fakeDesktop
+
+	withTitles int
+	known      map[uint32]string
+}
+
+func (d *titledDesktop) WindowsWithTitles(known map[uint32]string) (action.WindowsInfo, error) {
+	d.withTitles++
+	d.known = known
+
+	return d.Windows()
+}
+
+func TestEngine_DropPreview_ReusesTheTitlesOfTheLastPass(t *testing.T) {
+	t.Parallel()
+
+	desktop := &titledDesktop{fakeDesktop: newDesktop()}
+	desktop.windows.Windows[0].Title = "notes.md"
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(echoLayout)
+	cfg.RelayoutOnDrag = true
+	engine.Update(cfg, shell)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	desktop.mu.Lock()
+	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
+	desktop.mu.Unlock()
+
+	_, found, err := engine.DropPreview(ctx)
+	if err != nil || !found {
+		t.Fatalf("DropPreview() = ok %v, err %v, want the layout's answer", found, err)
+	}
+
+	if desktop.withTitles != 1 {
+		t.Errorf(
+			"the preview listed windows with given titles %d times, want once",
+			desktop.withTitles,
+		)
+	}
+
+	if desktop.known[1] != "notes.md" {
+		t.Errorf(
+			"the preview was handed titles %v, want the pass's title for window 1",
+			desktop.known,
+		)
+	}
+}

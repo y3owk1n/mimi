@@ -126,13 +126,16 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 			e.Close()
 
 			return
-		case _, ok := <-sub:
+		case evt, ok := <-sub:
 			if !ok {
 				return
 			}
 
+			// A settled move or resize is a drag's, and a drag moves no
+			// focus; asking the application for its focused window would
+			// only hold it up mid-drag.
 			if e.Enabled() {
-				e.draw.Sync(true)
+				e.draw.Sync(evt.Kind != events.WindowMove && evt.Kind != events.WindowResize)
 			}
 		}
 	}
