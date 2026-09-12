@@ -177,6 +177,10 @@ const (
 	defaultDropzoneOutlineColor = "#e2e2e3"
 	defaultDropzoneOutlineWidth = 2.0
 	defaultDropzoneRadius       = 12.0
+	defaultStackbarColor        = "#60e2e2e3"
+	defaultStackbarActiveColor  = "#e2e2e3"
+	defaultStackbarHeight       = 4.0
+	defaultStackbarRadius       = 2.0
 )
 
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
@@ -239,6 +243,22 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.Dropzone.Radius == 0 {
 		cfg.Tiling.Dropzone.Radius = defaultDropzoneRadius
+	}
+
+	if cfg.Tiling.Stackbar.Color == "" {
+		cfg.Tiling.Stackbar.Color = defaultStackbarColor
+	}
+
+	if cfg.Tiling.Stackbar.ActiveColor == "" {
+		cfg.Tiling.Stackbar.ActiveColor = defaultStackbarActiveColor
+	}
+
+	if cfg.Tiling.Stackbar.Height == 0 {
+		cfg.Tiling.Stackbar.Height = defaultStackbarHeight
+	}
+
+	if cfg.Tiling.Stackbar.Radius == 0 {
+		cfg.Tiling.Stackbar.Radius = defaultStackbarRadius
 	}
 
 	if cfg.Border.Width == 0 {
@@ -328,6 +348,7 @@ func validate(cfg *Config) error {
 
 	errs = append(errs, validateBorder(cfg.Border)...)
 	errs = append(errs, validateDropzone(cfg.Tiling)...)
+	errs = append(errs, validateStackbar(cfg.Tiling)...)
 
 	// HookKinds is a slice, so these errors come out in its declared order.
 	// The map this replaced meant validate reported the same broken config in
@@ -404,6 +425,42 @@ func validateDropzone(tiling TilingConfig) []string {
 
 	return errs
 }
+
+// validateStackbar holds the [tiling.stackbar] section to its rules: its
+// colors parse and its sizes are sane. It needs nothing else switched on,
+// since a layout that names no stack simply has nothing marked.
+func validateStackbar(tiling TilingConfig) []string {
+	var errs []string
+
+	bar := tiling.Stackbar
+
+	_, err := ParseColor(bar.Color)
+	if err != nil {
+		errs = append(errs, "tiling.stackbar.color must be #rrggbb or #aarrggbb")
+	}
+
+	_, err = ParseColor(bar.ActiveColor)
+	if err != nil {
+		errs = append(errs, "tiling.stackbar.active_color must be #rrggbb or #aarrggbb")
+	}
+
+	if bar.Height <= 0 || bar.Height > maxStackbarHeight {
+		errs = append(
+			errs,
+			fmt.Sprintf("tiling.stackbar.height must be between 0 and %d", int(maxStackbarHeight)),
+		)
+	}
+
+	if bar.Radius < 0 {
+		errs = append(errs, "tiling.stackbar.radius must be >= 0")
+	}
+
+	return errs
+}
+
+// maxStackbarHeight is as tall as the indicator may be drawn. Past this it
+// stops marking a stack and starts covering its windows.
+const maxStackbarHeight = 40.0
 
 func validateBorder(border BorderConfig) []string {
 	var errs []string

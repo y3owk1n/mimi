@@ -88,6 +88,15 @@ type Engine struct {
 	// nothing else, because the window server counts window numbers up and
 	// does not hand one out twice.
 	unmanaged map[uint32]bool
+	// stacks is the stacks the layout last named, by display, so a run for
+	// one display never speaks for another's, each with the frame its
+	// windows share. The indicator is drawn from these and they are handed
+	// back on the next input.
+	stacks map[uint32][]PlacedStack
+	// onStacks is told every time the stacks change, so whatever draws them
+	// can follow. nil draws nothing, which is the CLI's engine and any
+	// build with the indicator switched off.
+	onStacks func([]PlacedStack)
 	// seen is every window number the last pass read, nil before the
 	// first, so a window_created pass can tell whether the window it was
 	// raised for has reached the window server's on-screen list yet.
@@ -143,6 +152,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		logger:      logger,
 		states:      map[string]json.RawMessage{},
 		unmanaged:   map[uint32]bool{},
+		stacks:      map[uint32][]PlacedStack{},
 		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
@@ -238,6 +248,16 @@ func (e *Engine) SetMouse(down func() bool) {
 	defer e.mu.Unlock()
 
 	e.mouseDown = down
+}
+
+// SetStacks names what to tell when the stacks a layout named change. The
+// daemon hands in the indicator. A CLI engine hands in nothing, because
+// nothing it drew would outlive the process.
+func (e *Engine) SetStacks(onStacks func([]PlacedStack)) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.onStacks = onStacks
 }
 
 // Enabled reports whether a pass would run anything.
@@ -551,7 +571,10 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		after = append(after, out.After...)
 
 		e.keepUnmanaged(input, out.Unmanaged)
+		e.keepStacks(input, out.Frames, out.Stacks)
 	}
+
+	e.tellStacks()
 
 	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
 		return nil
@@ -749,6 +772,85 @@ func (e *Engine) keepUnmanaged(input Input, unmanaged []uint32) {
 	for _, number := range unmanaged {
 		e.unmanaged[number] = true
 	}
+}
+
+// stackNeeds is how many windows make a stack. One window in a place of its
+// own is what every layout does with every window, and marking that would
+// mark the whole desktop.
+const stackNeeds = 2
+
+// keepStacks records the stacks this run named, for the display it was for.
+//
+// A stack is dropped rather than kept when it names fewer than two windows, or
+// names one this run returned no frame for, because an indicator drawn over a
+// window that is not where the layout said would point at nothing. A dropped
+// stack costs the pass nothing else: the frames still apply. The caller holds
+// the lock.
+func (e *Engine) keepStacks(input Input, frames []action.WindowFrame, stacks []Stack) {
+	placed := make(map[uint32]action.Frame, len(frames))
+	for _, frame := range frames {
+		placed[frame.Number] = frame.Frame
+	}
+
+	kept := make([]PlacedStack, 0, len(stacks))
+
+	for _, stack := range stacks {
+		if len(stack.Windows) < stackNeeds {
+			e.logger.Debugw("stack ignored: fewer than two windows", "windows", len(stack.Windows))
+
+			continue
+		}
+
+		unplaced := uint32(0)
+
+		for _, number := range stack.Windows {
+			if _, ok := placed[number]; !ok {
+				unplaced = number
+
+				break
+			}
+		}
+
+		if unplaced != 0 {
+			e.logger.Debugw("stack ignored: a member has no frame", "window", unplaced)
+
+			continue
+		}
+
+		kept = append(kept, PlacedStack{Stack: stack, Frame: placed[stack.Windows[0]]})
+	}
+
+	if len(kept) == 0 {
+		delete(e.stacks, input.Display.ID)
+
+		return
+	}
+
+	e.stacks[input.Display.ID] = kept
+}
+
+// tellStacks hands every display's stacks to whatever draws them, in one
+// call, so the indicator is a picture of the whole desktop rather than of
+// whichever display ran last. The caller holds the lock.
+func (e *Engine) tellStacks() {
+	if e.onStacks == nil {
+		return
+	}
+
+	var all []PlacedStack
+
+	displays := make([]uint32, 0, len(e.stacks))
+	for display := range e.stacks {
+		displays = append(displays, display)
+	}
+
+	slices.Sort(displays)
+
+	for _, display := range displays {
+		all = append(all, e.stacks[display]...)
+	}
+
+	e.onStacks(all)
 }
 
 // stillPlaced is where the engine last put every window it is still watching,
@@ -1026,6 +1128,10 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			if e.unmanaged[win.Number] {
 				input.Unmanaged = append(input.Unmanaged, win.Number)
 			}
+		}
+
+		for _, stack := range e.stacks[display.ID] {
+			input.Stacks = append(input.Stacks, stack.Stack)
 		}
 
 		if key, named := stateKey(input); named {

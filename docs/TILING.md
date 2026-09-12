@@ -12,6 +12,7 @@ keeps the timing, the state, and the hard parts of driving macOS.
 - [Writing your own layout](#writing-your-own-layout)
 - [Commands and hotkeys](#commands-and-hotkeys)
 - [Drags and the temporary maximise](#drags-and-the-temporary-maximise)
+- [Stacking windows in one place](#stacking-windows-in-one-place)
 - [More than one display](#more-than-one-display)
 - [Trying a layout without turning it on](#trying-a-layout-without-turning-it-on)
 - [When nothing happens](#when-nothing-happens)
@@ -63,10 +64,11 @@ The layouts shipped, all Python with the standard library only:
 
 | Layout | Shape | Commands it answers |
 | --- | --- | --- |
-| `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. The one to copy when starting your own. | none |
+| `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` marks how many there are. The one to copy when starting your own. | none |
 | `columns.py` | Equal-width columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
+| `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `togglemax` |
 | `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax` |
 
 None of them takes a gap. The gap comes from mimi: `tiling.gap` when the
@@ -125,8 +127,9 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
 
 The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
 `timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
-table with `enabled`, `duration_ms`, and `easing`, and a `[tiling.dropzone]`
-table that shows where a drag would land. Every one is reloadable.
+table with `enabled`, `duration_ms`, and `easing`, a `[tiling.dropzone]`
+table that shows where a drag would land, and a `[tiling.stackbar]` table that
+marks the windows a layout stacked. Every one is reloadable.
 The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
 
 **Animation is off by default.** With `[tiling.animation]` enabled, windows
@@ -187,6 +190,7 @@ both, through `serve()` in `rules.py`.
 | `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
 | `state` | What you printed last time for this display and space, or `null`. |
 | `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. Handed back so a layout that keeps its floats outside `state`, or one restarted mid-session, can pick the set up again. |
+| `stacks` | The stacks you last named on this display, handed back for the same reason. Absent when there are none. |
 
 `displays` and `windows` are exactly what `mimi query displays` and
 `mimi query windows` print, so real data is one command away.
@@ -206,6 +210,7 @@ they compare correctly but need not start at 0 or run without gaps.
   "state": {"anything": "you like"},
   "focus": 4242,
   "unmanaged": [4243],
+  "stacks": [{"windows": [4242, 4244], "active": 4242}],
   "before": ["osascript -e 'beep'"],
   "after": ["~/.config/mimi/warp.py 720 462"]
 }
@@ -217,6 +222,7 @@ they compare correctly but need not start at 0 or run without gaps.
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
 | `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone. A window stays unmanaged until a later run for the same display leaves it out of this list. |
+| `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. mimi marks each with a small bar, one segment per window, with the `active` one in its own colour. Every member needs its own frame in `frames`; a stack naming a window without one, or naming fewer than two, is dropped and the frames still apply. |
 | `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
 | `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
 
@@ -493,6 +499,45 @@ frames and state underneath are untouched. It ends on a second `togglemax`,
 when the window closes, or when you focus another tiled window. It is one
 call from `rules.py`, `maximised(inp, state, frames, area)`, made last on the
 frames a layout computed. Add it to your own layout with that one line.
+
+---
+
+## Stacking windows in one place
+
+Give two windows the same frame and only one of them is seen. That is the
+whole mechanism, and every layout can already do it. What mimi adds is the
+`stacks` key, which says *this* is a stack rather than an accident, so a small
+bar is drawn on it: one segment per window, the active one in its own colour.
+Without that a column of four windows looks exactly like a column of one.
+
+```toml
+[tiling.stackbar]
+enabled = true
+```
+
+**The window seen is the one with keyboard focus.** mimi changes no z-order of
+its own, and not by choice: macOS offers no way to raise one application's
+window above another's without also focusing it. Every private call that
+claims to, `SLSOrderWindow` included, refuses on a window belonging to another
+application unless mimi is running with the scripting addition, which needs
+SIP disabled. So a layout moves between the windows in a stack with the
+`focus` key, exactly as it moves focus anywhere else.
+
+`active` is the member you mean to be seen, which is what the bar marks. It is
+your own reckoning, not a reading of the desktop, and the two can differ:
+Cmd-Tab puts a buried member in front without telling your layout. The next
+input says which window really is in front, through `focused` and each
+window's `order`, so a layout that cares can reconcile.
+
+`stacked.py` is the shipped example: equal columns where a column holds one
+window or several, answering `stack`, `unstack`, `next` and `prev`.
+
+```
+alt - s         : mimi tiling cmd stack
+alt + shift - s : mimi tiling cmd unstack
+alt - n         : mimi tiling cmd next
+alt - p         : mimi tiling cmd prev
+```
 
 ---
 

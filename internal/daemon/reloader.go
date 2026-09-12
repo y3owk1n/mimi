@@ -14,6 +14,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/stackbar"
 	"github.com/y3owk1n/mimi/internal/tiling"
 )
 
@@ -48,6 +49,7 @@ type reloader struct {
 	tiler     *tiling.Engine
 	borders   *border.Engine
 	zone      *dropzone.Tracker
+	bars      *stackbar.Tracker
 	logger    *zap.SugaredLogger
 }
 
@@ -69,6 +71,7 @@ func newReloader(
 	tiler *tiling.Engine,
 	borders *border.Engine,
 	zone *dropzone.Tracker,
+	bars *stackbar.Tracker,
 	logger *zap.SugaredLogger,
 ) *reloader {
 	if logger == nil {
@@ -84,6 +87,7 @@ func newReloader(
 		tiler:     tiler,
 		borders:   borders,
 		zone:      zone,
+		bars:      bars,
 		logger:    logger,
 	}
 }
@@ -144,6 +148,10 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 
 	if rl.zone != nil {
 		rl.zone.Update(dropzoneConfigFor(cfg, perm.Accessibility))
+	}
+
+	if rl.bars != nil {
+		rl.bars.Update(stackbarConfigFor(cfg, perm.Accessibility))
 	}
 
 	return reloadChanges{

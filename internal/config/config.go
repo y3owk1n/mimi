@@ -105,6 +105,22 @@ type TilingConfig struct {
 	// Dropzone shows, while the user drags a window, where the layout would
 	// put it.
 	Dropzone DropzoneConfig `json:"dropzone" toml:"dropzone"`
+	// Stackbar marks the places where a layout stacked several windows, so
+	// the ones hidden behind the top one can be seen to be there.
+	Stackbar StackbarConfig `json:"stackbar" toml:"stackbar"`
+}
+
+// StackbarConfig holds the [tiling.stackbar] section: whether mimi marks the
+// stacks a layout names, and how that mark is drawn. Windows in a stack share
+// one frame, so without a mark there is nothing to say how many are there.
+// Colors are #rrggbb or #aarrggbb.
+type StackbarConfig struct {
+	Enabled bool   `json:"enabled" toml:"enabled"`
+	Color   string `json:"color"   toml:"color"`
+	// ActiveColor marks the member the layout means to be seen.
+	ActiveColor string  `json:"activeColor" toml:"active_color"`
+	Height      float64 `json:"height"      toml:"height"`
+	Radius      float64 `json:"radius"      toml:"radius"`
 }
 
 // DropzoneConfig holds the [tiling.dropzone] section: whether, while the

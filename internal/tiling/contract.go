@@ -51,6 +51,9 @@ type Input struct {
 	Focused  int                   `json:"focused"`
 	Windows  []action.WindowEntry  `json:"windows"`
 	State    json.RawMessage       `json:"state"`
+	// Stacks is the stacks the layout last named on this display, handed
+	// back for the same reason Unmanaged is.
+	Stacks []Stack `json:"stacks,omitempty"`
 	// Unmanaged is the windows on this display the layout last said it is
 	// not managing, by number. The engine hands the set back so that a
 	// layout restarted mid-session, or one that keeps its floats somewhere
@@ -90,6 +93,16 @@ type Output struct {
 	// layout uses it to act on the frames it returned, warping the cursor
 	// to the focused window say, once they are known to be applied.
 	After []string `json:"after,omitempty"`
+	// Stacks is the sets of windows this run put in one place, so that only
+	// one of each set is seen at a time. mimi draws an indicator over each,
+	// and hands them back on the next input.
+	//
+	// The engine gives every member the frame the layout returned for it and
+	// changes no z-order of its own, because macOS gives no way to raise one
+	// application's window above another's without also focusing it. So the
+	// member on top is the one with keyboard focus, and a layout moves
+	// between members with the Focus key.
+	Stacks []Stack `json:"stacks,omitempty"`
 	// Unmanaged is the windows this run was given that the layout is
 	// leaving alone, by number, such as the ones it floats.
 	//
@@ -101,6 +114,27 @@ type Output struct {
 	// run stays unmanaged until a later run for the same display leaves it
 	// out of this list.
 	Unmanaged []uint32 `json:"unmanaged,omitempty"`
+}
+
+// Stack is windows the layout put in one place, with the one it means to be
+// seen. Every member has the same frame, so the one in front hides the rest.
+//
+// Active is the member the layout wants seen. It is what the indicator marks,
+// and it is the layout's own reckoning rather than a reading of the desktop:
+// the member actually in front is the one with focus, which the input reports
+// as Focused and orders by each window's Order.
+type Stack struct {
+	Windows []uint32 `json:"windows"`
+	Active  uint32   `json:"active"`
+}
+
+// PlacedStack is a stack together with the frame its windows share, which is
+// what something drawing a mark over it needs and what the layout never has
+// to repeat: the engine already has every frame the layout returned.
+type PlacedStack struct {
+	Stack
+
+	Frame action.Frame `json:"frame"`
 }
 
 // Event kinds the engine reports beyond the hookable ones it forwards from

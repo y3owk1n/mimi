@@ -23,11 +23,12 @@ per pass.
 
 | File | What it does |
 | --- | --- |
-| `monocle.py` | Every window fills the display; move between them with focus. The smallest layout there is, and the one to copy when starting your own. |
+| `monocle.py` | Every window fills the display; move between them with focus. Names them all as one stack, so `[tiling.stackbar]` says how many are there. The smallest layout there is, and the one to copy when starting your own. |
 | `columns.py` | Equal-width columns. No state, no commands. |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and ratio in `state`, answers `swap` and `ratio +0.05`, reads a drag of the split from either side, and makes a stack window dropped on the master the master. |
 | `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. Answers `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction|prev|+d|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`; a dragged edge sets a column's width and a window dropped on a column joins it, a stacked window dropped on empty strip or a column's outer quarter gets a column of its own, and one dropped higher or lower in its column takes that row. `PRIORITY` fixes where listed apps open. |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default: a new window splits the focused one, closing hands the area back, any dragged edge resizes its split, a window dropped on another swaps with it. Answers `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`. |
+| `stacked.py` | Equal columns where a column holds one window or several in one place, as yabai stacks and niri tabs, with only the focused one seen and a bar marking how many are there. Answers `stack`, `unstack`, `next`, `prev`, `togglemax`. Needs `[tiling.stackbar]` enabled to draw the mark. |
 | `rules.py` | What the others share: the float rules (edit the bundle ids and title patterns here), the area to fill, `serve()`, which reads the input and runs the layout in either mode, `write_output`, and the temporary maximise every layout answers as `togglemax`. |
 
 Run any of them with nothing on stdin and it lays the desktop out once by
