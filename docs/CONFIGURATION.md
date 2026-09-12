@@ -249,7 +249,8 @@ application on a thread of its own, with the enhanced accessibility
 interface off for the duration so that applications do not animate each
 step themselves. It needs nothing beyond the Accessibility permission
 tiling already has, and captures nothing. A pass returns as the windows set
-off, so the layout's `after` lines run while they move.
+off; the layout's `after` lines still wait for the animation's length, so a
+command that reads a window's frame reads the final one.
 
 Smoothness is each application's to give: a window whose application is
 slow to answer moves in fewer, larger steps, and a resize costs an
