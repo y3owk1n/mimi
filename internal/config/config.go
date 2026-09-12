@@ -102,6 +102,21 @@ type TilingConfig struct {
 	Gap *int `json:"gap" toml:"gap"`
 	// Animation is how the frames a layout returns move into place.
 	Animation AnimationConfig `json:"animation" toml:"animation"`
+	// Dropzone shows, while the user drags a window, where the layout would
+	// put it.
+	Dropzone DropzoneConfig `json:"dropzone" toml:"dropzone"`
+}
+
+// DropzoneConfig holds the [tiling.dropzone] section: whether, while the
+// user drags a tiled window, mimi shows where the layout would put it if
+// they let go, and how that zone is drawn. It needs relayout_on_drag, since
+// without it a drop changes nothing. Colors are #rrggbb or #rrggbbaa.
+type DropzoneConfig struct {
+	Enabled      bool    `json:"enabled"      toml:"enabled"`
+	Color        string  `json:"color"        toml:"color"`
+	OutlineColor string  `json:"outlineColor" toml:"outline_color"`
+	OutlineWidth float64 `json:"outlineWidth" toml:"outline_width"`
+	Radius       float64 `json:"radius"       toml:"radius"`
 }
 
 // AnimationConfig holds the [tiling.animation] section: whether windows

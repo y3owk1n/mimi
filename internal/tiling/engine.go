@@ -76,6 +76,9 @@ type Engine struct {
 
 	// onDrag is whether a window the user moved or resized runs a pass.
 	onDrag bool
+	// mouseDown reports whether the left button is held, which is when a
+	// settled drag is still going on; nil never is.
+	mouseDown func() bool
 	// applied is where every window the engine last wrote actually landed,
 	// read back rather than as requested, keyed by window number; and
 	// appliedAt is when. Together they tell the engine's own resizes from
@@ -199,6 +202,16 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	}
 }
 
+// SetMouse names the function that reports whether the left mouse button
+// is down. A drag that settles while it is, because the user paused, waits
+// for the release rather than laying the desktop out under their hand.
+func (e *Engine) SetMouse(down func() bool) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.mouseDown = down
+}
+
 // Enabled reports whether a pass would run anything.
 func (e *Engine) Enabled() bool {
 	e.mu.Lock()
@@ -302,8 +315,16 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 
 			// A drag settles into one pass, whatever mix of move and
 			// resize events it raised on the way: what it was is decided
-			// here, from where the windows ended up.
+			// here, from where the windows ended up. One the user is
+			// still holding has not settled, however long they pause,
+			// and is looked at again a little later.
 			if isDrag(pending.Kind) {
+				if e.dragHeld() {
+					arm(pending)
+
+					continue
+				}
+
 				kind, windows := e.userDragged()
 				if len(windows) == 0 {
 					continue
@@ -409,6 +430,14 @@ func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, e
 	outputs, err := e.reduceAll(ctx, inputs)
 
 	return inputs, outputs, err
+}
+
+// dragHeld reports whether the user is still holding a drag.
+func (e *Engine) dragHeld() bool {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	return e.mouseDown != nil && e.mouseDown()
 }
 
 // reduceAll runs the layout on every input at once, one goroutine each,
@@ -931,6 +960,13 @@ func (e *Engine) userDragged() (string, []uint32) {
 		return "", nil
 	}
 
+	return e.draggedLocked(windows)
+}
+
+// draggedLocked is the windows in windows that are no longer where the
+// engine placed them, and whether, taken together, they were moved or
+// resized. The caller holds the lock.
+func (e *Engine) draggedLocked(windows action.WindowsInfo) (string, []uint32) {
 	var (
 		dragged []uint32
 		resized bool
@@ -950,6 +986,10 @@ func (e *Engine) userDragged() (string, []uint32) {
 		if sized >= moved {
 			resized = true
 		}
+	}
+
+	if len(dragged) == 0 {
+		return "", nil
 	}
 
 	if resized {

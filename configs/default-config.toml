@@ -93,6 +93,15 @@ enabled = false
 duration_ms = 150
 easing = "ease-out"
 
+# While you drag a tiled window, show where the layout would put it if you
+# let go. Needs relayout_on_drag. Colours are #rrggbb or #rrggbbaa.
+[tiling.dropzone]
+enabled = false
+color = "#e2e2e330"
+outline_color = "#e2e2e3"
+outline_width = 2
+radius = 12
+
 # =============================================================================
 # Borders
 # =============================================================================

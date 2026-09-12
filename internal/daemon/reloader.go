@@ -8,6 +8,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/border"
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/dropzone"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/hooks"
 	"github.com/y3owk1n/mimi/internal/native"
@@ -46,6 +47,7 @@ type reloader struct {
 	router    *observe.Router
 	tiler     *tiling.Engine
 	borders   *border.Engine
+	zone      *dropzone.Tracker
 	logger    *zap.SugaredLogger
 }
 
@@ -66,6 +68,7 @@ func newReloader(
 	router *observe.Router,
 	tiler *tiling.Engine,
 	borders *border.Engine,
+	zone *dropzone.Tracker,
 	logger *zap.SugaredLogger,
 ) *reloader {
 	if logger == nil {
@@ -80,6 +83,7 @@ func newReloader(
 		router:    router,
 		tiler:     tiler,
 		borders:   borders,
+		zone:      zone,
 		logger:    logger,
 	}
 }
@@ -136,6 +140,10 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 
 	if rl.borders != nil {
 		rl.borders.Update(borderConfigFor(cfg, perm.Accessibility))
+	}
+
+	if rl.zone != nil {
+		rl.zone.Update(dropzoneConfigFor(cfg, perm.Accessibility))
 	}
 
 	return reloadChanges{

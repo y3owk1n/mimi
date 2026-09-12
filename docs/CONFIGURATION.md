@@ -155,6 +155,13 @@ relayout_on_drag = false     # a window the user moves or resizes runs a pass to
 enabled = false       # move the frames into place over time instead of at once
 duration_ms = 150     # how long the move takes
 easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
+
+[tiling.dropzone]
+enabled = false            # while you drag a window, show where the layout would put it
+color = "#e2e2e330"        # the zone's fill, #rrggbb or #rrggbbaa
+outline_color = "#e2e2e3"  # its outline
+outline_width = 2          # points; 0 draws no outline
+radius = 12                # corner radius in points
 ```
 
 mimi ships no layout. `layout` is a command line, run through
@@ -257,6 +264,23 @@ slow to answer moves in fewer, larger steps, and a resize costs an
 application several times what a move does. Each animation logs how many
 windows and frames it stepped, how long it took and its slowest write at the
 native log level, which is where to look when one feels rough.
+
+### Drop zone
+
+With `[tiling.dropzone]` enabled and `relayout_on_drag` on, dragging a tiled
+window shows where the layout would put it if you let go: a translucent
+rounded frame that slides ahead of the drag as the answer changes. It is
+the layout's own answer. While the button is down, mimi runs the layout the
+way the drop will, with a `window_move` or `window_resize` event naming the
+window, no more than every 40 ms, and draws the frame it returns for that
+window. Nothing is applied and no state is kept until the drop. The zone
+goes away when the button comes up, and the settled drag then runs the
+layout for real.
+
+A layout that ignores drags shows the window's own frame. One whose answer
+depends on where the window is dropped, as the shipped `strip.py` does,
+shows the column the window would join. The zone needs Accessibility, like
+tiling, and nothing more; every key is reloadable.
 
 ---
 
