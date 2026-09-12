@@ -114,6 +114,11 @@ type FocusWindowArgs struct {
 	// SameApp confines the cycle, or the directional move, to the windows of
 	// the application that owns the focused window.
 	SameApp bool `json:"sameApp"`
+	// Number names one window to focus, by the window server's number. It
+	// replaces the search rather than narrowing it. The other fields say
+	// which way to move from the focused window, and this says which window
+	// to land on. 0 names none, which is the cycling action.
+	Number uint32 `json:"number"`
 }
 
 // NewFocusWindowCommand builds focus_window's command directly from the CLI's
@@ -122,14 +127,19 @@ type FocusWindowArgs struct {
 // validateFocusWindowArgs, the same check ExecuteCommand applies to a payload
 // that arrived off the socket.
 func NewFocusWindowCommand(
-	backward, focusUp, focusDown, focusLeft, focusRight, sameApp bool,
+	backward, focusUp, focusDown, focusLeft, focusRight, sameApp bool, number uint32,
 ) (Command, error) {
 	direction, err := focusDirectionOf(focusUp, focusDown, focusLeft, focusRight)
 	if err != nil {
 		return Command{}, err
 	}
 
-	args := FocusWindowArgs{Backward: backward, Direction: direction, SameApp: sameApp}
+	args := FocusWindowArgs{
+		Backward:  backward,
+		Direction: direction,
+		SameApp:   sameApp,
+		Number:    number,
+	}
 
 	err = validateFocusWindowArgs(args)
 	if err != nil {
@@ -231,6 +241,20 @@ func focusDirectionOf(focusUp, focusDown, focusLeft, focusRight bool) (string, e
 // once wherever a payload comes from — the CLI's flags, or a socket the daemon
 // decoded a command off with nothing having checked it.
 func validateFocusWindowArgs(args FocusWindowArgs) error {
+	if args.Number != 0 {
+		// A named window is a destination, not a place to move from, so
+		// nothing that says how to move means anything beside it.
+		if args.Direction != "" || args.Backward || args.SameApp {
+			return derrors.New(
+				derrors.CodeInvalidInput,
+				"--number names the window to focus, so it cannot be combined "+
+					"with --backward, --same-app, or a direction flag",
+			)
+		}
+
+		return nil
+	}
+
 	if args.Direction == "" {
 		return nil
 	}
@@ -510,6 +534,10 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		err := validateFocusWindowArgs(cmd.FocusWindow)
 		if err != nil {
 			return err
+		}
+
+		if cmd.FocusWindow.Number != 0 {
+			return e.FocusWindowNumber(cmd.FocusWindow.Number)
 		}
 
 		return e.FocusWindow(cmd.FocusWindow)

@@ -56,6 +56,7 @@ Other options (Nix flake, build from source) → [Installation Guide](docs/INSTA
 | Cycle focus between windows      | `mimi action focus_window`                                                |
 | Cycle focus backward             | `mimi action focus_window --backward`                                     |
 | Cycle within the frontmost app   | `mimi action focus_window --same-app`                                     |
+| Focus one window by its number   | `mimi action focus_window --number 4242`                                  |
 | Jump to an app, switching space  | `mimi action focus_app Safari`                                            |
 | Focus window to the left         | `mimi action focus_window --left`                                         |
 | Focus window to the right        | `mimi action focus_window --right`                                        |

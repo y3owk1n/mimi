@@ -73,6 +73,7 @@ func buildFocusWindowCommand(state *cliState) *cobra.Command {
 		focusLeft  bool
 		focusRight bool
 		sameApp    bool
+		number     uint32
 	)
 
 	cmd := &cobra.Command{
@@ -88,7 +89,14 @@ in that direction based on screen position.
 Only windows that are focusable (not minimized, not hidden) and on the
 current space are included. With --same-app, only the windows of the
 application that owns the focused window take part, whether cycling or
-moving in a direction.`,
+moving in a direction.
+
+With --number, focus goes straight to that window instead, named by the
+window server's number as mimi query windows reports it. This is the one way
+to focus a window without saying where it is on screen. A layout's before and
+after command lines need that, and so does a hotkey bound to a window you
+noted earlier. The window has to be on the current space. Use focus_app to
+reach one that is not.`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			focusCmd, err := action.NewFocusWindowCommand(
 				backward,
@@ -97,6 +105,7 @@ moving in a direction.`,
 				focusLeft,
 				focusRight,
 				sameApp,
+				number,
 			)
 			if err != nil {
 				return err
@@ -118,6 +127,8 @@ moving in a direction.`,
 		BoolVar(&focusRight, "right", false, "Move focus to the nearest window on the right")
 	cmd.Flags().
 		BoolVar(&sameApp, "same-app", false, "Stay within the focused window's application")
+	cmd.Flags().
+		Uint32Var(&number, "number", 0, "Focus the window with this window-server number")
 
 	return cmd
 }
