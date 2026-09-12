@@ -69,7 +69,7 @@ The layouts shipped, all Python with the standard library only:
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax` |
 | `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `togglemax` |
-| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax` |
+| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`, `togglestack` |
 
 None of them takes a gap. The gap comes from mimi: `tiling.gap` when the
 config sets it, otherwise the macOS tiled-window margin that
@@ -442,6 +442,7 @@ alt - comma     : mimi tiling cmd consume
 alt - period    : mimi tiling cmd expel
 alt - f         : mimi tiling cmd togglefloat
 alt - m         : mimi tiling cmd togglemax
+alt - t         : mimi tiling cmd togglestack
 ```
 
 And the set `bsp.py` answers:
@@ -529,8 +530,12 @@ Cmd-Tab puts a buried member in front without telling your layout. The next
 input says which window really is in front, through `focused` and each
 window's `order`, so a layout that cares can reconcile.
 
-`stacked.py` is the shipped example: equal columns where a column holds one
-window or several, answering `stack`, `unstack`, `next` and `prev`.
+Three shipped layouts name stacks. `stacked.py` is the clearest example:
+equal columns where a column holds one window or several, answering `stack`,
+`unstack`, `next` and `prev`. `strip.py` answers `togglestack`, which turns
+the focused column's rows into one place, the way niri tabs a column.
+`monocle.py` names every window as one stack, which is what monocle always
+was, so it can say how many are on the display.
 
 ```
 alt - s         : mimi tiling cmd stack
