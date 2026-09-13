@@ -1,4 +1,4 @@
 interface:
   display_name: "Setup Layout"
   short_description: "Install the example layouts, pick one, wire [tiling], and preview it"
-  default_prompt: "Use $setup-layout to get tiling working on my machine with a layout that matches how I work."
+  default_prompt: "Use $mimi-setup-layout to get tiling working on my machine with a layout that matches how I work."

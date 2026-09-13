@@ -1,6 +1,6 @@
 ---
-name: ask-mimi
-description: "Answer a mimi user's question about what mimi does, which command or config key does a thing, or what to do next, from the man pages and help on their install rather than from memory. Routes setup work to setup-config and setup-layout. Use when a mimi user asks what mimi can do, how to do something with it, which command to run, or which skill to use."
+name: mimi-ask
+description: "Answer a mimi user's question about what mimi does, which command or config key does a thing, or what to do next, from the man pages and help on their install rather than from memory. Routes setup work to mimi-setup-config and mimi-setup-layout. Use when a mimi user asks what mimi can do, how to do something with it, which command to run, or which skill to use."
 ---
 
 # Answering questions about mimi
@@ -48,11 +48,11 @@ launchd service.
 | Resize or place a window by preset or size | `mimi action resize_window` |
 | Apply frames from any program | `mimi action apply_frames` |
 | Read the desktop as JSON | `mimi query ...` |
-| Run a command when an app, window, or space changes | `[hooks]` in config, see `setup-config` |
-| Draw a border around the focused window | `[border]` in config, see `setup-config` |
-| Tile windows | `[tiling]` plus a layout program, see `setup-layout` |
-| Show the active space number in the menu bar | `[systray]` in config, see `setup-config` |
-| Run mimi at login | `mimi services install`, see `setup-config` |
+| Run a command when an app, window, or space changes | `[hooks]` in config, see `mimi-setup-config` |
+| Draw a border around the focused window | `[border]` in config, see `mimi-setup-config` |
+| Tile windows | `[tiling]` plus a layout program, see `mimi-setup-layout` |
+| Show the active space number in the menu bar | `[systray]` in config, see `mimi-setup-config` |
+| Run mimi at login | `mimi services install`, see `mimi-setup-config` |
 
 Three things a user often does not know:
 
@@ -61,15 +61,15 @@ Three things a user often does not know:
   with the active space number. While it runs, the CLI sends actions over
   its socket, which is faster than starting each one from scratch.
 - **mimi ships no layout.** Tiling means naming a program in config. The
-  repo has six to copy, and `setup-layout` fetches them without a checkout.
+  repo has six to copy, and `mimi-setup-layout` fetches them without a checkout.
 - **Accessibility is the only permission mimi asks for.** Actions,
   window hooks, borders, and tiling all need it. `mimi status` says
   whether it is granted.
 
 ## Routing
 
-- Config, hooks, borders, systray, or service work goes to `setup-config`.
-- Tiling, layouts, and hotkeys for layout commands go to `setup-layout`.
+- Config, hooks, borders, systray, or service work goes to `mimi-setup-config`.
+- Tiling, layouts, and hotkeys for layout commands go to `mimi-setup-layout`.
 - A question with a one-command answer gets the command and the help page
   that documents it.
 - When something does not work, run `mimi status`, then fetch the

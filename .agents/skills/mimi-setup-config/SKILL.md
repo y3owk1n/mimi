@@ -1,6 +1,6 @@
 ---
-name: setup-config
-description: "Set up or change a user's mimi config.toml: find or create the file, turn on hooks, borders, the systray, or the launchd service, then validate and apply it the way the running daemon needs. Use when a mimi user asks to configure mimi, write hooks, enable borders, or fix a config that does not take effect. For tiling layouts, use setup-layout."
+name: mimi-setup-config
+description: "Set up or change a user's mimi config.toml: find or create the file, turn on hooks, borders, the systray, or the launchd service, then validate and apply it the way the running daemon needs. Use when a mimi user asks to configure mimi, write hooks, enable borders, or fix a config that does not take effect. For tiling layouts, use mimi-setup-layout."
 ---
 
 # Setting up a mimi config
@@ -49,7 +49,7 @@ so after step 2 below, the user's own file is the quickest reference.
 
 3. **Ask what they want, then edit only those sections.** The sections are
    `[settings]`, `[systray]`, `[tiling]`, `[border]`, and `[hooks]`. Leave
-   the rest at defaults. A tiling request goes to the `setup-layout` skill.
+   the rest at defaults. A tiling request goes to the `mimi-setup-layout` skill.
 
 4. **Validate.** `mimi config validate` must pass before anything else.
    Then `mimi config dump` prints the resolved config as JSON with defaults

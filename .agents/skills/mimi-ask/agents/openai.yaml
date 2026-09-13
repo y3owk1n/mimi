@@ -1,4 +1,4 @@
 interface:
   display_name: "Ask Mimi"
   short_description: "Answer what mimi can do and which command or skill to use"
-  default_prompt: "Use $ask-mimi to answer my question about mimi from the installed version's help and docs."
+  default_prompt: "Use $mimi-ask to answer my question about mimi from the installed version's help and docs."

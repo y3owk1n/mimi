@@ -40,7 +40,7 @@ Full detail: `docs/CODING_STANDARDS.md`, plus `docs/go/CONVENTIONS.md`, `docs/go
 
 ## Agent Resources
 
-- `.agents/skills/` is the canonical home for project skills; `.claude/skills` is a directory symlink to it — never add skill bodies there. Each skill may carry an `agents/openai.yaml` overlay for Codex. `create-pr` and `file-issue` are for contributors. `ask-mimi`, `setup-config`, and `setup-layout` are for users and must work without a checkout, since Homebrew ships neither docs nor examples.
+- `.agents/skills/` is the canonical home for project skills; `.claude/skills` is a directory symlink to it — never add skill bodies there. Each skill may carry an `agents/openai.yaml` overlay for Codex. `mimi-create-pr` and `mimi-file-issue` are for contributors. `mimi-ask`, `mimi-setup-config`, and `mimi-setup-layout` are for users and must work without a checkout, since Homebrew ships neither docs nor examples.
 - `.claude/settings.json` wires a non-blocking format-on-edit hook (`.claude/hooks/format-on-edit.sh`).
 - `.cursor/rules/mimi.mdc` carries the same hard rules for Cursor.
 - `.claude/worktrees/` is gitignored; the rest of `.claude/` is tracked.

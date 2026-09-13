@@ -1,5 +1,5 @@
 ---
-name: file-issue
+name: mimi-file-issue
 description: "File a mimi bug report or feature request that matches the repo's issue forms: duplicate check first, every required field filled with real diagnostics, correct labels. Use when asked to open, file, or draft a GitHub issue for mimi. Not for pull requests."
 ---
 
