@@ -1,8 +1,8 @@
-# Security Policy
+# Security policy
 
-## Supported Versions
+## Supported versions
 
-Only the **latest release** receives security fixes.
+Only the latest release receives security fixes.
 
 | Version        | Supported |
 | -------------- | --------- |
@@ -11,39 +11,41 @@ Only the **latest release** receives security fixes.
 
 ---
 
-## Reporting a Vulnerability
+## Reporting a vulnerability
 
-**Please do not open a public GitHub issue for security vulnerabilities.**
+Do not open a public GitHub issue for a security vulnerability.
 
-Report privately via [GitHub Security Advisories](https://github.com/y3owk1n/mimi/security/advisories/new) or contact [@y3owk1n](https://github.com/y3owk1n).
+Report it privately through [GitHub Security Advisories](https://github.com/y3owk1n/mimi/security/advisories/new) or contact [@y3owk1n](https://github.com/y3owk1n).
 
 ---
 
-## Security Model
+## Security model
 
 ### Permissions
 
-mimi requires **macOS Accessibility permission** for:
+mimi needs macOS Accessibility permission for:
 
-- `mimi action` commands (window focus, space switching, move window)
+- `mimi action` commands (window focus, space switching, moving and resizing windows)
+- Some `mimi query` commands (each command's help says whether it needs the grant)
 - Window hooks (`on_window_*`)
+- Tiling and window borders in the daemon
 
-With Accessibility granted, mimi can read window metadata and synthesize input events for space switching. It does not record, transmit, or log UI content beyond what hooks need.
+With Accessibility granted, mimi reads window metadata and synthesizes input events for space switching. It does not record, transmit, or log UI content beyond what hooks need.
 
-Workspace hooks (`on_workspace_changed`) do not require Accessibility.
+Workspace hooks (`on_workspace_changed`) and app hooks (`on_app_*`) do not need Accessibility.
 
-### No Network Access
+### No network access
 
-mimi makes no outbound network connections, sends no telemetry, and does not phone home.
+mimi makes no outbound network connections and sends no telemetry.
 
-### CGo / Objective-C
+### CGO and Objective-C
 
-Native code lives in `internal/native/`. Space and window-to-space features use undocumented SkyLight private APIs. Report memory-safety issues in this layer promptly.
+Native code lives in `internal/native/`, `internal/systray/`, and `internal/permissions/`. Space and window-to-space features use undocumented SkyLight private APIs. Report memory-safety issues in this layer promptly.
 
-### Hook Execution
+### Hook execution
 
 Hooks run shell commands with the daemon's user privileges. Do not put untrusted content into hook commands or config files.
 
 ### Private APIs
 
-`mimi action space` and `mimi action move_window_to_space` use reverse-engineered private macOS APIs. They may break on OS updates and are not security-reviewed by Apple.
+`mimi action space` and `mimi action move_window_to_space` use reverse-engineered private macOS APIs. They may break on OS updates, and Apple has not reviewed them for security.

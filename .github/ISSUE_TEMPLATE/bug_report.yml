@@ -18,7 +18,7 @@ body:
     - type: input
       attributes:
           label: Mimi version
-          description: Run `mimi version` and paste the output.
+          description: Run `mimi --version` and paste the output.
           placeholder: "0.1.0"
       validations:
           required: true

@@ -1,8 +1,8 @@
-# Go Conventions
+# Go conventions
 
-## Package Organization
+## Package organization
 
-### Package Names
+### Package names
 
 - Use short, lowercase, single-word names when possible
 - Avoid underscores, hyphens, or mixed caps
@@ -13,7 +13,7 @@ package events
 package hooks
 ```
 
-### Package Documentation
+### Package documentation
 
 Every package should have a `doc.go` file with package-level documentation:
 
@@ -22,10 +22,10 @@ Every package should have a `doc.go` file with package-level documentation:
 package config
 ```
 
-## File Structure
+## File structure
 
 1. Package declaration
-2. Imports (organized by `goimports`)
+2. Imports (grouped by `gci`)
 3. Constants
 4. Type definitions
 5. Constructor functions
@@ -34,23 +34,21 @@ package config
 
 ## Imports
 
-Organized by `goimports` into three groups:
+`golangci-lint fmt` runs `gci`, which sorts imports into three groups separated by blank lines:
 
 1. Standard library
 2. External packages
-3. Internal packages
-
-Use blank lines between groups:
+3. Internal packages (`github.com/y3owk1n/mimi/...`)
 
 ```go
 import (
-  "context"
-  "os"
+	"context"
+	"os"
 
-  "github.com/spf13/cobra"
-  "go.uber.org/zap"
+	"github.com/spf13/cobra"
+	"go.uber.org/zap"
 
-  "github.com/y3owk1n/mimi/internal/events"
+	"github.com/y3owk1n/mimi/internal/events"
 )
 ```
 
@@ -59,33 +57,33 @@ import (
 - Packages: lowercase, short, descriptive
 - Variables: camelCase local, PascalCase exported
 - Constants: PascalCase exported, camelCase unexported
-- Receiver names: consistent single-letter (e.g., `o` for `WorkspaceObserver`, `w` for `Watcher`)
+- Receiver names: short and consistent across a type's methods (e.g., `w` for `config.Watcher`, `r` for `hooks.Registry`, `ex` for `hooks.Executor`)
 
-## Function Parameters
+## Function parameters
 
-- `context.Context` first parameter when needed for cancellable operations
-- Required parameters before optional
+- `context.Context` is the first parameter when the operation can be canceled
+- Required parameters come before optional ones
 
 ```go
-func (ex *Executor) Run(ctx context.Context, sub <-chan events.Event)
+func (ex *Executor) Run(ctx context.Context, sub events.Subscriber)
 ```
 
-## Return Values
+## Return values
 
 - Return errors as the last value
 - Use named return values sparingly
 
 ```go
-func (l *Loader) Load(path string) (*Config, error) {
-  cfg, err := l.parse(path)
-  if err != nil {
-    return nil, err
-  }
-  return cfg, nil
+func Load(path string) (*Config, error) {
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return nil, derrors.Wrapf(err, derrors.CodeConfigIOFailed, "reading config")
+	}
+	// ...
 }
 ```
 
-## Error Handling
+## Error handling
 
 Use the `derrors` package for structured errors:
 
@@ -101,50 +99,53 @@ return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "reading config")
 
 ## Context
 
-- Accept `context.Context` as first parameter for cancellable operations
-- Don't store context in structs
+- Accept `context.Context` as the first parameter for cancelable operations
+- Don't store a context in a struct
 
 ```go
 func (w *Watcher) Run(ctx context.Context) error {
-  select {
-  case <-ctx.Done():
-    return nil
-  case ev := <-w.fileWatcher.Events:
-    // ...
-  }
+	// ...
+	for {
+		select {
+		case <-ctx.Done():
+			return nil
+		case ev, ok := <-fileWatcher.Events:
+			// ...
+		}
+	}
 }
 ```
 
 ## Concurrency
 
-### Mutex Usage
+### Mutex usage
 
 - Use `sync.RWMutex` for read-heavy workloads
 - Use `sync.Mutex` for write-heavy or simple cases
-- Always defer unlock immediately after lock
+- Defer the unlock on the line after the lock
 
 ```go
 func (s *Service) Get(id string) (*Item, error) {
-  s.mu.RLock()
-  defer s.mu.RUnlock()
-  return s.cache[id], nil
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return s.cache[id], nil
 }
 ```
 
 ### Goroutines
 
-- Use a semaphore pattern (`chan struct{}`) to limit concurrent goroutines
-- Always provide a mechanism for graceful shutdown via context cancellation
+- Limit concurrent goroutines with a semaphore channel (`chan struct{}`), as `hooks.Executor` does for hook workers
+- Stop every goroutine when its context is canceled
 
 ## Comments
 
 - Comment public APIs and exported symbols
-- Use complete sentences with proper punctuation
-- Explain _why_ for non-obvious code, not _what_
+- Write complete sentences with punctuation
+- Explain why for non-obvious code, not what
 
 ```go
 // Pre-allocate slice capacity to avoid reallocations during env var building.
-// Typical event has 9 base vars plus Extra entries.
+// Every event has 7 base vars plus its Extra entries.
 vars := make([]string, 0, baseEnvVarCount+len(evt.Extra))
 ```
 
@@ -157,7 +158,7 @@ vars := make([]string, 0, expectedCount)
 envMap := make(map[string]string, len(env))
 ```
 
-### String Building
+### String building
 
 ```go
 var b strings.Builder
@@ -168,11 +169,11 @@ b.WriteString(value)
 return b.String()
 ```
 
-## macOS-Specific Conventions
+## macOS-specific conventions
 
-mimi is macOS-only, so no cross-platform build tags or platform factories are needed. CGo code lives in `internal/native/`.
+mimi is macOS-only, so it needs no cross-platform build tags or platform factories. CGO code lives only in `internal/native/`, `internal/systray/`, and `internal/permissions/`. No other package imports `"C"`.
 
-## See Also
+## See also
 
 - [TESTING_PATTERNS.md](../testing/TESTING_PATTERNS.md)
 - [OBJECTIVE_C.md](./OBJECTIVE_C.md)

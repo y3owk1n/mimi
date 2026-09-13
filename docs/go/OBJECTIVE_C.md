@@ -1,90 +1,99 @@
-# Objective-C Guidelines
+# Objective-C guidelines
 
-## File Organization
+## File organization
 
-### CGO and Go Files
+### CGO and Go files
 
-Native implementations belong in `.m` / `.h` files:
+Native implementations belong in `.m` / `.h` files, in three packages only:
 
-- `internal/native/` — window/space action APIs and hook daemon observers (SkyLight, Accessibility, workspace, AX)
-- `internal/systray/` — menu bar UI
-- `internal/permissions/` — accessibility permission prompts
+- `internal/native/`: window and space actions, hook daemon observers, borders, drop zone, and stack bar drawing (SkyLight, Accessibility, NSWorkspace)
+- `internal/systray/`: menu bar UI
+- `internal/permissions/`: Accessibility permission prompts
 
-Go files use a minimal CGO preamble (`#include` headers, `#cgo` flags, and `extern` declarations for `//export` callbacks only).
+The CGO preamble in a Go file holds only `#cgo` flags and `#include` lines. Every package compiles Objective-C with `-x objective-c -fobjc-arc`.
 
-Bridge `.m` files must `#include` their matching header and must **not** re-declare structs or typedefs already defined in that header (duplicate definitions cause `conflicting types` errors when CGO includes the same header).
+A `.m` file reaches a Go `//export` callback either by including `_cgo_export.h` (as `workspace.m` and `axobserver.m` do) or by declaring it `extern` under a `#pragma mark - External Function Declarations` section (as `systray.m` does).
 
-### Header Files (.h)
+A bridge `.m` file must `#import` the header that declares its functions (`mimi.h` is shared by several) and must not re-declare structs or typedefs already defined in that header. CGO includes the same header, so a duplicate definition causes `conflicting types` errors.
 
-- Minimal public interface
+### Header files (.h)
+
+- Guard against double inclusion with `#pragma once` or an `#ifndef` guard
+- Keep the public interface minimal
 - Use `@class` forward declarations when possible
 - Group related declarations with `#pragma mark`
 
 ```objc
-#import <Foundation/Foundation.h>
+#pragma once
+#include <CoreFoundation/CoreFoundation.h>
 
 void InitCocoaApp(void);
-void WorkspaceObserverStart(void);
+
+void WorkspaceObserverStart(int appLifecycle, int systemState, int volume, int workspace, int appearance);
+
 void WorkspaceObserverStop(void);
 ```
 
-### Implementation Files (.m)
+### Implementation files (.m)
 
 Standard structure:
 
-1. Imports
+1. Imports, own header first
 2. `#pragma mark` sections
-3. Interface declarations (private)
+3. Private interface declarations
 4. Implementation
 5. C interface functions
 
 ```objc
 #import "workspace.h"
+
+#include "_cgo_export.h"
+#import "mimi_log.h"
+
 #import <Cocoa/Cocoa.h>
 
-#pragma mark - Workspace Observer
-
-static id s_workspaceObserver = nil;
-
-#pragma mark - C Interface
+static WorkspaceObserver *gObserver = nil;
 
 void InitCocoaApp(void) {
-    [NSApplication sharedApplication];
-    [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
-}
-
-void WorkspaceObserverStart(void) {
-    // Implementation
+	@autoreleasepool {
+		[NSApplication sharedApplication];
+		[NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
+	}
 }
 ```
 
-## Naming Conventions
+## Naming conventions
 
-### C Bridge Exports
+### C bridge exports
 
-Functions declared in `.h` files and called from Go via CGO use a descriptive prefix related to their observer (e.g., `Workspace`, `AX`, `Power`):
+Functions declared in `.h` files and called from Go use a prefix naming their subsystem (e.g., `Workspace`, `AX`):
 
 ```objc
 void InitCocoaApp(void);
-void WorkspaceObserverStart(void);
+void WorkspaceObserverStart(int appLifecycle, int systemState, int volume, int workspace, int appearance);
 void WorkspaceObserverStop(void);
 CFRunLoopRef GetRunLoop(void);
 bool AXInstallObserver(int pid);
 void AXRemoveObserver(int pid);
 ```
 
-### Objective-C Methods
+### File-local symbols
 
-- Use descriptive names with clear intent
+- Static variables use a `g` prefix: `gObserver`, `gRunLoop`
+- Static functions use a `mimi` prefix: `mimiWindowIsReal`
+- Static constants use a `kMimi` prefix: `kMimiRaiseAttempts`
+
+### Objective-C methods
+
 - Follow Apple's naming conventions
-- Start with lowercase letter, use camelCase
+- Start with a lowercase letter and use camelCase
 
 ```objc
-- (void)startObserving;
-- (void)stopObserving;
+- (int)kindForNotificationName:(NSString *)name;
+- (NSArray *)currentWindowList;
 ```
 
-## Property Attributes
+## Property attributes
 
 - `strong` for object ownership
 - `weak` for delegates and to avoid retain cycles
@@ -97,68 +106,75 @@ void AXRemoveObserver(int pid);
 @property(nonatomic, assign) NSInteger eventCount;
 ```
 
-## Memory Management
+## Memory management
 
 ### ARC
 
-mimi uses Automatic Reference Counting (ARC) for Objective-C code. The compiler handles `retain`/`release` automatically.
+mimi compiles Objective-C with Automatic Reference Counting (`-fobjc-arc`). The compiler inserts `retain` and `release`.
 
-### C Interface Objects
+### Core Foundation objects
 
-For objects passed across the C/Go boundary, use toll-free bridging or `__bridge` casts:
+Cross between Core Foundation and Objective-C objects with `__bridge` casts or `CFBridgingRelease`:
 
 ```objc
-CFRunLoopRef GetRunLoop(void) {
-    return (__bridge CFRunLoopRef)[NSRunLoop mainRunLoop];
+CFArrayRef windowList = CGWindowListCopyWindowInfo(
+    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
+if (!windowList) {
+	return nil;
 }
+
+return CFBridgingRelease(windowList);
 ```
 
 ## Comments
 
-Use HeaderDoc-style comments for public API:
+Use `///` comments for public API:
 
 ```objc
 /// Initialise the Cocoa application with background-only activation policy.
 void InitCocoaApp(void);
 
 /// Start observing NSWorkspace notifications.
-void WorkspaceObserverStart(void);
+void WorkspaceObserverStart(int appLifecycle, int systemState, int volume, int workspace, int appearance);
 ```
 
-Inline comments for non-obvious logic:
+Use inline comments for non-obvious logic:
 
 ```objc
-// Polling is used because NSWorkspaceActiveSpaceDidChangeNotification
-// is not delivered to NSApplicationActivationPolicyAccessory processes.
+// NSWorkspaceActiveSpaceDidChangeNotification is the deterministic
+// source for active Space/Desktop changes. A previous
+// implementation also polled CGWindowListCopyWindowInfo every 2s
+// and diffed the result, but that fired on any ephemeral change
+// to the on-screen window set.
 ```
 
-## Code Organization
+## Code organization
 
-Use `#pragma mark` to organize code:
+Use `#pragma mark` to divide a file into sections:
 
 ```objc
-#pragma mark - Workspace Observer
+#pragma mark - SkyLight External Declarations
+
+#pragma mark - Helpers
 
 #pragma mark - C Interface
-
-#pragma mark - Power Observer
 ```
 
 ## Threading
 
-All Cocoa/UI code must run on the main thread:
+Cocoa and UI code must run on the main thread:
 
 ```objc
 if ([NSThread isMainThread]) {
-    [self startObserving];
-} else {
-    dispatch_async(dispatch_get_main_queue(), ^{
-        [self startObserving];
-    });
+	mimiFollow(number);
+	return;
 }
+dispatch_async(dispatch_get_main_queue(), ^{
+	mimiFollow(number);
+});
 ```
 
-## See Also
+## See also
 
 - [CONVENTIONS.md](./CONVENTIONS.md)
 - [TESTING_PATTERNS.md](../testing/TESTING_PATTERNS.md)
