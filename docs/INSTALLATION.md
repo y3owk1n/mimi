@@ -481,6 +481,18 @@ To get started, run `mimi config init`, which writes the default config to that 
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all options, and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something does not work.
 
+### 5. Agent skills (optional)
+
+The repo carries three skills for coding agents such as Claude Code, Codex, and Cursor: `ask-mimi` answers what mimi can do and which command or skill to use, `setup-config` walks through the config file and applies it correctly, and `setup-layout` gets tiling working with one of the example layouts or a custom one. All three fetch the docs and example layouts they need at the installed version, so a Homebrew install needs no checkout.
+
+Install them into the current project with the [skills](https://skills.sh) CLI:
+
+```bash
+npx skills add y3owk1n/mimi
+```
+
+Add `-g` to install them for every project. A checkout of the repo has them already under `.agents/skills/`.
+
 ---
 
 ## Shell completions

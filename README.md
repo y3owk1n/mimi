@@ -103,6 +103,14 @@ mimi services install       # run the daemon at login, for hooks, borders and ti
 mimi status                 # daemon state and permissions
 ```
 
+### Set up with an agent
+
+The repo ships three skills for coding agents such as Claude Code, Codex, and Cursor. `ask-mimi` answers what mimi can do and which command does it, `setup-config` writes and applies the config file, and `setup-layout` gets tiling working. They read the help and docs of the installed version, so a Homebrew install needs no checkout.
+
+```bash
+npx skills add y3owk1n/mimi
+```
+
 ---
 
 ## What mimi does
@@ -184,7 +192,7 @@ active_color = "#e2e2e3"     # #rrggbb or #aarrggbb, alpha first
 inactive_color = "#414141"
 ```
 
-**Tiling.** Copy the example layouts and set `layout` to one of them.
+**Tiling.** Copy the example layouts and set `layout` to one of them. The `setup-layout` skill fetches them for an install without a checkout.
 
 ```bash
 cp -r examples/tiling ~/.config/mimi/tiling
