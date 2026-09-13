@@ -289,17 +289,18 @@ func (s *cliState) runTiling(cobraCmd *cobra.Command, cmd action.Command) error 
 func buildTilingPreviewCommand(state *cliState) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "preview",
-		Short: "Run the layout once and print the frames it would apply",
-		Long: `Run the layout named by tiling.layout once, against the desktop as it is now,
-and print what it returned as one line of JSON without applying any of it:
+		Short: "Run the layout once per display and print the frames it would apply",
+		Long: `Run the layout named by tiling.layout once for each display that has a window,
+against the desktop as it is now, and print what it returned as one line of
+JSON without applying any of it, one entry per display:
 
-  {"frames":[{"number":4242,"frame":{...}}],"state":...}
+  [{"display":1,"space":2,"frames":[{"number":4242,"frame":{...}}],"state":...}]
 
 The layout is given a "preview" event and a null state, so this is what the
 daemon's first pass on a space would do. It runs whether or not tiling.enabled
 is set, which is how a layout is tried before it is switched on. With --input
-the JSON handed to the layout is printed instead, and the layout is not run.
-Accessibility permission is required.`,
+the JSON each run would receive is printed instead, as an array in the same
+order, and the layout is not run. Accessibility permission is required.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load(state.configPath)
