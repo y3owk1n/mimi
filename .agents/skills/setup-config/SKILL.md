@@ -23,11 +23,12 @@ pages only. Resolve the docs in this order:
 
    ```bash
    tag=$(mimi --version | sed -n '1s/^Mimi version //p')
+   case $tag in v*) ;; *) tag=main ;; esac
    curl -fsSL "https://raw.githubusercontent.com/y3owk1n/mimi/$tag/docs/CONFIGURATION.md"
    ```
 
-   A dev build prints `main-<sha>` or a `-dirty` suffix instead of a tag.
-   Use `main` as the ref then.
+   A release build prints its tag. A dev build prints `main-<sha>` or a
+   `-dirty` suffix, which the `case` line maps to `main`.
 
 The file `mimi config init` writes is fully commented and names every key,
 so after step 2 below, the user's own file is the quickest reference.
@@ -59,9 +60,9 @@ so after step 2 below, the user's own file is the quickest reference.
 5. **Apply it the way the changed keys need.** Read the Reloading section
    of the reference and sort the keys the user changed:
 
-   - Reloadable: `[hooks]`, `[tiling]`, `[border]`, and the hook and
-     resize timing under `[settings]`. Saving the file is enough when the
-     daemon runs. `mimi config reload` does the same on demand.
+   - Reloadable: `[hooks]`, `[tiling]`, `[border]`, and the hook timeout,
+     hook shell, and resize debounce under `[settings]`. Saving the file
+     is enough when the daemon runs. `mimi config reload` does the same on demand.
    - Restart-only: logging, worker count, pid and socket paths, and
      `[systray]`. Run `mimi services restart` for the installed service,
      or `mimi stop && mimi start` otherwise.

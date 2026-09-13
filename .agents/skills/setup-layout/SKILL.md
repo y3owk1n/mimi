@@ -89,10 +89,11 @@ tiled and edit the list there rather than in the layout.
    mimi tiling preview | jq
    ```
 
-   Empty `frames` with windows open means the float rules excluded every
-   window or the layout crashed. `mimi tiling preview --input` prints what the
-   layout would receive, as an array with one entry per display. Feed one
-   entry to the layout by hand for a traceback:
+   When the layout exits non-zero, preview prints `layout failed` and the
+   layout's stderr. Empty `frames` with windows open means the float rules excluded
+   every window. `mimi tiling preview --input` prints what the layout would
+   receive, as an array with one entry per display. Feed one entry to the
+   layout by hand to see its full output:
 
    ```bash
    mimi tiling preview --input | jq -c '.[0]' | ~/.config/mimi/tiling/bsp.py
