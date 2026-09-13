@@ -128,16 +128,15 @@ custom layout may not, so run `mimi tiling reset --all` after switching to
 one, and `mimi tiling relayout` to lay the desktop out now.
 
 **Changing options.** Gap, animation, drop zone, stackbar, drag behaviour,
-and layout mode are keys under `[tiling]`, all reloadable on save. Edit,
-`mimi config validate`, save. The keys and their defaults are in the
-`[tiling]` section of `docs/CONFIGURATION.md` and in the file
-`mimi config init` writes.
+and layout mode are keys under `[tiling]`, all reloadable on save. Edit
+the key, run `mimi config validate`, and save. The `[tiling]` section of
+`docs/CONFIGURATION.md` lists every key with its default.
 
 **Changing the float rules.** Edit the list in the user's `rules.py`.
 Every layout picks it up on its next run.
 
 **Refreshing the examples.** After a mimi upgrade, the examples at the new
-tag may use input the old ones did not. Never overwrite the user's copy,
+tag may read input fields the old ones did not. Never overwrite the user's copy,
 since they may have edited `rules.py` or a layout. Fetch the new set into
 a fresh directory with the recipe above, changing `dest`, then diff:
 
@@ -145,14 +144,14 @@ a fresh directory with the recipe above, changing `dest`, then diff:
 diff -r ~/.config/mimi/tiling /path/to/fresh/tiling
 ```
 
-Files the user never changed can be replaced. For a file they changed,
-show them the diff and apply only what they choose. Then
-`mimi tiling preview` before anything else.
+Replace the files the user never changed. For a file they changed, show
+them the diff and apply only what they choose. Run `mimi tiling preview`
+before enabling anything.
 
-**Editing a custom layout.** Read the user's layout before changing it, keep
-the state keys it already writes so a running daemon's state stays valid,
-and run the layout by hand against `mimi tiling preview --input` after
-every change. If the state shape had to change, `mimi tiling reset --all`.
+**Editing a custom layout.** Keep the state keys the layout already
+writes, so the state a running daemon holds stays valid, and run the
+layout by hand against `mimi tiling preview --input` after every change.
+If the state shape had to change, run `mimi tiling reset --all`.
 
 ## Writing a custom layout
 
