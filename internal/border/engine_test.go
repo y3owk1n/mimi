@@ -148,3 +148,55 @@ func TestEngine_RunSyncsOnEventsAndNudges(t *testing.T) {
 	default:
 	}
 }
+
+// TestEngine_RunSyncsAgainWhileANewWindowSettles pins that the engine syncs
+// again after a window is created. The window server may not list the window
+// yet, and a window no layout places has no later event to draw its border on.
+func TestEngine_RunSyncsAgainWhileANewWindowSettles(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		kind  events.EventKind
+		after bool
+	}{
+		{kind: events.WindowCreated, after: true},
+		{kind: events.AppActivate, after: true},
+		{kind: events.WindowFocus, after: false},
+	}
+
+	for _, testCase := range tests {
+		t.Run(string(testCase.kind), func(t *testing.T) {
+			t.Parallel()
+
+			fake := newFakeDrawer()
+			engine := border.New(fake.drawer())
+			engine.Update(enabledConfig())
+
+			bus := events.NewBus()
+			sub := bus.SubscribeWithFilter(4, engine.KindFilter())
+
+			ctx := t.Context()
+
+			go engine.Run(ctx, sub)
+
+			bus.Publish(events.Event{Kind: testCase.kind})
+
+			select {
+			case <-fake.syncs:
+			case <-time.After(time.Second):
+				t.Fatalf("no sync after %s", testCase.kind)
+			}
+
+			select {
+			case <-fake.syncs:
+				if !testCase.after {
+					t.Fatalf("synced again after %s, want the one sync", testCase.kind)
+				}
+			case <-time.After(2 * time.Second):
+				if testCase.after {
+					t.Fatalf("no second sync after %s", testCase.kind)
+				}
+			}
+		})
+	}
+}

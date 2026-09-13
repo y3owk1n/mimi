@@ -3,6 +3,7 @@ package border
 import (
 	"context"
 	"sync"
+	"time"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -108,6 +109,34 @@ var wakingKinds = map[events.EventKind]bool{
 	events.AXAttached:       true,
 }
 
+// settlingKinds are the events that can arrive before the window server lists
+// the window they are about. An application reports a new window to
+// Accessibility, and activates, before the window server has finished making
+// it, so the sync the event wakes finds nothing to draw. The layout writes a
+// tiled window's frame a moment later and that move syncs again. A window no
+// layout places has no later event, and stays without a border until
+// something else changes.
+//
+//nolint:gochecknoglobals // a fixed set
+var settlingKinds = map[events.EventKind]bool{
+	events.AppActivate:   true,
+	events.AppUnhide:     true,
+	events.WindowCreated: true,
+	events.AXAttached:    true,
+}
+
+// settleAfter is when the engine syncs the borders again after a settling
+// event. Each delay counts from the event, and a later settling event starts
+// them over. A cold launch of Activity Monitor took most of a second.
+//
+//nolint:gochecknoglobals // a fixed schedule
+var settleAfter = []time.Duration{
+	100 * time.Millisecond,
+	300 * time.Millisecond,
+	700 * time.Millisecond,
+	1500 * time.Millisecond,
+}
+
 // KindFilter is the bus filter for the engine's subscription: the waking
 // kinds, and only while the engine is enabled, so a disabled engine costs
 // the bus no sends.
@@ -118,8 +147,17 @@ func (e *Engine) KindFilter() events.KindFilter {
 }
 
 // Run drains sub until ctx is done, bringing the borders up to date after
-// every event, and takes them down at the end.
+// every event, and again a few times after a settling one, and takes them
+// down at the end.
 func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
+	settle := time.NewTimer(time.Hour)
+	settle.Stop()
+
+	var (
+		settledAt time.Time
+		pending   []time.Duration
+	)
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -136,6 +174,21 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 			// only hold it up mid-drag.
 			if e.Enabled() {
 				e.draw.Sync(evt.Kind != events.WindowMove && evt.Kind != events.WindowResize)
+			}
+
+			if settlingKinds[evt.Kind] {
+				settledAt = time.Now()
+				pending = settleAfter
+				settle.Reset(pending[0])
+			}
+		case <-settle.C:
+			if e.Enabled() {
+				e.draw.Sync(true)
+			}
+
+			pending = pending[1:]
+			if len(pending) > 0 {
+				settle.Reset(time.Until(settledAt.Add(pending[0])))
 			}
 		}
 	}

@@ -9,8 +9,8 @@
 #import <unistd.h>
 
 extern int SLSMainConnectionID(void);
-extern CGError SLSOrderWindow(int cid, uint32_t wid, int mode, uint32_t relativeTo);
 extern CGError SLSGetWindowBounds(int cid, uint32_t wid, CGRect *bounds);
+extern int SLSSpaceGetType(int cid, uint64_t sid);
 
 // The window server tells a connection about the windows it asked after, as
 // each event happens: a move at every step of a drag, where Accessibility
@@ -25,8 +25,10 @@ enum {
 	kMimiWindowServerResized = 807,
 };
 
-// SLSOrderWindow's mode for ordering under the relative window.
-static const int kMimiOrderBelow = -1;
+// SLSSpaceGetType's answer for a full-screen application's space, the same
+// "type" MimiDisplaySpaceIsFullScreen reads. Asking one space is cheap
+// enough for a sync at every step of a drag.
+static const int kMimiSpaceFullScreen = 4;
 
 // A border is a window of our own, a little larger than the window it
 // belongs to and ordered right under it, so the window covers the middle and
@@ -76,13 +78,11 @@ static const int kMimiOrderBelow = -1;
 // window.
 static const double kMimiFallbackRadius = 12;
 
-// Put border right under its window, in one window server call. AppKit's
-// own ordering takes a shown window off the screen and back, which flashes.
+// Put border right under its window. The window server takes this order
+// against another application's window from AppKit, and ignores the same
+// order sent with SLSOrderWindow while still returning success.
 static void mimiOrderUnder(MimiBorder *border, uint32_t number) {
-	// AppKit has to show the window once for the window server to know it.
-	if (!border.visible)
-		[border orderFront:nil];
-	SLSOrderWindow(SLSMainConnectionID(), (uint32_t)border.windowNumber, kMimiOrderBelow, number);
+	[border orderWindow:NSWindowBelow relativeTo:(NSInteger)number];
 }
 
 // The borders by the number of the window each belongs to, main thread only.
@@ -122,8 +122,10 @@ static uint32_t mimiFocusedWindowNumber(void) {
 }
 
 // The space ids in front on every display. displays and front get each
-// display's bounds and the id of the space in front of it.
-static NSArray<NSNumber *> *mimiSpacesInFront(CGRect *displays, uint64_t *front, uint32_t *displayCount) {
+// display's bounds and the id of the space in front of it, and fullScreen
+// whether that space is a full-screen application's.
+static NSArray<NSNumber *> *mimiSpacesInFront(
+    CGRect *displays, uint64_t *front, BOOL *fullScreen, uint32_t *displayCount) {
 	NSMutableArray<NSNumber *> *spaces = [NSMutableArray array];
 	CGDirectDisplayID ids[16];
 	uint32_t count = 0;
@@ -131,6 +133,7 @@ static NSArray<NSNumber *> *mimiSpacesInFront(CGRect *displays, uint64_t *front,
 	for (uint32_t i = 0; i < count; i++) {
 		displays[i] = CGDisplayBounds(ids[i]);
 		front[i] = MimiDisplayActiveSpaceID(ids[i]);
+		fullScreen[i] = front[i] && SLSSpaceGetType(SLSMainConnectionID(), front[i]) == kMimiSpaceFullScreen;
 		if (front[i])
 			[spaces addObject:@(front[i])];
 	}
@@ -154,14 +157,29 @@ static uint64_t mimiSpaceUnder(CGRect frame, const CGRect *displays, const uint6
 	return space;
 }
 
-// Whether frame fills a display, which is how a full-screen window sits: a
-// border under one has nothing to show.
-static BOOL mimiFillsADisplay(CGRect frame, const CGRect *displays, uint32_t displayCount) {
+// Whether a window at frame is full screen, so a border under it has nothing
+// to show. It is when the window fills a display, or when it sits on a display
+// whose space in front belongs to a full-screen application.
+//
+// Checking the space matters because an application in full screen may split
+// into several windows. Brave splits into a title strip, a toolbar and the
+// page, and none of them fills the display. Checking the bounds covers the
+// moment on the way in, when the window already fills the display and the
+// space is not yet full screen.
+static BOOL mimiFullScreen(CGRect frame, const CGRect *displays, const BOOL *fullScreen, uint32_t displayCount) {
+	double best = 0;
+	BOOL under = NO;
 	for (uint32_t i = 0; i < displayCount; i++) {
 		if (CGRectEqualToRect(frame, displays[i]))
 			return YES;
+		CGRect overlap = CGRectIntersection(frame, displays[i]);
+		double area = overlap.size.width * overlap.size.height;
+		if (area > best) {
+			best = area;
+			under = fullScreen[i];
+		}
 	}
-	return NO;
+	return under;
 }
 
 // The window server's description of each window: its owner and bounds.
@@ -338,8 +356,9 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 
 	CGRect displays[16];
 	uint64_t front[16];
+	BOOL fullScreen[16];
 	uint32_t displayCount = 0;
-	NSArray<NSNumber *> *spaces = mimiSpacesInFront(displays, front, &displayCount);
+	NSArray<NSNumber *> *spaces = mimiSpacesInFront(displays, front, fullScreen, &displayCount);
 	CFArrayRef radiiRef = NULL;
 	NSArray<NSNumber *> *numbers =
 	    CFBridgingRelease(MimiCopyRealWindowsOnSpaces((__bridge CFArrayRef)spaces, &radiiRef));
@@ -356,7 +375,7 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		CGRect bounds;
 		if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds))
 			continue;
-		if (CGRectIsEmpty(bounds) || mimiFillsADisplay(bounds, displays, displayCount))
+		if (CGRectIsEmpty(bounds) || mimiFullScreen(bounds, displays, fullScreen, displayCount))
 			continue;
 
 		NSNumber *key = info[(id)kCGWindowNumber];
