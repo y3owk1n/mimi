@@ -109,10 +109,6 @@ mimi status                 # daemon state and permissions
 
 Actions and queries work without the daemon. Everything else needs it.
 
-https://github.com/user-attachments/assets/d0dda075-e216-482d-892d-b67664a72eda
-
-https://github.com/user-attachments/assets/e2f26d18-2c2d-4a6d-89c2-1ae88c2e631d
-
 | Layer          | Needs the daemon | What you get                                                                 | Configured in |
 | :------------- | :--------------: | :--------------------------------------------------------------------------- | :------------ |
 | **Actions**    | No               | Switch spaces, move windows across spaces and displays, resize, focus        | CLI flags     |
@@ -205,6 +201,10 @@ enabled = true
 ```
 
 Six layouts ship as starting points, all Python with the standard library only: `monocle`, `columns`, `master-stack`, a Hyprland-style dwindle `bsp`, a yabai-style `stacked`, and a niri-style scrollable `strip`. Each layout defines its own commands, and you bind them like any other action.
+
+https://github.com/user-attachments/assets/d0dda075-e216-482d-892d-b67664a72eda
+
+https://github.com/user-attachments/assets/e2f26d18-2c2d-4a6d-89c2-1ae88c2e631d
 
 ```bash
 mimi tiling preview | jq     # print the frames without applying them
