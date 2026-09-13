@@ -40,8 +40,9 @@ Resolve in this order and stop at the first hit:
    and see Refreshing the examples below.
 
 Whichever way, copy the whole directory. Every layout imports `rules.py`
-from its own directory. The layouts need only `python3`, which the Xcode
-Command Line Tools provide. Check `python3 --version` runs.
+from its own directory. The shipped layouts need only `python3`, which the
+Xcode Command Line Tools provide. Check `python3 --version` runs. A layout
+of the user's own can be in any language, see Writing a custom layout.
 
 Fetch `docs/TILING.md` the same way for anything `man mimi-tiling` does
 not answer. The man page covers the commands but not the contract.
@@ -155,14 +156,28 @@ If the state shape had to change, run `mimi tiling reset --all`.
 
 ## Writing a custom layout
 
-Start from `monocle.py` and keep `rules.py` beside it. The guide's Writing
-your own layout section has the contract, the `rules.py` helpers, and a
-complete layout in under thirty lines. Fetch it, do not work from memory.
-Two things the guide leaves to the reader:
+Ask which language they want first. A layout is any executable that reads
+one JSON object on stdin and writes one on stdout, so Go, Rust, Swift,
+Ruby, Lua, or shell with jq all work. `layout` is a command line, so a
+compiled binary, a script, or an interpreter plus a file are all fine.
+Two things decide the language. Startup time matters, since the program
+runs once per display on every window event, and `layout_mode = "resident"`
+removes it from every pass but the first for a program that reads a line at
+a time and flushes. A JSON library matters, since `state` is how a layout
+remembers anything.
+
+In Python, start from `monocle.py` and keep `rules.py` beside it for the
+float rules, the area, the command parsing, and the temporary maximise. In
+any other language, implement the contract directly. The guide's Writing
+your own layout section has the contract, the `rules.py` helpers, a
+complete layout in under thirty lines, and a whole layout in shell and jq.
+Fetch it, do not work from memory. Two things the guide leaves to the
+reader:
 
 - `mimi tiling preview --input` prints a real input per display, so a
   layout can be run by hand against the actual desktop, as in step 3 above.
-- A layout built on `serve()` lays the desktop out once when run with no
-  stdin, which is the fastest test loop while writing one.
+- A Python layout built on `serve()` lays the desktop out once when run
+  with no stdin, which is the fastest test loop while writing one. In any
+  other language, pipe one entry of `--input` into it as in step 3 above.
 
 Keep `enabled` off until the preview frames look right.
