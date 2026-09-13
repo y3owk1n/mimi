@@ -156,23 +156,13 @@ If the state shape had to change, run `mimi tiling reset --all`.
 
 ## Writing a custom layout
 
-Ask which language they want first. A layout is any executable that reads
-one JSON object on stdin and writes one on stdout, so Go, Rust, Swift,
-Ruby, Lua, or shell with jq all work. `layout` is a command line, so a
-compiled binary, a script, or an interpreter plus a file are all fine.
-Two things decide the language. Startup time matters, since the program
-runs once per display on every window event, and `layout_mode = "resident"`
-removes it from every pass but the first for a program that reads a line at
-a time and flushes. A JSON library matters, since `state` is how a layout
-remembers anything.
-
-In Python, start from `monocle.py` and keep `rules.py` beside it for the
-float rules, the area, the command parsing, and the temporary maximise. In
-any other language, implement the contract directly. The guide's Writing
-your own layout section has the contract, the `rules.py` helpers, a
-complete layout in under thirty lines, and a whole layout in shell and jq.
-Fetch it, do not work from memory. Two things the guide leaves to the
-reader:
+Ask which language they want first. Any language works, and the guide's
+Use another language paragraph says what to weigh. In Python, start from
+`monocle.py` and keep `rules.py` beside it. In any other language,
+implement the contract directly, since the helpers are Python. The guide's
+Writing your own layout section has the contract, the helpers, and a
+complete layout in under thirty lines. Fetch it, do not work from memory.
+Two things the guide leaves to the reader:
 
 - `mimi tiling preview --input` prints a real input per display, so a
   layout can be run by hand against the actual desktop, as in step 3 above.
