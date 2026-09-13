@@ -1,4 +1,3 @@
-// Package main is the main entry point for the genman command.
 package main
 
 import (
