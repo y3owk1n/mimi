@@ -1,6 +1,6 @@
 ---
 name: setup-layout
-description: "Get a mimi user tiling: put the example layouts on their machine even without a repo checkout, pick one that matches how they work, wire [tiling] in config.toml, and prove it with a preview before enabling. Also guides writing a custom layout against the stdin/stdout contract. Use when a mimi user asks to set up tiling, choose a layout, or write their own layout."
+description: "Get a mimi user tiling, or change how they tile: put the example layouts on their machine even without a repo checkout, pick one that matches how they work, wire [tiling] in config.toml, and prove it with a preview before enabling. Also covers switching layouts, changing tiling options or float rules, refreshing the examples after an upgrade without losing edits, and writing or editing a custom layout. Use when a mimi user asks to set up or change tiling, choose or switch a layout, or write their own."
 ---
 
 # Setting up a mimi tiling layout
@@ -35,7 +35,9 @@ Resolve in this order and stop at the first hit:
    ```
 
    Fetch at the tag, not `main`. A newer `rules.py` may read input fields
-   the installed daemon does not send.
+   the installed daemon does not send. When `$dest` already exists, the
+   user may have edited what is in it. Fetch into a new directory instead
+   and see Refreshing the examples below.
 
 Whichever way, copy the whole directory. Every layout imports `rules.py`
 from its own directory. The layouts need only `python3`, which the Xcode
@@ -115,6 +117,42 @@ file. Without a daemon, `mimi tiling cmd` runs the layout with a null state,
 enough to try a command but it forgets the result. `mimi tiling state` shows
 what the daemon holds per space, and `mimi tiling reset` starts the layout
 over when its state is wrong.
+
+## Changing an existing setup
+
+**Switching layouts.** Change `layout` in `[tiling]` and save. The daemon
+runs the new layout on the next pass without a restart. It hands the new
+layout the state the old one left for each space. The shipped layouts
+ignore state they did not write, so nothing else is needed between them. A
+custom layout may not, so run `mimi tiling reset --all` after switching to
+one, and `mimi tiling relayout` to lay the desktop out now.
+
+**Changing options.** Gap, animation, drop zone, stackbar, drag behaviour,
+and layout mode are keys under `[tiling]`, all reloadable on save. Edit,
+`mimi config validate`, save. The keys and their defaults are in the
+`[tiling]` section of `docs/CONFIGURATION.md` and in the file
+`mimi config init` writes.
+
+**Changing the float rules.** Edit the list in the user's `rules.py`.
+Every layout picks it up on its next run.
+
+**Refreshing the examples.** After a mimi upgrade, the examples at the new
+tag may use input the old ones did not. Never overwrite the user's copy,
+since they may have edited `rules.py` or a layout. Fetch the new set into
+a fresh directory with the recipe above, changing `dest`, then diff:
+
+```bash
+diff -r ~/.config/mimi/tiling /path/to/fresh/tiling
+```
+
+Files the user never changed can be replaced. For a file they changed,
+show them the diff and apply only what they choose. Then
+`mimi tiling preview` before anything else.
+
+**Editing a custom layout.** Read the user's layout before changing it, keep
+the state keys it already writes so a running daemon's state stays valid,
+and run the layout by hand against `mimi tiling preview --input` after
+every change. If the state shape had to change, `mimi tiling reset --all`.
 
 ## Writing a custom layout
 
