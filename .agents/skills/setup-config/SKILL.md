@@ -6,11 +6,10 @@ description: "Set up or change a user's mimi config.toml: find or create the fil
 # Setting up a mimi config
 
 mimi reads one TOML file, and every key in it has a documented default. The
-work is choosing what to turn on, then applying it correctly: some keys
+work is choosing what to turn on, then applying it correctly. Some keys
 reload on save, some need a daemon restart, and one needs the launchd
 service reinstalled. The reference is `docs/CONFIGURATION.md` in the repo,
-and `man mimi-config` on any install. This skill adds the order of
-operations and the checks between steps.
+and `man mimi-config` on any install.
 
 ## Where the reference lives
 
@@ -45,8 +44,7 @@ so after step 2 below, the user's own file is the quickest reference.
    `--config`, `$XDG_CONFIG_HOME/mimi/config.toml`,
    `~/.config/mimi/config.toml`, then `mimi.toml` in the working directory.
    When none exists, run `mimi config init`. Never run it over an existing
-   file, it overwrites without asking. Read the existing file before
-   editing it.
+   file, it overwrites without asking.
 
 3. **Ask what they want, then edit only those sections.** The sections are
    `[settings]`, `[systray]`, `[tiling]`, `[border]`, and `[hooks]`. Leave
@@ -79,8 +77,8 @@ so after step 2 below, the user's own file is the quickest reference.
 
 ## What the reference does not make obvious
 
-- **Colours are alpha first.** `#rrggbb` or `#aarrggbb`. A `#rrggbbaa`
-  value parses but draws the wrong thing.
+- **Colours are alpha first.** `#rrggbb` or `#aarrggbb`, never
+  `#rrggbbaa`.
 - **Unknown hook keys are rejected.** `mimi config validate` fails on any
   `[hooks]` key outside the documented set, so a typo in a hook name is a
   validation error, not a silent no-op.
@@ -92,20 +90,12 @@ so after step 2 below, the user's own file is the quickest reference.
   `settings.service_path`, then `mimi services install`. It replaces the
   default PATH entirely and takes absolute directories only.
 - **The CLI works without the daemon.** Actions fall back to direct
-  execution when the socket is down, so a working `mimi action` proves
-  nothing about the daemon. `mimi status` does.
-- **Hook filters.** `app` and `bundle_id` are globs where `*` is the only
-  wildcard, `title` is a regex, and `space` is a 1-based number that only
-  workspace hooks honour. A leading `!` negates any of them, and `space`
-  becomes a string when negated.
-- **Never put user payloads in logs or examples you write for them.**
-  Window titles and hook commands are private. mimi's own logging never
-  records them, and hooks the skill writes should follow that.
+  execution when the socket is down, so a working `mimi action` does not
+  show the daemon is running. `mimi status` does.
 
 ## Installing the service
 
 When the user wants mimi at login, `mimi services install` writes the
 launchd plist and starts it. `mimi services status` confirms. Run install
 again after changing `service_path`. Nix users configure the service in
-their nix-darwin or home-manager module instead, and a hand-installed
-service conflicts with that.
+their nix-darwin or home-manager module instead.

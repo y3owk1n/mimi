@@ -7,11 +7,8 @@ description: "Get a mimi user tiling: put the example layouts on their machine e
 
 mimi does not tile. It runs the program named in `[tiling].layout` on every
 window event, hands it the windows as JSON on stdin, and applies the frames
-the program prints. So setting up tiling is two decisions, which program
-and where it lives, plus one config section and one preview. The guide is
-`docs/TILING.md` and the programs are `examples/tiling/` in the repo.
-Neither ships with a Homebrew install, which is the case this skill exists
-for.
+the program prints. The guide is `docs/TILING.md` and the programs are
+`examples/tiling/` in the repo. Neither ships with a Homebrew install.
 
 ## Get the examples onto the machine
 
@@ -23,9 +20,7 @@ Resolve in this order and stop at the first hit:
    `share/mimi/examples/tiling` beside the binary. Find it with
    `dirname "$(dirname "$(readlink -f "$(command -v mimi)")")"`. The user
    can run layouts from the store or keep a copy, see the Tiling on Nix
-   section of `docs/INSTALLATION.md`. Running from the store names both
-   the interpreter and the layout by store path, so neither depends on the
-   daemon's PATH.
+   section of `docs/INSTALLATION.md`.
 3. **Homebrew or a bare binary.** Fetch the files at the installed version:
 
    ```bash
@@ -39,16 +34,15 @@ Resolve in this order and stop at the first hit:
    chmod +x "$dest"/*.py
    ```
 
-   Matching the tag matters. The JSON contract is the only promised
-   interface, and `rules.py` from a newer mimi may use input fields the
-   installed daemon does not send.
+   Fetch at the tag, not `main`. A newer `rules.py` may read input fields
+   the installed daemon does not send.
 
 Whichever way, copy the whole directory. Every layout imports `rules.py`
 from its own directory. The layouts need only `python3`, which the Xcode
 Command Line Tools provide. Check `python3 --version` runs.
 
-Fetch `docs/TILING.md` the same way when a question outruns
-`man mimi-tiling`, which covers the commands but not the contract.
+Fetch `docs/TILING.md` the same way for anything `man mimi-tiling` does
+not answer. The man page covers the commands but not the contract.
 
 ## Pick a layout
 
@@ -95,8 +89,8 @@ tiled and edit the list there rather than in the layout.
    mimi tiling preview | jq
    ```
 
-   Empty `frames` with windows open means the float rules ate everything
-   or the layout crashed. `mimi tiling preview --input` prints what the
+   Empty `frames` with windows open means the float rules excluded every
+   window or the layout crashed. `mimi tiling preview --input` prints what the
    layout would receive, as an array with one entry per display. Feed one
    entry to the layout by hand for a traceback:
 
@@ -114,34 +108,23 @@ tiled and edit the list there rather than in the layout.
 ## Hotkeys
 
 Layouts answer named commands, and a hotkey tool such as skhd or Hammerspoon
-binds a key to `mimi tiling cmd <name> [args]`. Each layout's commands are in
-the table. mimi gives the name no meaning, so a name the layout does not
-handle runs a pass that changes nothing. Check it against the layout file.
-Without a daemon, `mimi tiling cmd` runs the layout itself with a null
-state, which is enough to try a command but forgets it. `mimi tiling state`
-shows what the daemon holds per space, and `mimi tiling reset` starts the
-layout over when its state goes odd.
+binds a key to `mimi tiling cmd <name> [args]`. A name the layout does not
+handle runs a pass that changes nothing, so check it against the layout
+file. Without a daemon, `mimi tiling cmd` runs the layout with a null state,
+enough to try a command but it forgets the result. `mimi tiling state` shows
+what the daemon holds per space, and `mimi tiling reset` starts the layout
+over when its state is wrong.
 
 ## Writing a custom layout
 
 Start from `monocle.py` and keep `rules.py` beside it. The guide's Writing
-your own layout section carries the full contract and a complete layout in
-under thirty lines. The parts that matter:
+your own layout section has the contract, the `rules.py` helpers, and a
+complete layout in under thirty lines. Fetch it, do not work from memory.
+Two things the guide leaves to the reader:
 
-- Input is one JSON object: `event`, `display`, `space`, `gap`,
-  `displays`, `focused`, `windows`, and `state`. Fill `display.visible`,
-  never `display.frame`. `mimi tiling preview --input` prints a real one
-  per display.
-- Output is `{"frames": [...], "state": ...}`. A frame is a window `number`
-  and an `x`, `y`, `width`, `height`. Whatever goes in `state` comes back
-  on the next pass, which is the only memory a layout has.
-- `serve(main)` from `rules.py` handles both layout modes, applies the
-  float rules, and lays the desktop out once when run with no stdin. That
-  self-run is the fastest test loop.
-- Any language works. Startup time is what matters, since the program runs
-  once per display per event. `layout_mode = "resident"` removes startup
-  from every pass but the first for a program that reads a line at a time
-  and flushes.
+- `mimi tiling preview --input` prints a real input per display, so a
+  layout can be run by hand against the actual desktop, as in step 3 above.
+- A layout built on `serve()` lays the desktop out once when run with no
+  stdin, which is the fastest test loop while writing one.
 
-Test with `mimi tiling preview` after every change, and keep `enabled`
-off until the frames look right.
+Keep `enabled` off until the preview frames look right.

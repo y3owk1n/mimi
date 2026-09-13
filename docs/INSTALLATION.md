@@ -483,7 +483,7 @@ See [CONFIGURATION.md](CONFIGURATION.md) for all options, and [TROUBLESHOOTING.m
 
 ### 5. Agent skills (optional)
 
-The repo carries two skills for coding agents such as Claude Code, Codex, and Cursor: `setup-config` walks through the config file and applies it correctly, and `setup-layout` gets tiling working with one of the example layouts or a custom one. Both work on a Homebrew install, which ships neither the docs nor the example layouts, by fetching what they need at the installed version.
+The repo carries two skills for coding agents such as Claude Code, Codex, and Cursor: `setup-config` walks through the config file and applies it correctly, and `setup-layout` gets tiling working with one of the example layouts or a custom one. Both fetch the docs and example layouts they need at the installed version, so a Homebrew install needs no checkout.
 
 Install them into the current project with the [skills](https://skills.sh) CLI:
 
