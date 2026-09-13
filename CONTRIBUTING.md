@@ -1,49 +1,52 @@
 # Contributing to mimi
 
-Thanks for your interest in contributing! mimi is a macOS window and space utility with an approachable codebase. We welcome contributions of all kinds — code, docs, bug reports, config examples, or ideas.
+mimi is a macOS window and space utility. Code, docs, bug reports, config examples, and ideas are all welcome.
 
 ---
 
-## Table of Contents
+## Table of contents
 
-- [Code of Conduct](#code-of-conduct)
-- [Getting Started](#getting-started)
-- [Development Setup](#development-setup)
-- [Making Changes](#making-changes)
-- [Commit Messages](#commit-messages)
-- [Pull Requests](#pull-requests)
+- [Code of conduct](#code-of-conduct)
+- [Getting started](#getting-started)
+- [Development setup](#development-setup)
+- [Making changes](#making-changes)
+- [Commit messages](#commit-messages)
+- [Pull requests](#pull-requests)
 - [Testing](#testing)
-- [Code Style](#code-style)
-- [Good First Contributions](#good-first-contributions)
-- [Reporting Bugs](#reporting-bugs)
-- [Feature Requests](#feature-requests)
+- [Code style](#code-style)
+- [Good first contributions](#good-first-contributions)
+- [Reporting bugs](#reporting-bugs)
+- [Feature requests](#feature-requests)
 
 ---
 
-## Code of Conduct
+## Code of conduct
 
-This project follows our [Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to uphold it. Please report unacceptable behavior via [GitHub Issues](https://github.com/y3owk1n/mimi/issues) or by contacting [@y3owk1n](https://github.com/y3owk1n) directly.
-
----
-
-## Getting Started
-
-1. **Search existing issues** — check if someone is already working on the same thing or if there's a related discussion.
-2. **Open an issue first** for non-trivial changes — this avoids wasted effort and lets us align on approach before you write code.
-3. **Small, focused PRs** are preferred over large, sweeping changes.
+This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating you agree to uphold it. Report unacceptable behavior through [GitHub Issues](https://github.com/y3owk1n/mimi/issues) or by contacting [@y3owk1n](https://github.com/y3owk1n) directly.
 
 ---
 
-## Development Setup
+## Getting started
+
+1. Search existing issues to see whether someone is already working on the same thing.
+2. Open an issue before starting a non-trivial change, so the approach is agreed before you write code.
+3. Keep PRs small and focused.
+
+---
+
+## Development setup
 
 ### Prerequisites
 
-- **Go 1.26+** — [Install Go](https://golang.org/dl/)
-- **Xcode Command Line Tools** — `xcode-select --install`
-- **Just** — command runner — `brew install just`
-- **golangci-lint** — linter — `brew install golangci-lint`
+- Go 1.26+ ([install Go](https://golang.org/dl/))
+- Xcode Command Line Tools: `xcode-select --install`
+- [just](https://github.com/casey/just), the command runner: `brew install just`
+- golangci-lint: `brew install golangci-lint`
+- clang-format, which `just fmt` and `just fmt-check` run on the Objective-C files: `brew install clang-format`
 
-### Clone & Verify
+`devbox shell` installs pinned versions of all of these except the Xcode tools, from `devbox.json`. CI runs every check through devbox.
+
+### Clone and verify
 
 ```bash
 git clone https://github.com/y3owk1n/mimi.git
@@ -61,36 +64,36 @@ For full details see:
 
 ---
 
-## Making Changes
+## Making changes
 
-1. **Fork** the repository and clone your fork.
-2. **Create a branch** from `main`:
+1. Fork the repository and clone your fork.
+2. Create a branch from `main`, named `<type>/<short-summary>`:
 
     ```bash
     git checkout -b feat/my-feature
     ```
 
-3. **Make your changes** following the [Coding Standards](docs/CODING_STANDARDS.md).
-4. **Add or update tests** for any new or changed functionality.
-5. **Run the pre-commit checklist**:
+3. Make your changes following the [Coding Standards](docs/CODING_STANDARDS.md).
+4. Add or update tests for new or changed behavior.
+5. Run the pre-commit checklist:
 
     ```bash
-    just fmt            # Format code
-    just lint           # Run linters
-    just test           # Run unit tests
+    just fmt            # Format Go and Objective-C
+    just lint           # Run golangci-lint
+    just test           # Run unit and integration tests, each once
     just build          # Verify build
     ```
 
-6. **Commit** using [conventional commits](#commit-messages).
-7. **Push** and open a pull request.
+6. Commit using [conventional commits](#commit-messages).
+7. Push and open a pull request.
 
 ---
 
-## Commit Messages
+## Commit messages
 
-We use [Conventional Commits](https://www.conventionalcommits.org/).
+mimi uses [Conventional Commits](https://www.conventionalcommits.org/).
 
-**Format:**
+Format:
 
 ```
 <type>(<optional scope>): <subject>
@@ -98,107 +101,108 @@ We use [Conventional Commits](https://www.conventionalcommits.org/).
 <optional footer>
 ```
 
-**Types:**
+Types:
 
-| Type       | When to use                            |
-| ---------- | -------------------------------------- |
-| `feat`     | New feature                            |
-| `fix`      | Bug fix                                |
-| `docs`     | Documentation only                     |
-| `style`    | Formatting, no logic change            |
-| `refactor` | Code restructuring, no behavior change |
-| `perf`     | Performance improvement                |
-| `test`     | Adding or updating tests               |
-| `chore`    | Build, CI, dependencies, tooling       |
+| Type         | When to use                            | In changelog |
+| ------------ | -------------------------------------- | ------------ |
+| `feat`       | New feature                            | Yes          |
+| `fix`        | Bug fix                                | Yes          |
+| `perf`       | Performance improvement                | Yes          |
+| `improve`    | Improvement to existing behavior       | Yes          |
+| `experiment` | Experimental feature                   | Yes          |
+| `revert`     | Revert of an earlier commit            | Yes          |
+| `docs`       | Documentation only                     | Yes          |
+| `refactor`   | Code restructuring, no behavior change | No           |
+| `style`      | Formatting, no logic change            | No           |
+| `test`       | Adding or updating tests               | No           |
+| `ci`         | CI workflows                           | No           |
+| `build`      | Build system                           | No           |
+| `chore`      | Dependencies, tooling, other upkeep    | No           |
 
-**Examples:**
+`release-please-config.json` decides which types reach the changelog.
+
+Examples:
 
 ```
-feat(events): add battery critical event
-fix(workspace): correct window count in space polling
-docs: update configuration reference for workspace events
+feat(action): focus a window by its number
+fix(border): follow a dragged window at every step
+docs: update configuration reference for workspace hooks
 ```
 
 ---
 
-## Pull Requests
+## Pull requests
 
-- **Title** should follow the same conventional commit format (e.g. `feat(action): add space count command`).
-- **Description** should explain _what_ changed and _why_.
-- **Keep PRs focused** — one logical change per PR.
-- **Link related issues** (e.g. `Closes #123`).
-- All CI checks (lint, test, build) must pass before merge.
-- A maintainer will review your PR. Be open to feedback and iterate.
+- The repo squash-merges with the PR title as the commit subject, so the title is the line that reaches the changelog. Write it in the same conventional commit format (e.g. `feat(action): add space count command`).
+- The description explains what changed and why.
+- Keep each PR to one logical change.
+- Link related issues (e.g. `Closes #123`).
+- CI runs `just lint`, `just fmt-check`, `just vet`, `just build`, and `just test-all`. All of them must pass before merge.
+- A maintainer reviews every PR.
 
 ---
 
 ## Testing
 
-mimi separates tests into unit and integration tests:
+mimi splits tests into two tiers:
 
-| Type              | File pattern            | Command                 | Build tag     |
-| ----------------- | ----------------------- | ----------------------- | ------------- |
-| Unit tests        | `*_test.go`             | `just test-unit`        | —             |
-| Integration tests | `*_integration_test.go` | `just test-integration` | `integration` |
+| Tier        | File pattern            | Command                 | Build tag     |
+| ----------- | ----------------------- | ----------------------- | ------------- |
+| Unit        | `*_test.go`             | `just test-unit`        | none          |
+| Integration | `*_integration_test.go` | `just test-integration` | `integration` |
 
-**Guidelines:**
+Guidelines:
 
-- All new code requires tests.
-- Use **table-driven tests** where possible.
-- Unit tests should be fast with no system dependencies.
-- Integration tests use real macOS APIs and are tagged `//go:build integration && darwin`.
+- New code needs tests.
+- Use table-driven tests where possible.
+- Unit tests stay fast and need no Accessibility grant.
+- Integration tests drive real macOS APIs and start with `//go:build integration`.
 
 For detailed patterns see [Testing Patterns](docs/testing/TESTING_PATTERNS.md).
 
 ---
 
-## Code Style
+## Code style
 
-All code must follow the [Coding Standards](docs/CODING_STANDARDS.md):
+All code follows the [Coding Standards](docs/CODING_STANDARDS.md):
 
-- **Go**: [Go Conventions](docs/go/CONVENTIONS.md) — imports, naming, error handling, receiver conventions.
-- **Objective-C**: [Objective-C Guidelines](docs/go/OBJECTIVE_C.md) — `.h`/`.m` files, memory management, naming.
-- Format with `just fmt` (uses `golangci-lint` + `clang-format`).
-- Lint with `just lint` (uses `golangci-lint`).
-- Add godoc comments for all exported symbols.
-
----
-
-## Good First Contributions
-
-Not sure where to start? These are great entry points:
-
-- 🐛 Bug fixes — check [open issues](https://github.com/y3owk1n/mimi/issues)
-- 📝 Documentation improvements or typo fixes
-- 📦 Config examples for common setups
-- ⚡ Performance improvements
-- 🧪 Additional test coverage
-- 🆕 New event observers (e.g. printer, camera, location)
+- Go: [Go Conventions](docs/go/CONVENTIONS.md) covers imports, naming, error handling, and receivers.
+- Objective-C: [Objective-C Guidelines](docs/go/OBJECTIVE_C.md) covers `.h`/`.m` files, memory management, and naming.
+- Format with `just fmt` (runs `golangci-lint fmt` and `clang-format`).
+- Lint with `just lint` (runs `golangci-lint`).
+- Write godoc comments for all exported symbols.
 
 ---
 
-## Reporting Bugs
+## Good first contributions
+
+- Bug fixes from the [open issues](https://github.com/y3owk1n/mimi/issues)
+- Documentation fixes
+- Config examples for common setups
+- Performance improvements
+- Test coverage
+- New hook events
+
+---
+
+## Reporting bugs
 
 Open a [GitHub Issue](https://github.com/y3owk1n/mimi/issues/new) with:
 
-1. **macOS version** and **mimi version** (`mimi --version`).
-2. **Steps to reproduce** — minimal and specific.
-3. **Expected vs actual behavior**.
-4. **Logs** — run with `log_level = "debug"` and attach relevant lines from the log (default: stdout, or `~/.local/share/mimi/mimi.log` if `log_file` is configured).
-5. **Config file** (anonymize if needed).
+1. The macOS version and the mimi version (`mimi --version`).
+2. Minimal steps to reproduce.
+3. Expected and actual behavior.
+4. Logs. Set `log_level = "debug"` under `[settings]` and attach the relevant lines. Logs go to stdout, and also to the `log_file` path when one is set.
+5. Your config file, with anything private removed.
 
-See also: [Troubleshooting Guide](docs/TROUBLESHOOTING.md) and [Security Policy](SECURITY.md) (for vulnerability reports).
-
----
-
-## Feature Requests
-
-Open a [GitHub Issue](https://github.com/y3owk1n/mimi/issues/new) or start a [Discussion](https://github.com/y3owk1n/mimi/discussions) describing:
-
-- **What** you'd like to see.
-- **Why** it would be useful (your use case).
-- **How** you envision it working (optional but helpful).
+See also the [Troubleshooting Guide](docs/TROUBLESHOOTING.md), and the [Security Policy](SECURITY.md) for vulnerability reports.
 
 ---
 
-Thank you for helping make mimi better!
+## Feature requests
+
+Open a [GitHub Issue](https://github.com/y3owk1n/mimi/issues/new) or start a [Discussion](https://github.com/y3owk1n/mimi/discussions) that describes:
+
+- What you want.
+- Your use case.
+- How you picture it working (optional).

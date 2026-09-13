@@ -19,6 +19,8 @@
 #   mimi_PID          — app process ID
 #   mimi_WINDOW_TITLE — focused window title (window events only)
 #   mimi_TIMESTAMP    — RFC3339 timestamp
+# Workspace hooks also receive mimi_WINDOWS_COUNT, mimi_INFO, mimi_SPACE_INDEX
+# and mimi_SPACE_COUNT. See docs/CONFIGURATION.md.
 # =============================================================================
 
 [settings]
@@ -58,11 +60,11 @@ show_workspace_number = true
 # Tiling
 # =============================================================================
 # mimi ships no layout. With enabled = true the daemon runs the program named
-# by layout whenever a window opens, closes or gains focus, a space comes to
-# the front, or (with relayout_on_drag) a window is dragged. The program gets
-# every window on one display as JSON on stdin and prints the frames to apply
-# on stdout; the daemon keeps whatever state it returns, per display and
-# space. Guide: docs/TILING.md. Layouts to copy: examples/tiling/ (on Nix,
+# by layout whenever a window opens, closes, gains focus or is minimized, an
+# application activates, hides or quits, a space comes to the front, or (with
+# relayout_on_drag) a window is dragged. The program gets every window on one
+# display as JSON on stdin and prints the frames to apply on stdout; the daemon
+# keeps whatever state it returns, per display and space. Guide: docs/TILING.md. Layouts to copy: examples/tiling/ (on Nix,
 # share/mimi/examples/tiling in the package). Every key here is reloadable.
 # =============================================================================
 
@@ -168,10 +170,13 @@ inactive_color = "#414141"
 # Available entry fields:
 #   run          — shell command (required)
 #   app          — only fire when app name matches (glob: "Slack", "Code*")
-#   bundle_id    — only fire when bundle ID matches exactly
+#   bundle_id    — only fire when bundle ID matches (glob)
 #   title        — only fire when window title matches (regex)
+#   space        — only fire on this 1-based space number (workspace hooks only)
 #   timeout_secs — override global hook_timeout_secs for this entry
 #   async        — run in background without blocking (default: false)
+#
+# Prefix app, bundle_id, title or space with "!" to match everything else.
 # =============================================================================
 
 [hooks]

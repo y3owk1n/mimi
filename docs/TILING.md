@@ -2,9 +2,10 @@
 
 mimi does not tile. It runs a program you own whenever the desktop changes,
 hands it every window and display as JSON, and applies the frames the program
-prints back. The layout, the windows it leaves alone, what a hotkey means,
-and what a drag does are all decided in your file, in any language. mimi
-keeps the timing, the state, and the hard parts of driving macOS.
+prints back. Your file decides the layout, which windows to leave alone, what
+a hotkey means, and what a drag does, and you can write it in any language.
+mimi decides when the program runs, keeps its state between runs, and writes
+the frames to the windows.
 
 - [Five minutes to a tiled desktop](#five-minutes-to-a-tiled-desktop)
 - [How it works](#how-it-works)
@@ -22,7 +23,7 @@ keeps the timing, the state, and the hard parts of driving macOS.
 ## Five minutes to a tiled desktop
 
 1. Copy the example layouts somewhere you own. They import `rules.py` from
-   their own directory, so copy the directory as a whole.
+   their own directory, so copy the whole directory.
 
    ```bash
    cp -r examples/tiling ~/.config/mimi/tiling
@@ -42,8 +43,8 @@ keeps the timing, the state, and the hard parts of driving macOS.
    layout = "~/.config/mimi/tiling/bsp.py"
    ```
 
-3. Look before you leap. This runs the layout once against your desktop and
-   prints what it would do, applying nothing.
+3. Check what it would do first. This runs the layout once against your
+   desktop and prints its output without applying any of it.
 
    ```bash
    mimi tiling preview | jq
@@ -56,29 +57,29 @@ keeps the timing, the state, and the hard parts of driving macOS.
    mimi start            # or: mimi config reload
    ```
 
-Your windows are laid out immediately, and again whenever one opens, closes,
-or gains focus. Set `enabled = false` and save to stop. Every window stays
+mimi lays your windows out at once, and again whenever one opens, closes,
+or gains focus. To stop, set `enabled = false` and save. Every window stays
 where it is.
 
-The layouts shipped, all Python with the standard library only:
+The shipped layouts are all Python with the standard library only:
 
 | Layout | Shape | Commands it answers |
 | --- | --- | --- |
 | `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` shows how many there are. The one to copy when starting your own. | none |
 | `columns.py` | Equal-width columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
-| `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, closing hands the area back. | `swap <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax`, `stack <dir>`, `unstack`, `next`, `prev` |
-| `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `togglemax` |
-| `strip.py` | Scrollable strip, as niri tiles: columns on a strip wider than the display, focus scrolls it, neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`, `togglestack` |
+| `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, and closing a window hands its area back. | `swap <dir>`, `focus <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax`, `stack <dir>`, `unstack`, `next`, `prev` |
+| `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `focus <left\|right>`, `togglemax` |
+| `strip.py` | Scrollable strip, as niri tiles. Columns sit on a strip wider than the display, focus scrolls it, and neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`, `togglestack` |
 
-None of them takes a gap. The gap comes from mimi: `tiling.gap` when the
-config sets it, otherwise the macOS tiled-window margin that
+None of them takes a gap argument. mimi supplies the gap. It is `tiling.gap`
+when the config sets it, otherwise the macOS tiled-window margin that
 `mimi action resize_window` honours, so tiled and hand-placed windows line
 up.
 
-Windows that should never be tiled (System Settings, Finder, Activity
-Monitor, 1Password, and anything smaller than 400 by 300 points) are
-listed in `rules.py`. Edit it to taste.
+`rules.py` lists the windows that are never tiled: System Settings, Finder,
+Activity Monitor, 1Password, and any window narrower than 400 points and
+shorter than 300. Edit it to taste.
 
 ---
 
@@ -96,41 +97,46 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
                applies every frame in one write, keeps the state
 ```
 
-- **Events that wake it.** A window created, closed, focused, minimized, or
-  restored from the Dock. An application activated, hidden, unhidden, or
+- **Events that run a pass.** A window created, closed, focused, minimized,
+  or restored from the Dock. An application activated, hidden, unhidden, or
   quit. A space change, which entering or leaving full screen also fires.
-  A display showing a full-screen space gets no run, and the rest lay out
-  as usual. The daemon's Accessibility observer reaching an application it
-  could not see at launch. The daemon starting with tiling on, and a reload that switches
-  it on or names another layout. A run for a new window waits up to half a
-  second for the window server to list it, since Accessibility reports the
-  window a little before it is on screen. With `relayout_on_drag = true`, a window you
-  moved or resized. A burst of events settles into one run.
+  The daemon's Accessibility observer reaching an application it could not
+  see at launch. The daemon starting with tiling on, and a reload that
+  switches it on or names another layout. With `relayout_on_drag = true`, a
+  window you moved or resized, and a display plugged in, unplugged, or
+  rearranged, which runs a `relayout` pass. A burst of events settles into
+  one run.
+- **New windows.** A run for a new window waits up to half a second for the
+  window server to list it, because Accessibility reports the window a little
+  before it is on screen.
 - **One run per display.** The program runs once for each display that has a
   window on it, with that display's windows and that display's own state, so
-  a layout only ever thinks about one display. The frames from every run are
-  applied together.
+  a layout only handles one display at a time. A display showing a
+  full-screen space gets no run, and the other displays lay out as usual.
+  mimi applies the frames from every run together.
 - **State.** Whatever you print as `state` comes back on the next run for
-  the same display and space. A layout remembers a tree or a ratio without
-  touching a file. Each display keeps one state per space, filed under the
-  space rather than its place in Mission Control, so adding or removing a
-  space never hands a layout the state it built for another one.
-- **The engine never fights you.** Its own frame writes never wake it. With
-  `relayout_on_drag` it tells your drag from its own write by reading back
+  the same display and space, so a layout can remember a tree or a ratio
+  without writing a file. mimi files each state under the space's window
+  server identifier rather than its place in Mission Control. Adding or
+  removing a space therefore never hands a layout the state it built for
+  another space.
+- **Its own writes.** A frame write by mimi does not run a pass. With
+  `relayout_on_drag`, mimi tells your drag from its own write by reading back
   where every window actually landed.
 - **A stale pass is dropped.** If the space changed while your program ran,
-  its frames are discarded, because the switch itself raises the event that
-  lays the new space out.
-- **Failure is contained.** A program that exits non-zero, runs past
+  mimi discards its frames, because the switch itself raises the event that
+  lays out the new space.
+- **Failures.** mimi logs a program that exits non-zero, runs past
   `timeout_secs` (default 5), or prints something that is not the output
-  shape is logged and applies nothing. The next event tries again.
+  shape, and applies nothing. The next event tries again.
 
 The `[tiling]` keys are `enabled`, `layout`, `layout_mode`, `debounce_ms`,
-`timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`, plus a `[tiling.animation]`
-table with `enabled`, `duration_ms`, and `easing`, a `[tiling.dropzone]`
-table that shows where a drag would land, and a `[tiling.stackbar]` table that
-draws the windows a layout stacked. Every one is reloadable.
-The reference is in [CONFIGURATION.md](CONFIGURATION.md#tiling).
+`timeout_secs`, `command_timeout_secs`, `relayout_on_drag`, and `gap`. The
+section also has a `[tiling.animation]` table with `enabled`, `duration_ms`,
+and `easing`, a `[tiling.dropzone]` table that shows where a drag would land,
+and a `[tiling.stackbar]` table that draws the windows a layout stacked.
+Every key is reloadable. The reference is in
+[CONFIGURATION.md](CONFIGURATION.md#tiling).
 
 **Animation is off by default.** With `[tiling.animation]` enabled, windows
 move to their frames over `duration_ms` instead of jumping. The daemon moves
@@ -143,10 +149,13 @@ nothing beyond the Accessibility permission tiling already has.
 ## The contract
 
 Your program reads one JSON document on stdin and prints one on stdout.
-With `layout_mode = "resident"` in the config, it keeps going. It reads one
-document per line on stdin for as long as stdin stays open, and prints one
-line of output per document, flushed after each. The shipped layouts do
-both, through `serve()` in `rules.py`.
+With `layout_mode = "resident"` in the config, the program keeps running. It
+reads one document per line on stdin for as long as stdin stays open, and
+prints one line of output per document, flushed after each. mimi stops a
+resident program that exits, times out, or prints something that is not an
+output, and starts it again on the next pass, waiting longer after each
+failure in a row. The shipped layouts handle both modes through `serve()` in
+`rules.py`.
 
 ### Input
 
@@ -179,28 +188,28 @@ both, through `serve()` in `rules.py`.
 | --- | --- |
 | `version` | Moves only when a field is renamed, removed, or changes meaning. Adding a field does not move it. |
 | `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `window_minimize`, `window_unminimize`, `app_activate`, `app_hide`, `app_unhide`, `app_quit`, `workspace_changed`), `_ax_attached`, `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
-| `event.app`, `event.bundleId`, `event.pid` | The application behind a hook event, when there is one. |
-| `event.name`, `event.args` | For a `command`: what the user typed after `mimi tiling cmd`. |
+| `event.app`, `event.bundleId`, `event.pid` | The application behind a hook event, when there is one. Absent otherwise. |
+| `event.name`, `event.args` | For a `command`: what the user typed after `mimi tiling cmd`. `args` is absent when the user typed none. |
 | `event.windows` | For a `window_move` or `window_resize`: the numbers of the windows the user dragged. |
 | `display` | The display this run is for. Fill its `visible`, never its `frame`. `visible` is what is left after the menu bar and the Dock. |
 | `space` | The 1-based Mission Control space in front on that display. |
 | `gap` | Points to leave between windows and at the display's edges, resolved by mimi: `tiling.gap` when set, else the macOS tiled-window margin, else 0. |
 | `displays` | Every display, numbered as `move_window_to_display` counts them. |
-| `focused` | Index into `windows` of the focused window, or -1 when the focused window is on another display. |
-| `windows` | The focusable windows whose centres are on this display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
+| `focused` | Index into `windows` of the focused window, or -1 when no window on this display has focus. |
+| `windows` | The focusable windows whose centres are on this display, or nearest to it when a centre is off every display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
 | `state` | What you printed last time for this display and space, or `null`. |
-| `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. Handed back so a layout that keeps its floats outside `state`, or one restarted mid-session, can pick the set up again. |
+| `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. mimi hands the set back so that a layout that keeps its floats outside `state`, or one restarted mid-session, can pick it up again. |
 | `stacks` | The stacks you last named on this display, handed back for the same reason. Absent when there are none. |
 
-`displays` and `windows` are exactly what `mimi query displays` and
-`mimi query windows` print, so real data is one command away.
+`displays` and `windows` hold the same entries that `mimi query displays` and
+`mimi query windows` print, so you can get real data with one command.
 
 The `windows` list is ordered by position, which is the order `focus_window`
-cycles through them. `order` answers a different question: which window is on
-top. The two rarely agree. Read `order` when the layout cares which of two
-overlapping windows the user can see, and ignore it otherwise. The numbers
-rank the whole desktop's windows and are then narrowed to this display's, so
-they compare correctly but need not start at 0 or run without gaps.
+cycles through them. `order` answers a different question, which window is on
+top, and the two rarely agree. Read `order` when the layout cares which of two
+overlapping windows the user can see, and ignore it otherwise. mimi ranks the
+whole desktop's windows and then narrows them to this display's, so the
+numbers compare correctly but need not start at 0 or run without gaps.
 
 ### Output
 
@@ -218,28 +227,29 @@ they compare correctly but need not start at 0 or run without gaps.
 
 | Field | Meaning |
 | --- | --- |
-| `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. |
+| `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. mimi also moves a window the user just dragged at once. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
-| `focus` | Optional. A window number to give keyboard focus, before the frames move. For moving focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
+| `focus` | Optional. A window number to give keyboard focus, before the frames move. Use it to move focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
 | `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone. A window stays unmanaged until a later run for the same display leaves it out of this list. |
-| `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. mimi draws the ones behind `active` as a deck of cards, taking the room out of the window in front. Every member needs its own frame in `frames`. A stack naming a window without one, or naming fewer than two, is dropped and the frames still apply. |
+| `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. With `[tiling.stackbar]` enabled, mimi draws the ones behind `active` as a deck of cards and takes the room for them out of the window in front. Every member needs its own frame in `frames`. mimi drops a stack that names a window without a frame, or names fewer than two windows, and the frames still apply. |
 | `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
-| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output and logs a failure at debug. Use it to act on the frames the layout returned, where a hook would run before them. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output, and logs a failure at debug. Use it to act on the frames the layout returned, since a hook runs before they are applied. See [Running commands around the frames](#running-commands-around-the-frames). |
 
 **Leaving a window out of `frames` is not the same as naming it in
 `unmanaged`.** Omitting a frame says only that the window does not move this
-pass, which is exactly what a temporary maximise does to the windows under the
-maximised one, and mimi keeps watching those so a drag of one still reaches
-you. Naming a window in `unmanaged` says you have no opinion about where it
-goes at all, and mimi stops watching it until you claim it again.
+pass. A temporary maximise does exactly that to the windows under the
+maximised one, and mimi keeps watching those windows so a drag of one still
+reaches you. Naming a window in `unmanaged` says you have no opinion about
+where it goes at all, and mimi stops watching it until you claim it again.
 
-`rules.py` does this for you. `narrow()` records the windows the float rules
-filtered out, `unmanaged_of(inp, state)` adds any the layout floated itself
-with `togglefloat`, and `write_output(..., unmanaged=...)` prints the result.
+`rules.py` handles this for you. `narrow()` records the windows the float
+rules filtered out, `unmanaged_of(inp, state)` adds any the layout floated
+itself with `togglefloat`, and `write_output(..., unmanaged=...)` prints the
+result.
 
 ### Coordinates
 
-Everything is in window coordinates: the origin is the top-left corner of the
+Everything is in window coordinates. The origin is the top-left corner of the
 primary display and y grows downward. A display above the primary has a
 negative y. This is the same system `mimi action resize_window` takes for
 `--x` and `--y`.
@@ -248,8 +258,8 @@ negative y. This is the same system `mimi action resize_window` takes for
 
 ## Writing your own layout
 
-A layout is any executable that reads stdin and writes stdout. This is the
-whole contract with the shared helpers spelled out:
+A layout is any executable that reads stdin and writes stdout. This example
+implements the whole contract without the shared helpers:
 
 ```python
 #!/usr/bin/env python3
@@ -286,21 +296,22 @@ print(json.dumps({"frames": frames, "state": None}))
 Save it, make it executable, point `layout` at it, and run
 `mimi tiling preview`. That is a working tiler.
 
-The shipped layouts import these from `rules.py`, in the order you will want
-them:
+The shipped layouts import these from `rules.py`:
 
-- **`serve(main)`**: runs `main(inp)` on every input mimi sends, oneshot or
-  resident, with `windows` narrowed by `floating()` and `focused` re-pointed.
-  Run with nothing on stdin, it lays the desktop out once by itself instead
-  (see [Trying a layout](#trying-a-layout-without-turning-it-on)).
-- **`gap(inp)`** and **`area(inp, gap)`**: the gap as mimi resolved it, and
-  the display's visible frame inset by it.
-- **`command(inp, "name")`**: the args when the event is that command, else
-  `None`.
-- **`maximised(inp, state, frames, area)`**: the temporary maximise, called
-  last on the frames a layout computed.
-- **`write_output(frames, state, focus=None)`**: rounds frames to whole
-  points and prints the output.
+- **`serve(main)`** runs `main(inp)` on every input mimi sends, in either
+  layout mode, with `windows` narrowed by `floating()` and `focused`
+  re-pointed. Run from a terminal, with no input piped in, it lays the
+  desktop out once by itself instead (see
+  [Trying a layout](#trying-a-layout-without-turning-it-on)).
+- **`gap(inp)`** returns the gap as mimi resolved it, and **`area(inp, gap)`**
+  returns the display's visible frame inset by it.
+- **`command(inp, "name")`** returns the args when the event is that command,
+  else `None`.
+- **`maximised(inp, state, frames, area)`** applies the temporary maximise.
+  Call it last, on the frames the layout computed.
+- **`write_output(frames, state, focus=None, unmanaged=None, stacks=None)`**
+  takes frames as `(number, frame)` pairs, rounds them to whole points, and
+  prints the output.
 
 **Remember something** by printing it in `state` and reading it back from
 `inp["state"]`. `master-stack.py` keeps its master and ratio there.
@@ -308,15 +319,16 @@ them:
 
 **Use another language.** `layout` is a command line run through
 `settings.hook_shell`, so arguments are fine and nothing requires Python.
-Anything that reads stdin, speaks JSON, and writes stdout will do: Go, Rust,
-Swift, Ruby, Lua, a shell script. Two things matter more than the language.
-Startup time, since the program runs once per display on every window event
-and a compiled binary starts in a few milliseconds where Node takes tens.
-`layout_mode = "resident"` takes startup out of every pass but the first for
-a program that reads a line at a time and flushes its answers. And a JSON
-codec, since `state` is how a layout remembers anything. The
-examples are Python because it ships with the Xcode Command Line Tools and
-needs no library. A whole layout in shell and jq, one column per window:
+Any program that reads JSON on stdin and writes JSON on stdout will do, in
+Go, Rust, Swift, Ruby, Lua, or shell. Two things matter more than the
+language. The first is startup time, since the program runs once per display
+on every window event, and a compiled binary starts in a few milliseconds
+where Node takes tens. `layout_mode = "resident"` removes startup from every
+pass but the first, for a program that reads a line at a time and flushes its
+answers. The second is a JSON library, since `state` is how a layout
+remembers anything. The examples are Python because it ships with the Xcode
+Command Line Tools and needs no extra library. A whole layout in shell and
+jq, one column per window:
 
 ```sh
 #!/bin/sh
@@ -333,16 +345,16 @@ jq -c '(.display.visible) as $v | (.windows | length) as $n
 A hook fires on the raw event, before the engine has settled the burst and
 written the frames, so a hook that reads the focused window's frame may read
 its old one. The `before` and `after` keys run command lines from inside the
-pass instead. `before` lines run first, and the pass waits for each of them
+pass instead. `before` lines run first, and the pass waits for all of them
 to finish before it writes the frames. `after` lines run once the frames
-have been applied, and the pass does not wait for them. The layout decides
-on every run whether to print either key, since it reads `event.kind`.
-Nothing runs on a pass where a key is absent or empty, and nothing runs on
-a pass the engine skips because the space changed under it.
+have been applied, and the pass does not wait for them. The layout reads
+`event.kind`, so it can decide on every run whether to print either key.
+Nothing runs on a pass where a key is absent or empty, or on a pass the
+engine skips because the space changed under it.
 
-Warping the cursor to the window that gained focus, on the two events that
-mean focus moved, with the centre taken from the frame the layout is about
-to return:
+This example warps the cursor to the window that gained focus, on the two
+events that mean focus moved, with the centre taken from the frame the layout
+is about to return:
 
 ```python
 import os, sys
@@ -379,18 +391,18 @@ cg.CGWarpMouseCursorPosition(CGPoint(x, y))
 ```
 
 Each `after` line runs through `settings.hook_shell`, detached, so a slow
-command never holds a pass. mimi drops its output and logs a non-zero exit
+command never holds up a pass. mimi drops its output and logs a non-zero exit
 at debug. With `[tiling.animation]` on, the lines start once the animation
 has ended, so a command that reads a window's frame reads the final one.
 The lines run in order, one after another, and mimi kills one past
 `tiling.command_timeout_secs`.
 
-A `before` line is for something that must have happened by the time the
-frames are written. An application told to leave a window alone, or a
-border hidden for the move. mimi starts every `before` line at once and
-waits for all of them, so the pass waits as long as the slowest line.
-Do not make one depend on another. mimi kills a line past
-`tiling.command_timeout_secs` (default 1). The bound is tighter than the
+Use a `before` line for something that must have happened by the time the
+frames are written, such as telling an application to leave a window alone
+or hiding a border for the move. mimi starts every `before` line at once and
+waits for all of them, so the pass waits as long as the slowest line. Do not
+make one line depend on another. mimi kills a line past
+`tiling.command_timeout_secs` (default 1). This bound is tighter than the
 layout's because the frames wait on it. A `before` line that fails does
 not stop the frames.
 
@@ -402,11 +414,11 @@ not stop the frames.
 mimi tiling cmd <name> [args...]
 ```
 
-sends `{"kind": "command", "name": "<name>", "args": [...]}` as the event.
-mimi gives the name no meaning. Your file does, which is how a layout defines
-its own hotkeys. Everything after the name goes to your layout verbatim, so
-`mimi tiling cmd ratio -0.05` works without quoting. A name your layout does
-not handle is a run that changes nothing.
+This sends `{"kind": "command", "name": "<name>", "args": [...]}` as the
+event. mimi gives the name no meaning. Your file does, which is how a layout
+defines its own hotkeys. Everything after the name goes to your layout
+verbatim, so `mimi tiling cmd ratio -0.05` works without quoting. A name your
+layout does not handle runs a pass that changes nothing.
 
 ```python
 args = command(inp, "ratio")       # ["+0.05"] when the event is that command, else None
@@ -414,18 +426,19 @@ if args is not None:
     state["ratio"] = clamp(state.get("ratio", 0.6) + float(args[0]), 0.2, 0.8)
 ```
 
-Two more that are not commands: `mimi tiling relayout` sends a `relayout`
-event, a "put everything back" key, and `mimi tiling preview` sends `preview`
-and applies nothing.
+Two related subcommands are not commands. `mimi tiling relayout` sends a
+`relayout` event, which puts every window back where the layout wants it.
+`mimi tiling preview` sends `preview` and applies nothing.
 
-With the daemon running, a command reaches its engine and the state it holds,
-and is refused with a message when tiling is disabled. Without a daemon the
-command runs the layout in the CLI with a null state, whether or not tiling
-is enabled, which is enough to try one.
+With the daemon running, a command reaches the daemon's engine and the state
+it holds, and the daemon refuses it with a message when tiling is disabled.
+Without a daemon, the CLI runs the layout itself with a null state, whether or
+not tiling is enabled, which is enough to try one. It still needs
+`tiling.layout` set.
 
-Bind them in whatever you use for hotkeys. With skhd, the set `strip.py`
-answers. Its `focus` walks the strip itself, since the parked columns all sit
-at the edge where spatial focus cannot tell them apart:
+Bind them in whatever you use for hotkeys. With skhd, this is the set
+`strip.py` answers. Its `focus` walks the strip itself, because the parked
+columns all sit at the edge where spatial focus cannot tell them apart:
 
 ```
 alt - h         : mimi tiling cmd focus left
@@ -465,16 +478,17 @@ alt - n      : mimi tiling cmd next
 
 ## Drags and the temporary maximise
 
-By default a window you drag stays where you dropped it until the next event,
-then snaps back. Opt in to something better:
+By default a window you drag stays where you dropped it until the next pass
+moves it back. To have a drag run your layout, turn on:
 
 ```toml
 [tiling]
 relayout_on_drag = true
 ```
 
-Now a drag runs your layout with the event saying what happened and
-`event.windows` naming the windows that moved:
+Now a drag runs your layout, with the event saying what happened and
+`event.windows` naming the windows that moved. mimi waits until you release
+the mouse button, however long you pause mid-drag.
 
 - `window_resize` when the size changed at least as much as the position,
   which includes any dragged edge. `bsp.py` resizes the split that edge
@@ -482,42 +496,43 @@ Now a drag runs your layout with the event saying what happened and
   `strip.py` sets the column's width.
 - `window_move` when the position changed more than the size. `bsp.py` swaps
   the window with the one it was dropped on. `master-stack.py` makes a stack
-  window dropped on the master the master. `strip.py` moves the window into
-  the column it was dropped on. A stacked window dropped on empty strip or
-  its own column's outer quarter gets a column of its own. Dropped higher or
-  lower in its column, it takes that row.
+  window dropped on the master's side the master. `strip.py` moves the window
+  into the column it was dropped on. A stacked window dropped on empty strip
+  or in the outer quarter of its own column gets a column of its own. Dropped
+  higher or lower in its column, it takes that row.
 
-With `[tiling.dropzone]` enabled as well, the drag shows where the window
-would land before you let go, by asking your layout the same question as
-you drag. See [CONFIGURATION.md](CONFIGURATION.md#drop-zone).
+With `[tiling.dropzone]` enabled as well, mimi shows where the window would
+land before you let go, by running your layout with the same event while you
+drag. These runs apply nothing, keep no state, and run no `before` or `after`
+lines. See [CONFIGURATION.md](CONFIGURATION.md#drop-zone).
 
-The engine decides which by comparing where the windows landed against where
-it last placed them, so a terminal that snaps its width to the character grid
-on every move still reads as a move. For a second after each of its own
-writes it only reads frames back, so an application settling into a frame is
-never mistaken for a drag.
+The engine tells a move from a resize by comparing where the windows landed
+against where it last placed them, so a terminal that snaps its width to the
+character grid on every move still reads as a move. For a second after each
+of its own writes, the engine only reads frames back, so an application
+settling into a frame does not count as a drag.
 
 **The temporary maximise** is `mimi tiling cmd togglemax` in every shipped
-layout but monocle: the focused window fills the area over the layout, whose
-frames and state underneath are untouched. It ends on a second `togglemax`,
-when the window closes, or when you focus another tiled window. It is one
-call from `rules.py`, `maximised(inp, state, frames, area)`, made last on the
-frames a layout computed. Add it to your own layout with that one line.
+layout except monocle. The focused window fills the area over the layout, and
+the layout's frames and state underneath stay untouched. It ends on a second
+`togglemax`, when the window closes, or when you focus another tiled window.
+To add it to your own layout, call `maximised(inp, state, frames, area)` from
+`rules.py` last, on the frames the layout computed.
 
 ---
 
 ## Stacking windows in one place
 
-Give two windows the same frame and only one of them is seen. That is the
-whole mechanism, and every layout can already do it. What mimi adds is the
-`stacks` key, which says *this* is a stack rather than an accident, so the
-windows behind are drawn as a deck of cards. Without that a column of four
-windows looks exactly like a column of one.
+Give two windows the same frame and only one of them is seen. Every layout
+can already do this. The `stacks` key tells mimi that the shared frame is a
+stack on purpose, so it draws the windows behind as a deck of cards. Without
+that, a column of four windows looks exactly like a column of one.
 
-The windows before the one in front show above it and the ones after it
-below, each a little narrower than the one in front of it. Where the window in
-front sits between them is where it sits in the stack, so moving focus through
-a stack walks that window from one end of the frame to the other.
+The windows before the one in front in the stack show above it, and the ones
+after it show below. Each card is a little narrower than the one in front of
+it. The position of the front window between the cards matches its position
+in the stack, so moving focus through a stack moves that window from one end
+of the frame to the other.
 
 ```toml
 [tiling.stackbar]
@@ -525,33 +540,37 @@ enabled = true
 ```
 
 **The window seen is the one with keyboard focus.** mimi changes no z-order of
-its own, and not by choice: macOS offers no way to raise one application's
-window above another's without also focusing it. Every private call that
-claims to, `SLSOrderWindow` included, refuses on a window belonging to another
-application unless mimi is running with the scripting addition, which needs
-SIP disabled. So a layout moves between the windows in a stack with the
-`focus` key, exactly as it moves focus anywhere else.
+its own, because macOS offers no way to raise one application's window above
+another's without also focusing it. Every private call that claims to,
+`SLSOrderWindow` included, refuses a window belonging to another application
+unless mimi runs with the scripting addition, which needs SIP disabled. A
+layout therefore moves between the windows in a stack with the `focus` key,
+as it moves focus anywhere else.
 
 `active` is the member you mean to be seen, which is the card the deck opens
-at. It is your own reckoning rather than a reading of the desktop, and the two
-can differ. Cmd-Tab puts a buried member in front without telling your layout.
-The next input says which window really is in front, through `focused` and
-each window's `order`, so a layout that cares can reconcile. `rules.py` does
-that in `shown()`, which every shipped layout uses.
+at. It records what the layout intends rather than what the desktop shows,
+and the two can differ. Cmd-Tab puts a buried member in front without telling
+your layout. The next input says which window really is in front, through
+`focused` and each window's `order`, so a layout that cares can reconcile.
+`rules.py` does that in `shown()`, which every shipped layout that names
+stacks uses.
 
-The deck is drawn inside the frame you set aside, never around it. mimi takes
+mimi draws the deck inside the frame you set aside, never around it. It takes
 the room it needs out of the window in front, so a stack uses no more space
-than one window and never covers a neighbour. It takes at most a quarter of
-the frame, so a small area shows fewer cards than a deep stack holds.
+than one window and never covers a neighbour. The cards take at most a
+quarter of the frame's height and width, so a small area shows fewer cards
+than a deep stack holds.
 
-Four shipped layouts name stacks. `stacked.py` is the clearest example:
-equal columns where a column holds one window or several, answering `stack`,
-`unstack`, `next` and `prev`. `strip.py` answers `togglestack`, which turns
-the focused column's rows into one place, the way niri tabs a column.
-`monocle.py` names every window as one stack, which is what monocle always
-was, so it can say how many are on the display. `bsp.py` lets a leaf of its
-tree hold several windows, as yabai stacks, answering `stack <dir>`,
-`unstack`, `next` and `prev`.
+Four shipped layouts name stacks. `stacked.py` is the clearest example. It
+lays out equal columns where a column holds one window or several, and answers
+`stack`, `unstack`, `next`, `prev`, and `focus <left|right>`. `strip.py`
+answers `togglestack`, which puts the focused column's rows in one place, the
+way niri tabs a column. `monocle.py` names every window as one stack, since
+all its windows already share one frame, so the deck shows how many are on
+the display. `bsp.py` lets a leaf of its tree hold several windows, as yabai
+stacks, and answers `stack <dir>`, `unstack`, `next`, and `prev`.
+
+The bindings for `stacked.py`:
 
 ```
 alt - s         : mimi tiling cmd stack
@@ -564,18 +583,20 @@ alt - p         : mimi tiling cmd prev
 
 ## More than one display
 
-Each display is tiled on its own. mimi runs your program once per display
+mimi tiles each display on its own. It runs your program once per display
 that has a window, with `display` set to it, `windows` narrowed to the
 windows whose centres are on it, and `space` the space in front on it. State
 is kept per display and space, so a tree, a master, or a maximised window on
-one monitor is never confused with the other's, and switching the space on
-one monitor leaves the other's state where it was. A window that crosses to
-the other monitor, by drag or by `mimi action move_window_to_display`,
-leaves one run and joins the other next time.
+one monitor never mixes with the other's. Switching the space on one monitor
+leaves the other's state where it was. A window that crosses to the other
+monitor, by drag or by `mimi action move_window_to_display`, leaves one run
+and joins the other on the next pass.
 
 `mimi query displays` lists the displays in the order
 `move_window_to_display` counts them, in the shared coordinate system.
-`mimi tiling preview` prints one entry per display that has a window.
+`mimi tiling preview` prints one entry per display that has a window, with
+the display id, the space, and the layout's `frames`, `state`, and
+`unmanaged`.
 
 ---
 
@@ -588,17 +609,18 @@ mimi tiling preview | jq             # what it returns, applied to nothing
 ```
 
 `preview` works with `enabled = false`, so you can iterate on a layout while
-the daemon leaves your windows alone, then flip it on. If your program prints
+the daemon leaves your windows alone, then turn it on. If your program prints
 something malformed, `preview` shows the error the daemon would log.
 
-A shipped layout run with nothing on stdin, from a terminal or a hotkey, lays
-the desktop out once by itself. It builds the inputs the daemon would from
-`mimi query`, runs itself once per display, and applies the frames with
-`mimi action apply_frames`. Tiling stays off and no daemon is needed, which
-makes any layout a one-shot command to bind to a key. The event is
-`relayout`, the state is null, and the gap is the macOS tiled-window margin,
-since no config is read. A layout of your own that calls `serve()` gets
-the same.
+A shipped layout run from a terminal, with nothing piped to stdin, lays the
+desktop out once by itself. `serve()` checks whether stdin is a terminal. If
+it is, the layout builds the inputs the daemon would from `mimi query`, runs
+itself once per display, and applies the frames with
+`mimi action apply_frames`. Tiling stays off and no daemon is needed. The
+event is `relayout`, the state is null, and the gap is the macOS
+tiled-window margin, since no config is read. A layout of your own that calls
+`serve()` gets the same. Started with a stdin that is not a terminal, such
+as `/dev/null`, the layout reads no input and does nothing.
 
 ---
 
@@ -608,38 +630,40 @@ Work down this list.
 
 1. **Is Accessibility granted?** Every window read and write needs it.
    Without it the daemon logs `accessibility permission not granted` with
-   `tiling disabled` at startup and on each reload, and `mimi tiling cmd`
-   reports that tiling is disabled.
+   `tiling disabled` at startup and treats tiling as disabled, so a
+   `mimi tiling cmd` sent to the daemon reports that tiling is disabled.
 2. **Is it enabled, and is the layout there?** `mimi config validate` rejects
-   `enabled = true` with no `layout`. The path is a command line, so `~` is
-   expanded but `$HOME` is not.
+   `enabled = true` with no `layout`. The layout is a command line run through
+   `settings.hook_shell`, so the shell expands `~` and `$HOME`, and a path
+   with spaces needs quoting.
 3. **Does the layout run by hand?** `mimi tiling preview` runs it the way the
-   daemon would and shows its stderr. A missing `python3`, a syntax error, or
-   a wrong shebang all show up here.
+   daemon would and shows its stderr when it fails. A missing `python3`, a
+   syntax error, or a wrong shebang all show up here.
 4. **Ask the daemon what it is holding.** `mimi tiling state` prints the
    state the engine kept for each display and space, and the windows your
    layout said it is not managing. When a tree no longer matches the windows,
-   `mimi tiling reset` forgets the space in front and the next pass starts
-   your layout over, without restarting the daemon and losing every other
-   space with it.
+   `mimi tiling reset` forgets the state of the space in front on each
+   display, and the next pass starts your layout over. Other spaces keep
+   their state, which a daemon restart would lose. `mimi tiling reset --all`
+   forgets every space.
 5. **Read the daemon log.** With `log_level = "debug"` every pass logs
    `tiling pass applied` with the event kind, display count, and frame count.
    A failing pass logs `tiling pass failed` with the reason. A slow layout
-   logs `layout timed out`. Raise `timeout_secs`.
-6. **Is the window one mimi tiles?** `mimi query windows` lists exactly what
-   a layout is given: standard windows of regular applications on the current
-   space. Sheets, popovers, and minimized windows are not there. The pass
-   skips a display showing a full-screen space even though its window is
-   listed. If it is listed but not tiled, check `rules.py`.
+   fails with `layout timed out`. Raise `timeout_secs`.
+6. **Is the window one mimi tiles?** `mimi query windows` lists the windows a
+   layout can be given: windows of regular, unhidden applications on the
+   current space. Sheets, popovers, and minimized windows are not there. The
+   pass skips a display showing a full-screen space even though its window is
+   listed. If a window is listed but not tiled, check `rules.py`.
 7. **A window that will not take its frame.** Some applications enforce a
-   minimum size or snap to a grid, and land a little off what was asked. The
-   next input shows where things actually are, which is why the shipped
+   minimum size or snap to a grid, and land a little off the requested frame.
+   The next input shows where windows actually are, which is why the shipped
    layouts read ratios off actual frames rather than assuming.
 8. **An app that opens windows but never tiles.** Applications slow to start
    refuse the daemon's observer for a moment after launch. The daemon retries
-   for several seconds and runs your layout the moment it gets in. If it
-   gives up it logs `AX observer install gave up` naming the app. Its windows
-   are then tiled only when another event runs a pass, or by
+   for several seconds and runs your layout as soon as the observer attaches.
+   If it gives up, it logs `AX observer install gave up` naming the app. Its
+   windows are then tiled only when another event runs a pass, or by
    `mimi tiling relayout`.
 9. **It tiles, then un-tiles, then tiles.** A layout that reads a drag and
    emits a different frame every time will loop with an application that
