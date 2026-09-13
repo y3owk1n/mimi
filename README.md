@@ -202,9 +202,9 @@ enabled = true
 
 Six layouts ship as starting points, all Python with the standard library only: `monocle`, `columns`, `master-stack`, a Hyprland-style dwindle `bsp`, a yabai-style `stacked`, and a niri-style scrollable `strip`. Each layout defines its own commands, and you bind them like any other action.
 
-https://github.com/user-attachments/assets/d0dda075-e216-482d-892d-b67664a72eda
+https://github.com/user-attachments/assets/9d0cbed9-c03c-4985-968f-dd78d7ca6f69
 
-https://github.com/user-attachments/assets/e2f26d18-2c2d-4a6d-89c2-1ae88c2e631d
+https://github.com/user-attachments/assets/0d6d3b5d-d15f-4305-8a64-cf86025e4929
 
 ```bash
 mimi tiling preview | jq     # print the frames without applying them
