@@ -1,5 +1,5 @@
 ---
-name: setup-layout
+name: mimi-setup-layout
 description: "Get a mimi user tiling, or change how they tile: put the example layouts on their machine even without a repo checkout, pick one that matches how they work, wire [tiling] in config.toml, and prove it with a preview before enabling. Also covers switching layouts, changing tiling options or float rules, refreshing the examples after an upgrade without losing edits, and writing or editing a custom layout. Use when a mimi user asks to set up or change tiling, choose or switch a layout, or write their own."
 ---
 

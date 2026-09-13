@@ -1,4 +1,4 @@
 interface:
   display_name: "Setup Config"
   short_description: "Create or change config.toml, validate it, and apply it correctly"
-  default_prompt: "Use $setup-config to set up my mimi config for what I describe, validate it, and apply it."
+  default_prompt: "Use $mimi-setup-config to set up my mimi config for what I describe, validate it, and apply it."
