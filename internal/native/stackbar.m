@@ -3,13 +3,6 @@
 #import <Cocoa/Cocoa.h>
 #import <QuartzCore/QuartzCore.h>
 
-extern int SLSMainConnectionID(void);
-extern CGError SLSOrderWindow(int cid, uint32_t wid, int mode, uint32_t relativeTo);
-
-/// SLSOrderWindow's mode for ordering under the relative window, as the
-/// border engine uses it.
-static const int kMimiStackbarOrderBelow = -1;
-
 // Windows a layout stacked all sit in one frame, so only the one in front is
 // seen and nothing says the others are there. This draws them as a deck. The
 // window in front holds the middle of the frame, the windows before it show
@@ -243,20 +236,14 @@ void MimiStackbarsSync(const MimiStackbar *bars, int count, const MimiStackbarSt
 			[stack setFrame:mimiStackbarCocoaRect(whole) display:NO];
 			mimiStackbarDraw(stack, spec, above, below, styleCopy);
 
-			// Shown only when it is not already, then put under the window
-			// in front so that only the cards' tops show. Ordering a shown
-			// window to the front again races the push back under it, and
-			// the cards land over the whole column until the next pass. The
-			// border engine orders its rings this way for the same reason.
+			// Put under the window in front so that only the cards' tops
+			// show, through AppKit, as the border engine orders its rings.
 			//
 			// Under the window itself rather than over its ring. The
 			// window in front sits inside the frame now, so the border
 			// engine draws its ring around that smaller window and the
 			// ring never reaches the cards.
-			if (!stack.visible) {
-				[stack orderFront:nil];
-			}
-			SLSOrderWindow(SLSMainConnectionID(), (uint32_t)stack.windowNumber, kMimiStackbarOrderBelow, spec.front);
+			[stack orderWindow:NSWindowBelow relativeTo:(NSInteger)spec.front];
 		}
 
 		for (NSUInteger index = specs.count; index < gStacks.count; index++) {
