@@ -90,7 +90,7 @@ in
     lib.mkIf (cfg.enable) {
       environment.systemPackages = [ cfg.package ];
 
-      launchd.user.agents.mimi = {
+      launchd.user.agents.mimi = lib.mkIf cfg.launchd.enable {
         command =
           "${cfg.package}/Applications/Mimi.app/Contents/MacOS/mimi start"
           + (lib.optionalString (cfg.configFile != null || cfg.config != "") " --config ${configFile}");
