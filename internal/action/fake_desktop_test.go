@@ -113,6 +113,62 @@ type fakeDesktop struct {
 	// refreshWorkspaceTitleCalls counts how many times the desktop's systray
 	// title was asked to catch up with the active space.
 	refreshWorkspaceTitleCalls int
+
+	// closed is every window closed, in order. minimized and fullScreen
+	// hold each window's state after the actions that set them.
+	closed     []action.WindowID
+	minimized  map[action.WindowID]bool
+	fullScreen map[action.WindowID]bool
+}
+
+func (d *fakeDesktop) CloseWindow(windowID action.WindowID) error {
+	_, err := d.indexOf(windowID)
+	if err != nil {
+		return err
+	}
+
+	d.closed = append(d.closed, windowID)
+
+	return nil
+}
+
+func (d *fakeDesktop) SetWindowMinimized(windowID action.WindowID, minimized bool) error {
+	_, err := d.indexOf(windowID)
+	if err != nil {
+		return err
+	}
+
+	if d.minimized == nil {
+		d.minimized = map[action.WindowID]bool{}
+	}
+
+	d.minimized[windowID] = minimized
+
+	return nil
+}
+
+func (d *fakeDesktop) WindowFullScreen(windowID action.WindowID) (bool, error) {
+	_, err := d.indexOf(windowID)
+	if err != nil {
+		return false, err
+	}
+
+	return d.fullScreen[windowID], nil
+}
+
+func (d *fakeDesktop) SetWindowFullScreen(windowID action.WindowID, fullScreen bool) error {
+	_, err := d.indexOf(windowID)
+	if err != nil {
+		return err
+	}
+
+	if d.fullScreen == nil {
+		d.fullScreen = map[action.WindowID]bool{}
+	}
+
+	d.fullScreen[windowID] = fullScreen
+
+	return nil
 }
 
 func (d *fakeDesktop) EnsureAccessible() error {

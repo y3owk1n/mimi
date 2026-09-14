@@ -263,3 +263,39 @@ func assertPointer[T comparable](t *testing.T, name string, got, want *T) {
 		t.Errorf("%s = %v, want %v", name, *got, *want)
 	}
 }
+
+func TestResizeRequestFromArgs_RelativeFlagsMakeANudge(t *testing.T) {
+	t.Parallel()
+
+	req, err := action.ResizeRequestFromArgs(action.ResizeWindowArgs{
+		DX: -50, DXSet: true, DH: 40, DHSet: true,
+	})
+	if err != nil {
+		t.Fatalf("ResizeRequestFromArgs() error = %v, want nil", err)
+	}
+
+	want := geometry.Nudge{DX: -50, DH: 40}
+	if req.Nudge == nil || *req.Nudge != want {
+		t.Fatalf("Nudge = %+v, want %+v", req.Nudge, want)
+	}
+}
+
+func TestResizeRequestFromArgs_RejectsARelativeFlagWithAnythingElse(t *testing.T) {
+	t.Parallel()
+
+	for name, args := range map[string]action.ResizeWindowArgs{
+		"preset":  {Preset: presetLeftHalf, DX: 10, DXSet: true},
+		"width":   {Width: 800, WidthSet: true, DW: 10, DWSet: true},
+		"anchor":  {Anchor: "cc", AnchorSet: true, DY: 10, DYSet: true},
+		"margins": {NoMargin: true, DH: 10, DHSet: true},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := action.ResizeRequestFromArgs(args)
+			if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+				t.Fatalf("ResizeRequestFromArgs() error = %v, want CodeInvalidInput", err)
+			}
+		})
+	}
+}

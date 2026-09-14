@@ -60,6 +60,33 @@ Examples:
 	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToDisplayCommand(state))
 	cmd.AddCommand(buildResizeWindowCommand(state))
+	cmd.AddCommand(buildWindowCommand(state, action.NameCloseWindow,
+		"Close the frontmost window, as Command-W does",
+		`Press the close button of the frontmost window, or of the window named
+with --number. The application decides what follows, as it does for
+Command-W. It may ask to save, or keep the window open.
+
+Examples:
+  mimi action close_window
+  mimi action close_window --number 4242`))
+	cmd.AddCommand(buildWindowCommand(state, action.NameMinimizeWindow,
+		"Minimize the frontmost window to the Dock",
+		`Minimize the frontmost window, or the window named with --number, to the
+Dock. A minimized window leaves the active space's window list, so
+"mimi action focus_window" and the tiling layouts no longer see it.
+
+Examples:
+  mimi action minimize_window
+  mimi action minimize_window --number 4242`))
+	cmd.AddCommand(buildWindowCommand(state, action.NameFullscreenWindow,
+		"Toggle native full screen on the frontmost window",
+		`Put the frontmost window, or the window named with --number, into native
+full screen, or take it out when it is there already. macOS animates the
+change and gives the window a space of its own, which tiling leaves alone.
+
+Examples:
+  mimi action fullscreen_window
+  mimi action fullscreen_window --number 4242`))
 	cmd.AddCommand(buildApplyFramesCommand(state))
 
 	return cmd
@@ -166,6 +193,27 @@ Examples:
 			return state.runAction(cobraCmd, focusCmd)
 		},
 	}
+}
+
+// buildWindowCommand builds one of the actions that take a window and
+// nothing else: the frontmost by default, or the one named with --number.
+func buildWindowCommand(state *cliState, name action.Name, short, long string) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   string(name),
+		Short: short,
+		Long:  long,
+		Args:  cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			number, _ := cobraCmd.Flags().GetUint32("number")
+
+			return state.runAction(cobraCmd, action.NewWindowCommand(name, number))
+		},
+	}
+
+	cmd.Flags().
+		Uint32("number", 0, "Act on the window with that window-server number instead of the frontmost")
+
+	return cmd
 }
 
 func buildSpaceCommand(state *cliState) *cobra.Command {
@@ -332,8 +380,15 @@ Custom flags allow precise control using an anchor system:
   Use --margin or --no-margin to override — one or the other,
   never both.
 
+Relative flags move or resize the window from where it is, in points, with
+no preset, anchor or margin involved. They take no other flag:
+  --dx / --dy    move right and down (negative moves left and up)
+  --dw / --dh    grow wider and taller (negative shrinks)
+
 Examples:
   mimi action resize_window left-half
+  mimi action resize_window --dx -50
+  mimi action resize_window --dw 100 --dh -40
   mimi action resize_window --width 800 --height 600 --anchor cc
   mimi action resize_window --width-percent 50 --height-percent 100 --anchor tl
   mimi action resize_window --width 1024 --height 768 --x 0 --y 0 --anchor tl
@@ -368,6 +423,10 @@ Examples:
 	cmd.Flags().Bool("no-margin", false, "Disable tiled window margins (overrides system setting)")
 	cmd.Flags().
 		Bool("cycle", false, "Step left-half or right-half through half, two thirds and a third")
+	cmd.Flags().Int("dx", 0, "Move the window right by this many points (negative moves left)")
+	cmd.Flags().Int("dy", 0, "Move the window down by this many points (negative moves up)")
+	cmd.Flags().Int("dw", 0, "Grow the window wider by this many points (negative shrinks)")
+	cmd.Flags().Int("dh", 0, "Grow the window taller by this many points (negative shrinks)")
 
 	return cmd
 }
@@ -391,6 +450,10 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 	useMargin, _ := flags.GetBool("margin")
 	noMargin, _ := flags.GetBool("no-margin")
 	cycle, _ := flags.GetBool("cycle")
+	deltaX, _ := flags.GetInt("dx")
+	deltaY, _ := flags.GetInt("dy")
+	deltaW, _ := flags.GetInt("dw")
+	deltaH, _ := flags.GetInt("dh")
 
 	return action.ResizeWindowArgs{
 		Preset:           preset,
@@ -411,6 +474,14 @@ func resizeWindowArgsFromFlags(cobraCmd *cobra.Command, preset string) action.Re
 		UseMargin:        useMargin,
 		NoMargin:         noMargin,
 		Cycle:            cycle,
+		DX:               deltaX,
+		DXSet:            flags.Changed("dx"),
+		DY:               deltaY,
+		DYSet:            flags.Changed("dy"),
+		DW:               deltaW,
+		DWSet:            flags.Changed("dw"),
+		DH:               deltaH,
+		DHSet:            flags.Changed("dh"),
 	}
 }
 

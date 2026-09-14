@@ -54,6 +54,26 @@ type Request struct {
 	// and any other window starts at the first. Only a preset that Cycles
 	// has one; for any other it is ignored.
 	Cycle bool
+	// Nudge, when set, is the whole request. The window moves and grows by
+	// these amounts from where it is, and nothing else here applies.
+	Nudge *Nudge
+}
+
+// Nudge is a change to a window's frame relative to its current one, in
+// points. DX and DY move it, DW and DH change its size. The size never goes
+// under one point.
+type Nudge struct {
+	DX, DY, DW, DH float64
+}
+
+// apply is cur moved and resized by the nudge.
+func (n Nudge) apply(cur Rect) Rect {
+	return Rect{
+		X: cur.X + n.DX,
+		Y: cur.Y + n.DY,
+		W: math.Max(1, cur.W+n.DW),
+		H: math.Max(1, cur.H+n.DH),
+	}
 }
 
 // dimensionKind is how a requested dimension is expressed.
@@ -141,6 +161,10 @@ func snapToPoint(length float64) float64 {
 // primary display's top-left — while scr.Visible is in screen coordinates.
 // Resize converts between the two.
 func Resize(cur Rect, scr Screen, req Request) Rect {
+	if req.Nudge != nil {
+		return req.Nudge.apply(cur)
+	}
+
 	if req.Cycle {
 		req.Preset = nextInCycle(cur, scr, req)
 		req.Cycle = false

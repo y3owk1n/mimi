@@ -25,6 +25,9 @@ const (
 	NameFocusApp            Name = "focus_app"
 	NameApplyFrames         Name = "apply_frames"
 	NameTiling              Name = "tiling"
+	NameCloseWindow         Name = "close_window"
+	NameMinimizeWindow      Name = "minimize_window"
+	NameFullscreenWindow    Name = "fullscreen_window"
 )
 
 // Nouns the index-argument rule reports in: what a space argument and a

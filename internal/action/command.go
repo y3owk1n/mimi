@@ -41,6 +41,21 @@ type Command struct {
 	FocusApp            FocusAppArgs          `json:"focusApp,omitzero"`
 	ApplyFrames         ApplyFramesArgs       `json:"applyFrames,omitzero"`
 	Tiling              TilingArgs            `json:"tiling,omitzero"`
+	// Window is the payload of close_window, minimize_window and
+	// fullscreen_window: which window, when not the frontmost.
+	Window WindowArgs `json:"window,omitzero"`
+}
+
+// WindowArgs names the window an action acts on: the one with that window
+// server number on the active space, or the frontmost when Number is 0.
+type WindowArgs struct {
+	Number uint32 `json:"number"`
+}
+
+// NewWindowCommand builds close_window, minimize_window or
+// fullscreen_window for the window numbered, or the frontmost for 0.
+func NewWindowCommand(name Name, number uint32) Command {
+	return Command{Name: name, Window: WindowArgs{Number: number}}
 }
 
 // FocusAppArgs is focus_app's typed payload: the application, as a bundle
@@ -336,6 +351,22 @@ type ResizeWindowArgs struct {
 	// Cycle steps the preset through its cycle: left-half to left-two-thirds
 	// to left-third and back, and the same on the right.
 	Cycle bool `json:"cycle"`
+
+	// DX, DY, DW and DH move the window and change its size by that many
+	// points from where it is, with no preset, anchor or margin involved.
+	DX    int  `json:"dx"`
+	DXSet bool `json:"dxSet"`
+	DY    int  `json:"dy"`
+	DYSet bool `json:"dySet"`
+	DW    int  `json:"dw"`
+	DWSet bool `json:"dwSet"`
+	DH    int  `json:"dh"`
+	DHSet bool `json:"dhSet"`
+}
+
+// nudges reports whether any relative flag was given.
+func (args ResizeWindowArgs) nudges() bool {
+	return args.DXSet || args.DYSet || args.DWSet || args.DHSet
 }
 
 // ResizeRequestFromArgs turns resize_window's arguments into the geometry
@@ -405,6 +436,24 @@ func ResizeRequestFromArgs(args ResizeWindowArgs) (geometry.Request, error) {
 		if err != nil {
 			return geometry.Request{}, err
 		}
+	}
+
+	if args.nudges() {
+		if args.Preset != "" || args.Cycle || args.AnchorSet || args.UseMargin || args.NoMargin ||
+			args.WidthSet || args.HeightSet || args.WidthPercentSet || args.HeightPercentSet ||
+			args.XSet || args.YSet {
+			return geometry.Request{}, derrors.New(
+				derrors.CodeInvalidInput,
+				"--dx, --dy, --dw and --dh cannot be combined with a preset or any other flag",
+			)
+		}
+
+		return geometry.Request{Nudge: &geometry.Nudge{
+			DX: float64(args.DX),
+			DY: float64(args.DY),
+			DW: float64(args.DW),
+			DH: float64(args.DH),
+		}}, nil
 	}
 
 	req := geometry.Request{Preset: preset, Cycle: args.Cycle}
@@ -571,6 +620,12 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		return e.ResizeWindow(req)
+	case NameCloseWindow:
+		return e.CloseWindow(cmd.Window)
+	case NameMinimizeWindow:
+		return e.MinimizeWindow(cmd.Window)
+	case NameFullscreenWindow:
+		return e.ToggleFullscreenWindow(cmd.Window)
 	case NameApplyFrames:
 		err := validateApplyFramesArgs(cmd.ApplyFrames)
 		if err != nil {
@@ -595,7 +650,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, apply_frames, tiling)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, close_window, minimize_window, fullscreen_window, apply_frames, tiling)",
 			cmd.Name,
 		)
 	}

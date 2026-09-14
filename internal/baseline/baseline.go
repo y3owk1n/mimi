@@ -112,6 +112,15 @@ type ResizeArgs struct {
 	NoMargin  bool `json:"noMargin,omitempty"`
 
 	Cycle bool `json:"cycle,omitempty"`
+
+	DX    int  `json:"dx,omitempty"`
+	DXSet bool `json:"dxSet,omitempty"`
+	DY    int  `json:"dy,omitempty"`
+	DYSet bool `json:"dySet,omitempty"`
+	DW    int  `json:"dw,omitempty"`
+	DWSet bool `json:"dwSet,omitempty"`
+	DH    int  `json:"dh,omitempty"`
+	DHSet bool `json:"dhSet,omitempty"`
 }
 
 // ResizeCase is one recorded resize_window invocation: the arguments, the frame

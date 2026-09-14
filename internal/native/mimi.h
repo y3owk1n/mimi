@@ -24,6 +24,15 @@ uint32_t MimiGetWindowNumber(void *window);
 /// Copy the window's title as a UTF-8 string the caller frees, or NULL when
 /// the window has none or it cannot be read.
 char *MimiCopyWindowTitle(void *window);
+/// Press the window's close button. Returns 1 when the press was accepted.
+int MimiCloseWindow(void *window);
+/// Minimize the window to the Dock, or restore it. Returns 1 on success.
+int MimiSetWindowMinimized(void *window, int minimized);
+/// Whether the window is in native full screen: 1, 0, or -1 when unreadable.
+int MimiWindowIsFullScreen(void *window);
+/// Put the window into native full screen, or take it out. Returns 1 on
+/// success.
+int MimiSetWindowFullScreen(void *window, int fullScreen);
 
 #pragma mark - Application Functions
 
