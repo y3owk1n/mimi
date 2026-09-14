@@ -679,6 +679,73 @@ int MimiSetWindowPosition(void *window, double x, double y) {
 	}
 }
 
+int MimiCloseWindow(void *window) {
+	if (!window)
+		return 0;
+
+	@autoreleasepool {
+		CFTypeRef button = NULL;
+		AXError err = AXUIElementCopyAttributeValue((AXUIElementRef)window, kAXCloseButtonAttribute, &button);
+		if (err != kAXErrorSuccess || !button) {
+			MIMI_LOG("AXUIElementCopyAttributeValue(kAXCloseButtonAttribute) failed with error %d", (int)err);
+			return 0;
+		}
+
+		err = AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction);
+		CFRelease(button);
+		if (err != kAXErrorSuccess) {
+			MIMI_LOG("AXUIElementPerformAction(kAXPressAction) on close button failed with error %d", (int)err);
+			return 0;
+		}
+
+		return 1;
+	}
+}
+
+int MimiSetWindowMinimized(void *window, int minimized) {
+	if (!window)
+		return 0;
+
+	AXError err = AXUIElementSetAttributeValue(
+	    (AXUIElementRef)window, kAXMinimizedAttribute, minimized ? kCFBooleanTrue : kCFBooleanFalse);
+	if (err != kAXErrorSuccess) {
+		MIMI_LOG("AXUIElementSetAttributeValue(kAXMinimizedAttribute) failed with error %d", (int)err);
+		return 0;
+	}
+
+	return 1;
+}
+
+static CFStringRef kMimiAXFullScreenAttribute = CFSTR("AXFullScreen");
+
+int MimiWindowIsFullScreen(void *window) {
+	if (!window)
+		return -1;
+
+	CFTypeRef value = NULL;
+	AXError err = AXUIElementCopyAttributeValue((AXUIElementRef)window, kMimiAXFullScreenAttribute, &value);
+	if (err != kAXErrorSuccess || !value)
+		return -1;
+
+	int fullScreen = CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)value);
+	CFRelease(value);
+	return fullScreen;
+}
+
+int MimiSetWindowFullScreen(void *window, int fullScreen) {
+	if (!window)
+		return 0;
+
+	AXError err = AXUIElementSetAttributeValue(
+	    (AXUIElementRef)window, kMimiAXFullScreenAttribute, fullScreen ? kCFBooleanTrue : kCFBooleanFalse);
+	if (err != kAXErrorSuccess) {
+		MIMI_LOG("AXUIElementSetAttributeValue(AXFullScreen) failed with error %d", (int)err);
+		return 0;
+	}
+
+	return 1;
+}
+
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 	if (!window)
 		return 0;

@@ -404,6 +404,43 @@ func (d *nativeDesktop) Displays() ([]Display, error) {
 	return displays, nil
 }
 
+// CloseWindow presses the window's close button.
+func (d *nativeDesktop) CloseWindow(windowID WindowID) error {
+	return d.withWindow(windowID, func(element *native.Element) error {
+		return element.Close()
+	})
+}
+
+// SetWindowMinimized minimizes the window, or restores it.
+func (d *nativeDesktop) SetWindowMinimized(windowID WindowID, minimized bool) error {
+	return d.withWindow(windowID, func(element *native.Element) error {
+		return element.SetMinimized(minimized)
+	})
+}
+
+// WindowFullScreen reports whether the window is in native full screen.
+func (d *nativeDesktop) WindowFullScreen(windowID WindowID) (bool, error) {
+	var fullScreen bool
+
+	err := d.withWindow(windowID, func(element *native.Element) error {
+		var err error
+
+		fullScreen, err = element.FullScreen()
+
+		return err
+	})
+
+	return fullScreen, err
+}
+
+// SetWindowFullScreen puts the window into native full screen, or takes it
+// out.
+func (d *nativeDesktop) SetWindowFullScreen(windowID WindowID, fullScreen bool) error {
+	return d.withWindow(windowID, func(element *native.Element) error {
+		return element.SetFullScreen(fullScreen)
+	})
+}
+
 // ActivateDisplay makes the display the active one for the menu bar and
 // event routing.
 func (d *nativeDesktop) ActivateDisplay(id uint32) {

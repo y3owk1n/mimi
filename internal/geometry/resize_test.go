@@ -955,3 +955,23 @@ func TestPresetNames_ListsEveryPresetInTheDocumentedOrder(t *testing.T) {
 		t.Fatalf("PresetNames() = %v, want %v", got, want)
 	}
 }
+
+// TestResize_ANudgeMovesFromWhereTheWindowIs pins that a relative request
+// reads nothing but the current frame: no anchor, margin or visible frame is
+// consulted, and a shrink never takes the window under one point.
+func TestResize_ANudgeMovesFromWhereTheWindowIs(t *testing.T) {
+	t.Parallel()
+
+	cur := geometry.Rect{X: 100, Y: 200, W: 800, H: 600}
+
+	got := geometry.Resize(
+		cur,
+		singleDisplay,
+		geometry.Request{Nudge: &geometry.Nudge{DX: -30, DY: 10, DW: 50, DH: -1000}},
+	)
+
+	want := geometry.Rect{X: 70, Y: 210, W: 850, H: 1}
+	if got != want {
+		t.Fatalf("Resize() = %+v, want %+v", got, want)
+	}
+}

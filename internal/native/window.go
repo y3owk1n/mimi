@@ -252,6 +252,95 @@ func (e *Element) SetPosition(posX, posY float64) error {
 	return nil
 }
 
+// Close presses the window's close button, which is what a Command-W does.
+// The application may ask to save first, and may not close at all.
+func (e *Element) Close() error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot close window: element reference is nil",
+		)
+	}
+
+	result := C.MimiCloseWindow(e.ref) //nolint:nlreturn
+	if result == 0 {
+		return derrors.New(derrors.CodeAccessibilityFailed, "failed to close window")
+	}
+
+	return nil
+}
+
+// SetMinimized minimizes the window to the Dock, or restores it.
+func (e *Element) SetMinimized(minimized bool) error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot minimize window: element reference is nil",
+		)
+	}
+
+	result := C.MimiSetWindowMinimized(e.ref, cBool(minimized)) //nolint:nlreturn
+	if result == 0 {
+		return derrors.New(derrors.CodeAccessibilityFailed, "failed to minimize window")
+	}
+
+	return nil
+}
+
+// FullScreen reports whether the window is in native full screen.
+func (e *Element) FullScreen() (bool, error) {
+	if e.ref == nil {
+		return false, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot read full screen: element reference is nil",
+		)
+	}
+
+	state := C.MimiWindowIsFullScreen(e.ref) //nolint:nlreturn
+
+	switch state {
+	case 1:
+		return true, nil
+	case 0:
+		return false, nil
+	default:
+		return false, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to read whether the window is full screen",
+		)
+	}
+}
+
+// SetFullScreen puts the window into native full screen, or takes it out.
+// macOS animates the change and moves the window to a space of its own.
+func (e *Element) SetFullScreen(fullScreen bool) error {
+	if e.ref == nil {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot set full screen: element reference is nil",
+		)
+	}
+
+	result := C.MimiSetWindowFullScreen(e.ref, cBool(fullScreen)) //nolint:nlreturn
+	if result == 0 {
+		return derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to change the window's full screen state",
+		)
+	}
+
+	return nil
+}
+
+// cBool is a Go bool as the C functions take one.
+func cBool(value bool) C.int {
+	if value {
+		return 1
+	}
+
+	return 0
+}
+
 // ListedWindow is one window as the window server lists it: its number, its
 // frame in screen coordinates, its owner, its layer, whether the owner is a
 // regular, visible application, and its title when the window server gives

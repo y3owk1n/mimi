@@ -250,10 +250,25 @@ bl  bc  br       (bottom-left, bottom-center, bottom-right)
 Give one or neither. Omitting both follows the system setting. mimi rejects
 both together.
 
+**Relative flags:**
+
+| Flag   | Effect                                                    |
+| ------ | --------------------------------------------------------- |
+| `--dx` | Move the window right by that many points, left if negative |
+| `--dy` | Move the window down by that many points, up if negative    |
+| `--dw` | Make the window wider by that many points, narrower if negative |
+| `--dh` | Make the window taller by that many points, shorter if negative |
+
+A relative flag starts from the window's current frame and involves no
+preset, anchor or margin. It takes no other flag, and a size never goes under
+one point.
+
 **Examples:**
 
 ```bash
 mimi action resize_window left-half
+mimi action resize_window --dx -50
+mimi action resize_window --dw 100 --dh -40
 mimi action resize_window center
 mimi action resize_window --width 800 --height 600 --anchor cc
 mimi action resize_window --width-percent 50 --height-percent 75 --anchor tl
@@ -261,6 +276,34 @@ mimi action resize_window --width 1024 --height 768 --x 100 --y 50 --anchor tl
 mimi action resize_window left-half --no-margin
 mimi action resize_window left-half --cycle
 mimi action resize_window center --width-percent 80 --height-percent 90
+```
+
+### `mimi action close_window`
+
+Press the close button of the frontmost window, or of the window named with
+`--number`. The application decides what follows, as it does for Command-W.
+It may ask to save, or keep the window open.
+
+### `mimi action minimize_window`
+
+Minimize the frontmost window, or the window named with `--number`, to the
+Dock. A minimized window leaves the active space's window list, so
+`focus_window` and the tiling layouts no longer see it.
+
+### `mimi action fullscreen_window`
+
+Put the frontmost window, or the window named with `--number`, into native
+full screen, or take it out when it is there already. macOS animates the
+change and gives the window a space of its own, which tiling leaves alone.
+
+| Flag         | Effect                                                              |
+| ------------ | ------------------------------------------------------------------- |
+| `--number <n>` | Act on the window with that window-server number instead of the frontmost |
+
+```bash
+mimi action close_window
+mimi action minimize_window --number 4242
+mimi action fullscreen_window
 ```
 
 ### `mimi action apply_frames [--file path]`

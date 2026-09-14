@@ -101,6 +101,12 @@ var interruptAudit = []auditEntry{
 		"as resize_window; the Accessibility frame write runs to completion"),
 	audited("action resize_window", interruptRunsOn,
 		"as focus_window; the Accessibility resize runs to completion"),
+	audited("action close_window", interruptRunsOn,
+		"as resize_window; the Accessibility button press runs to completion"),
+	audited("action minimize_window", interruptRunsOn,
+		"as resize_window; the Accessibility attribute write runs to completion"),
+	audited("action fullscreen_window", interruptRunsOn,
+		"as resize_window; one Accessibility read and one write run to completion"),
 	audited("action apply_frames", interruptRunsOn,
 		"as resize_window, once per frame: the payload is read from stdin or "+
 			"a file first, then each Accessibility frame write runs to completion"),

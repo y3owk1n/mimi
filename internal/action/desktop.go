@@ -122,6 +122,20 @@ type Desktop interface {
 	// SetWindowFrame moves and resizes one window.
 	SetWindowFrame(id WindowID, frame geometry.Rect) error
 
+	// CloseWindow presses a window's close button. The application decides
+	// what follows. It may ask to save, or keep the window open.
+	CloseWindow(id WindowID) error
+
+	// SetWindowMinimized minimizes a window to the Dock, or restores it.
+	SetWindowMinimized(id WindowID, minimized bool) error
+
+	// WindowFullScreen reports whether a window is in native full screen.
+	WindowFullScreen(id WindowID) (bool, error)
+
+	// SetWindowFullScreen puts a window into native full screen, or takes
+	// it out.
+	SetWindowFullScreen(id WindowID, fullScreen bool) error
+
 	// ScreenAt describes the screen the given window frame sits on, including
 	// the system's tiled-window margin settings, which are part of what the
 	// geometry resizes against. It stands on several reads, and names the one

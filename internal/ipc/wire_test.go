@@ -198,7 +198,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(true, false, false, false, false, false, 0)
 			},
-			want: `{"version":7,"command":{"name":"focus_window",` +
+			want: `{"version":8,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":true,"direction":"","sameApp":false,"number":0}}}`,
 		},
 		{
@@ -206,14 +206,14 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false, false, 0)
 			},
-			want: `{"version":7,"command":{"name":"focus_window"}}`,
+			want: `{"version":8,"command":{"name":"focus_window"}}`,
 		},
 		{
 			name: "mimi action focus_window --number 4242",
 			build: func() (action.Command, error) {
 				return action.NewFocusWindowCommand(false, false, false, false, false, false, 4242)
 			},
-			want: `{"version":7,"command":{"name":"focus_window",` +
+			want: `{"version":8,"command":{"name":"focus_window",` +
 				`"focusWindow":{"backward":false,"direction":"","sameApp":false,"number":4242}}}`,
 		},
 		{
@@ -221,7 +221,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewSpaceCommand([]string{"3"})
 			},
-			want: `{"version":7,"command":{"name":"space",` +
+			want: `{"version":8,"command":{"name":"space",` +
 				`"space":{"index":3,"direction":0}}}`,
 		},
 		{
@@ -229,7 +229,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToSpaceCommand([]string{"next"}, true)
 			},
-			want: `{"version":7,"command":{"name":"move_window_to_space",` +
+			want: `{"version":8,"command":{"name":"move_window_to_space",` +
 				`"moveWindowToSpace":{"space":{"index":0,"direction":1},"follow":true}}}`,
 		},
 		{
@@ -237,7 +237,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewMoveWindowToDisplayCommand([]string{"prev"})
 			},
-			want: `{"version":7,"command":{"name":"move_window_to_display",` +
+			want: `{"version":8,"command":{"name":"move_window_to_display",` +
 				`"moveWindowToDisplay":{"index":0,"direction":-1}}}`,
 		},
 		{
@@ -245,7 +245,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewFocusAppCommand([]string{"Safari"})
 			},
-			want: `{"version":7,"command":{"name":"focus_app",` +
+			want: `{"version":8,"command":{"name":"focus_app",` +
 				`"focusApp":{"app":"Safari"}}}`,
 		},
 		{
@@ -255,7 +255,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					{Number: 42, Frame: action.Frame{X: 0, Y: 25, Width: 960, Height: 1055}},
 				})
 			},
-			want: `{"version":7,"command":{"name":"apply_frames",` +
+			want: `{"version":8,"command":{"name":"apply_frames",` +
 				`"applyFrames":{"frames":[{"number":42,` +
 				`"frame":{"x":0,"y":25,"width":960,"height":1055}}]}}}`,
 		},
@@ -264,7 +264,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			build: func() (action.Command, error) {
 				return action.NewTilingCommand(action.TilingCommand, "swap", []string{"left"})
 			},
-			want: `{"version":7,"command":{"name":"tiling",` +
+			want: `{"version":8,"command":{"name":"tiling",` +
 				`"tiling":{"kind":"command","name":"swap","args":["left"],"all":false}}}`,
 		},
 		{
@@ -279,7 +279,7 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 					NoMargin:  true,
 				})
 			},
-			want: `{"version":7,"command":{"name":"resize_window",` +
+			want: `{"version":8,"command":{"name":"resize_window",` +
 				`"resizeWindow":{"preset":"left-half",` +
 				`"width":800,"widthSet":true,` +
 				`"height":0,"heightSet":false,` +
@@ -288,7 +288,9 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 				`"x":0,"xSet":false,` +
 				`"y":0,"ySet":false,` +
 				`"anchor":"cc","anchorSet":true,` +
-				`"useMargin":false,"noMargin":true,"cycle":false}}}`,
+				`"useMargin":false,"noMargin":true,"cycle":false,` +
+				`"dx":0,"dxSet":false,"dy":0,"dySet":false,` +
+				`"dw":0,"dwSet":false,"dh":0,"dhSet":false}}}`,
 		},
 	}
 

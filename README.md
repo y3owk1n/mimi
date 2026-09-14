@@ -142,10 +142,14 @@ mimi action focus_app Safari                  # switches to the app's space firs
 mimi action resize_window <preset> [--cycle]  # halves, quadrants, thirds, two thirds, center, fill
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor br
+mimi action resize_window --dx -50 --dw 100   # move and grow from where it is
 my-layout | mimi action apply_frames          # apply frames from any program
 
+# Close, minimize, full screen
+mimi action close_window | minimize_window | fullscreen_window [--number <id>]
+
 # Read the desktop
-mimi query space | window | windows | displays | margins
+mimi query space | spaces | window | windows | displays | margins
 ```
 
 `resize_window` honours the macOS tiled-window margins setting, so hand-placed and tiled windows line up. Every flag and preset is in the [CLI Reference](docs/CLI.md).
