@@ -1215,7 +1215,14 @@ func (e *Engine) managedLocked(windows action.WindowsInfo) action.WindowsInfo {
 	}
 
 	for index, win := range windows.Windows {
-		if !config.Managed(e.rules, win.App, win.BundleID, win.Title) {
+		target := config.RuleWindow{
+			App:      win.App,
+			BundleID: win.BundleID,
+			Title:    win.Title,
+			Width:    win.Frame.Width,
+			Height:   win.Frame.Height,
+		}
+		if !config.Managed(e.rules, target) {
 			continue
 		}
 

@@ -5,10 +5,9 @@ Every layout here reads a JSON document per line on stdin and prints one
 per line on stdout, once or for as long as stdin stays open. See README.md
 for the shapes. mimi runs a layout once per display,
 with that display's windows and a state of that display's own, so a layout
-only ever thinks about one display. An application that should never be
-tiled goes in [[tiling.rules]] in config.toml, which keeps its windows out
-of every layout. Only the size rule lives here, since config rules match
-names and titles, not sizes.
+only ever thinks about one display. [[tiling.rules]] in config.toml says
+which windows never tile. A rule there keeps a window out of every layout,
+so this file has no float list.
 """
 
 import json
@@ -16,20 +15,12 @@ import os
 import subprocess
 import sys
 
-def floating(win):
-    """True for a window too small to tile, which a layout leaves where
-    it is."""
-    return win["frame"]["width"] < 400 and win["frame"]["height"] < 300
-
-
 def serve(layout):
     """Run `layout(inp)` for every input the daemon sends, in either mode
     mimi runs a layout: once, for one document on stdin (`layout_mode =
     "oneshot"`, the default), or once per line for as long as stdin stays
     open (`layout_mode = "resident"`), which skips the interpreter's startup
-    on every pass after the first. Each input's `windows` is narrowed to
-    the tileable ones and `focused` re-pointed at the same window, or -1 if
-    it went.
+    on every pass after the first.
 
     Run with nothing on stdin, from a terminal or a hotkey, a layout drives
     itself instead: it builds the inputs the daemon would, runs itself once
@@ -41,26 +32,8 @@ def serve(layout):
 
     for line in sys.stdin:
         if line.strip():
-            layout(narrow(json.loads(line)))
+            layout(json.loads(line))
             sys.stdout.flush()
-
-
-def narrow(inp):
-    """The input with `windows` narrowed to the tileable ones and `focused`
-    re-pointed at the same window, or -1 if it went. `focusFloating` is
-    True when it went because the focused window floats, so a layout can
-    tell focus on a floating window from focus on nothing. `unmanaged` is
-    the windows that were filtered out, to hand back to `write_output` so
-    mimi leaves them alone too."""
-    focused_number = (
-        inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
-    )
-    inp["unmanaged"] = [w["number"] for w in inp["windows"] if floating(w)]
-    inp["windows"] = [w for w in inp["windows"] if not floating(w)]
-    numbers = [w["number"] for w in inp["windows"]]
-    inp["focused"] = numbers.index(focused_number) if focused_number in numbers else -1
-    inp["focusFloating"] = focused_number is not None and inp["focused"] < 0
-    return inp
 
 
 def gap(inp):
@@ -154,8 +127,8 @@ def shown(inp, windows, focus=None):
 
 
 def unmanaged_of(inp, state=None):
-    """The windows mimi should leave alone: the ones `narrow()` filtered out
-    by the float rules, plus any the layout floated itself and keeps in
+    """The windows mimi should leave alone: the ones it handed back as
+    `unmanaged`, plus any the layout floated itself and keeps in
     `state["floating"]`. Hand it to `write_output` so mimi's drag reading and
     its drop zone agree with the layout about which windows are the layout's.
 
@@ -174,7 +147,7 @@ def write_output(frames, state, focus=None, unmanaged=None, stacks=None):
     the layout moved focus along its own structure, and the windows this
     layout is not managing.
 
-    `unmanaged` is what `narrow()` filtered out, so mimi leaves those
+    `unmanaged` is what `unmanaged_of()` returns, so mimi leaves those
     windows alone too, and dragging one raises no pass and shows no drop
     zone. Leaving a window out of `frames` says only that it does not move
     this time, which is what a temporary maximise does to the windows under

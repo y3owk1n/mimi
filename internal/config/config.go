@@ -109,7 +109,7 @@ type TilingConfig struct {
 	// the ones hidden behind the top one can be seen to be there.
 	Stackbar StackbarConfig `json:"stackbar" toml:"stackbar"`
 	// Rules says which windows the layout never sees. Each names windows by
-	// application, bundle identifier or title. The last matching rule
+	// application, bundle identifier, title or size. The last matching rule
 	// decides.
 	Rules []TilingRule `json:"rules" toml:"rules"`
 }
