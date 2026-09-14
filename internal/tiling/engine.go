@@ -118,6 +118,9 @@ type Engine struct {
 	// displays names the displays the last pass read, so the windows macOS
 	// moves when one is plugged in or unplugged are not taken for a drag.
 	displays string
+	// visible is each display's visible frame by index, from the last read,
+	// which bounds what a window can be said to have refused.
+	visible map[int]action.Frame
 	// mouseDown reports whether the left button is held, which is when a
 	// settled drag is still going on; nil never is.
 	mouseDown func() bool
@@ -177,6 +180,7 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		unmanaged:   map[uint32]bool{},
 		residents:   map[string]*Resident{},
 		programs:    map[string]Layout{},
+		visible:     map[int]action.Frame{},
 		stacks:      map[uint32][]PlacedStack{},
 		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
@@ -330,16 +334,33 @@ func (e *Engine) SetStore(path string) {
 		return
 	}
 
-	var kept map[string]action.MinSize
+	var kept minSizeStore
 
 	err = json.Unmarshal(data, &kept)
-	if err != nil {
-		e.logger.Warnw("learned minimums unreadable, starting over", "path", path, "err", err)
+	if err != nil || kept.Version != minSizeStoreVersion {
+		// A store without this version was written by a build that could
+		// learn a minimum from a window that had not finished resizing.
+		// The engine drops what it holds and learns again.
+		e.logger.Infow("learned minimums from an older build discarded", "path", path)
 
 		return
 	}
 
-	e.appMinSizes = kept
+	e.appMinSizes = kept.Apps
+	if e.appMinSizes == nil {
+		e.appMinSizes = map[string]action.MinSize{}
+	}
+}
+
+// minSizeStoreVersion is the version of the store on disk. It moved to 2
+// when a refusal started to need a second read to be believed, so what an
+// earlier build learned is dropped rather than carried on.
+const minSizeStoreVersion = 2
+
+// minSizeStore is the file the applications' minimums are kept in.
+type minSizeStore struct {
+	Version int                       `json:"version"`
+	Apps    map[string]action.MinSize `json:"apps"`
 }
 
 // SetStacks names what draws the stacks a layout names. The daemon hands in
@@ -1271,6 +1292,10 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		e.displays = displaySignature(read.displays)
 	}
 
+	for _, display := range read.displays {
+		e.visible[display.Index] = display.Visible
+	}
+
 	return read, nil
 }
 
@@ -1570,10 +1595,22 @@ func (e *Engine) draggedLocked(windows action.WindowsInfo) (string, []uint32) {
 	return string(events.WindowMove), dragged
 }
 
+// confirmRefusal is how long after a window is first seen larger than it
+// was asked to be that it is read again before that counts as a refusal.
+// Safari, Firefox and a terminal apply a size on their own main thread,
+// and a read taken as they are still at it sees the old size, which is
+// not a minimum. A window that has refused is still larger on the second
+// read.
+const confirmRefusal = 500 * time.Millisecond
+
 // rememberLater reads back where the windows the engine placed actually
 // are, and keeps that. Nothing in the pass needs the answer, so the read
 // runs after the pass has returned rather than holding it, and it keeps
 // what it read only while the apply it was started for is the latest.
+//
+// A window seen larger than asked is read once more after confirmRefusal
+// before a minimum is learned from it, and nothing is learned while the
+// user holds a mouse button, since the size then is the user's.
 func (e *Engine) rememberLater(appliedAt time.Time) {
 	e.background.Go(func() {
 		// An animated apply returns as the windows set off, so the read
@@ -1588,12 +1625,54 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 		}
 
 		e.mu.Lock()
+
+		if !e.appliedAt.Equal(appliedAt) {
+			e.mu.Unlock()
+
+			return
+		}
+
+		e.rememberFrames(windows, false)
+		suspect := e.refusedLocked(windows)
+		e.mu.Unlock()
+
+		if !suspect {
+			return
+		}
+
+		time.Sleep(confirmRefusal)
+
+		windows, err = e.readWindows()
+		if err != nil {
+			return
+		}
+
+		e.mu.Lock()
 		defer e.mu.Unlock()
 
-		if e.appliedAt.Equal(appliedAt) {
+		held := e.mouseDown != nil && e.mouseDown()
+		if e.appliedAt.Equal(appliedAt) && !held {
 			e.rememberFrames(windows, true)
 		}
 	})
+}
+
+// refusedLocked reports whether any window the engine asked for a size is
+// larger than that on an axis, which is worth a second look. The caller
+// holds the lock.
+func (e *Engine) refusedLocked(windows action.WindowsInfo) bool {
+	for _, win := range windows.Windows {
+		asked, ok := e.requested[win.Number]
+		if !ok {
+			continue
+		}
+
+		if win.Frame.Width > asked.Width+samePoint || win.Frame.Height > asked.Height+samePoint {
+			return true
+		}
+	}
+
+	return false
 }
 
 // rememberFrames keeps where the windows the engine placed are in windows,
@@ -1622,7 +1701,7 @@ func (e *Engine) rememberFrames(windows action.WindowsInfo, learn bool) {
 		}
 
 		if asked, ok := e.requested[win.Number]; ok &&
-			e.learnMinSize(win.Number, win.BundleID, asked, win.Frame) {
+			e.learnMinSize(win.Number, win.BundleID, win.Display, asked, win.Frame) {
 			learned = true
 		}
 	}
@@ -1642,7 +1721,12 @@ func (e *Engine) rememberFrames(windows action.WindowsInfo, learn bool) {
 // growth asks for a pass: a layout that honors the minimum lands the
 // window where it asked, and one that ignores it lands it where it did
 // last time, so neither learns again and the passes stop.
-func (e *Engine) learnMinSize(number uint32, bundleID string, asked, landed action.Frame) bool {
+func (e *Engine) learnMinSize(
+	number uint32,
+	bundleID string,
+	display int,
+	asked, landed action.Frame,
+) bool {
 	// A window with no record of its own starts from its application's,
 	// which is what the layout was handed for it. Landing at that is
 	// expected, and asks for no pass.
@@ -1651,19 +1735,29 @@ func (e *Engine) learnMinSize(number uint32, bundleID string, asked, landed acti
 		minSize = e.appMinSizes[bundleID]
 	}
 
+	// No window has a minimum as large as its display. A window landed at
+	// that size took a frame that never applied, and is not a refusal.
+	visible := e.visible[display]
+	wholeWidth := visible.Width > 0 && landed.Width >= visible.Width-samePoint
+	wholeHeight := visible.Height > 0 && landed.Height >= visible.Height-samePoint
+
 	grew := false
 
-	if landed.Width > asked.Width+samePoint {
+	switch {
+	case wholeWidth:
+	case landed.Width > asked.Width+samePoint:
 		grew = grew || landed.Width > minSize.Width+samePoint
 		minSize.Width = landed.Width
-	} else if landed.Width < minSize.Width-samePoint {
+	case landed.Width < minSize.Width-samePoint:
 		minSize.Width = 0
 	}
 
-	if landed.Height > asked.Height+samePoint {
+	switch {
+	case wholeHeight:
+	case landed.Height > asked.Height+samePoint:
 		grew = grew || landed.Height > minSize.Height+samePoint
 		minSize.Height = landed.Height
-	} else if landed.Height < minSize.Height-samePoint {
+	case landed.Height < minSize.Height-samePoint:
 		minSize.Height = 0
 	}
 
@@ -1710,7 +1804,7 @@ func (e *Engine) saveMinSizes() {
 		return
 	}
 
-	data, err := json.Marshal(e.appMinSizes)
+	data, err := json.Marshal(minSizeStore{Version: minSizeStoreVersion, Apps: e.appMinSizes})
 	if err != nil {
 		return
 	}
