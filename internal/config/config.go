@@ -113,6 +113,39 @@ type TilingConfig struct {
 	// application, bundle identifier, title or size. The last matching rule
 	// decides.
 	Rules []TilingRule `json:"rules" toml:"rules"`
+	// Layouts names a layout for one display, one space, or a space on a
+	// display, in place of Layout there. The last matching entry decides,
+	// and Layout covers whatever none matches.
+	Layouts []LayoutTarget `json:"layouts" toml:"layouts"`
+}
+
+// LayoutTarget is one [[tiling.layouts]] entry: the display, the space, or
+// both, as the actions count them, that Layout runs for. 0 leaves a side
+// unset. An entry with both set matches only that space while it is on that
+// display.
+type LayoutTarget struct {
+	Display int    `json:"display" toml:"display"`
+	Space   int    `json:"space"   toml:"space"`
+	Layout  string `json:"layout"  toml:"layout"`
+}
+
+// Matches reports whether the target names a display and a space.
+func (t LayoutTarget) Matches(display, space int) bool {
+	return (t.Display == 0 || t.Display == display) && (t.Space == 0 || t.Space == space)
+}
+
+// LayoutFor is the layout that runs for a display and a space: the last
+// entry in Layouts that matches, else the default, else "".
+func (c TilingConfig) LayoutFor(display, space int) string {
+	layout := c.Layout
+
+	for _, target := range c.Layouts {
+		if target.Matches(display, space) {
+			layout = target.Layout
+		}
+	}
+
+	return layout
 }
 
 // StackbarConfig holds the [tiling.stackbar] section: whether mimi marks the

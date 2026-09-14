@@ -597,6 +597,11 @@ leaves the other's state where it was. A window that crosses to the other
 monitor, by drag or by `mimi action move_window_to_display`, leaves one run
 and joins the other on the next pass.
 
+Each display or space can run a different program. `[[tiling.layouts]]` in
+config.toml names one for a display, a space, or a space on a display, and
+`layout` covers the rest. [CONFIGURATION.md](CONFIGURATION.md#a-layout-per-display-or-space)
+has the shape.
+
 `mimi query displays` lists the displays in the order
 `move_window_to_display` counts them, in the shared coordinate system.
 `mimi tiling preview` prints one entry per display that has a window, with

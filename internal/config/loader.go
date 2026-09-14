@@ -310,8 +310,26 @@ func validate(cfg *Config) error {
 		errs = append(errs, "settings.resize_debounce_ms must be >= 0")
 	}
 
-	if cfg.Tiling.Enabled && strings.TrimSpace(cfg.Tiling.Layout) == "" {
+	if cfg.Tiling.Enabled && strings.TrimSpace(cfg.Tiling.Layout) == "" &&
+		len(cfg.Tiling.Layouts) == 0 {
 		errs = append(errs, "tiling.layout is required when tiling.enabled is true")
+	}
+
+	for index, target := range cfg.Tiling.Layouts {
+		if strings.TrimSpace(target.Layout) == "" {
+			errs = append(errs, fmt.Sprintf("tiling.layouts[%d]: layout is required", index))
+		}
+
+		if target.Display < 0 || target.Space < 0 {
+			errs = append(
+				errs,
+				fmt.Sprintf("tiling.layouts[%d]: display and space must be >= 1", index),
+			)
+		}
+
+		if target.Display == 0 && target.Space == 0 {
+			errs = append(errs, fmt.Sprintf("tiling.layouts[%d]: names no display or space", index))
+		}
 	}
 
 	if cfg.Tiling.DebounceMS < 0 {
@@ -505,6 +523,10 @@ func expandPaths(cfg *Config) {
 	// expanded: the shell it runs through expands nothing in the program
 	// position, which is the one place a user writes one.
 	cfg.Tiling.Layout = paths.ExpandHome(cfg.Tiling.Layout)
+	for index := range cfg.Tiling.Layouts {
+		cfg.Tiling.Layouts[index].Layout = paths.ExpandHome(cfg.Tiling.Layouts[index].Layout)
+	}
+
 	cfg.Settings.LogFile = paths.ExpandHome(cfg.Settings.LogFile)
 	cfg.Settings.PIDFile = paths.ExpandHome(cfg.Settings.PIDFile)
 	cfg.Settings.SocketFile = paths.ExpandHome(cfg.Settings.SocketFile)

@@ -25,8 +25,10 @@ type SpaceState struct {
 	SpaceID uint64 `json:"spaceId"`
 	// Space is 0 when that space is not in front on any display now, which
 	// is every space but the ones the user is looking at.
-	Space int             `json:"space"`
-	State json.RawMessage `json:"state"`
+	Space int `json:"space"`
+	// Layout is the program the state belongs to, as [tiling] names it.
+	Layout string          `json:"layout"`
+	State  json.RawMessage `json:"state"`
 }
 
 // State is everything the engine remembers. Spaces is one entry per display
@@ -65,7 +67,7 @@ func (e *Engine) State() State {
 	inFront := e.spacesInFront()
 
 	for key, state := range e.states {
-		display, sid, ok := splitStateKey(key)
+		display, sid, command, ok := splitStateKey(key)
 		if !ok {
 			continue
 		}
@@ -74,6 +76,7 @@ func (e *Engine) State() State {
 			Display: display,
 			SpaceID: sid,
 			Space:   inFront[sid],
+			Layout:  command,
 			State:   state,
 		})
 	}
@@ -83,7 +86,11 @@ func (e *Engine) State() State {
 			return cmp.Compare(left.Display, right.Display)
 		}
 
-		return cmp.Compare(left.SpaceID, right.SpaceID)
+		if left.SpaceID != right.SpaceID {
+			return cmp.Compare(left.SpaceID, right.SpaceID)
+		}
+
+		return cmp.Compare(left.Layout, right.Layout)
 	})
 
 	if len(e.minSizes) > 0 {
@@ -142,15 +149,18 @@ func (e *Engine) Reset(all bool) (int, error) {
 	dropped := 0
 
 	for display, sid := range ids {
-		key := stateKeyOf(display, sid)
-		if _, held := e.states[key]; !held {
-			continue
+		prefix := spaceKeyPrefix(display, sid)
+
+		for key := range e.states {
+			if !strings.HasPrefix(key, prefix) {
+				continue
+			}
+
+			delete(e.states, key)
+			delete(e.writtenAt, key)
+
+			dropped++
 		}
-
-		delete(e.states, key)
-		delete(e.writtenAt, key)
-
-		dropped++
 	}
 
 	return dropped, nil
@@ -179,22 +189,27 @@ func (e *Engine) spacesInFront() map[uint64]int {
 	return inFront
 }
 
-// splitStateKey reads back the display and the space a state key names.
-func splitStateKey(key string) (uint32, uint64, bool) {
-	left, right, ok := strings.Cut(key, "/")
-	if !ok {
-		return 0, 0, false
+// stateKeyParts is how many parts a state key has: display, space, program.
+const stateKeyParts = 3
+
+// splitStateKey reads back the display, the space and the program a state
+// key names. The program is a command line and may hold slashes of its own,
+// so it is whatever follows the second one.
+func splitStateKey(key string) (uint32, uint64, string, bool) {
+	parts := strings.SplitN(key, "/", stateKeyParts)
+	if len(parts) != stateKeyParts {
+		return 0, 0, "", false
 	}
 
-	display, err := strconv.ParseUint(left, 10, 32)
+	display, err := strconv.ParseUint(parts[0], 10, 32)
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
 
-	sid, err := strconv.ParseUint(right, 10, 64)
+	sid, err := strconv.ParseUint(parts[1], 10, 64)
 	if err != nil {
-		return 0, 0, false
+		return 0, 0, "", false
 	}
 
-	return uint32(display), sid, true
+	return uint32(display), sid, parts[2], true
 }

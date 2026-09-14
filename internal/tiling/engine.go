@@ -50,7 +50,6 @@ type Engine struct {
 
 	mu      sync.Mutex
 	enabled bool
-	command string
 	// gap is tiling.gap when set; nil follows the macOS margin.
 	gap *int
 	// rules is tiling.rules compiled: which windows the layout never sees.
@@ -60,10 +59,14 @@ type Engine struct {
 	// configured reports whether Update has run at all, which is what tells
 	// the startup pass from a reload's.
 	configured bool
-	layout     Layout
-	// resident is the layout when it is kept running between passes, so
-	// a reload or shutdown can stop it; nil otherwise.
-	resident *Resident
+	// layouts is the part of the [tiling] section that says which program
+	// runs where, the default and the per-display and per-space entries.
+	layouts config.TilingConfig
+	// programs is a Layout per distinct command line the config names,
+	// built on Update. In resident mode each is one kept-running process,
+	// so a reload or shutdown can stop it.
+	programs  map[string]Layout
+	residents map[string]*Resident
 	// pending is each command a pass is waiting to run for, by name. A
 	// command that arrives while one of its name already waits is dropped:
 	// a held key sends them faster than passes run, and without this they
@@ -172,6 +175,8 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		logger:      logger,
 		states:      map[string]json.RawMessage{},
 		unmanaged:   map[uint32]bool{},
+		residents:   map[string]*Resident{},
+		programs:    map[string]Layout{},
 		stacks:      map[uint32][]PlacedStack{},
 		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
@@ -204,10 +209,10 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	wasEnabled, hadCommand, hadConfig := e.enabled, e.command, e.configured
+	wasEnabled, hadLayouts, hadConfig := e.enabled, layoutSignature(e.layouts), e.configured
 
 	e.enabled = cfg.Enabled
-	e.command = cfg.Layout
+	e.layouts = cfg
 	e.gap = cfg.Gap
 
 	rules, err := config.CompileRules(cfg.Rules)
@@ -235,26 +240,40 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 
 	// A resident layout survives a reload that leaves it as it was: what it
 	// runs, and how. Anything else stops it, and the next pass starts what
-	// the config names now.
+	// the config names now. Each distinct command line is one program.
 	timeout := time.Duration(cfg.TimeoutSecs) * time.Second
 	resident := cfg.Enabled && cfg.LayoutMode == config.LayoutModeResident
 
-	keep := e.resident != nil && resident && e.resident.Shell == shell &&
-		e.resident.Command == cfg.Layout && e.resident.Timeout == timeout
-	if !keep {
-		e.stopResidentLocked()
+	e.programs = make(map[string]Layout)
+
+	for _, command := range commandsOf(cfg) {
+		if !resident {
+			e.programs[command] = Program{Shell: shell, Command: command, Timeout: timeout}
+
+			continue
+		}
+
+		kept := e.residents[command]
+		if kept == nil || kept.Shell != shell || kept.Timeout != timeout {
+			if kept != nil {
+				kept.Stop()
+			}
+
+			kept = NewResident(shell, command, timeout, e.logger)
+			e.residents[command] = kept
+		}
+
+		e.programs[command] = kept
 	}
 
-	switch {
-	case keep:
-	case resident:
-		e.resident = NewResident(shell, cfg.Layout, timeout, e.logger)
-		e.layout = e.resident
-	default:
-		e.layout = Program{Shell: shell, Command: cfg.Layout, Timeout: timeout}
+	for command, held := range e.residents {
+		if _, wanted := e.programs[command]; !wanted || !resident {
+			held.Stop()
+			delete(e.residents, command)
+		}
 	}
 
-	if !cfg.Enabled || (wasEnabled && hadCommand == cfg.Layout) {
+	if !cfg.Enabled || (wasEnabled && hadLayouts == layoutSignature(cfg)) {
 		return
 	}
 
@@ -557,7 +576,7 @@ func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, e
 		return nil, nil, err
 	}
 
-	if e.layout == nil {
+	if len(e.programs) == 0 {
 		return inputs, nil, derrors.New(
 			derrors.CodeInvalidConfig,
 			"no tiling layout configured",
@@ -592,8 +611,10 @@ func (e *Engine) reduceAll(ctx context.Context, inputs []Input) ([]Output, error
 	var runs sync.WaitGroup
 
 	for index, input := range inputs {
+		layout := e.programs[e.layouts.LayoutFor(input.Display.Index, input.Space)]
+
 		runs.Go(func() {
-			outputs[index], errs[index] = e.layout.Reduce(ctx, input)
+			outputs[index], errs[index] = layout.Reduce(ctx, input)
 			if errs[index] != nil {
 				cancel()
 			}
@@ -638,7 +659,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		input := inputs[index]
 
 		if out.State != nil {
-			key, named := stateKey(input)
+			key, named := e.stateKey(input)
 			if named {
 				e.keepState(key, out.State)
 			} else {
@@ -818,20 +839,60 @@ func (e *Engine) runAfterLocked(lines []string, delay time.Duration) {
 	})
 }
 
-// stopResidentLocked ends the resident layout, if there is one. The caller
-// holds the lock.
+// stopResidentLocked ends every resident layout. The caller holds the lock.
 func (e *Engine) stopResidentLocked() {
-	if e.resident == nil {
-		return
+	for command, held := range e.residents {
+		held.Stop()
+		delete(e.residents, command)
 	}
 
-	e.resident.Stop()
-	e.resident = nil
-	e.layout = nil
+	clear(e.programs)
 }
 
-// stateKey names the state for one display and the space in front on it, and
-// reports whether that space could be named at all.
+// commandsOf is every distinct command line the config names, the default
+// first, in the order the file names them.
+func commandsOf(cfg config.TilingConfig) []string {
+	var commands []string
+
+	seen := map[string]bool{}
+
+	add := func(command string) {
+		if command == "" || seen[command] {
+			return
+		}
+
+		seen[command] = true
+		commands = append(commands, command)
+	}
+
+	add(cfg.Layout)
+
+	for _, target := range cfg.Layouts {
+		add(target.Layout)
+	}
+
+	return commands
+}
+
+// layoutSignature is what a reload compares to tell whether which program
+// runs where has changed.
+func layoutSignature(cfg config.TilingConfig) string {
+	var signature strings.Builder
+
+	signature.WriteString(cfg.Layout)
+
+	for _, target := range cfg.Layouts {
+		fmt.Fprintf(&signature, "|%d/%d=%s", target.Display, target.Space, target.Layout)
+	}
+
+	return signature.String()
+}
+
+// stateKey names the state for one display, the space in front on it and
+// the program that runs there, and reports whether that space could be
+// named at all. Keying by program means a space switched to another layout
+// starts that layout from null, and finds the old one's state again when
+// switched back.
 //
 // The key names the space by the window server's identifier rather than by
 // its place in Mission Control. Adding or removing a space changes the place
@@ -839,18 +900,29 @@ func (e *Engine) stopResidentLocked() {
 // the state it built for another space. A space the window server will not
 // identify is named by nothing, and its state is neither kept nor read, so
 // two such spaces on one display cannot be given each other's state.
-func stateKey(input Input) (string, bool) {
+func (e *Engine) stateKey(input Input) (string, bool) {
 	if input.spaceID == 0 {
 		return "", false
 	}
 
-	return stateKeyOf(input.Display.ID, input.spaceID), true
+	return stateKeyOf(
+		input.Display.ID,
+		input.spaceID,
+		e.layouts.LayoutFor(input.Display.Index, input.Space),
+	), true
 }
 
-// stateKeyOf is the key naming one display and one space, which is the one
-// place the shape of a state key is decided. splitStateKey reads it back.
-func stateKeyOf(display uint32, spaceID uint64) string {
-	return fmt.Sprintf("%d/%d", display, spaceID)
+// stateKeyOf is the key naming one display, one space and one program,
+// which is the one place the shape of a state key is decided. splitStateKey
+// reads it back, and spaceKeyPrefix is the part naming the space alone.
+func stateKeyOf(display uint32, spaceID uint64, command string) string {
+	return spaceKeyPrefix(display, spaceID) + command
+}
+
+// spaceKeyPrefix is the start every state key for one display and space
+// shares, whatever program the state belongs to.
+func spaceKeyPrefix(display uint32, spaceID uint64) string {
+	return fmt.Sprintf("%d/%d/", display, spaceID)
 }
 
 // keepUnmanaged records which of the windows this run was given the layout is
@@ -1305,7 +1377,7 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			input.Windows = append(input.Windows, win)
 		}
 
-		if len(input.Windows) == 0 {
+		if len(input.Windows) == 0 || e.layouts.LayoutFor(display.Index, input.Space) == "" {
 			continue
 		}
 
@@ -1319,7 +1391,7 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			input.Stacks = append(input.Stacks, stack.Stack)
 		}
 
-		if key, named := stateKey(input); named {
+		if key, named := e.stateKey(input); named {
 			input.State = e.states[key]
 		}
 
