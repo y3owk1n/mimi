@@ -1,8 +1,8 @@
 package systray
 
 /*
-#cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Cocoa
+#cgo CFLAGS: -x objective-c -fobjc-arc -mmacosx-version-min=14.0
+#cgo LDFLAGS: -mmacosx-version-min=14.0 -framework Cocoa
 
 #include <stdlib.h>
 #include "./systray.h"

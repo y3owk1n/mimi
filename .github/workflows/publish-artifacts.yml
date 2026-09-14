@@ -34,6 +34,10 @@ on:
 
 name: publish-artifacts
 
+env:
+    # Same floor as the #cgo flags, so the Go runtime/cgo shim matches.
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+
 jobs:
     build-darwin-arm64-artifacts:
         runs-on: macos-latest
