@@ -1,8 +1,8 @@
 package permissions
 
 /*
-#cgo CFLAGS: -x objective-c -fobjc-arc
-#cgo LDFLAGS: -framework Cocoa -framework ApplicationServices
+#cgo CFLAGS: -x objective-c -fobjc-arc -mmacosx-version-min=14.0
+#cgo LDFLAGS: -mmacosx-version-min=14.0 -framework Cocoa -framework ApplicationServices
 #include <stdlib.h>
 #include "permissions.h"
 */

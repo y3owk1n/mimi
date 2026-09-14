@@ -36,6 +36,9 @@
 	<key>MimiBuildID</key>
 	<string>BUILD_ID</string>
 
+	<key>LSMinimumSystemVersion</key>
+	<string>14.0</string>
+
 	<key>NSHighResolutionCapable</key>
 	<true/>
 
@@ -44,8 +47,5 @@
 
 	<key>NSAccessibilityUsageDescription</key>
 	<string>Mimi needs Accessibility access to inspect and interact with user interface elements for keyboard-driven navigation.</string>
-
-	<key>NSScreenCaptureUsageDescription</key>
-	<string>Mimi may capture screen content for vision-based element detection to enhance navigation accuracy.</string>
 </dict>
 </plist>
