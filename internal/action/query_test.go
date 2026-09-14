@@ -193,9 +193,9 @@ func TestExecutor_QueryWindow_ReadsButNeverWrites(t *testing.T) {
 	wantFocused(t, desktop, desktop.windows[0].id)
 }
 
-// desktopWithListedSpaces builds a desktop of two displays and three spaces,
-// the second in front on the first display and the third on the second, with
-// the cursor on the first display.
+// desktopWithListedSpaces builds a desktop of two displays and three spaces.
+// The first display holds spaces 1 and 2 with 2 in front. The second holds
+// space 3, which is full screen. The cursor is on the first display.
 func desktopWithListedSpaces() *fakeDesktop {
 	desktop := desktopWithSpaces(2)
 	desktop.displays = []action.Display{

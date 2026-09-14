@@ -360,7 +360,7 @@ and `apply_frames` takes it. `order` is the window's place in the stacking
 order, 0 for the frontmost. This differs from the cycle order of the list.
 `space` is the space the window is on, as `mimi action space` counts them,
 or 0 for a window assigned to every space. `display` is the display holding
-the window's centre, as `move_window_to_display` counts them. A window whose
+the window's center, as `move_window_to_display` counts them. A window whose
 frame cannot be read is left out. Accessibility permission is required.
 
 ```

@@ -324,10 +324,10 @@ func (e *Executor) QueryWindowsWithTitles(known map[uint32]string) (WindowsInfo,
 	return info, nil
 }
 
-// locateWindows fills in each window's space and display. A display that
-// cannot be read leaves every window's display 0, and a space the window
-// server does not place leaves its space 0, rather than refusing a listing
-// that is complete without them.
+// locateWindows fills in each window's space and display. The listing is
+// still useful without them, so a display that cannot be read leaves every
+// window's display 0, and a window the window server places on no one space
+// leaves its space 0.
 func (e *Executor) locateWindows(windows []WindowEntry) {
 	if len(windows) == 0 {
 		return
