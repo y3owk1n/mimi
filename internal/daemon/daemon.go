@@ -647,6 +647,10 @@ func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 		// on config.HookKinds.
 		AppLifecycle: hasWindowEvents(cfg) || hasAppEvents(cfg),
 		Workspace:    hasWorkspaceEvents(cfg),
+		// The tiling engine lays the desktop out again when a display
+		// comes or goes, so it needs the system observer as a system hook
+		// does.
+		SystemState: cfg.Hooks.HasGroup(config.GroupSystem) || cfg.Tiling.Enabled,
 	}
 }
 

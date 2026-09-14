@@ -52,6 +52,14 @@ const (
 
 	// WorkspaceChanged fires when the active macOS Space/Desktop changes.
 	WorkspaceChanged EventKind = "workspace_changed"
+
+	// SystemSleep fires as the Mac is about to sleep.
+	SystemSleep EventKind = "system_sleep"
+	// SystemWake fires once the Mac has woken.
+	SystemWake EventKind = "system_wake"
+	// DisplayChanged fires when a display is connected, disconnected, or
+	// changes resolution or arrangement.
+	DisplayChanged EventKind = "display_changed"
 )
 
 // AllKinds lists every hookable event kind.
@@ -71,6 +79,9 @@ var AllKinds = []EventKind{
 	WindowMinimize,
 	WindowUnminimize,
 	WorkspaceChanged,
+	SystemSleep,
+	SystemWake,
+	DisplayChanged,
 }
 
 // Event carries information about a system event through the bus.

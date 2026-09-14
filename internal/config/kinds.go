@@ -3,9 +3,9 @@ package config
 import "github.com/y3owk1n/mimi/internal/events"
 
 // HookGroup classifies a hook kind by the macOS observer machinery it needs,
-// mirroring the three sections users already see in docs/CONFIGURATION.md:
-// "Application Lifecycle", "Window events (requires Accessibility)" and
-// "Workspace events".
+// mirroring the four sections users already see in docs/CONFIGURATION.md:
+// "Application Lifecycle", "Window events (requires Accessibility)",
+// "Workspace events" and "System events".
 //
 // The group says which kinds belong together, not which observers the daemon
 // switches on for them — that mapping is a policy decision (window hooks also
@@ -22,6 +22,9 @@ const (
 	GroupWindow
 	// GroupWorkspace covers the Space/Desktop kinds.
 	GroupWorkspace
+	// GroupSystem covers sleep, wake and display changes, which need no
+	// extra permission.
+	GroupSystem
 )
 
 // HookKind describes one hookable event kind as it appears in config: the
@@ -142,6 +145,24 @@ var HookKinds = []HookKind{
 		TOMLKey: "on_workspace_changed",
 		Group:   GroupWorkspace,
 		Entries: func(h *HooksConfig) *[]HookEntry { return &h.WorkspaceChanged },
+	},
+	{
+		Kind:    events.SystemSleep,
+		TOMLKey: "on_system_sleep",
+		Group:   GroupSystem,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.SystemSleep },
+	},
+	{
+		Kind:    events.SystemWake,
+		TOMLKey: "on_system_wake",
+		Group:   GroupSystem,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.SystemWake },
+	},
+	{
+		Kind:    events.DisplayChanged,
+		TOMLKey: "on_display_changed",
+		Group:   GroupSystem,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.DisplayChanged },
 	},
 }
 

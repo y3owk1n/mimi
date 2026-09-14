@@ -444,6 +444,18 @@ and reload.
 | ---- | ---------- |
 | `on_workspace_changed` | Active Mission Control space changes |
 
+### System events
+
+| Hook | Fires when |
+| ---- | ---------- |
+| `on_system_sleep` | The Mac is about to sleep |
+| `on_system_wake` | The Mac has woken |
+| `on_display_changed` | A display is connected, disconnected, or changes resolution or arrangement |
+
+System hooks carry no application, so their `mimi_APP_NAME`, `mimi_BUNDLE_ID`
+and `mimi_PID` are empty. A hook on `on_system_sleep` has until the Mac
+sleeps to finish, which is a few seconds at most.
+
 ### Hook entry format
 
 An entry is either a plain command string or an inline table with filters:

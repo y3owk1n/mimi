@@ -209,6 +209,9 @@ type HooksConfig struct {
 	WindowMinimize    []HookEntry `json:"onWindowMinimize"    toml:"on_window_minimize"`
 	WindowUnminimize  []HookEntry `json:"onWindowUnminimize"  toml:"on_window_unminimize"`
 	WorkspaceChanged  []HookEntry `json:"onWorkspaceChanged"  toml:"on_workspace_changed"`
+	SystemSleep       []HookEntry `json:"onSystemSleep"       toml:"on_system_sleep"`
+	SystemWake        []HookEntry `json:"onSystemWake"        toml:"on_system_wake"`
+	DisplayChanged    []HookEntry `json:"onDisplayChanged"    toml:"on_display_changed"`
 }
 
 // HookEntry defines a single hook command and its optional filters.

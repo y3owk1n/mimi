@@ -181,6 +181,15 @@ lands on the destination's active space and keeps the share of the display it
 had. A window already on the destination does not move. Accessibility
 permission is required.
 
+### `mimi action focus_display <number|next|prev>`
+
+Make a display the active one and focus the window in front on it. Displays
+are counted as `move_window_to_display` counts them. `next` and `prev` step
+from the display holding the frontmost window and wrap. A display with no
+window on its active space becomes the active display for the menu bar and
+the next window that opens, and focus stays where it was. Accessibility
+permission is required.
+
 ### `mimi action resize_window [preset] [flags]`
 
 Resize and reposition the frontmost window. mimi follows the macOS tiled

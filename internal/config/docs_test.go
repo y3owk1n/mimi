@@ -1,6 +1,6 @@
 package config //nolint:testpackage // pins HookKinds against the documented tables
 
-// docs/CONFIGURATION.md lists every hook kind in three tables, one per group.
+// docs/CONFIGURATION.md lists every hook kind in four tables, one per group.
 // That is a fourth hand-maintained enumeration of the same twelve kinds, and
 // the only one a user actually reads -- a kind missing from it is a feature
 // nobody can find, and a kind listed there but absent from the code is a
@@ -23,6 +23,7 @@ var hookTableHeadings = map[string]HookGroup{
 	"Application Lifecycle":                  GroupApp,
 	"Window events (requires Accessibility)": GroupWindow,
 	"Workspace events":                       GroupWorkspace,
+	"System events":                          GroupSystem,
 }
 
 var (

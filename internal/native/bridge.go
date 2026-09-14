@@ -35,6 +35,8 @@ func EventDropCount() int64 { return eventDropped.Load() }
 type ObserverConfig struct {
 	AppLifecycle bool
 	Workspace    bool
+	// SystemState is sleep, wake, and the display set changing.
+	SystemState bool
 }
 
 // StartObservers initializes and starts configured macOS event observers.
@@ -55,7 +57,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 		mainThread <- true
 		C.WorkspaceObserverStart(
 			boolToInt(obsCfg.AppLifecycle),
-			0,
+			boolToInt(obsCfg.SystemState),
 			0,
 			boolToInt(obsCfg.Workspace),
 			0,
@@ -79,7 +81,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 func UpdateObservers(obsCfg ObserverConfig) {
 	C.WorkspaceObserverUpdate(
 		boolToInt(obsCfg.AppLifecycle),
-		0,
+		boolToInt(obsCfg.SystemState),
 		0,
 		boolToInt(obsCfg.Workspace),
 		0,
@@ -230,6 +232,12 @@ func kindFromInt(kindInt int) events.EventKind {
 		return events.WindowUnminimize
 	case int(C.MIMI_KIND_WORKSPACE_CHANGED):
 		return events.WorkspaceChanged
+	case int(C.MIMI_KIND_WILL_SLEEP):
+		return events.SystemSleep
+	case int(C.MIMI_KIND_DID_WAKE):
+		return events.SystemWake
+	case int(C.MIMI_KIND_DISPLAY_CHANGED):
+		return events.DisplayChanged
 	default:
 		return events.EventKind("unknown")
 	}

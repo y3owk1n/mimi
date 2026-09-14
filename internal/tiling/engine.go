@@ -345,7 +345,8 @@ func (e *Engine) Enabled() bool {
 // among them: every frame the engine writes is one, and the loop that would
 // make is the failure a layout engine exists to avoid. AXAttached is: the
 // application's first windows opened before the daemon could see them, and
-// this is the moment it can.
+// this is the moment it can. DisplayChanged is: the windows of a display
+// that went have to be placed again, and the pass reads the displays fresh.
 //
 //nolint:gochecknoglobals // a fixed set
 var wakingKinds = map[events.EventKind]bool{
@@ -360,6 +361,7 @@ var wakingKinds = map[events.EventKind]bool{
 	events.AppUnhide:        true,
 	events.AppQuit:          true,
 	events.AXAttached:       true,
+	events.DisplayChanged:   true,
 }
 
 // KindFilter is the bus filter for the engine's subscription: the waking

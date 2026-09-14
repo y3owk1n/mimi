@@ -97,6 +97,8 @@ var interruptAudit = []auditEntry{
 			"shorten even if runAction read one"),
 	audited("action move_window_to_space", interruptRunsOn,
 		"as space; the SkyLight move likewise runs to completion"),
+	audited("action focus_display", interruptRunsOn,
+		"as focus_window; the display activation and the window activation run to completion"),
 	audited("action move_window_to_display", interruptRunsOn,
 		"as resize_window; the Accessibility frame write runs to completion"),
 	audited("action resize_window", interruptRunsOn,
