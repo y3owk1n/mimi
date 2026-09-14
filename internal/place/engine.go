@@ -2,6 +2,7 @@ package place
 
 import (
 	"context"
+	"reflect"
 	"sync"
 	"time"
 
@@ -18,6 +19,8 @@ import (
 type Window struct {
 	PID    int
 	Number uint32
+	X      float64
+	Y      float64
 	Width  float64
 	Height float64
 }
@@ -29,6 +32,12 @@ type Desktop struct {
 	// Windows is every window the window server lists, on any space, by
 	// number. It is what the engine marks seen when the rules come on.
 	Windows func() []uint32
+	// Applications is every running application with a regular activation
+	// policy, by pid, which is what a sweep walks.
+	Applications func() []int
+	// Located is the space and the display a window is on now, as the
+	// actions count them, 0 for one the desktop cannot place.
+	Located func(win Window) (space, display int)
 	// WindowsOf is an application's real windows, the ones focus_app
 	// visits, on any space, with their frames. The window server lists
 	// helper windows for an application too, and those are never placed.
@@ -75,12 +84,32 @@ func NativeDesktop(serialize func(func() error) error) Desktop {
 				windows = append(windows, Window{
 					PID:    pid,
 					Number: win.Number,
+					X:      frame.X,
+					Y:      frame.Y,
 					Width:  frame.W,
 					Height: frame.H,
 				})
 			}
 
 			return windows
+		},
+		Applications: native.RegularApplicationPIDs,
+		Located: func(win Window) (int, int) {
+			space := native.SpaceIndexes()[native.WindowSpaceID(win.Number)]
+
+			displays, err := action.QueryDisplays()
+			if err != nil {
+				return space, 0
+			}
+
+			frame := action.Frame{X: win.X, Y: win.Y, Width: win.Width, Height: win.Height}
+
+			display, found := action.DisplayOf(frame, displays)
+			if !found {
+				return space, 0
+			}
+
+			return space, display.Index
 		},
 		Application: func(pid int) (string, string) {
 			info, err := native.LookupApplication(pid)
@@ -122,11 +151,17 @@ type Engine struct {
 
 	mu    sync.Mutex
 	rules []config.Rule
+	// written is the rules as the config wrote them, to tell a reload that
+	// changed them from one that did not.
+	written []config.TilingRule
 	// seen is every window number the engine has looked at, so a window
 	// is placed once, on creation, and never again.
 	seen map[uint32]bool
 	// active reports whether any rule places anything.
 	active bool
+	// wake asks Run for a sweep of every open window, on startup and on a
+	// reload that changed the placing rules.
+	wake chan struct{}
 }
 
 // New builds an engine over desktop.
@@ -135,12 +170,17 @@ func New(desktop Desktop, logger *zap.SugaredLogger) *Engine {
 		logger = zap.NewNop().Sugar()
 	}
 
-	return &Engine{desktop: desktop, logger: logger, seen: map[uint32]bool{}}
+	return &Engine{
+		desktop: desktop,
+		logger:  logger,
+		seen:    map[uint32]bool{},
+		wake:    make(chan struct{}, 1),
+	}
 }
 
-// Update applies the rules. The first time any rule places windows, every
-// window already open is marked seen, so turning the rules on moves
-// nothing that is already where the user put it.
+// Update applies the rules. When they come on, and when a reload changes
+// them, Run sweeps every open window into place, so a rule takes effect
+// on the windows already open and not only on the ones opened later.
 func (e *Engine) Update(rules []config.TilingRule) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
@@ -152,13 +192,19 @@ func (e *Engine) Update(rules []config.TilingRule) {
 		compiled = nil
 	}
 
-	wasActive := e.active
+	changed := !reflect.DeepEqual(e.written, rules)
 	e.rules = compiled
+	e.written = rules
 	e.active = config.AnyPlaces(rules)
 
-	if e.active && !wasActive {
-		for _, number := range e.desktop.Windows() {
-			e.seen[number] = true
+	for _, number := range e.desktop.Windows() {
+		e.seen[number] = true
+	}
+
+	if e.active && changed {
+		select {
+		case e.wake <- struct{}{}:
+		default:
 		}
 	}
 }
@@ -177,16 +223,58 @@ func (e *Engine) KindFilter() events.KindFilter {
 	}
 }
 
-// Run places the windows the events on sub report created, until ctx ends.
+// Run places the windows the events on sub report created, and sweeps
+// every open window when Update asks, until ctx ends.
 func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 	for {
 		select {
 		case <-ctx.Done():
 			return
+		case <-e.wake:
+			e.sweep()
 		case evt := <-sub:
 			if evt.Kind == events.WindowCreated || evt.Kind == events.AXAttached {
 				e.created(ctx, evt)
 			}
+		}
+	}
+}
+
+// sweep moves every open window its rules name a destination for and that
+// is not there already. Focus stays where it is. Following the one window
+// the user just opened is useful. Following a dozen being sorted is not.
+func (e *Engine) sweep() {
+	e.mu.Lock()
+	rules := e.rules
+	e.mu.Unlock()
+
+	for _, pid := range e.desktop.Applications() {
+		name, bundleID := e.desktop.Application(pid)
+
+		for _, win := range e.desktop.WindowsOf(pid) {
+			target := config.RuleWindow{
+				App:      name,
+				BundleID: bundleID,
+				Width:    win.Width,
+				Height:   win.Height,
+			}
+
+			placement, found := config.PlacementFor(rules, target)
+			if !found {
+				continue
+			}
+
+			space, display := e.desktop.Located(win)
+			if placement.Space != 0 && space == placement.Space {
+				continue
+			}
+
+			if placement.Space == 0 && display == placement.Display {
+				continue
+			}
+
+			placement.Follow = false
+			e.place(win, placement)
 		}
 	}
 }

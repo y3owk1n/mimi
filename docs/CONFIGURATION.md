@@ -402,12 +402,15 @@ no drop zone. Rules are read in order and the last one that matches decides,
 so a rule with `manage = true` after a broader one takes those windows back.
 The shipped layouts carry no float rules of their own.
 
-A rule can also say where a window goes when it is created. `space` and
-`display` are counted as `mimi action space` and `move_window_to_display`
-count them. The move happens once, as the window appears, so a window you
-drag elsewhere afterwards stays there. The space comes to the front and the
-window is focused there, unless the rule sets `follow = false`, which is the
-setting for an application that opens windows you did not ask for. A rule
+A rule can also say where a window goes. `space` and `display` are counted
+as `mimi action space` and `move_window_to_display` count them. A window is
+moved when it is created, and every open window is checked when the daemon
+starts and when a reload changes these rules, so a rule takes effect on the
+windows already open too. Between those moments a window you drag elsewhere
+stays there. When a window is created, the space comes
+to the front and the window is focused there, unless the rule sets
+`follow = false`, which is the setting for an application that opens windows
+you did not ask for. A sweep at startup or reload never follows. A rule
 that sets a destination may leave `manage` out. These moves need
 Accessibility, since the daemon learns of a new window through it.
 
