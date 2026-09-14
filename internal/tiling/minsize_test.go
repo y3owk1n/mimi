@@ -3,6 +3,8 @@ package tiling
 
 import (
 	"context"
+	"maps"
+	"os"
 	"path/filepath"
 	"sync"
 	"testing"
@@ -20,15 +22,26 @@ type clampingDesktop struct {
 	frames   map[uint32]action.Frame
 	minWidth float64
 	applies  [][]action.WindowFrame
+	// lateReads is how many reads after an apply still report the frames
+	// from before it, the way an application that has not finished
+	// resizing does. previous holds those frames.
+	lateReads int
+	previous  map[uint32]action.Frame
 }
 
 func (d *clampingDesktop) Windows() (action.WindowsInfo, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
+	frames := d.frames
+	if d.lateReads > 0 && d.previous != nil {
+		d.lateReads--
+		frames = d.previous
+	}
+
 	return action.WindowsInfo{Focused: 0, Windows: []action.WindowEntry{
-		{Number: 1, PID: 10, App: "A", Frame: d.frames[1]},
-		{Number: 2, PID: 20, App: "B", Frame: d.frames[2]},
+		{Number: 1, PID: 10, App: "A", Display: 1, Frame: frames[1]},
+		{Number: 2, PID: 20, App: "B", Display: 1, Frame: frames[2]},
 	}}, nil
 }
 
@@ -60,6 +73,9 @@ func (d *clampingDesktop) Apply(frames []action.WindowFrame, _ *action.Animation
 	defer d.mu.Unlock()
 
 	d.applies = append(d.applies, frames)
+
+	d.previous = map[uint32]action.Frame{}
+	maps.Copy(d.previous, d.frames)
 
 	for _, frame := range frames {
 		landed := frame.Frame
@@ -206,6 +222,7 @@ func TestEngine_learnMinSize(t *testing.T) {
 	if grew := engine.learnMinSize(
 		1,
 		"app",
+		1,
 		action.Frame{Width: 500, Height: 500},
 		action.Frame{Width: 600, Height: 500},
 	); !grew {
@@ -215,6 +232,7 @@ func TestEngine_learnMinSize(t *testing.T) {
 	if grew := engine.learnMinSize(
 		1,
 		"app",
+		1,
 		action.Frame{Width: 500, Height: 500},
 		action.Frame{Width: 600, Height: 500},
 	); grew {
@@ -224,6 +242,7 @@ func TestEngine_learnMinSize(t *testing.T) {
 	if grew := engine.learnMinSize(
 		1,
 		"app",
+		1,
 		action.Frame{Width: 600, Height: 500},
 		action.Frame{Width: 600, Height: 500},
 	); grew {
@@ -238,6 +257,7 @@ func TestEngine_learnMinSize(t *testing.T) {
 	if grew := engine.learnMinSize(
 		1,
 		"app",
+		1,
 		action.Frame{Width: 400, Height: 500},
 		action.Frame{Width: 400, Height: 500},
 	); grew {
@@ -375,6 +395,7 @@ func TestEngine_SetStore_SeedsNewWindowsFromTheirApplication(t *testing.T) {
 	if !first.learnMinSize(
 		1,
 		"com.example.app",
+		1,
 		action.Frame{Width: 500, Height: 500},
 		action.Frame{Width: 600, Height: 500},
 	) {
@@ -423,5 +444,101 @@ func TestEngine_SetStore_SeedsNewWindowsFromTheirApplication(t *testing.T) {
 
 	if len(third.appMinSizes) != 0 {
 		t.Fatalf("appMinSizes = %v after a reset wrote the store, want none", third.appMinSizes)
+	}
+}
+
+// TestEngine_Run_DoesNotLearnFromAWindowStillResizing pins the read-back
+// against an application that applies a size late: the first read sees the
+// old, larger frame, and a minimum learned from it would be wrong. The
+// engine reads again before believing a refusal, and learns nothing.
+func TestEngine_Run_DoesNotLearnFromAWindowStillResizing(t *testing.T) {
+	t.Parallel()
+
+	desktop := &clampingDesktop{
+		frames: map[uint32]action.Frame{
+			1: {Width: 500, Height: 1000},
+			2: {X: 500, Width: 500, Height: 1000},
+		},
+		lateReads: 2,
+	}
+	engine := New(desktop, nil, nil)
+	engine.resizeGrace = 50 * time.Millisecond
+	engine.Update(config.TilingConfig{
+		Enabled:     true,
+		DebounceMS:  10,
+		TimeoutSecs: 5,
+		Layout: `jq -c '{frames: [` +
+			`{number: 1, frame: {x: 0, y: 0, width: 500, height: 500}}, ` +
+			`{number: 2, frame: {x: 500, y: 0, width: 500, height: 500}}], state: null}'`,
+	}, "/bin/sh")
+
+	ctx := t.Context()
+
+	sub := make(events.Subscriber, 8)
+
+	go engine.Run(ctx, sub)
+
+	deadline := time.Now().Add(3 * time.Second)
+	for desktop.count() < 1 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	// Long enough for the read-back, the confirming read, and the pass a
+	// wrongly learned minimum would have asked for.
+	time.Sleep(confirmRefusal + 500*time.Millisecond)
+
+	if got := desktop.count(); got != 1 {
+		t.Fatalf("applied %d times, want 1: a late resize is not a refusal", got)
+	}
+
+	engine.mu.Lock()
+	defer engine.mu.Unlock()
+
+	if len(engine.minSizes) != 0 || len(engine.appMinSizes) != 0 {
+		t.Fatalf("learned %v / %v, want nothing", engine.minSizes, engine.appMinSizes)
+	}
+}
+
+// TestEngine_learnMinSize_IgnoresAWindowAsLargeAsItsDisplay pins that a
+// window landed at its display's size did not refuse anything: no minimum
+// is that big, and the frame written never applied.
+func TestEngine_learnMinSize_IgnoresAWindowAsLargeAsItsDisplay(t *testing.T) {
+	t.Parallel()
+
+	engine := New(&clampingDesktop{}, nil, nil)
+	engine.visible[1] = action.Frame{Width: 1920, Height: 1050}
+
+	if grew := engine.learnMinSize(
+		1,
+		"app",
+		1,
+		action.Frame{Width: 500, Height: 500},
+		action.Frame{Width: 1920, Height: 1050},
+	); grew {
+		t.Fatal("a window as large as its display reported a minimum")
+	}
+
+	if _, ok := engine.minSizes[1]; ok {
+		t.Fatalf("minSize = %+v, want none", engine.minSizes[1])
+	}
+}
+
+// TestEngine_SetStore_DiscardsAnOlderStore pins that what a build without
+// the confirming read learned is not carried forward.
+func TestEngine_SetStore_DiscardsAnOlderStore(t *testing.T) {
+	t.Parallel()
+
+	store := filepath.Join(t.TempDir(), "minsizes.json")
+
+	err := os.WriteFile(store, []byte(`{"com.apple.Safari":{"width":574,"height":1034}}`), 0o600)
+	if err != nil {
+		t.Fatalf("writing store: %v", err)
+	}
+
+	engine := New(&clampingDesktop{}, nil, nil)
+	engine.SetStore(store)
+
+	if len(engine.appMinSizes) != 0 {
+		t.Fatalf("appMinSizes = %v, want nothing from an unversioned store", engine.appMinSizes)
 	}
 }
