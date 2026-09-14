@@ -56,6 +56,28 @@ func (d *steppingDesktop) SetEnhancedUI(_ int, enabled bool) (bool, bool) {
 	return true, true
 }
 
+// enhancedSwitches waits until the interface has been switched count times
+// and returns the switches in order, failing the test past the deadline.
+// An application's interface is switched back on after its steps report,
+// so a read taken as soon as they land can miss the last switch.
+func (d *steppingDesktop) enhancedSwitches(t *testing.T, count int) []bool {
+	t.Helper()
+
+	deadline := time.Now().Add(2 * time.Second)
+
+	for {
+		d.mu.Lock()
+		switches := append([]bool(nil), d.enhanced...)
+		d.mu.Unlock()
+
+		if len(switches) >= count || time.Now().After(deadline) {
+			return switches
+		}
+
+		time.Sleep(5 * time.Millisecond)
+	}
+}
+
 // waitLanded waits for count applications to report, failing the test past
 // the deadline.
 func (d *steppingDesktop) waitLanded(t *testing.T, count int) {
@@ -155,7 +177,7 @@ func TestExecutor_ApplyFrames_StepsEveryWindowHomeInTheBackground(t *testing.T) 
 
 	// Two applications: each has its interface switched off, then back on.
 	switchedOff, switchedOn := 0, 0
-	for _, enabled := range desktop.enhanced {
+	for _, enabled := range desktop.enhancedSwitches(t, 4) {
 		if enabled {
 			switchedOn++
 		} else {

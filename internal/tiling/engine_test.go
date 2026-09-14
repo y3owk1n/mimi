@@ -1339,7 +1339,7 @@ func TestEngine_Pass_RunsTheLayoutOnEveryDisplayAtOnce(t *testing.T) {
 
 	engine := tiling.New(desktop, nil, nil)
 	engine.Update(
-		enabled(`sleep 0.2; jq -c '{frames: [], state: {display: .display.id}}'`),
+		enabled(`sleep 0.5; jq -c '{frames: [], state: {display: .display.id}}'`),
 		shell,
 	)
 
@@ -1351,7 +1351,10 @@ func TestEngine_Pass_RunsTheLayoutOnEveryDisplayAtOnce(t *testing.T) {
 		t.Fatalf("Pass() error = %v", err)
 	}
 
-	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
+	// Two runs one after the other take a second. Overlapped they take half
+	// that, plus whatever a loaded machine adds, which reached a quarter of
+	// a second on a CI runner under the race detector.
+	if elapsed := time.Since(start); elapsed >= 900*time.Millisecond {
 		t.Fatalf("pass took %s, want the two layout runs overlapped", elapsed)
 	}
 
