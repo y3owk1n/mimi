@@ -137,6 +137,10 @@ static void mimiSetActiveMenuBarDisplay(uint32_t did) {
 
 #pragma mark - Public Space API
 
+/// SLSCopyManagedDisplaySpaces space "type": a full-screen application space,
+/// as opposed to a user desktop (0) or a system space.
+static const int kMimiSpaceTypeFullScreen = 4;
+
 /// Get the total number of Mission Control spaces across all displays
 /// in their current ordering.
 int MimiCountMissionControlSpaces(void) {
@@ -161,6 +165,67 @@ int MimiCountMissionControlSpaces(void) {
 		CFRelease(displaySpaces);
 
 		return total;
+	}
+}
+
+MimiSpace *MimiCopySpaces(int *count) {
+	*count = 0;
+	@autoreleasepool {
+		CFArrayRef displaySpaces = SLSCopyManagedDisplaySpaces(SLSMainConnectionID());
+		if (!displaySpaces)
+			return NULL;
+
+		int total = MimiCountMissionControlSpaces();
+		if (total == 0) {
+			CFRelease(displaySpaces);
+			return NULL;
+		}
+
+		MimiSpace *result = (MimiSpace *)calloc(total, sizeof(MimiSpace));
+		if (!result) {
+			CFRelease(displaySpaces);
+			return NULL;
+		}
+
+		int filled = 0;
+		CFIndex displayCount = CFArrayGetCount(displaySpaces);
+		for (CFIndex i = 0; i < displayCount; i++) {
+			CFDictionaryRef displayRef = (CFDictionaryRef)CFArrayGetValueAtIndex(displaySpaces, i);
+			CFArrayRef spacesRef = (CFArrayRef)CFDictionaryGetValue(displayRef, CFSTR("Spaces"));
+			if (!spacesRef)
+				continue;
+
+			CFStringRef uuid = (CFStringRef)CFDictionaryGetValue(displayRef, CFSTR("Display Identifier"));
+			uint32_t did = uuid ? mimiDisplayIDFromUUID(uuid) : 0;
+
+			uint64_t current = 0;
+			CFDictionaryRef currentRef = (CFDictionaryRef)CFDictionaryGetValue(displayRef, CFSTR("Current Space"));
+			CFNumberRef currentID = currentRef ? (CFNumberRef)CFDictionaryGetValue(currentRef, CFSTR("id64")) : NULL;
+			if (currentID)
+				CFNumberGetValue(currentID, CFNumberGetType(currentID), &current);
+
+			CFIndex spacesCount = CFArrayGetCount(spacesRef);
+			for (CFIndex j = 0; j < spacesCount && filled < total; j++) {
+				CFDictionaryRef spaceRef = (CFDictionaryRef)CFArrayGetValueAtIndex(spacesRef, j);
+				MimiSpace *space = &result[filled++];
+				space->display = did;
+
+				CFNumberRef sidRef = (CFNumberRef)CFDictionaryGetValue(spaceRef, CFSTR("id64"));
+				if (sidRef)
+					CFNumberGetValue(sidRef, CFNumberGetType(sidRef), &space->id);
+
+				int type = 0;
+				CFNumberRef typeRef = (CFNumberRef)CFDictionaryGetValue(spaceRef, CFSTR("type"));
+				if (typeRef && CFNumberGetValue(typeRef, kCFNumberIntType, &type))
+					space->fullScreen = type == kMimiSpaceTypeFullScreen;
+
+				space->current = space->id != 0 && space->id == current;
+			}
+		}
+
+		CFRelease(displaySpaces);
+		*count = filled;
+		return result;
 	}
 }
 
@@ -228,10 +293,6 @@ uint32_t MimiSpaceDisplayID(uint64_t sid) {
 uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID()); }
 
 uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
-
-/// SLSCopyManagedDisplaySpaces space "type": a full-screen application space,
-/// as opposed to a user desktop (0) or a system space.
-static const int kMimiSpaceTypeFullScreen = 4;
 
 /// Whether the space in front on a display is a full-screen application
 /// space, which holds one window or a split-view pair that macOS itself lays out.

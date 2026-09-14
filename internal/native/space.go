@@ -1,11 +1,14 @@
 package native
 
 /*
+#include <stdlib.h>
 #include "mimi.h"
 */
 import "C"
 
 import (
+	"unsafe"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
@@ -169,4 +172,67 @@ func MoveWindowToSpace(index int) (int, uint32, error) {
 	}
 
 	return pid, number, nil
+}
+
+// Space is one Mission Control space as the window server lists it: its
+// identifier, the display it belongs to, whether it is a full-screen
+// application space, and whether it is the one in front on its display.
+type Space struct {
+	ID         uint64
+	DisplayID  uint32
+	FullScreen bool
+	Current    bool
+}
+
+// Spaces lists every Mission Control space in Mission Control order, display
+// by display, or nothing when they cannot be enumerated.
+func Spaces() []Space {
+	var count C.int
+
+	rows := C.MimiCopySpaces(&count)
+	if rows == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	values := unsafe.Slice(rows, int(count))
+	spaces := make([]Space, int(count))
+
+	for index, row := range values {
+		spaces[index] = Space{
+			ID:         uint64(row.id),
+			DisplayID:  uint32(row.display),
+			FullScreen: row.fullScreen != 0,
+			Current:    row.current != 0,
+		}
+	}
+
+	return spaces
+}
+
+// WindowSpaceID is the window server's identifier for the one space a window
+// is on, or 0 when it is on every space or on none.
+func WindowSpaceID(number uint32) uint64 {
+	return uint64(C.MimiSpaceForWindowNumber(C.uint32_t(number)))
+}
+
+// WindowsOnSpace lists the real, unminimized windows on one space by number,
+// in the window server's order, front to back.
+func WindowsOnSpace(id uint64) []uint32 {
+	var count C.int
+
+	rows := C.MimiCopyRealWindowNumbersOnSpace(C.uint64_t(id), &count)
+	if rows == nil {
+		return nil
+	}
+	defer C.free(unsafe.Pointer(rows)) //nolint:nlreturn
+
+	values := unsafe.Slice(rows, int(count))
+	numbers := make([]uint32, int(count))
+
+	for index, row := range values {
+		numbers[index] = uint32(row)
+	}
+
+	return numbers
 }

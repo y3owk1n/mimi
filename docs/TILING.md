@@ -177,7 +177,7 @@ failure in a row. The shipped layouts handle both modes through `serve()` in
   "focused": 0,
   "windows": [
     {"number": 4242, "pid": 501, "app": "Safari", "bundleId": "com.apple.Safari",
-     "title": "Start Page", "order": 0,
+     "title": "Start Page", "order": 0, "space": 2, "display": 1,
      "frame": {"x": 0, "y": 25, "width": 1440, "height": 875}}
   ],
   "state": null
@@ -196,7 +196,7 @@ failure in a row. The shipped layouts handle both modes through `serve()` in
 | `gap` | Points to leave between windows and at the display's edges, resolved by mimi: `tiling.gap` when set, else the macOS tiled-window margin, else 0. |
 | `displays` | Every display, numbered as `move_window_to_display` counts them. |
 | `focused` | Index into `windows` of the focused window, or -1 when no window on this display has focus. |
-| `windows` | The focusable windows whose centres are on this display, or nearest to it when a centre is off every display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. `minSize` is present on a window mimi has asked for a smaller size and watched refuse: the `width` and `height` it kept instead, 0 on an axis it took as asked. Give the window at least that and share the rest out. See [When nothing happens](#when-nothing-happens), item 7. |
+| `windows` | The focusable windows whose centres are on this display, or nearest to it when a centre is off every display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. `space` is the space the window is on, 0 for one assigned to every space, and `display` is the display holding its centre, which here is always this display's `index`. `minSize` is present on a window mimi has asked for a smaller size and watched refuse: the `width` and `height` it kept instead, 0 on an axis it took as asked. Give the window at least that and share the rest out. See [When nothing happens](#when-nothing-happens), item 7. |
 | `state` | What you printed last time for this display and space, or `null`. |
 | `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. mimi hands the set back so that a layout that keeps its floats outside `state`, or one restarted mid-session, can pick it up again. |
 | `stacks` | The stacks you last named on this display, handed back for the same reason. Absent when there are none. |

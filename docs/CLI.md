@@ -324,6 +324,22 @@ $ mimi query space
 {"index":2,"count":5}
 ```
 
+### `mimi query spaces`
+
+Every Mission Control space, in the 1-based ordering `mimi action space`
+takes. `id` is the window server's identifier for the space and survives
+reordering. `display` is the display the space belongs to, numbered as
+`move_window_to_display` counts them. `visible` marks the space in front on
+its display, and `focused` is the index into `spaces` of the one in front on
+the display holding the cursor, or -1. `windows` lists the real, unminimized
+windows on the space by number, front to back. Needs no Accessibility
+permission.
+
+```
+$ mimi query spaces
+{"focused":1,"spaces":[{"index":1,"id":1,"display":1,"visible":false,"fullScreen":false,"windows":[]},{"index":2,"id":5,"display":1,"visible":true,"fullScreen":false,"windows":[4242]}]}
+```
+
 ### `mimi query window`
 
 The frontmost window, with its owner's PID and frame in window coordinates.
@@ -341,13 +357,15 @@ Every focusable window on the active space, in `focus_window` cycle order.
 `focused` is the index of the focused window, or -1. `number` is the window
 server's number for the window. It stays the same for the window's lifetime,
 and `apply_frames` takes it. `order` is the window's place in the stacking
-order, 0 for the frontmost. This differs from the cycle order of the list. A
-window whose frame cannot be read is left out. Accessibility permission is
-required.
+order, 0 for the frontmost. This differs from the cycle order of the list.
+`space` is the space the window is on, as `mimi action space` counts them,
+or 0 for a window assigned to every space. `display` is the display holding
+the window's centre, as `move_window_to_display` counts them. A window whose
+frame cannot be read is left out. Accessibility permission is required.
 
 ```
 $ mimi query windows
-{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875},"order":0}]}
+{"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875},"order":0,"space":2,"display":1}]}
 ```
 
 ### `mimi query displays`

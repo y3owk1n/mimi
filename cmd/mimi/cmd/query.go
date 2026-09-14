@@ -26,6 +26,7 @@ in this process whether or not the daemon is running.
 
 Available subcommands:
   space     the active Mission Control space and how many there are
+  spaces    every Mission Control space, with its display and windows
   window    the frontmost window's owner and frame
   windows   every focusable window on the active space, with its frame
   displays  every connected display, with its frames
@@ -33,6 +34,7 @@ Available subcommands:
 
 Examples:
   mimi query space
+  mimi query spaces | jq '.spaces[] | select(.visible) | .index'
   mimi query window
   mimi query windows | jq '.windows[].number'
   mimi query displays | jq '.[0].visible'
@@ -51,6 +53,7 @@ Examples:
 	}
 
 	cmd.AddCommand(buildQuerySpaceCommand())
+	cmd.AddCommand(buildQuerySpacesCommand())
 	cmd.AddCommand(buildQueryWindowCommand())
 	cmd.AddCommand(buildQueryWindowsCommand())
 	cmd.AddCommand(buildQueryDisplaysCommand())
@@ -85,13 +88,17 @@ func buildQueryWindowsCommand() *cobra.Command {
 
   {"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari",
    "bundleId":"com.apple.Safari","title":"Start Page",
-   "frame":{"x":0,"y":25,"width":1440,"height":875}}]}
+   "frame":{"x":0,"y":25,"width":1440,"height":875},"order":0,
+   "space":2,"display":1}]}
 
 The windows are the ones "mimi action focus_window" cycles, in that order,
 and "focused" is the index of the focused one among them, or -1 when none
 holds focus. "number" is what "mimi action apply_frames" takes to name a
 window. Frames are in window coordinates, the same as "mimi query window"
-reports. A window whose frame cannot be read is left out. Accessibility
+reports. "space" is the space the window is on, as "mimi action space"
+counts them, or 0 for a window on every space. "display" is the display
+holding the window's center, as "mimi action move_window_to_display" counts
+them. A window whose frame cannot be read is left out. Accessibility
 permission is required.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
@@ -136,6 +143,31 @@ every connected display. Accessibility permission is not needed.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			return answerQuery(cobraCmd, action.QuerySpace)
+		},
+	}
+}
+
+func buildQuerySpacesCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "spaces",
+		Short: "List every Mission Control space with its display and windows",
+		Long: `List the Mission Control spaces as JSON:
+
+  {"focused":1,"spaces":[{"index":1,"id":1,"display":1,"visible":true,
+   "fullScreen":false,"windows":[4242]},{"index":2,"id":5,"display":1,
+   "visible":false,"fullScreen":false,"windows":[]}]}
+
+"index" is the 1-based number "mimi action space" takes, counting display
+by display. "id" is the window server's identifier for the space, which
+stays the same when spaces are reordered. "display" is the display the space
+belongs to, as "mimi action move_window_to_display" counts them. "visible"
+marks the space in front on its display, and "focused" is the index into
+"spaces" of the one in front on the display holding the cursor, or -1.
+"windows" is every real, unminimized window on the space by number, front
+to back. Accessibility permission is not needed.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QuerySpaces)
 		},
 	}
 }

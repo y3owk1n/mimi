@@ -1,6 +1,8 @@
 package action
 
 import (
+	"math"
+
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/geometry"
 )
@@ -20,6 +22,13 @@ type WindowEntry struct {
 	// listing itself is ordered by position rather than by this, so a caller
 	// that wants the window on top reads it here.
 	Order int `json:"order"`
+	// Space is the 1-based Mission Control index of the space the window is
+	// on, or 0 when it is on every space.
+	Space int `json:"space"`
+	// Display is the 1-based index, as move_window_to_display counts them,
+	// of the display holding the window's center, or the nearest one when
+	// the center is off every display. 0 when no display could be read.
+	Display int `json:"display"`
 	// MinSize is the smallest size the window has been seen to accept,
 	// when the tiling engine has asked it for less and watched it refuse:
 	// the width and height it kept instead, each 0 when the window took
@@ -53,6 +62,28 @@ type DisplayEntry struct {
 	Visible Frame  `json:"visible"`
 }
 
+// SpaceEntry is one space as the spaces query reports it: its 1-based index
+// in the order the space actions count, the window server's identifier for
+// it, the display it belongs to as move_window_to_display counts them, whether
+// it is the space in front on that display, whether it is a full-screen
+// application space, and the real windows on it by number, front to back.
+type SpaceEntry struct {
+	Index      int      `json:"index"`
+	ID         uint64   `json:"id"`
+	Display    int      `json:"display"`
+	Visible    bool     `json:"visible"`
+	FullScreen bool     `json:"fullScreen"`
+	Windows    []uint32 `json:"windows"`
+}
+
+// SpacesInfo is what a spaces query reports: every space in Mission Control
+// order and the index into Spaces of the one in front on the display holding
+// the cursor, or -1 when it is not among them.
+type SpacesInfo struct {
+	Focused int          `json:"focused"`
+	Spaces  []SpaceEntry `json:"spaces"`
+}
+
 // MarginsInfo is what a margins query reports: the system tiled-window
 // margins setting, and the margin size in points, which resize_window
 // applies and a layout may default its gap to.
@@ -79,6 +110,69 @@ func (e *Executor) QueryMargins() (MarginsInfo, error) {
 	}
 
 	return MarginsInfo{Enabled: screen.MarginsEnabled, Size: screen.MarginSize}, nil
+}
+
+// QuerySpaces lists every Mission Control space of the desktop mimi is
+// running on.
+func QuerySpaces() (SpacesInfo, error) {
+	return defaultExecutor.QuerySpaces()
+}
+
+// QuerySpaces lists every space in Mission Control order with the display
+// it belongs to and the windows on it. It reads the window server, as
+// QuerySpace does, so no Accessibility is needed.
+func (e *Executor) QuerySpaces() (SpacesInfo, error) {
+	spaces, err := e.desktop.Spaces()
+	if err != nil {
+		return SpacesInfo{}, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to enumerate Mission Control spaces",
+		)
+	}
+
+	displays, err := e.QueryDisplays()
+	if err != nil {
+		return SpacesInfo{}, err
+	}
+
+	displayIndexes := make(map[uint32]int, len(displays))
+	for _, display := range displays {
+		displayIndexes[display.ID] = display.Index
+	}
+
+	focused, err := e.desktop.ActiveSpaceIndex()
+	if err != nil {
+		return SpacesInfo{}, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to resolve the active space",
+		)
+	}
+
+	info := SpacesInfo{Focused: -1, Spaces: make([]SpaceEntry, len(spaces))}
+
+	for index, space := range spaces {
+		if index+1 == focused {
+			info.Focused = index
+		}
+
+		windows := e.desktop.WindowsOnSpace(space.ID)
+		if windows == nil {
+			windows = []uint32{}
+		}
+
+		info.Spaces[index] = SpaceEntry{
+			Index:      index + 1,
+			ID:         space.ID,
+			Display:    displayIndexes[space.DisplayID],
+			Visible:    space.Visible,
+			FullScreen: space.FullScreen,
+			Windows:    windows,
+		}
+	}
+
+	return info, nil
 }
 
 // QueryActiveSpaces reports the space in front on every display of the
@@ -210,17 +304,87 @@ func (e *Executor) QueryWindowsWithTitles(known map[uint32]string) (WindowsInfo,
 	}
 
 	if lister, ok := e.desktop.(knownLister); ok && known != nil {
-		return e.listKnown(lister, known), nil
+		info := e.listKnown(lister, known)
+		e.locateWindows(info.Windows)
+
+		return info, nil
 	}
 
 	info, retry, err := e.listWindows(known)
-	if err != nil || !retry {
+	if err == nil && retry {
+		info, _, err = e.listWindows(known)
+	}
+
+	if err != nil {
 		return info, err
 	}
 
-	info, _, err = e.listWindows(known)
+	e.locateWindows(info.Windows)
 
-	return info, err
+	return info, nil
+}
+
+// locateWindows fills in each window's space and display. A display that
+// cannot be read leaves every window's display 0, and a space the window
+// server does not place leaves its space 0, rather than refusing a listing
+// that is complete without them.
+func (e *Executor) locateWindows(windows []WindowEntry) {
+	if len(windows) == 0 {
+		return
+	}
+
+	displays, _ := e.QueryDisplays()
+
+	spaceIndexes := map[uint64]int{}
+
+	spaces, err := e.desktop.Spaces()
+	if err == nil {
+		for index, space := range spaces {
+			spaceIndexes[space.ID] = index + 1
+		}
+	}
+
+	for index := range windows {
+		win := &windows[index]
+		win.Space = spaceIndexes[e.desktop.WindowSpaceID(win.Number)]
+
+		if display, ok := DisplayOf(win.Frame, displays); ok {
+			win.Display = display.Index
+		}
+	}
+}
+
+// half is the divisor that finds the center of a frame.
+const half = 2
+
+// DisplayOf is the display whose frame holds the center of frame, or, when
+// none does, the one that center is nearest, and false with no displays. A
+// window a layout parks off the edge of a display stays that display's.
+func DisplayOf(frame Frame, displays []DisplayEntry) (DisplayEntry, bool) {
+	centerX := frame.X + frame.Width/half
+	centerY := frame.Y + frame.Height/half
+
+	var (
+		nearest  DisplayEntry
+		found    bool
+		distance = math.Inf(1)
+	)
+
+	for _, display := range displays {
+		bounds := display.Frame
+		outsideX := math.Max(bounds.X-centerX, math.Max(0, centerX-(bounds.X+bounds.Width)))
+		outsideY := math.Max(bounds.Y-centerY, math.Max(0, centerY-(bounds.Y+bounds.Height)))
+
+		if outsideX == 0 && outsideY == 0 {
+			return display, true
+		}
+
+		if d := outsideX*outsideX + outsideY*outsideY; d < distance {
+			nearest, distance, found = display, d, true
+		}
+	}
+
+	return nearest, found
 }
 
 // listKnown lists the learned windows with the titles in known, from the
