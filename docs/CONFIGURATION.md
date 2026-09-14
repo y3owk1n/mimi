@@ -363,8 +363,8 @@ A window matching a rule with `manage = false` is left out of the layout's
 input, so the layout cannot frame it, a drag of it runs no pass, and it gets
 no drop zone. Rules are read in order and the last one that matches decides,
 so a rule with `manage = true` after a broader one takes those windows back.
-The shipped layouts also carry a float list in `rules.py`. A rule here needs
-no edit to the layout and applies to every layout.
+The shipped layouts float small windows on their own, in `rules.py`, since a
+rule here matches names and titles and not sizes.
 
 ## Borders
 

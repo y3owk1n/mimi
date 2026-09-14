@@ -5,11 +5,10 @@ Every layout here reads a JSON document per line on stdin and prints one
 per line on stdout, once or for as long as stdin stays open. See README.md
 for the shapes. mimi runs a layout once per display,
 with that display's windows and a state of that display's own, so a layout
-only ever thinks about one display. A bundle identifier that should never
-be tiled goes in FLOATING_BUNDLES below, or in [[tiling.rules]] in
-config.toml, which keeps the window out of every layout without an edit
-here. The size rule stays here, since config rules match names and titles
-only.
+only ever thinks about one display. An application that should never be
+tiled goes in [[tiling.rules]] in config.toml, which keeps its windows out
+of every layout. Only the size rule lives here, since config rules match
+names and titles, not sizes.
 """
 
 import json
@@ -17,20 +16,10 @@ import os
 import subprocess
 import sys
 
-FLOATING_BUNDLES = {
-    "com.apple.systempreferences",
-    "com.apple.finder",
-    "com.apple.ActivityMonitor",
-    "com.1password.1password",
-}
-
-
 def floating(win):
-    """True for a window a layout should leave where it is."""
-    return (
-        win["bundleId"] in FLOATING_BUNDLES
-        or (win["frame"]["width"] < 400 and win["frame"]["height"] < 300)
-    )
+    """True for a window too small to tile, which a layout leaves where
+    it is."""
+    return win["frame"]["width"] < 400 and win["frame"]["height"] < 300
 
 
 def serve(layout):

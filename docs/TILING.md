@@ -77,9 +77,10 @@ when the config sets it, otherwise the macOS tiled-window margin that
 `mimi action resize_window` honours, so tiled and hand-placed windows line
 up.
 
-`rules.py` lists the windows that are never tiled: System Settings, Finder,
-Activity Monitor, 1Password, and any window narrower than 400 points and
-shorter than 300. Edit it to taste.
+An application that should never be tiled goes in `[[tiling.rules]]` in
+config.toml, and the default config shows the shape. `rules.py` floats any
+window narrower than 400 points and shorter than 300 on top of that. Change
+either.
 
 ---
 
@@ -247,8 +248,8 @@ config.toml with `manage = false`. It is then left out of `windows` for
 every layout, with no edit to the layout. [CONFIGURATION.md](CONFIGURATION.md#rules)
 has the shape.
 
-`rules.py` handles this for you. `narrow()` records the windows the float
-rules filtered out, `unmanaged_of(inp, state)` adds any the layout floated
+`rules.py` handles this for you. `narrow()` records the windows the size
+rule filtered out, `unmanaged_of(inp, state)` adds any the layout floated
 itself with `togglefloat`, and `write_output(..., unmanaged=...)` prints the
 result.
 

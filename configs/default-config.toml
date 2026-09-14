@@ -91,9 +91,19 @@ relayout_on_drag = false
 # the application name), bundle_id (a glob on the bundle identifier) or
 # title (a regular expression), and says whether the layout manages them.
 # A pattern starting with ! matches everything the rest does not. Rules are
-# read in order and the last one that matches decides.
+# read in order and the last one that matches decides. These four are the
+# ones most people never want tiled.
 # [[tiling.rules]]
-# app = "Finder"
+# bundle_id = "com.apple.finder"
+# manage = false
+# [[tiling.rules]]
+# bundle_id = "com.apple.systempreferences"
+# manage = false
+# [[tiling.rules]]
+# bundle_id = "com.apple.ActivityMonitor"
+# manage = false
+# [[tiling.rules]]
+# bundle_id = "com.1password.1password"
 # manage = false
 
 # Move the frames into place over time instead of at once, through the
