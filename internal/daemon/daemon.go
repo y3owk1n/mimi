@@ -22,6 +22,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/hooks"
 	"github.com/y3owk1n/mimi/internal/ipc"
 	"github.com/y3owk1n/mimi/internal/logging"
+	"github.com/y3owk1n/mimi/internal/mousefocus"
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/paths"
@@ -161,6 +162,7 @@ func runCore(
 	go pipeline.executor.Run(ctx, pipeline.hookSub)
 	go pipeline.tiler.Run(ctx, pipeline.tileSub)
 	go pipeline.borders.Run(ctx, pipeline.borderSub)
+	go pipeline.follow.Run(ctx, native.MouseMoves())
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
 	defer pipeline.zone.Close()
@@ -175,6 +177,7 @@ func runCore(
 		pipeline.borders,
 		pipeline.zone,
 		pipeline.bars,
+		pipeline.follow,
 		logger,
 	)
 
@@ -243,6 +246,7 @@ type eventPipeline struct {
 	borders   *border.Engine
 	zone      *dropzone.Tracker
 	bars      *stackbar.Tracker
+	follow    *mousefocus.Engine
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
 	tileSub   events.Subscriber
@@ -319,6 +323,11 @@ func setupEventPipeline(
 	bars.Update(stackbarConfigFor(cfg, accessibilityGranted))
 	tiler.SetStacks(bars)
 
+	// Focus follows the pointer through the same action path a hotkey
+	// takes, on the same worker, so it never races an action.
+	follow := mousefocus.New(mousefocus.NativeDesktop(), serialize, logger)
+	follow.Update(mouseConfigFor(cfg, accessibilityGranted))
+
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
 	// always-false filter prevents the bus from sending into a channel
@@ -348,6 +357,7 @@ func setupEventPipeline(
 		borders:   borders,
 		zone:      zone,
 		bars:      bars,
+		follow:    follow,
 		logSub:    logSub,
 		hookSub:   hookSub,
 		tileSub:   tileSub,
@@ -577,7 +587,8 @@ func removePID(path string) {
 // observers: a window hook, the tiling engine, or the borders, which wake on
 // the same events.
 func hasWindowEvents(cfg *config.Config) bool {
-	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled || cfg.Border.Enabled
+	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled || cfg.Border.Enabled ||
+		cfg.Mouse.FocusFollowsMouse
 }
 
 // borderConfigFor is the [border] section as the engine gets it: as
@@ -614,6 +625,17 @@ func stackbarConfigFor(cfg *config.Config, accessibilityGranted bool) config.Sta
 	}
 
 	return barCfg
+}
+
+// mouseConfigFor is the [mouse] section as the engine gets it: as written,
+// except that without Accessibility it is off, since focusing needs it.
+func mouseConfigFor(cfg *config.Config, accessibilityGranted bool) config.MouseConfig {
+	mouseCfg := cfg.Mouse
+	if !accessibilityGranted {
+		mouseCfg.FocusFollowsMouse = false
+	}
+
+	return mouseCfg
 }
 
 // tilingConfigFor is the [tiling] section as the engine gets it: as written,

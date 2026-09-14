@@ -20,6 +20,7 @@ type Config struct {
 	Systray  SystrayConfig  `json:"systray"  reload:"per-field"  toml:"systray"`
 	Tiling   TilingConfig   `json:"tiling"   reload:"reloadable" toml:"tiling"`
 	Border   BorderConfig   `json:"border"   reload:"reloadable" toml:"border"`
+	Mouse    MouseConfig    `json:"mouse"    reload:"reloadable" toml:"mouse"`
 
 	// UnknownHookKeys lists the keys found under [hooks] that name no hook
 	// kind, sorted. Loading records them rather than reporting them so each
@@ -178,6 +179,13 @@ type BorderConfig struct {
 	InactiveColor string   `json:"inactiveColor" toml:"inactive_color"`
 }
 
+// MouseConfig holds the [mouse] section: whether keyboard focus follows the
+// pointer. The whole section is reloadable; it needs Accessibility, as
+// focusing a window does.
+type MouseConfig struct {
+	FocusFollowsMouse bool `json:"focusFollowsMouse" toml:"focus_follows_mouse"`
+}
+
 // CornerRadius is the radius the border follows: Radius when set, else
 // FollowWindowRadius, each window's own.
 func (b BorderConfig) CornerRadius() float64 {
@@ -247,6 +255,7 @@ type rawConfig struct {
 	Systray  rawSystrayConfig `json:"systray"  toml:"systray"`
 	Tiling   TilingConfig     `json:"tiling"   toml:"tiling"`
 	Border   BorderConfig     `json:"border"   toml:"border"`
+	Mouse    MouseConfig      `json:"mouse"    toml:"mouse"`
 }
 
 type rawSystrayConfig struct {

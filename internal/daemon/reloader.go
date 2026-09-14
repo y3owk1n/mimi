@@ -11,6 +11,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/dropzone"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/hooks"
+	"github.com/y3owk1n/mimi/internal/mousefocus"
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/permissions"
@@ -50,6 +51,7 @@ type reloader struct {
 	borders   *border.Engine
 	zone      *dropzone.Tracker
 	bars      *stackbar.Tracker
+	follow    *mousefocus.Engine
 	logger    *zap.SugaredLogger
 }
 
@@ -72,6 +74,7 @@ func newReloader(
 	borders *border.Engine,
 	zone *dropzone.Tracker,
 	bars *stackbar.Tracker,
+	follow *mousefocus.Engine,
 	logger *zap.SugaredLogger,
 ) *reloader {
 	if logger == nil {
@@ -88,6 +91,7 @@ func newReloader(
 		borders:   borders,
 		zone:      zone,
 		bars:      bars,
+		follow:    follow,
 		logger:    logger,
 	}
 }
@@ -152,6 +156,10 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 
 	if rl.bars != nil {
 		rl.bars.Update(stackbarConfigFor(cfg, perm.Accessibility))
+	}
+
+	if rl.follow != nil {
+		rl.follow.Update(mouseConfigFor(cfg, perm.Accessibility))
 	}
 
 	return reloadChanges{

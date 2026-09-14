@@ -126,6 +126,7 @@ func Load(path string) (*Config, error) {
 		Hooks:           hooks,
 		Tiling:          raw.Tiling,
 		Border:          raw.Border,
+		Mouse:           raw.Mouse,
 		UnknownHookKeys: unknownHookKeys,
 	}
 

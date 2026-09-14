@@ -302,3 +302,28 @@ func TestSetupEventPipeline_HookSubUsesRegistryKindFilter(t *testing.T) {
 	case <-time.After(100 * time.Millisecond):
 	}
 }
+
+// TestSetupEventPipeline_BuildsEveryEngineTheDaemonRuns pins that each
+// engine Run is started on is built. A nil one is a panic at the first
+// event, not at startup, which is what happened to the mouse engine before
+// this test.
+func TestSetupEventPipeline_BuildsEveryEngineTheDaemonRuns(t *testing.T) {
+	t.Parallel()
+
+	pipeline, _, cancel, err := setupEventPipeline(
+		&config.Config{Settings: baseSettings()},
+		zap.NewNop().Sugar(),
+		false,
+		nil,
+	)
+	if err != nil {
+		t.Fatalf("setupEventPipeline() error = %v, want nil", err)
+	}
+
+	defer cancel()
+
+	if pipeline.tiler == nil || pipeline.borders == nil || pipeline.zone == nil ||
+		pipeline.bars == nil || pipeline.follow == nil {
+		t.Fatalf("pipeline = %+v, want every engine built", pipeline)
+	}
+}
