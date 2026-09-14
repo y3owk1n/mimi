@@ -1,6 +1,8 @@
 package config //nolint:testpackage // reads the validated config directly
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -86,5 +88,71 @@ func TestLoad_RejectsATilingRuleItCannotApply(t *testing.T) {
 				t.Errorf("error %q does not mention %q", err.Error(), testCase.fragment)
 			}
 		})
+	}
+}
+
+func TestLoad_TilingLayouts(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(writeConfig(t, ruledTiling+
+		"[[tiling.layouts]]\ndisplay = 2\nlayout = \"bsp\"\n"+
+		"[[tiling.layouts]]\nspace = 3\nlayout = \"monocle\"\n"+
+		"[[tiling.layouts]]\ndisplay = 2\nspace = 3\nlayout = \"~/columns\"\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	for name, testCase := range map[string]struct {
+		display, space int
+		want           string
+	}{
+		"unmatched":       {1, 1, "cat"},
+		"display":         {2, 1, "bsp"},
+		"space":           {1, 3, "monocle"},
+		"both, last wins": {2, 3, filepath.Join(os.Getenv("HOME"), "columns")},
+	} {
+		if got := cfg.Tiling.LayoutFor(testCase.display, testCase.space); got != testCase.want {
+			t.Errorf("%s: LayoutFor() = %q, want %q", name, got, testCase.want)
+		}
+	}
+}
+
+func TestLoad_RejectsATilingLayoutTargetItCannotApply(t *testing.T) {
+	t.Parallel()
+
+	for name, testCase := range map[string]struct {
+		entry    string
+		fragment string
+	}{
+		"no layout":     {"display = 1\n", "tiling.layouts[0]: layout is required"},
+		"names nothing": {"layout = \"cat\"\n", "tiling.layouts[0]: names no display or space"},
+		"negative":      {"display = -1\nlayout = \"cat\"\n", "tiling.layouts[0]: display and space must be >= 1"},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			_, err := Load(writeConfig(t, ruledTiling+"[[tiling.layouts]]\n"+testCase.entry))
+			if !derrors.IsCode(err, derrors.CodeInvalidConfig) {
+				t.Fatalf("Load() error = %v, want CodeInvalidConfig", err)
+			}
+
+			if !strings.Contains(err.Error(), testCase.fragment) {
+				t.Errorf("error %q does not mention %q", err.Error(), testCase.fragment)
+			}
+		})
+	}
+}
+
+func TestLoad_TilingEnabledNeedsADefaultOrATargetLayout(t *testing.T) {
+	t.Parallel()
+
+	_, err := Load(
+		writeConfig(
+			t,
+			"[tiling]\nenabled = true\n[[tiling.layouts]]\ndisplay = 2\nlayout = \"bsp\"\n",
+		),
+	)
+	if err != nil {
+		t.Fatalf("Load() with a target and no default error = %v, want nil", err)
 	}
 }

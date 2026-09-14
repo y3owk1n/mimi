@@ -166,6 +166,14 @@ command_timeout_secs = 1     # kill a before or after line the layout returned p
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
 # gap = 12                   # points between windows; unset follows the macOS tiled-window margin
 
+[[tiling.layouts]]
+display = 2                # this display runs bsp instead of the layout above
+layout = "~/.config/mimi/tiling/bsp.py"
+
+[[tiling.layouts]]
+space = 3                  # this space runs monocle, on whichever display it is on
+layout = "~/.config/mimi/tiling/monocle.py"
+
 [[tiling.rules]]
 app = "Finder"             # glob on the application name; ! in front negates
 manage = false             # the layout never sees a window this rule names
@@ -233,6 +241,23 @@ therefore does not queue up passes.
   `settings.hook_shell`, and when mimi quits.
 
 The layouts in `examples/tiling/` work in both modes.
+
+### A layout per display or space
+
+`[[tiling.layouts]]` names a layout for one display, one space, or a space
+while it is on a display, in place of `layout` there. `display` and `space`
+are counted as `move_window_to_display` and `mimi action space` count them,
+and both have to hold when both are set. Entries apply in order and the last
+one that matches decides. `layout` covers whatever no entry matches, and can
+be left out when every display or space is covered. A display that ends up
+with no layout is not tiled.
+
+The engine keeps state per display, space and layout, so a space switched
+to another layout on a reload starts that layout from `null`, and finds the
+first layout's state again when switched back. In resident mode each distinct
+layout is one process, started on first use and stopped when a reload no
+longer names it. Every layout runs under the same `layout_mode`,
+`timeout_secs` and `gap`.
 
 ### Input and output
 

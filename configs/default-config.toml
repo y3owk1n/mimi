@@ -87,6 +87,17 @@ relayout_on_drag = false
 # follow the macOS tiled-window margin, the setting resize_window honours.
 # gap = 12
 
+# A layout for one display, one space, or a space on a display, in place of
+# layout above. The last entry that matches decides, and layout covers the
+# rest. State is kept per layout, so switching a space between two keeps
+# both.
+# [[tiling.layouts]]
+# display = 2
+# layout = "~/.config/mimi/tiling/bsp.py"
+# [[tiling.layouts]]
+# space = 3
+# layout = "~/.config/mimi/tiling/monocle.py"
+
 # Windows the layout never sees. Each rule names windows by app (a glob on
 # the application name), bundle_id (a glob on the bundle identifier), title
 # (a regular expression) or size (narrower_than and shorter_than, in
