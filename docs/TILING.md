@@ -77,9 +77,10 @@ when the config sets it, otherwise the macOS tiled-window margin that
 `mimi action resize_window` honours, so tiled and hand-placed windows line
 up.
 
-`rules.py` lists the windows that are never tiled: System Settings, Finder,
-Activity Monitor, 1Password, and any window narrower than 400 points and
-shorter than 300. Edit it to taste.
+`[[tiling.rules]]` in config.toml says which windows never tile, by
+application, title or size. The default config shows the shape. Its
+commented entries float System Settings, Finder, Activity Monitor,
+1Password and any window under 400 by 300 points.
 
 ---
 
@@ -242,9 +243,14 @@ maximised one, and mimi keeps watching those windows so a drag of one still
 reaches you. Naming a window in `unmanaged` says you have no opinion about
 where it goes at all, and mimi stops watching it until you claim it again.
 
-`rules.py` handles this for you. `narrow()` records the windows the float
-rules filtered out, `unmanaged_of(inp, state)` adds any the layout floated
-itself with `togglefloat`, and `write_output(..., unmanaged=...)` prints the
+A window you never want to see at all goes in `[[tiling.rules]]` in
+config.toml with `manage = false`. It is then left out of `windows` for
+every layout, with no edit to the layout. [CONFIGURATION.md](CONFIGURATION.md#rules)
+has the shape.
+
+`rules.py` handles the rest for you. `unmanaged_of(inp, state)` joins the
+windows mimi handed back as `unmanaged` with any the layout floated itself
+with `togglefloat`, and `write_output(..., unmanaged=...)` prints the
 result.
 
 ### Coordinates
@@ -299,8 +305,7 @@ Save it, make it executable, point `layout` at it, and run
 The shipped layouts import these from `rules.py`:
 
 - **`serve(main)`** runs `main(inp)` on every input mimi sends, in either
-  layout mode, with `windows` narrowed by `floating()` and `focused`
-  re-pointed. Run from a terminal, with no input piped in, it lays the
+  layout mode. Run from a terminal, with no input piped in, it lays the
   desktop out once by itself instead (see
   [Trying a layout](#trying-a-layout-without-turning-it-on)).
 - **`gap(inp)`** returns the gap as mimi resolved it, and **`area(inp, gap)`**

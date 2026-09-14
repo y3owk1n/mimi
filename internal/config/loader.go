@@ -354,6 +354,7 @@ func validate(cfg *Config) error {
 	errs = append(errs, validateBorder(cfg.Border)...)
 	errs = append(errs, validateDropzone(cfg.Tiling)...)
 	errs = append(errs, validateStackbar(cfg.Tiling)...)
+	errs = append(errs, validateRules(cfg.Tiling)...)
 
 	// HookKinds is a slice, so these errors come out in its declared order.
 	// The map this replaced meant validate reported the same broken config in

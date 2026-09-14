@@ -1,6 +1,6 @@
 ---
 name: mimi-setup-layout
-description: "Get a mimi user tiling, or change how they tile: put the example layouts on their machine even without a repo checkout, pick one that matches how they work, wire [tiling] in config.toml, and prove it with a preview before enabling. Also covers switching layouts, changing tiling options or float rules, refreshing the examples after an upgrade without losing edits, and writing or editing a custom layout. Use when a mimi user asks to set up or change tiling, choose or switch a layout, or write their own."
+description: "Get a mimi user tiling, or change how they tile: put the example layouts on their machine even without a repo checkout, pick one that matches how they work, wire [tiling] in config.toml, and prove it with a preview before enabling. Also covers switching layouts, changing tiling options or which apps float, refreshing the examples after an upgrade without losing edits, and writing or editing a custom layout. Use when a mimi user asks to set up or change tiling, choose or switch a layout, or write their own."
 ---
 
 # Setting up a mimi tiling layout
@@ -64,9 +64,11 @@ the table in the guide describe each in full. In short:
 `stacked.py` needs `[tiling.stackbar]` enabled to show the windows behind.
 `monocle.py` is the one to copy when they want to write their own.
 
-`rules.py` holds the float rules: System Settings, Finder, Activity
-Monitor, 1Password, and small windows. Ask which apps they never want
-tiled and edit the list there rather than in the layout.
+Ask which apps they never want tiled and write one `[[tiling.rules]]`
+entry per app in config.toml with `manage = false`, matching on
+`bundle_id`. A rule can also match on size with `narrower_than` and
+`shorter_than`. The default config carries commented entries to start
+from.
 
 ## Wire it
 
@@ -93,8 +95,8 @@ tiled and edit the list there rather than in the layout.
    ```
 
    When the layout exits non-zero, preview prints `layout failed` and the
-   layout's stderr. Empty `frames` with windows open means the float rules excluded
-   every window. `mimi tiling preview --input` prints what the layout would
+   layout's stderr. Empty `frames` with windows open means `[[tiling.rules]]` kept every
+   window out. `mimi tiling preview --input` prints what the layout would
    receive, as an array with one entry per display. Feed one entry to the
    layout by hand to see its full output:
 
@@ -133,8 +135,9 @@ and layout mode are keys under `[tiling]`, all reloadable on save. Edit
 the key, run `mimi config validate`, and save. The `[tiling]` section of
 `docs/CONFIGURATION.md` lists every key with its default.
 
-**Changing the float rules.** Edit the list in the user's `rules.py`.
-Every layout picks it up on its next run.
+**Changing which windows float.** Add or remove `[[tiling.rules]]` entries
+in config.toml and save. The daemon reloads them, and every layout sees
+the change on its next run.
 
 **Refreshing the examples.** After a mimi upgrade, the examples at the new
 tag may read input fields the old ones did not. Never overwrite the user's copy,
