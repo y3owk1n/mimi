@@ -53,6 +53,8 @@ type Engine struct {
 	command string
 	// gap is tiling.gap when set; nil follows the macOS margin.
 	gap *int
+	// rules is tiling.rules compiled: which windows the layout never sees.
+	rules []config.Rule
 	// animation is how the frames move, or nil to move them at once.
 	animation *action.Animation
 	// configured reports whether Update has run at all, which is what tells
@@ -207,6 +209,15 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.enabled = cfg.Enabled
 	e.command = cfg.Layout
 	e.gap = cfg.Gap
+
+	rules, err := config.CompileRules(cfg.Rules)
+	if err != nil {
+		// Load validated every rule, so a bad one reached the engine some
+		// other way. The layout then sees every window.
+		e.logger.Warnw("tiling rules rejected", "err", err)
+	}
+
+	e.rules = rules
 
 	e.animation = nil
 	if cfg.Animation.Enabled {
@@ -1173,6 +1184,8 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		return desktopRead{}, err
 	}
 
+	read.windows = e.managedLocked(read.windows)
+
 	if !quick || !canReuse {
 		e.titles = make(map[uint32]string, len(read.windows.Windows))
 		for _, win := range read.windows.Windows {
@@ -1185,6 +1198,35 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 	}
 
 	return read, nil
+}
+
+// managedLocked is windows less the ones tiling.rules keep from the layout,
+// with the focused index following the window it named. The engine never
+// places a window a rule keeps out, so a drag of it raises no pass and it
+// gets no drop zone. The caller holds the lock.
+func (e *Engine) managedLocked(windows action.WindowsInfo) action.WindowsInfo {
+	if len(e.rules) == 0 {
+		return windows
+	}
+
+	managed := action.WindowsInfo{
+		Focused: -1,
+		Windows: make([]action.WindowEntry, 0, len(windows.Windows)),
+	}
+
+	for index, win := range windows.Windows {
+		if !config.Managed(e.rules, win.App, win.BundleID, win.Title) {
+			continue
+		}
+
+		if index == windows.Focused {
+			managed.Focused = len(managed.Windows)
+		}
+
+		managed.Windows = append(managed.Windows, win)
+	}
+
+	return managed
 }
 
 // inputsLocked is one input per display with windows, built from a full

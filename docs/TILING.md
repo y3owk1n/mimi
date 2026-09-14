@@ -242,6 +242,11 @@ maximised one, and mimi keeps watching those windows so a drag of one still
 reaches you. Naming a window in `unmanaged` says you have no opinion about
 where it goes at all, and mimi stops watching it until you claim it again.
 
+A window you never want to see at all goes in `[[tiling.rules]]` in
+config.toml with `manage = false`. It is then left out of `windows` for
+every layout, with no edit to the layout. [CONFIGURATION.md](CONFIGURATION.md#rules)
+has the shape.
+
 `rules.py` handles this for you. `narrow()` records the windows the float
 rules filtered out, `unmanaged_of(inp, state)` adds any the layout floated
 itself with `togglefloat`, and `write_output(..., unmanaged=...)` prints the

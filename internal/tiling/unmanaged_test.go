@@ -113,6 +113,7 @@ func runPairEngine(
 	t *testing.T,
 	desktop *pairDesktop,
 	layout string,
+	rules ...config.TilingRule,
 ) (events.Subscriber, func(int, string)) {
 	t.Helper()
 
@@ -124,6 +125,7 @@ func runPairEngine(
 		DebounceMS:     10,
 		TimeoutSecs:    5,
 		Layout:         layout,
+		Rules:          rules,
 	}, "/bin/sh")
 
 	ctx, cancel := context.WithCancel(context.Background())

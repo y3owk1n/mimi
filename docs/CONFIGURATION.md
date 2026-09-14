@@ -165,6 +165,15 @@ command_timeout_secs = 1     # kill a before or after line the layout returned p
 relayout_on_drag = false     # a window the user moves or resizes runs a pass too
 # gap = 12                   # points between windows; unset follows the macOS tiled-window margin
 
+[[tiling.rules]]
+app = "Finder"             # glob on the application name; ! in front negates
+manage = false             # the layout never sees a window this rule names
+
+[[tiling.rules]]
+bundle_id = "com.apple.*"  # glob on the bundle identifier
+title = "^Settings$"       # regular expression on the window title
+manage = false
+
 [tiling.animation]
 enabled = false       # move the frames into place over time instead of at once
 duration_ms = 150     # how long the move takes, 1 to 1000
@@ -340,6 +349,22 @@ layout that names none draws nothing. `examples/tiling/stacked.py`,
 the drop zone, and every key is reloadable.
 
 ---
+
+### Rules
+
+`[[tiling.rules]]` names windows the layout never sees. Each entry sets one
+or more of `app`, a glob on the application name, `bundle_id`, a glob on the
+bundle identifier, and `title`, a regular expression on the window title,
+and must set `manage`. `*` is the only glob wildcard, and a pattern that
+starts with `!` matches everything the rest does not, as a hook filter does.
+An entry that sets none of the three is rejected.
+
+A window matching a rule with `manage = false` is left out of the layout's
+input, so the layout cannot frame it, a drag of it runs no pass, and it gets
+no drop zone. Rules are read in order and the last one that matches decides,
+so a rule with `manage = true` after a broader one takes those windows back.
+The shipped layouts also carry a float list in `rules.py`. A rule here needs
+no edit to the layout and applies to every layout.
 
 ## Borders
 

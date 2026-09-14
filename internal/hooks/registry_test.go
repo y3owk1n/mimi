@@ -1,4 +1,4 @@
-package hooks //nolint:testpackage // tests unexported buildMap/compileGlob alongside the exported API
+package hooks //nolint:testpackage // tests unexported buildMap alongside the exported API
 
 import (
 	"testing"
@@ -131,7 +131,7 @@ func TestBuildMap_InvalidTitleRegexReturnsError(t *testing.T) {
 func TestBuildMap_InvalidAppGlobReturnsError(t *testing.T) {
 	t.Parallel()
 
-	// compileGlob quotes the input with regexp.QuoteMeta before compiling,
+	// The glob compiler quotes the input with regexp.QuoteMeta before compiling,
 	// which escapes every regex metacharacter into a valid literal (and
 	// only unescapes "*" back into ".*", itself always valid), so ordinary
 	// glob punctuation like "[" or "(" can never make the compiled pattern

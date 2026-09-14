@@ -108,6 +108,10 @@ type TilingConfig struct {
 	// Stackbar marks the places where a layout stacked several windows, so
 	// the ones hidden behind the top one can be seen to be there.
 	Stackbar StackbarConfig `json:"stackbar" toml:"stackbar"`
+	// Rules says which windows the layout never sees. Each names windows by
+	// application, bundle identifier or title. The last matching rule
+	// decides.
+	Rules []TilingRule `json:"rules" toml:"rules"`
 }
 
 // StackbarConfig holds the [tiling.stackbar] section: whether mimi marks the
