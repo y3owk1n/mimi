@@ -34,6 +34,47 @@ func (e *Executor) MoveWindowToDisplay(target DisplayArg) error {
 		return err
 	}
 
+	return e.moveWindowToDisplay(win, target)
+}
+
+// MoveWindowNumberToDisplay moves one window, by number, to another display,
+// the way MoveWindowToDisplay moves the frontmost. With follow set the window
+// is focused where it lands.
+func (e *Executor) MoveWindowNumberToDisplay(number uint32, target DisplayArg, follow bool) error {
+	err := validateDisplayArg(NameMoveWindowToDisplay, target)
+	if err != nil {
+		return err
+	}
+
+	err = e.desktop.EnsureAccessible()
+	if err != nil {
+		return err
+	}
+
+	windows, err := e.windowsNamed([]uint32{number})
+	if err != nil {
+		return err
+	}
+
+	for _, win := range windows {
+		if win.Number != number {
+			continue
+		}
+
+		err = e.moveWindowToDisplay(win, target)
+		if err != nil || !follow {
+			return err
+		}
+
+		return e.desktop.ActivateWindow(win.ID)
+	}
+
+	return derrors.Newf(derrors.CodeActionFailed, "window %d is not on the active space", number)
+}
+
+// moveWindowToDisplay moves win to the display target names, keeping the
+// share of the display it had.
+func (e *Executor) moveWindowToDisplay(win Window, target DisplayArg) error {
 	current, err := e.desktop.WindowFrame(win.ID)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to get window frame")
@@ -155,4 +196,10 @@ func resolveDisplayArg(target DisplayArg, from, count int) (int, error) {
 	}
 
 	return target.Index - 1, nil
+}
+
+// MoveWindowNumberToDisplay moves a window by number to a display on the
+// desktop mimi is running on.
+func MoveWindowNumberToDisplay(number uint32, target DisplayArg, follow bool) error {
+	return defaultExecutor.MoveWindowNumberToDisplay(number, target, follow)
 }

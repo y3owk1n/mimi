@@ -155,6 +155,9 @@ uint64_t MimiDisplayActiveSpaceID(uint32_t did);
 int MimiDisplaySpaceIsFullScreen(uint32_t did);
 int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid);
 int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID);
+/// Move a window to a space by its window server number. Returns 1 on
+/// success.
+int MimiMoveWindowNumberToSpace(uint32_t number, uint64_t spaceID);
 uint32_t MimiCursorDisplayID(void);
 void MimiActivateDisplay(uint32_t did);
 

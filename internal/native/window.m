@@ -801,7 +801,10 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 		CFRelease(sizeValue);
 		CFRelease(positionValue);
 
-		return (posError == kAXErrorSuccess && sizeError == kAXErrorSuccess) ? 1 : 0;
+		// A window that refuses its size still moved. A fixed-size window
+		// crossing to another display lands there at the size it keeps,
+		// and a caller that cares about the size reads the frame back.
+		return (posError == kAXErrorSuccess) ? 1 : 0;
 	}
 }
 

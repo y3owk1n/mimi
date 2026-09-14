@@ -578,6 +578,11 @@ func (d *nativeDesktop) MoveWindowToSpace(index int) (Window, error) {
 	return Window{PID: pid, Number: number}, nil
 }
 
+// MoveWindowNumberToSpace moves a window to a space by number.
+func (d *nativeDesktop) MoveWindowNumberToSpace(number uint32, index int) error {
+	return native.MoveWindowNumberToSpace(number, index)
+}
+
 // RefreshWorkspaceTitle brings the systray's title up to date with the active
 // space. internal/systray already no-ops this when the tray is disabled or
 // was never started, which is what keeps it harmless to call from a CLI

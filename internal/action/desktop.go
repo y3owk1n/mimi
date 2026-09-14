@@ -230,6 +230,11 @@ type Desktop interface {
 	// index, which the caller has already checked against SpaceCount.
 	FocusSpace(index int) error
 
+	// MoveWindowNumberToSpace moves one window, by number, to the Mission
+	// Control space at the given 1-based index, which the caller has already
+	// checked against SpaceCount. It reaches a window on any space.
+	MoveWindowNumberToSpace(number uint32, index int) error
+
 	// MoveWindowToSpace moves the frontmost window to the Mission Control
 	// space at the given 1-based index, which the caller has already checked
 	// against SpaceCount, and reports the window it moved. The window's ID is

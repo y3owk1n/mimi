@@ -323,7 +323,7 @@ func TestSetupEventPipeline_BuildsEveryEngineTheDaemonRuns(t *testing.T) {
 	defer cancel()
 
 	if pipeline.tiler == nil || pipeline.borders == nil || pipeline.zone == nil ||
-		pipeline.bars == nil || pipeline.follow == nil {
+		pipeline.bars == nil || pipeline.follow == nil || pipeline.placer == nil {
 		t.Fatalf("pipeline = %+v, want every engine built", pipeline)
 	}
 }

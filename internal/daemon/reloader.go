@@ -15,6 +15,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/place"
 	"github.com/y3owk1n/mimi/internal/stackbar"
 	"github.com/y3owk1n/mimi/internal/tiling"
 )
@@ -52,6 +53,7 @@ type reloader struct {
 	zone      *dropzone.Tracker
 	bars      *stackbar.Tracker
 	follow    *mousefocus.Engine
+	placer    *place.Engine
 	logger    *zap.SugaredLogger
 }
 
@@ -75,6 +77,7 @@ func newReloader(
 	zone *dropzone.Tracker,
 	bars *stackbar.Tracker,
 	follow *mousefocus.Engine,
+	placer *place.Engine,
 	logger *zap.SugaredLogger,
 ) *reloader {
 	if logger == nil {
@@ -92,6 +95,7 @@ func newReloader(
 		zone:      zone,
 		bars:      bars,
 		follow:    follow,
+		placer:    placer,
 		logger:    logger,
 	}
 }
@@ -160,6 +164,10 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 
 	if rl.follow != nil {
 		rl.follow.Update(mouseConfigFor(cfg, perm.Accessibility))
+	}
+
+	if rl.placer != nil {
+		rl.placer.Update(placementRulesFor(cfg, perm.Accessibility))
 	}
 
 	return reloadChanges{

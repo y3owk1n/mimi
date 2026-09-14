@@ -71,10 +71,11 @@ func TestLoad_RejectsATilingRuleItCannotApply(t *testing.T) {
 		rule     string
 		fragment string
 	}{
-		"no manage":     {"app = \"Finder\"\n", "tiling.rules[0]: manage is required"},
-		"names nothing": {"manage = false\n", "tiling.rules[0]: names no window"},
-		"negative size": {"narrower_than = -1\nmanage = false\n", "tiling.rules[0]: narrower_than and shorter_than must be >= 0"},
-		"bad title":     {"title = \"(\"\nmanage = false\n", "tiling.rules[0]: title"},
+		"no manage":      {"app = \"Finder\"\n", "tiling.rules[0]: manage is required"},
+		"negative space": {"app = \"Finder\"\nspace = -1\n", "tiling.rules[0]: space and display must be >= 1"},
+		"names nothing":  {"manage = false\n", "tiling.rules[0]: names no window"},
+		"negative size":  {"narrower_than = -1\nmanage = false\n", "tiling.rules[0]: narrower_than and shorter_than must be >= 0"},
+		"bad title":      {"title = \"(\"\nmanage = false\n", "tiling.rules[0]: title"},
 	} {
 		t.Run(name, func(t *testing.T) {
 			t.Parallel()
@@ -154,5 +155,44 @@ func TestLoad_TilingEnabledNeedsADefaultOrATargetLayout(t *testing.T) {
 	)
 	if err != nil {
 		t.Fatalf("Load() with a target and no default error = %v, want nil", err)
+	}
+}
+
+func TestLoad_TilingRulesPlaceWindows(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(writeConfig(t, ruledTiling+
+		"[[tiling.rules]]\nbundle_id = \"com.tinyspeck.*\"\nspace = 3\n"+
+		"[[tiling.rules]]\napp = \"Music\"\ndisplay = 2\nfollow = false\nmanage = false\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	rules, err := CompileRules(cfg.Tiling.Rules)
+	if err != nil {
+		t.Fatalf("CompileRules() error = %v, want nil", err)
+	}
+
+	slack := RuleWindow{App: "Slack", BundleID: "com.tinyspeck.slackmacgap"}
+	music := RuleWindow{App: "Music", BundleID: "com.apple.Music"}
+
+	got, found := PlacementFor(rules, slack)
+	if !found || got != (Placement{Space: 3, Follow: true}) {
+		t.Fatalf("PlacementFor(slack) = %+v, %v; want space 3 with follow", got, found)
+	}
+
+	got, found = PlacementFor(rules, music)
+	if !found || got != (Placement{Display: 2}) {
+		t.Fatalf("PlacementFor(music) = %+v, %v; want display 2 without follow", got, found)
+	}
+
+	if Managed(rules, slack) != true || Managed(rules, music) != false {
+		t.Fatal(
+			"a placing rule without manage leaves managing alone, one with manage = false does not",
+		)
+	}
+
+	if !AnyPlaces(cfg.Tiling.Rules) {
+		t.Fatal("AnyPlaces() = false, want true")
 	}
 }

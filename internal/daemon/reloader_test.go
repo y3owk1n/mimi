@@ -66,6 +66,7 @@ func newTestReloader(
 		nil,
 		nil,
 		nil,
+		nil,
 	)
 
 	return cfgReloader, reg

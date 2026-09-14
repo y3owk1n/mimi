@@ -27,6 +27,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/observe"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/place"
 	"github.com/y3owk1n/mimi/internal/stackbar"
 	"github.com/y3owk1n/mimi/internal/systray"
 	"github.com/y3owk1n/mimi/internal/tiling"
@@ -163,6 +164,7 @@ func runCore(
 	go pipeline.tiler.Run(ctx, pipeline.tileSub)
 	go pipeline.borders.Run(ctx, pipeline.borderSub)
 	go pipeline.follow.Run(ctx, native.MouseMoves())
+	go pipeline.placer.Run(ctx, pipeline.placeSub)
 	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
 
 	defer pipeline.zone.Close()
@@ -178,6 +180,7 @@ func runCore(
 		pipeline.zone,
 		pipeline.bars,
 		pipeline.follow,
+		pipeline.placer,
 		logger,
 	)
 
@@ -247,6 +250,8 @@ type eventPipeline struct {
 	zone      *dropzone.Tracker
 	bars      *stackbar.Tracker
 	follow    *mousefocus.Engine
+	placer    *place.Engine
+	placeSub  events.Subscriber
 	logSub    events.Subscriber
 	hookSub   events.Subscriber
 	tileSub   events.Subscriber
@@ -328,6 +333,12 @@ func setupEventPipeline(
 	follow := mousefocus.New(mousefocus.NativeDesktop(), serialize, logger)
 	follow.Update(mouseConfigFor(cfg, accessibilityGranted))
 
+	// Windows a rule sends to a space or a display go there as they are
+	// created. The moves go through the action worker like any action.
+	placer := place.New(place.NativeDesktop(serialize), logger)
+	placer.Update(placementRulesFor(cfg, accessibilityGranted))
+	placeSub := bus.SubscribeWithFilter(borderSubBufSize, placer.KindFilter())
+
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
 	// always-false filter prevents the bus from sending into a channel
@@ -358,6 +369,8 @@ func setupEventPipeline(
 		zone:      zone,
 		bars:      bars,
 		follow:    follow,
+		placer:    placer,
+		placeSub:  placeSub,
 		logSub:    logSub,
 		hookSub:   hookSub,
 		tileSub:   tileSub,
@@ -588,7 +601,8 @@ func removePID(path string) {
 // the same events.
 func hasWindowEvents(cfg *config.Config) bool {
 	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled || cfg.Border.Enabled ||
-		cfg.Mouse.FocusFollowsMouse
+		cfg.Mouse.FocusFollowsMouse ||
+		config.AnyPlaces(cfg.Tiling.Rules)
 }
 
 // borderConfigFor is the [border] section as the engine gets it: as
@@ -625,6 +639,17 @@ func stackbarConfigFor(cfg *config.Config, accessibilityGranted bool) config.Sta
 	}
 
 	return barCfg
+}
+
+// placementRulesFor is the [[tiling.rules]] entries as the placer gets
+// them: as written, or none without Accessibility, since the creations it
+// acts on come through the window observers.
+func placementRulesFor(cfg *config.Config, accessibilityGranted bool) []config.TilingRule {
+	if !accessibilityGranted {
+		return nil
+	}
+
+	return cfg.Tiling.Rules
 }
 
 // mouseConfigFor is the [mouse] section as the engine gets it: as written,
