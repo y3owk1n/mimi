@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.17.0](https://github.com/y3owk1n/mimi/compare/v0.16.0...v0.17.0) (2026-09-14)
+
+
+### Features
+
+* **tiling:** give layouts the minimum size a window refuses to go under ([#275](https://github.com/y3owk1n/mimi/issues/275)) ([05dd83a](https://github.com/y3owk1n/mimi/commit/05dd83a51223a98e6d4d6b8fa8a899e5ff342da2))
+
+
+### Documentation
+
+* **cli:** describe the per-display array that tiling preview prints ([#272](https://github.com/y3owk1n/mimi/issues/272)) ([28439b9](https://github.com/y3owk1n/mimi/commit/28439b98b9f81972b5b1a138705ec35427a6c33d))
+* **skills:** add ask-mimi, setup-config and setup-layout skills for users ([#270](https://github.com/y3owk1n/mimi/issues/270)) ([7e8fad7](https://github.com/y3owk1n/mimi/commit/7e8fad735a8e64880525ab0656c06092648b3bd5))
+* **skills:** cover changing an existing tiling setup in setup-layout ([#273](https://github.com/y3owk1n/mimi/issues/273)) ([419dc41](https://github.com/y3owk1n/mimi/commit/419dc41f1cfe1396af365d84a0584f4f7cc4b90f))
+
 ## [0.16.0](https://github.com/y3owk1n/mimi/compare/v0.15.0...v0.16.0) (2026-09-13)
 
 
