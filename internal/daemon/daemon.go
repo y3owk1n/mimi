@@ -289,6 +289,9 @@ func setupEventPipeline(
 	// the config says: it could read no window, and would log a failure on
 	// every event.
 	tiler := tiling.New(tiling.LiveDesktop{}, serialize, logger)
+	tiler.SetStore(
+		filepath.Join(filepath.Dir(paths.ExpandHome(cfg.Settings.SocketFile)), "minsizes.json"),
+	)
 	tiler.Update(tilingConfigFor(cfg, accessibilityGranted), cfg.Settings.HookShell)
 	tileSub := bus.SubscribeWithFilter(tileSubBufSize, tiler.KindFilter())
 

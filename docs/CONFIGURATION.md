@@ -106,6 +106,10 @@ If the daemon's socket and the CLI's config disagree, actions run directly
 without any message. See
 [Troubleshooting](TROUBLESHOOTING.md#mimi-action-runs-but-seems-to-ignore-the-running-daemon).
 
+The daemon also writes `minsizes.json` to the socket's directory. It holds the
+minimum sizes tiling has learned per application, so a restart lays those
+windows out right the first time. See [Tiling](TILING.md#when-nothing-happens), item 7.
+
 ### service_path
 
 `mimi services install` writes this `PATH` into the launchd plist. The

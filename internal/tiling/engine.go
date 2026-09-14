@@ -5,7 +5,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"math"
+	"os"
 	"os/exec"
+	"path/filepath"
 	"slices"
 	"strings"
 	"sync"
@@ -120,6 +122,21 @@ type Engine struct {
 	// the user's.
 	applied   map[uint32]action.Frame
 	appliedAt time.Time
+	// requested is the frame every window in applied was last asked to
+	// take, and minSizes what each window kept instead of a smaller size
+	// it was asked for, on either axis. A layout that reads minSizes can
+	// give the window that much and share the rest out, rather than have
+	// it overlap a neighbor.
+	requested map[uint32]action.Frame
+	minSizes  map[uint32]action.MinSize
+	// appMinSizes is the largest minimum any window of an application has
+	// shown, by bundle identifier, and store is the file it is kept in
+	// between daemons, or empty to keep it in memory only. A window with
+	// no record of its own is handed its application's, so an app seen
+	// once is laid out right the first time its windows are, rather than
+	// once more after they refuse.
+	appMinSizes map[string]action.MinSize
+	store       string
 	// resizeGrace is how long after an apply a resize event is taken to be
 	// the engine's own, and used to refresh applied rather than compared
 	// against it: an application that snaps its frame does so a moment
@@ -157,6 +174,9 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 		writtenAt:   map[string]uint64{},
 		pending:     map[string]bool{},
 		applied:     map[uint32]action.Frame{},
+		requested:   map[uint32]action.Frame{},
+		minSizes:    map[uint32]action.MinSize{},
+		appMinSizes: map[string]action.MinSize{},
 		titles:      map[uint32]string{},
 		resizeGrace: defaultResizeGrace,
 		wake:        make(chan Event, 1),
@@ -268,6 +288,33 @@ type Stacker interface {
 	Show(stacks []PlacedStack)
 }
 
+// SetStore names the file the engine keeps what it has learned of
+// applications' minimums in, and reads what an earlier daemon left there.
+// A file that cannot be read starts the engine with nothing, as no file
+// does.
+func (e *Engine) SetStore(path string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.store = path
+
+	data, err := os.ReadFile(path)
+	if err != nil {
+		return
+	}
+
+	var kept map[string]action.MinSize
+
+	err = json.Unmarshal(data, &kept)
+	if err != nil {
+		e.logger.Warnw("learned minimums unreadable, starting over", "path", path, "err", err)
+
+		return
+	}
+
+	e.appMinSizes = kept
+}
+
 // SetStacks names what draws the stacks a layout names. The daemon hands in
 // the mark. A CLI engine hands in nothing, because nothing it drew would
 // outlive the process.
@@ -334,6 +381,12 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 		timer   *time.Timer
 		fire    <-chan time.Time
 		pending Event
+		// asked is a pass the engine asked of itself that a later event
+		// displaced before it fired, kept so that it runs once that event
+		// turns out to be nothing: the engine's own writes echo back as
+		// drags, and one of those landing on top of a relayout used to
+		// drop it.
+		asked *Event
 	)
 
 	arm := func(event Event) {
@@ -374,6 +427,8 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 
 			arm(eventOf(evt))
 		case event := <-e.wake:
+			asked = &event
+
 			arm(event)
 		case <-fire:
 			timer = nil
@@ -392,12 +447,18 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				}
 
 				kind, windows := e.userDragged()
-				if kind == "" {
+				if kind == "" && asked == nil {
 					continue
 				}
 
-				pending.Kind, pending.Windows = kind, windows
+				if kind == "" {
+					pending = *asked
+				} else {
+					pending.Kind, pending.Windows = kind, windows
+				}
 			}
+
+			asked = nil
 
 			err := e.Pass(ctx, pending)
 			if err != nil {
@@ -648,8 +709,11 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	// layout maximizing one window over the rest returns one frame, and
 	// dragging any of the others used to raise nothing at all.
 	e.applied = e.stillPlaced(inputs)
+	e.requested = make(map[uint32]action.Frame, len(frames))
+
 	for _, frame := range frames {
 		e.applied[frame.Number] = frame.Frame
+		e.requested[frame.Number] = frame.Frame
 	}
 
 	e.appliedAt = time.Now()
@@ -1184,6 +1248,12 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 				input.Focused = len(input.Windows)
 			}
 
+			if minSize, ok := e.minSizes[win.Number]; ok {
+				win.MinSize = &minSize
+			} else if minSize, ok := e.appMinSizes[win.BundleID]; ok {
+				win.MinSize = &minSize
+			}
+
 			input.Windows = append(input.Windows, win)
 		}
 
@@ -1340,7 +1410,7 @@ func (e *Engine) userDragged() (string, []uint32) {
 	}
 
 	if time.Since(e.appliedAt) < e.resizeGrace {
-		e.rememberFrames(windows)
+		e.rememberFrames(windows, false)
 
 		return "", nil
 	}
@@ -1422,20 +1492,159 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 		defer e.mu.Unlock()
 
 		if e.appliedAt.Equal(appliedAt) {
-			e.rememberFrames(windows)
+			e.rememberFrames(windows, true)
 		}
 	})
 }
 
-// rememberFrames keeps where the windows the engine placed are in windows.
-// The caller holds the lock.
-func (e *Engine) rememberFrames(windows action.WindowsInfo) {
+// rememberFrames keeps where the windows the engine placed are in windows,
+// and with learn set, what each refused: a window that landed larger than
+// it was asked to be has a minimum, which the next input tells the layout.
+// Learning one asks for another pass, so the layout can make room for it
+// now rather than on the next event. A window that later takes a smaller
+// size forgets the axis, since an application's minimum moves with its
+// content.
+//
+// Only a read taken once the frames have landed may learn: one taken while
+// an animation is still stepping them sees a size on the way, and would
+// learn it, then forget it a moment later. The caller holds the lock.
+func (e *Engine) rememberFrames(windows action.WindowsInfo, learn bool) {
+	learned := false
+
 	for _, win := range windows.Windows {
-		if _, ok := e.applied[win.Number]; ok {
-			e.applied[win.Number] = win.Frame
+		if _, ok := e.applied[win.Number]; !ok {
+			continue
+		}
+
+		e.applied[win.Number] = win.Frame
+
+		if !learn {
+			continue
+		}
+
+		if asked, ok := e.requested[win.Number]; ok &&
+			e.learnMinSize(win.Number, win.BundleID, asked, win.Frame) {
+			learned = true
+		}
+	}
+
+	if learned {
+		e.saveMinSizes()
+
+		select {
+		case e.wake <- Event{Kind: EventRelayout}:
+		default:
 		}
 	}
 }
+
+// learnMinSize updates the minimum kept for number from what was asked and
+// what landed, and reports whether the minimum grew on either axis. Only
+// growth asks for a pass: a layout that honors the minimum lands the
+// window where it asked, and one that ignores it lands it where it did
+// last time, so neither learns again and the passes stop.
+func (e *Engine) learnMinSize(number uint32, bundleID string, asked, landed action.Frame) bool {
+	// A window with no record of its own starts from its application's,
+	// which is what the layout was handed for it. Landing at that is
+	// expected, and asks for no pass.
+	minSize, known := e.minSizes[number]
+	if !known {
+		minSize = e.appMinSizes[bundleID]
+	}
+
+	grew := false
+
+	if landed.Width > asked.Width+samePoint {
+		grew = grew || landed.Width > minSize.Width+samePoint
+		minSize.Width = landed.Width
+	} else if landed.Width < minSize.Width-samePoint {
+		minSize.Width = 0
+	}
+
+	if landed.Height > asked.Height+samePoint {
+		grew = grew || landed.Height > minSize.Height+samePoint
+		minSize.Height = landed.Height
+	} else if landed.Height < minSize.Height-samePoint {
+		minSize.Height = 0
+	}
+
+	if was := e.minSizes[number]; was != minSize {
+		e.logger.Debugw(
+			"window minimum changed",
+			"window", number,
+			"asked_w", asked.Width, "asked_h", asked.Height,
+			"landed_w", landed.Width, "landed_h", landed.Height,
+			"was_w", was.Width, "was_h", was.Height,
+			"now_w", minSize.Width, "now_h", minSize.Height,
+		)
+	}
+
+	if minSize == (action.MinSize{}) {
+		delete(e.minSizes, number)
+	} else {
+		if _, held := e.minSizes[number]; !held && len(e.minSizes) >= maxKeptMinSizes {
+			for other := range e.minSizes {
+				delete(e.minSizes, other)
+
+				break
+			}
+		}
+
+		e.minSizes[number] = minSize
+	}
+
+	if grew && bundleID != "" {
+		app := e.appMinSizes[bundleID]
+		app.Width = math.Max(app.Width, minSize.Width)
+		app.Height = math.Max(app.Height, minSize.Height)
+		e.appMinSizes[bundleID] = app
+	}
+
+	return grew
+}
+
+// saveMinSizes writes the applications' minimums to the store, when there
+// is one. A write that fails is logged, and loses only the memory across a
+// restart. The caller holds the lock.
+func (e *Engine) saveMinSizes() {
+	if e.store == "" {
+		return
+	}
+
+	data, err := json.Marshal(e.appMinSizes)
+	if err != nil {
+		return
+	}
+
+	err = os.MkdirAll(filepath.Dir(e.store), storeDirMode)
+	if err != nil {
+		e.logger.Warnw("learned minimums not saved", "path", e.store, "err", err)
+
+		return
+	}
+
+	err = os.WriteFile(e.store, data, storeFileMode)
+	if err != nil {
+		e.logger.Warnw("learned minimums not saved", "path", e.store, "err", err)
+	}
+}
+
+// storeDirMode and storeFileMode are the permissions of the store and the
+// directory made for it: the user's own, readable by all, as the socket's
+// directory is.
+const (
+	storeDirMode  = 0o755
+	storeFileMode = 0o644
+)
+
+// maxKeptMinSizes bounds the minimums the engine remembers. A window on
+// another space is not listed by any read, so a minimum cannot be dropped
+// when its window closes without being dropped when its space is merely
+// left, and then it would be relearned, an overlap at a time, on every
+// return. The bound is instead: a desktop has far fewer windows than this,
+// and a stale entry costs one wrong frame on a number the window server
+// happens to reuse.
+const maxKeptMinSizes = 512
 
 // inFullScreenTransition reports whether the desktop is switching to or from
 // a full-screen space. Either a display shows one, or a window covers a

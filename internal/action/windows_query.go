@@ -20,6 +20,19 @@ type WindowEntry struct {
 	// listing itself is ordered by position rather than by this, so a caller
 	// that wants the window on top reads it here.
 	Order int `json:"order"`
+	// MinSize is the smallest size the window has been seen to accept,
+	// when the tiling engine has asked it for less and watched it refuse:
+	// the width and height it kept instead, each 0 when the window took
+	// what it was given on that axis. Absent outside a layout input.
+	MinSize *MinSize `json:"minSize,omitempty"`
+}
+
+// MinSize is a lower bound on a window's size, learned rather than asked
+// for: macOS gives no way to read an application's minimum, but a window
+// written smaller than it lands at the minimum instead.
+type MinSize struct {
+	Width  float64 `json:"width"`
+	Height float64 `json:"height"`
 }
 
 // WindowsInfo is what a windows query reports: every focusable window on the

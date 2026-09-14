@@ -138,6 +138,14 @@ func (d *fakeDesktop) Apply(frames []action.WindowFrame, animation *action.Anima
 	d.animations = append(d.animations, animation)
 	d.calls = append(d.calls, "apply")
 
+	for _, frame := range frames {
+		for index := range d.windows.Windows {
+			if d.windows.Windows[index].Number == frame.Number {
+				d.windows.Windows[index].Frame = frame.Frame
+			}
+		}
+	}
+
 	if d.onApply != nil {
 		d.onApply()
 	}

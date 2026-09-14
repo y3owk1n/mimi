@@ -196,7 +196,7 @@ failure in a row. The shipped layouts handle both modes through `serve()` in
 | `gap` | Points to leave between windows and at the display's edges, resolved by mimi: `tiling.gap` when set, else the macOS tiled-window margin, else 0. |
 | `displays` | Every display, numbered as `move_window_to_display` counts them. |
 | `focused` | Index into `windows` of the focused window, or -1 when no window on this display has focus. |
-| `windows` | The focusable windows whose centres are on this display, or nearest to it when a centre is off every display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. |
+| `windows` | The focusable windows whose centres are on this display, or nearest to it when a centre is off every display, in `focus_window` order. `number` is the window server's number, stable for the window's lifetime, and how you name a window in the output. `order` is where the window sits in the stacking order, 0 for the one in front. `minSize` is present on a window mimi has asked for a smaller size and watched refuse: the `width` and `height` it kept instead, 0 on an axis it took as asked. Give the window at least that and share the rest out. See [When nothing happens](#when-nothing-happens), item 7. |
 | `state` | What you printed last time for this display and space, or `null`. |
 | `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. mimi hands the set back so that a layout that keeps its floats outside `state`, or one restarted mid-session, can pick it up again. |
 | `stacks` | The stacks you last named on this display, handed back for the same reason. Absent when there are none. |
@@ -658,7 +658,29 @@ Work down this list.
 7. **A window that will not take its frame.** Some applications enforce a
    minimum size or snap to a grid, and land a little off the requested frame.
    The next input shows where windows actually are, which is why the shipped
-   layouts read ratios off actual frames rather than assuming.
+   layouts read ratios off actual frames rather than assuming. A window that
+   lands larger than asked gets a `minSize` on its entry in every later
+   input, and mimi runs one more `relayout` pass as soon as it learns one,
+   so a layout that reads it can make room at once. `bsp.py` and `strip.py`
+   do, through `min_sizes` and `fit` in `rules.py`. A layout that ignores it
+   leaves the window over its neighbour, as before, and no extra pass runs.
+   When the minimums on a display add up to more than it has, no layout can
+   satisfy them. `strip.py` lets the strip grow and scrolls. `bsp.py`
+   overlaps the two sides of the split toward its middle, so every window
+   stays inside the display, where focus can raise it. Float one of them if
+   that is not what you want.
+   `mimi tiling state` prints what mimi has learned as `minSizes`, and
+   `mimi tiling reset` forgets it. A preview runs its own engine and has
+   learned nothing, so its input never carries one.
+
+   mimi also keeps the largest minimum any of an application's windows has
+   shown, by bundle identifier, in `minsizes.json` beside the socket file,
+   and hands it to every later window of that application before it has
+   refused anything, across restarts. The pass that overlaps and the pass
+   that corrects it happen once per application, not once per window or
+   daemon. `mimi tiling state` prints this as `appMinSizes`. `mimi tiling
+   reset` empties it, which is the fix when an update has lowered an
+   application's minimum.
 8. **An app that opens windows but never tiles.** Applications slow to start
    refuse the daemon's observer for a moment after launch. The daemon retries
    for several seconds and runs your layout as soon as the observer attaches.

@@ -47,12 +47,17 @@ Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 
 import sys
 
-from rules import clamp as clamp_to, shown, unmanaged_of
+from rules import clamp as clamp_to, fit, min_sizes, shown, unmanaged_of
 from rules import area, command, gap, maximised, serve, write_output
 
 # The gap, set from the input once it is read. The tree functions below read
 # it as a global.
 GAP = 0.0
+# {number: (width, height)} for the windows that refuse a smaller size, from
+# the input too. A split gives each side at least what its windows need and
+# the ratio decides the rest, so a window with a minimum stays inside its
+# area instead of over its neighbour.
+MINS = {}
 MIN_RATIO, MAX_RATIO = 0.1, 0.9
 
 
@@ -161,6 +166,46 @@ def path_to(node, number, path=()):
 # --- geometry -------------------------------------------------------------
 
 
+def needs(node):
+    """The least width and height the windows under node accept, gaps
+    included: a leaf needs the most any of its windows does, and a split
+    adds its sides along its direction."""
+    if node is None:
+        return 0.0, 0.0
+    if "win" in node:
+        mins = [MINS.get(number, (0.0, 0.0)) for number in members(node)]
+        return max(w for w, _ in mins), max(h for _, h in mins)
+    aw, ah = needs(node["a"])
+    bw, bh = needs(node["b"])
+    if node["dir"] == "h":
+        return aw + bw + GAP, max(ah, bh)
+    return max(aw, bw), ah + bh + GAP
+
+
+def halves(node, rect):
+    """The two rects a split divides rect into: the ratio's share for each,
+    then each side raised to what its windows need at the other's cost.
+
+    When both need more than there is, they overlap. The second keeps its
+    far edge at the split's far edge and covers part of the first, so the
+    overlap is in the middle of the area rather than off the display, and
+    every window stays inside the display, where focus can raise it."""
+    x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
+    r = node["ratio"]
+    need_a, need_b = needs(node["a"]), needs(node["b"])
+    if node["dir"] == "h":
+        aw = round((w - GAP) * r)
+        aw, bw = fit([aw, w - GAP - aw], [need_a[0], need_b[0]])
+        a = {"x": x, "y": y, "width": aw, "height": h}
+        b = {"x": x + w - bw, "y": y, "width": bw, "height": h}
+    else:
+        ah = round((h - GAP) * r)
+        ah, bh = fit([ah, h - GAP - ah], [need_a[1], need_b[1]])
+        a = {"x": x, "y": y, "width": w, "height": ah}
+        b = {"x": x, "y": y + h - bh, "width": w, "height": bh}
+    return a, b
+
+
 def layout(node, rect, rects):
     """Fill rects with the rect of every leaf under node, gaps included."""
     if node is None:
@@ -168,16 +213,7 @@ def layout(node, rect, rects):
     if "win" in node:
         rects[node["win"]] = rect
         return
-    x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
-    r = node["ratio"]
-    if node["dir"] == "h":
-        aw = round((w - GAP) * r)
-        a = {"x": x, "y": y, "width": aw, "height": h}
-        b = {"x": x + aw + GAP, "y": y, "width": w - aw - GAP, "height": h}
-    else:
-        ah = round((h - GAP) * r)
-        a = {"x": x, "y": y, "width": w, "height": ah}
-        b = {"x": x, "y": y + ah + GAP, "width": w, "height": h - ah - GAP}
+    a, b = halves(node, rect)
     layout(node["a"], a, rects)
     layout(node["b"], b, rects)
 
@@ -187,16 +223,9 @@ def split_rects(node, rect, out):
     if node is None or "win" in node:
         return
     out.append((node, rect))
-    x, y, w, h = rect["x"], rect["y"], rect["width"], rect["height"]
-    r = node["ratio"]
-    if node["dir"] == "h":
-        aw = round((w - GAP) * r)
-        split_rects(node["a"], {"x": x, "y": y, "width": aw, "height": h}, out)
-        split_rects(node["b"], {"x": x + aw + GAP, "y": y, "width": w - aw - GAP, "height": h}, out)
-    else:
-        ah = round((h - GAP) * r)
-        split_rects(node["a"], {"x": x, "y": y, "width": w, "height": ah}, out)
-        split_rects(node["b"], {"x": x, "y": y + ah + GAP, "width": w, "height": h - ah - GAP}, out)
+    a, b = halves(node, rect)
+    split_rects(node["a"], a, out)
+    split_rects(node["b"], b, out)
 
 
 def clamp(r):
@@ -296,9 +325,10 @@ def neighbour(rects, number, direction):
 
 
 def main(inp):
-    global GAP
+    global GAP, MINS
 
     GAP = gap(inp)
+    MINS = min_sizes(inp)
     state = inp.get("state") or {}
     box = area(inp, GAP)
     tree = state.get("tree")
