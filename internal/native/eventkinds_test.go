@@ -81,17 +81,18 @@ var mappedKinds = map[string]events.EventKind{
 	"MIMI_KIND_WINDOW_MINIMIZE":     events.WindowMinimize,
 	"MIMI_KIND_WINDOW_UNMINIMIZE":   events.WindowUnminimize,
 	"MIMI_KIND_WORKSPACE_CHANGED":   events.WorkspaceChanged,
+	"MIMI_KIND_WILL_SLEEP":          events.SystemSleep,
+	"MIMI_KIND_DID_WAKE":            events.SystemWake,
+	"MIMI_KIND_DISPLAY_CHANGED":     events.DisplayChanged,
 }
 
 // unmappedKinds are eventkinds.h symbols that are deliberately NOT part of
-// the hookable events.EventKind set kindFromInt produces (power/session/
-// volume/appearance events, handled outside the hook-eligible event path).
+// the hookable events.EventKind set kindFromInt produces (session, power-off,
+// volume and appearance events, which nothing observes yet).
 // A symbol missing from both this set and mappedKinds fails
 // TestEventKindsHeader_EveryDefineIsAccountedFor, forcing a conscious choice
 // when a new C kind is added.
 var unmappedKinds = map[string]struct{}{
-	"MIMI_KIND_WILL_SLEEP":         {},
-	"MIMI_KIND_DID_WAKE":           {},
 	"MIMI_KIND_SESSION_RESIGN":     {},
 	"MIMI_KIND_SESSION_BECOME":     {},
 	"MIMI_KIND_WILL_POWER_OFF":     {},

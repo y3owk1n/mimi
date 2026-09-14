@@ -37,6 +37,7 @@ type Command struct {
 	Space               SpaceArg              `json:"space,omitzero"`
 	MoveWindowToSpace   MoveWindowToSpaceArgs `json:"moveWindowToSpace,omitzero"`
 	MoveWindowToDisplay DisplayArg            `json:"moveWindowToDisplay,omitzero"`
+	FocusDisplay        DisplayArg            `json:"focusDisplay,omitzero"`
 	ResizeWindow        ResizeWindowArgs      `json:"resizeWindow,omitzero"`
 	FocusApp            FocusAppArgs          `json:"focusApp,omitzero"`
 	ApplyFrames         ApplyFramesArgs       `json:"applyFrames,omitzero"`
@@ -190,6 +191,17 @@ func NewMoveWindowToSpaceCommand(args []string, follow bool) (Command, error) {
 		Name:              NameMoveWindowToSpace,
 		MoveWindowToSpace: MoveWindowToSpaceArgs{Space: spaceArg, Follow: follow},
 	}, nil
+}
+
+// NewFocusDisplayCommand builds focus_display from its one positional
+// argument.
+func NewFocusDisplayCommand(args []string) (Command, error) {
+	arg, err := ParseDisplayArgFor(NameFocusDisplay, args)
+	if err != nil {
+		return Command{}, err
+	}
+
+	return Command{Name: NameFocusDisplay, FocusDisplay: arg}, nil
 }
 
 // NewMoveWindowToDisplayCommand builds move_window_to_display's command from
@@ -606,6 +618,8 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		return e.MoveWindowToSpace(index, cmd.MoveWindowToSpace.Follow)
 	case NameMoveWindowToDisplay:
 		return e.MoveWindowToDisplay(cmd.MoveWindowToDisplay)
+	case NameFocusDisplay:
+		return e.FocusDisplay(cmd.FocusDisplay)
 	case NameFocusApp:
 		err := validateFocusAppArgs(cmd.FocusApp)
 		if err != nil {
@@ -650,7 +664,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, resize_window, close_window, minimize_window, fullscreen_window, apply_frames, tiling)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, fullscreen_window, apply_frames, tiling)",
 			cmd.Name,
 		)
 	}

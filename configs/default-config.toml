@@ -287,3 +287,20 @@ inactive_color = "#414141"
 #     { run = "echo on the second space", space = 2 },
 #     { run = "echo on any other space", space = "!2" },
 # ]
+
+# ── System Events ──────────────────────────────────────────────────────────────
+
+# The Mac is about to sleep. A hook here has a few seconds at most.
+# on_system_sleep = [
+#     "echo 'sleeping'"
+# ]
+
+# The Mac has woken.
+# on_system_wake = [
+#     "echo 'awake'"
+# ]
+
+# A display was connected, disconnected, or changed resolution or arrangement.
+# on_display_changed = [
+#     "echo 'displays changed'"
+# ]

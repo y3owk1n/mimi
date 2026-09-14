@@ -59,6 +59,7 @@ Examples:
 	cmd.AddCommand(buildSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToSpaceCommand(state))
 	cmd.AddCommand(buildMoveWindowToDisplayCommand(state))
+	cmd.AddCommand(buildFocusDisplayCommand(state))
 	cmd.AddCommand(buildResizeWindowCommand(state))
 	cmd.AddCommand(buildWindowCommand(state, action.NameCloseWindow,
 		"Close the frontmost window, as Command-W does",
@@ -334,6 +335,35 @@ Examples:
 	}
 }
 
+func buildFocusDisplayCommand(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "focus_display <number|next|prev>",
+		Short: "Focus a display by index or cycle next/prev",
+		Long: `Make a display the active one, and focus the window in front on it.
+
+Displays are counted left to right, then top to bottom, as
+"mimi action move_window_to_display" counts them. "next" and "prev" step
+from the display holding the frontmost window and wrap at either end.
+
+The window in front on the destination gets keyboard focus. A display with
+no window on its active space becomes the active display for the menu bar
+and for the next window that opens, and focus stays where it was.
+
+Examples:
+  mimi action focus_display 2        Focus the second display
+  mimi action focus_display next     Focus the next display (with wrap)`,
+		Args: validateFocusDisplayArg,
+		RunE: func(cobraCmd *cobra.Command, args []string) error {
+			focusCmd, err := action.NewFocusDisplayCommand(args)
+			if err != nil {
+				return err
+			}
+
+			return state.runAction(cobraCmd, focusCmd)
+		},
+	}
+}
+
 func buildResizeWindowCommand(state *cliState) *cobra.Command {
 	cmd := &cobra.Command{
 		Use:   "resize_window [preset]",
@@ -560,6 +590,12 @@ func validateFocusAppArg(_ *cobra.Command, args []string) error {
 // rule, which is the rule the constructor in RunE calls.
 func validateDisplayArg(_ *cobra.Command, args []string) error {
 	_, err := action.ParseDisplayArg(args)
+
+	return err
+}
+
+func validateFocusDisplayArg(_ *cobra.Command, args []string) error {
+	_, err := action.ParseDisplayArgFor(action.NameFocusDisplay, args)
 
 	return err
 }

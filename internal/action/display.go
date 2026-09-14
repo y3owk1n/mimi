@@ -19,7 +19,7 @@ import (
 // own: on the direct path the constructor already did, on the daemon path
 // this is the first thing that has looked at it.
 func (e *Executor) MoveWindowToDisplay(target DisplayArg) error {
-	err := validateDisplayArg(target)
+	err := validateDisplayArg(NameMoveWindowToDisplay, target)
 	if err != nil {
 		return err
 	}

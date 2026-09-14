@@ -137,6 +137,7 @@ mimi action move_window_to_display <n|next|prev>
 # Focus
 mimi action focus_window [--backward | --same-app | --left | --right | --up | --down | --number <id>]
 mimi action focus_app Safari                  # switches to the app's space first
+mimi action focus_display next                # the window in front on the next display
 
 # Size and place
 mimi action resize_window <preset> [--cycle]  # halves, quadrants, thirds, two thirds, center, fill

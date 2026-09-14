@@ -25,6 +25,7 @@ const (
 	NameFocusApp            Name = "focus_app"
 	NameApplyFrames         Name = "apply_frames"
 	NameTiling              Name = "tiling"
+	NameFocusDisplay        Name = "focus_display"
 	NameCloseWindow         Name = "close_window"
 	NameMinimizeWindow      Name = "minimize_window"
 	NameFullscreenWindow    Name = "fullscreen_window"
@@ -85,7 +86,13 @@ func ParseSpaceArg(name Name, args []string) (SpaceArg, error) {
 // ParseDisplayArg is ParseSpaceArg for the display argument: the same
 // spellings, reported against move_window_to_display and the word "display".
 func ParseDisplayArg(args []string) (DisplayArg, error) {
-	arg, err := parseIndexArg(NameMoveWindowToDisplay, displayNoun, args)
+	return ParseDisplayArgFor(NameMoveWindowToDisplay, args)
+}
+
+// ParseDisplayArgFor is ParseDisplayArg naming the action the argument is
+// for in its rejection.
+func ParseDisplayArgFor(name Name, args []string) (DisplayArg, error) {
+	arg, err := parseIndexArg(name, displayNoun, args)
 	if err != nil {
 		return DisplayArg{}, err
 	}
@@ -169,9 +176,9 @@ func validateSpaceArg(name Name, arg SpaceArg) error {
 }
 
 // validateDisplayArg is validateSpaceArg for the display argument.
-func validateDisplayArg(arg DisplayArg) error {
+func validateDisplayArg(name Name, arg DisplayArg) error {
 	return validateIndexArg(
-		NameMoveWindowToDisplay,
+		name,
 		displayNoun,
 		indexArg{index: arg.Index, direction: arg.Direction},
 	)

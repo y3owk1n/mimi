@@ -88,6 +88,7 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
                              appearance:(BOOL)appearance {
 	NSNotificationCenter *wsnc = [[NSWorkspace sharedWorkspace] notificationCenter];
 	[wsnc removeObserver:self];
+	[[NSNotificationCenter defaultCenter] removeObserver:self];
 	[[NSDistributedNotificationCenter defaultCenter] removeObserver:self];
 
 	NSMutableDictionary *tempNotifToKind = [NSMutableDictionary dictionary];
@@ -101,12 +102,16 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		tempNotifToKind[NSWorkspaceDidUnhideApplicationNotification] = @(MIMI_KIND_APP_UNHIDE);
 	}
 
+	// The system group is sleep, wake, and the display set changing. The
+	// session and power-off kinds stay defined but unobserved, since
+	// nothing routes them to Go yet.
 	if (systemState) {
 		tempNotifToKind[NSWorkspaceWillSleepNotification] = @(MIMI_KIND_WILL_SLEEP);
 		tempNotifToKind[NSWorkspaceDidWakeNotification] = @(MIMI_KIND_DID_WAKE);
-		tempNotifToKind[NSWorkspaceSessionDidResignActiveNotification] = @(MIMI_KIND_SESSION_RESIGN);
-		tempNotifToKind[NSWorkspaceSessionDidBecomeActiveNotification] = @(MIMI_KIND_SESSION_BECOME);
-		tempNotifToKind[NSWorkspaceWillPowerOffNotification] = @(MIMI_KIND_WILL_POWER_OFF);
+		[[NSNotificationCenter defaultCenter] addObserver:self
+		                                         selector:@selector(screenParametersChanged:)
+		                                             name:NSApplicationDidChangeScreenParametersNotification
+		                                           object:nil];
 	}
 
 	if (volume) {
@@ -138,6 +143,10 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		            name:@"AppleInterfaceThemeChangedNotification"
 		          object:nil];
 	}
+}
+
+- (void)screenParametersChanged:(NSNotification *)note {
+	goWorkspaceEvent(MIMI_KIND_DISPLAY_CHANGED, "", "", 0, "", "");
 }
 
 - (void)appearanceChanged:(NSNotification *)note {
