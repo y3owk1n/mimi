@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.18.0](https://github.com/y3owk1n/mimi/compare/v0.17.0...v0.18.0) (2026-09-14)
+
+
+### Features
+
+* **action,hooks:** focus a display, and hook sleep, wake and display changes ([#281](https://github.com/y3owk1n/mimi/issues/281)) ([62f7c7e](https://github.com/y3owk1n/mimi/commit/62f7c7e63d02d3b1af0d72c829c2c72e97ec1968))
+* **action,query:** list the windows in the Dock, and restore one by number ([#283](https://github.com/y3owk1n/mimi/issues/283)) ([4d06869](https://github.com/y3owk1n/mimi/commit/4d06869e38a24824b8a315d2de5d3d0eefad8bc4))
+* **action:** close, minimize and full-screen a window, and resize by a delta ([#280](https://github.com/y3owk1n/mimi/issues/280)) ([3a74140](https://github.com/y3owk1n/mimi/commit/3a74140aecfa269de8df6c608486b4f64c55ce45))
+* **mouse:** give keyboard focus to the window the pointer rests on ([#282](https://github.com/y3owk1n/mimi/issues/282)) ([6a30901](https://github.com/y3owk1n/mimi/commit/6a3090107daec517404181dddbea2b0cbf1925dd))
+* **query:** list every space, and say which space and display a window is on ([#278](https://github.com/y3owk1n/mimi/issues/278)) ([f172639](https://github.com/y3owk1n/mimi/commit/f172639733529871fac4d461ab639b9d714caf4b))
+* **rules:** open a window on a chosen space or display ([#285](https://github.com/y3owk1n/mimi/issues/285)) ([49a4645](https://github.com/y3owk1n/mimi/commit/49a4645decad460c4814339667036651dcb998c8))
+* **rules:** place the windows already open when the daemon starts ([#286](https://github.com/y3owk1n/mimi/issues/286)) ([2a6dbae](https://github.com/y3owk1n/mimi/commit/2a6dbae9baec301c4bf41727ae1ce2e88829cda5))
+* **tiling:** keep windows out of every layout with rules in config.toml ([#279](https://github.com/y3owk1n/mimi/issues/279)) ([1b60385](https://github.com/y3owk1n/mimi/commit/1b60385f5bbae86389636d932ee4401c558dab0c))
+* **tiling:** run a different layout on a chosen display or space ([#284](https://github.com/y3owk1n/mimi/issues/284)) ([b94e441](https://github.com/y3owk1n/mimi/commit/b94e441062f62f1c091672d3ff4502323f7ab90d))
+
+
+### Bug Fixes
+
+* **build:** pin the macOS 14.0 floor in cgo flags and the app bundle ([#276](https://github.com/y3owk1n/mimi/issues/276)) ([55093c9](https://github.com/y3owk1n/mimi/commit/55093c9ea00059a8003b655a28ecabdadd5131a6))
+* **tiling:** read a window twice before taking its size as a minimum ([#287](https://github.com/y3owk1n/mimi/issues/287)) ([116a874](https://github.com/y3owk1n/mimi/commit/116a87445b2f12f0f6119aabf440ea15cc21c528))
+
 ## [0.17.0](https://github.com/y3owk1n/mimi/compare/v0.16.0...v0.17.0) (2026-09-14)
 
 
