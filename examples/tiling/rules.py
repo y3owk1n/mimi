@@ -5,8 +5,11 @@ Every layout here reads a JSON document per line on stdin and prints one
 per line on stdout, once or for as long as stdin stays open. See README.md
 for the shapes. mimi runs a layout once per display,
 with that display's windows and a state of that display's own, so a layout
-only ever thinks about one display. This file is the one place to add a
-bundle identifier that should never be tiled.
+only ever thinks about one display. A bundle identifier that should never
+be tiled goes in FLOATING_BUNDLES below, or in [[tiling.rules]] in
+config.toml, which keeps the window out of every layout without an edit
+here. The size rule stays here, since config rules match names and titles
+only.
 """
 
 import json
