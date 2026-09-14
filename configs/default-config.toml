@@ -179,6 +179,16 @@ active_color = "#e2e2e3"
 inactive_color = "#414141"
 
 # =============================================================================
+# Mouse
+# =============================================================================
+# Give keyboard focus to the window the pointer rests on, as yabai's
+# focus_follows_mouse does. Needs Accessibility. Reloadable.
+# =============================================================================
+
+[mouse]
+focus_follows_mouse = false
+
+# =============================================================================
 # Hooks
 # =============================================================================
 # Each hook is an array of entries. An entry can be either:

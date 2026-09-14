@@ -36,6 +36,7 @@ failure is logged.
 - `[hooks]` (every hook kind)
 - `[tiling]` (every field)
 - `[border]` (every field)
+- `[mouse]` (every field)
 
 **Restart-only**. The daemon reads these once at startup. Restart it to apply
 them, with `mimi stop && mimi start`, or `mimi services restart` for the
@@ -405,6 +406,28 @@ moves come from the same observers. Without it, borders stay off and the
 daemon logs a warning. When the tiling animation moves a window, its border
 moves with it. A border also follows a window you drag at every step, since
 the window server reports each move.
+
+---
+
+## Mouse
+
+```toml
+[mouse]
+focus_follows_mouse = false   # focus the window the pointer rests on
+```
+
+With `focus_follows_mouse = true`, the daemon watches the pointer and gives
+keyboard focus to the window it rests on for 40 milliseconds, through the
+same path `mimi action focus_window --number` takes. A pass across a window
+on the way somewhere else focuses nothing. The pointer resting over the
+desktop, a menu, a popover, or a border mimi draws changes nothing, and
+nothing changes while a mouse button is down. The window under the pointer
+is read from the window server, so it is the one you see, whatever
+application owns it.
+
+It needs Accessibility, as focusing a window does. Without it, the setting
+stays off and the daemon logs a warning. The pointer is watched only while
+the setting is on.
 
 ---
 
