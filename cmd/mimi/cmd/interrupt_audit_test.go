@@ -117,6 +117,8 @@ var interruptAudit = []auditEntry{
 		"as action: the body only reports the missing subcommand and returns"),
 	audited("query space", interruptRunsOn,
 		"two SkyLight reads and one line of output; nothing blocks"),
+	audited("query spaces", interruptRunsOn,
+		"a SkyLight read per space and one line of output; nothing blocks"),
 	audited("query window", interruptRunsOn,
 		"one Accessibility round trip to the frontmost application for its "+
 			"window and frame, which runs to completion, then one line of output"),

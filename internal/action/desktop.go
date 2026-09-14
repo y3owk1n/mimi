@@ -48,6 +48,16 @@ type AppInfo struct {
 	BundleID string
 }
 
+// Space is one Mission Control space as the desktop lists it: which space it
+// is, the display it belongs to, whether it is a full-screen application
+// space, and whether it is the one in front on its display.
+type Space struct {
+	ID         uint64
+	DisplayID  uint32
+	FullScreen bool
+	Visible    bool
+}
+
 // Display is one connected display as the actions see it: an identifier to
 // hand back to the desktop, and its frames in screen coordinates.
 type Display struct {
@@ -173,6 +183,19 @@ type Desktop interface {
 	// space in front is a full-screen application space. macOS lays that
 	// space out itself, for one window or a split-view pair.
 	FullScreenDisplays() (map[uint32]bool, error)
+
+	// Spaces lists every Mission Control space in the order the space
+	// actions count them, display by display, or an error when they cannot
+	// be enumerated.
+	Spaces() ([]Space, error)
+
+	// WindowSpaceID is the window server's identifier for the one space a
+	// window is on, or 0 when it is on every space or on none.
+	WindowSpaceID(number uint32) uint64
+
+	// WindowsOnSpace lists the real, unminimized windows on one space by
+	// number, front to back.
+	WindowsOnSpace(id uint64) []uint32
 
 	// FocusSpace switches to the Mission Control space at the given 1-based
 	// index, which the caller has already checked against SpaceCount.

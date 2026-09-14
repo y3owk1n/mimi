@@ -115,6 +115,28 @@ double MimiTiledWindowMarginSize(void);
 
 int MimiCountMissionControlSpaces(void);
 uint64_t MimiMissionControlSpaceID(int index);
+
+/// One Mission Control space as the window server lists it.
+typedef struct {
+	/// The window server's identifier for the space.
+	uint64_t id;
+	/// The display the space belongs to, or 0 when it cannot be resolved.
+	uint32_t display;
+	/// Whether the space is a full-screen application space.
+	int fullScreen;
+	/// Whether the space is the one in front on its display.
+	int current;
+} MimiSpace;
+
+/// Copy every Mission Control space in Mission Control order, display by
+/// display. Sets *count; the caller frees the array. NULL when there are none.
+MimiSpace *MimiCopySpaces(int *count);
+/// The space a window is on, or 0 when it is on every space or none.
+uint64_t MimiSpaceForWindowNumber(uint32_t number);
+/// Copy the numbers of every real, unminimized window on one space, in the
+/// window server's order. Sets *count; the caller frees the array. NULL when
+/// there are none.
+uint32_t *MimiCopyRealWindowNumbersOnSpace(uint64_t sid, int *count);
 uint32_t MimiSpaceDisplayID(uint64_t sid);
 uint64_t MimiActiveSpaceID(void);
 /// The space ID in front on the given display, or 0.

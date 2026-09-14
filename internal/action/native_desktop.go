@@ -475,6 +475,39 @@ func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	return native.FullScreenDisplays(ids), nil
 }
 
+// Spaces lists every Mission Control space in Mission Control order.
+func (d *nativeDesktop) Spaces() ([]Space, error) {
+	found := native.Spaces()
+	if len(found) == 0 {
+		return nil, derrors.New(
+			derrors.CodeActionFailed,
+			"failed to enumerate Mission Control spaces",
+		)
+	}
+
+	spaces := make([]Space, len(found))
+	for index, space := range found {
+		spaces[index] = Space{
+			ID:         space.ID,
+			DisplayID:  space.DisplayID,
+			FullScreen: space.FullScreen,
+			Visible:    space.Current,
+		}
+	}
+
+	return spaces, nil
+}
+
+// WindowSpaceID is the identifier of the one space a window is on, or 0.
+func (d *nativeDesktop) WindowSpaceID(number uint32) uint64 {
+	return native.WindowSpaceID(number)
+}
+
+// WindowsOnSpace lists the real windows on one space, front to back.
+func (d *nativeDesktop) WindowsOnSpace(id uint64) []uint32 {
+	return native.WindowsOnSpace(id)
+}
+
 // FocusSpace switches to the space at the given 1-based index.
 func (d *nativeDesktop) FocusSpace(index int) error {
 	return native.FocusSpace(index)

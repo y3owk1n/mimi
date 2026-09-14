@@ -144,6 +144,26 @@ CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii) {
 	return CFBridgingRetain(real);
 }
 
+uint32_t *MimiCopyRealWindowNumbersOnSpace(uint64_t sid, int *count) {
+	*count = 0;
+	@autoreleasepool {
+		NSArray<NSNumber *> *real =
+		    CFBridgingRelease(MimiCopyRealWindowsOnSpaces((__bridge CFArrayRef) @[ @(sid) ], NULL));
+		if (real.count == 0)
+			return NULL;
+
+		uint32_t *numbers = (uint32_t *)calloc(real.count, sizeof(uint32_t));
+		if (!numbers)
+			return NULL;
+
+		for (NSUInteger i = 0; i < real.count; i++)
+			numbers[i] = real[i].unsignedIntValue;
+
+		*count = (int)real.count;
+		return numbers;
+	}
+}
+
 int MimiSetEnhancedUserInterface(int pid, int enabled) {
 	@autoreleasepool {
 		AXUIElementRef app = AXUIElementCreateApplication((pid_t)pid);
@@ -232,7 +252,7 @@ static bool mimiApplicationMatches(NSRunningApplication *app, NSString *query) {
 
 /// The space a window sits on: its one space, or 0 when it is on every space
 /// (assigned to all desktops) or on none.
-static uint64_t mimiSpaceForWindowNumber(CGWindowID number) {
+uint64_t MimiSpaceForWindowNumber(uint32_t number) {
 	CFNumberRef numberRef = CFNumberCreate(NULL, kCFNumberSInt32Type, &number);
 	if (!numberRef)
 		return 0;
@@ -378,7 +398,7 @@ MimiAppWindow *MimiCopyApplicationWindows(int pid, int *count) {
 		for (NSUInteger i = 0; i < kept.count; i++) {
 			CGWindowID number = kept[i].unsignedIntValue;
 			result[i].number = number;
-			result[i].space = mimiSpaceForWindowNumber(number);
+			result[i].space = MimiSpaceForWindowNumber(number);
 		}
 
 		*count = (int)kept.count;

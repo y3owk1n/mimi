@@ -270,3 +270,39 @@ func TestExecutor_QueryDisplays_ErrorPaths(t *testing.T) {
 		})
 	}
 }
+
+// TestExecutor_QueryWindows_PlacesEachWindowOnItsSpaceAndDisplay pins the
+// two fields a bar or script keys on: the space the window server places a
+// window on, 0 for one on every space, and the display holding its center.
+func TestExecutor_QueryWindows_PlacesEachWindowOnItsSpaceAndDisplay(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithListedWindows()
+	desktop.screen = geometry.Screen{PrimaryHeight: 1080}
+	desktop.displays = []action.Display{
+		{ID: 7, Frame: geometry.Rect{X: 1920, Y: 0, W: 1920, H: 1080}},
+		{ID: 3, Frame: geometry.Rect{X: 0, Y: 0, W: 1920, H: 1080}},
+	}
+	desktop.spaces = []action.Space{
+		{ID: 100, DisplayID: 3},
+		{ID: 200, DisplayID: 3},
+		{ID: 300, DisplayID: 7},
+	}
+	desktop.windowSpaceIDs = map[uint32]uint64{4242: 200}
+	desktop.windows[1].frame = geometry.Rect{X: 2000, Y: 25, W: 960, H: 1055}
+
+	got, err := action.NewExecutor(desktop).QueryWindows()
+	if err != nil {
+		t.Fatalf("QueryWindows() error = %v, want nil", err)
+	}
+
+	type placement struct{ space, display int }
+
+	want := []placement{{space: 2, display: 1}, {space: 0, display: 2}}
+
+	for index, win := range got.Windows {
+		if got := (placement{win.Space, win.Display}); got != want[index] {
+			t.Fatalf("window %d placed at %+v, want %+v", win.Number, got, want[index])
+		}
+	}
+}

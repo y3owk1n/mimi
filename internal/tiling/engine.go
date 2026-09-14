@@ -187,9 +187,6 @@ func New(desktop Desktop, serialize Serializer, logger *zap.SugaredLogger) *Engi
 // application's own settling after a write.
 const defaultResizeGrace = time.Second
 
-// half is the divisor that finds the center of a frame.
-const half = 2
-
 // samePoint is how far two frames may differ and still be the same
 // placement: macOS stores frames in whole points, and rounds.
 const samePoint = 1.0
@@ -1285,33 +1282,12 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 	return inputs
 }
 
-// displayOf is the id of the display whose frame holds the center of frame,
-// or, when none does, the one that center is nearest: a column a strip
-// parks off the edge of a display stays that display's.
+// displayOf is the id of the display a window's frame belongs to, as the
+// windows query places it.
 func displayOf(frame action.Frame, displays []action.DisplayEntry) uint32 {
-	centerX := frame.X + frame.Width/half
-	centerY := frame.Y + frame.Height/half
+	display, _ := action.DisplayOf(frame, displays)
 
-	var (
-		nearest  uint32
-		distance = math.Inf(1)
-	)
-
-	for _, display := range displays {
-		bounds := display.Frame
-		outsideX := math.Max(bounds.X-centerX, math.Max(0, centerX-(bounds.X+bounds.Width)))
-		outsideY := math.Max(bounds.Y-centerY, math.Max(0, centerY-(bounds.Y+bounds.Height)))
-
-		if outsideX == 0 && outsideY == 0 {
-			return display.ID
-		}
-
-		if d := outsideX*outsideX + outsideY*outsideY; d < distance {
-			nearest, distance = display.ID, d
-		}
-	}
-
-	return nearest
+	return display.ID
 }
 
 // spacesChangedLocked reports whether any display the inputs were read on

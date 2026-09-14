@@ -87,6 +87,15 @@ type fakeDesktop struct {
 	activeSpaceIDs map[uint32]uint64
 	// fullScreenDisplays is what FullScreenDisplays reports.
 	fullScreenDisplays map[uint32]bool
+	// spaces is what Spaces reports, and spacesErr fails it.
+	spaces    []action.Space
+	spacesErr error
+	// windowSpaceIDs is the space each window is on by number, as
+	// WindowSpaceID reports it; a window not in it is on every space.
+	windowSpaceIDs map[uint32]uint64
+	// spaceWindows is the windows on each space by id, as WindowsOnSpace
+	// reports them.
+	spaceWindows map[uint64][]uint32
 	// enumerations counts FocusableWindows calls.
 	enumerations   int
 	activeSpaceErr error
@@ -355,6 +364,22 @@ func (d *fakeDesktop) ActiveSpaceIndex() (int, error) {
 
 func (d *fakeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	return d.fullScreenDisplays, nil
+}
+
+func (d *fakeDesktop) Spaces() ([]action.Space, error) {
+	if d.spacesErr != nil {
+		return nil, d.spacesErr
+	}
+
+	return slices.Clone(d.spaces), nil
+}
+
+func (d *fakeDesktop) WindowSpaceID(number uint32) uint64 {
+	return d.windowSpaceIDs[number]
+}
+
+func (d *fakeDesktop) WindowsOnSpace(id uint64) []uint32 {
+	return d.spaceWindows[id]
 }
 
 func (d *fakeDesktop) ActiveSpaces() (map[uint32]int, error) {
