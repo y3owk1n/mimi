@@ -702,6 +702,20 @@ int MimiCloseWindow(void *window) {
 	}
 }
 
+int MimiWindowIsMinimized(void *window) {
+	if (!window)
+		return -1;
+
+	CFTypeRef value = NULL;
+	AXError err = AXUIElementCopyAttributeValue((AXUIElementRef)window, kAXMinimizedAttribute, &value);
+	if (err != kAXErrorSuccess || !value)
+		return -1;
+
+	int minimized = CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue((CFBooleanRef)value);
+	CFRelease(value);
+	return minimized;
+}
+
 int MimiSetWindowMinimized(void *window, int minimized) {
 	if (!window)
 		return 0;

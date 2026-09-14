@@ -154,6 +154,23 @@ func (d *nativeDesktop) ApplicationWindows(pid int) ([]AppWindow, error) {
 	return windows, nil
 }
 
+// MinimizedWindows lists every window in the Dock.
+func (d *nativeDesktop) MinimizedWindows() ([]MinimizedWindow, error) {
+	found := native.MinimizedWindows()
+	windows := make([]MinimizedWindow, len(found))
+
+	for index, win := range found {
+		windows[index] = MinimizedWindow{PID: win.PID, Number: win.Number, Title: win.Title}
+	}
+
+	return windows, nil
+}
+
+// UnminimizeWindow restores a window from the Dock and brings it to the front.
+func (d *nativeDesktop) UnminimizeWindow(pid int, number uint32) error {
+	return native.UnminimizeWindow(pid, number)
+}
+
 // RaiseWindow brings one of an application's windows to the front by number.
 func (d *nativeDesktop) RaiseWindow(pid int, number uint32) error {
 	return native.RaiseWindowNumber(pid, number)

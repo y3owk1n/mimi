@@ -287,6 +287,30 @@ func (e *Element) SetMinimized(minimized bool) error {
 	return nil
 }
 
+// Minimized reports whether the window is minimized to the Dock.
+func (e *Element) Minimized() (bool, error) {
+	if e.ref == nil {
+		return false, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"cannot read minimized: element reference is nil",
+		)
+	}
+
+	state := C.MimiWindowIsMinimized(e.ref) //nolint:nlreturn
+
+	switch state {
+	case 1:
+		return true, nil
+	case 0:
+		return false, nil
+	default:
+		return false, derrors.New(
+			derrors.CodeAccessibilityFailed,
+			"failed to read whether the window is minimized",
+		)
+	}
+}
+
 // FullScreen reports whether the window is in native full screen.
 func (e *Element) FullScreen() (bool, error) {
 	if e.ref == nil {

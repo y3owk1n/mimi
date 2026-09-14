@@ -40,6 +40,13 @@ type AppWindow struct {
 	SpaceIndex int
 }
 
+// MinimizedWindow is one window in the Dock, as the desktop lists it.
+type MinimizedWindow struct {
+	PID    int
+	Number uint32
+	Title  string
+}
+
 // AppInfo describes the application behind a pid as the queries report it:
 // its localized name and its bundle identifier, either "" when macOS does not
 // report it.
@@ -159,6 +166,14 @@ type Desktop interface {
 	// front to back, which is most recently used first. Minimized and
 	// auxiliary windows are left out.
 	ApplicationWindows(pid int) ([]AppWindow, error)
+
+	// MinimizedWindows lists every window in the Dock, of every regular
+	// application.
+	MinimizedWindows() ([]MinimizedWindow, error)
+
+	// UnminimizeWindow restores one of an application's windows from the
+	// Dock, by number, and brings it to the front.
+	UnminimizeWindow(pid int, number uint32) error
 
 	// RaiseWindow brings one of an application's windows to the front by
 	// number. It works for a window on the active space and reports an

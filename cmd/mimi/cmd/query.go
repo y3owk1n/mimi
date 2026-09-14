@@ -29,6 +29,7 @@ Available subcommands:
   spaces    every Mission Control space, with its display and windows
   window    the frontmost window's owner and frame
   windows   every focusable window on the active space, with its frame
+  minimized every window in the Dock, with its owner and title
   displays  every connected display, with its frames
   margins   the system tiled-window margins setting resize_window honors
 
@@ -56,6 +57,7 @@ Examples:
 	cmd.AddCommand(buildQuerySpacesCommand())
 	cmd.AddCommand(buildQueryWindowCommand())
 	cmd.AddCommand(buildQueryWindowsCommand())
+	cmd.AddCommand(buildQueryMinimizedCommand())
 	cmd.AddCommand(buildQueryDisplaysCommand())
 	cmd.AddCommand(buildQueryMarginsCommand())
 
@@ -103,6 +105,26 @@ permission is required.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			return answerQuery(cobraCmd, action.QueryWindows)
+		},
+	}
+}
+
+func buildQueryMinimizedCommand() *cobra.Command {
+	return &cobra.Command{
+		Use:   "minimized",
+		Short: "List every window in the Dock",
+		Long: `List the minimized windows of every application as JSON:
+
+  {"windows":[{"number":4242,"pid":501,"app":"Safari",
+   "bundleId":"com.apple.Safari","title":"Start Page"}]}
+
+These are the windows "mimi query windows" leaves out. "number" is what
+"mimi action unminimize_window --number" takes. The list covers every space,
+since a minimized window belongs to none. Accessibility permission is
+required.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			return answerQuery(cobraCmd, action.QueryMinimized)
 		},
 	}
 }

@@ -25,6 +25,33 @@ func (e *Executor) MinimizeWindow(args WindowArgs) error {
 	return e.desktop.SetWindowMinimized(win.ID, true)
 }
 
+// UnminimizeWindow restores the window args names from the Dock and brings
+// it to the front. The number is required. A minimized window is not on
+// any space's window list, so there is no frontmost one to default to.
+func (e *Executor) UnminimizeWindow(args WindowArgs) error {
+	if args.Number == 0 {
+		return derrors.New(derrors.CodeInvalidInput, "unminimize_window needs --number")
+	}
+
+	err := e.desktop.EnsureAccessible()
+	if err != nil {
+		return err
+	}
+
+	minimized, err := e.desktop.MinimizedWindows()
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to list minimized windows")
+	}
+
+	for _, win := range minimized {
+		if win.Number == args.Number {
+			return e.desktop.UnminimizeWindow(win.PID, win.Number)
+		}
+	}
+
+	return derrors.Newf(derrors.CodeActionFailed, "window %d is not minimized", args.Number)
+}
+
 // ToggleFullscreenWindow puts the window args names into native full screen,
 // or takes it out when it is there already.
 func (e *Executor) ToggleFullscreenWindow(args WindowArgs) error {
