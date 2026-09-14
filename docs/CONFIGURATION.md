@@ -188,6 +188,10 @@ narrower_than = 400        # points; both have to hold when both are set
 shorter_than = 300
 manage = false
 
+[[tiling.rules]]
+bundle_id = "com.tinyspeck.slackmacgap"
+space = 3                  # a new Slack window opens on space 3, and focus follows
+
 [tiling.animation]
 enabled = false       # move the frames into place over time instead of at once
 duration_ms = 150     # how long the move takes, 1 to 1000
@@ -397,6 +401,26 @@ input, so the layout cannot frame it, a drag of it runs no pass, and it gets
 no drop zone. Rules are read in order and the last one that matches decides,
 so a rule with `manage = true` after a broader one takes those windows back.
 The shipped layouts carry no float rules of their own.
+
+A rule can also say where a window goes when it is created. `space` and
+`display` are counted as `mimi action space` and `move_window_to_display`
+count them. The move happens once, as the window appears, so a window you
+drag elsewhere afterwards stays there. The space comes to the front and the
+window is focused there, unless the rule sets `follow = false`, which is the
+setting for an application that opens windows you did not ask for. A rule
+that sets a destination may leave `manage` out. These moves need
+Accessibility, since the daemon learns of a new window through it.
+
+```toml
+[[tiling.rules]]
+bundle_id = "com.tinyspeck.slackmacgap"
+space = 3
+
+[[tiling.rules]]
+app = "Music"
+display = 2
+follow = false
+```
 
 ## Borders
 

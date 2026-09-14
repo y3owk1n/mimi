@@ -107,6 +107,8 @@ type fakeDesktop struct {
 	// movedWindow is the window move_window_to_space last moved, so a raise
 	// after the follow can be checked against it.
 	movedWindow action.WindowID
+	// movedByNumber is every window MoveWindowNumberToSpace moved, in order.
+	movedByNumber []uint32
 	// raiseErr fails every RaiseWindow when set.
 	raiseErr error
 
@@ -523,6 +525,17 @@ func (d *fakeDesktop) MoveWindowToSpace(index int) (action.Window, error) {
 	d.focused = -1
 
 	return action.Window{PID: moved.PID, Number: moved.Number}, nil
+}
+
+func (d *fakeDesktop) MoveWindowNumberToSpace(number uint32, index int) error {
+	if d.moveErr != nil {
+		return d.moveErr
+	}
+
+	d.movedByNumber = append(d.movedByNumber, number)
+	d.windowSpace = index
+
+	return nil
 }
 
 func (d *fakeDesktop) RefreshWorkspaceTitle() {

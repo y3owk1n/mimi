@@ -98,13 +98,14 @@ relayout_on_drag = false
 # space = 3
 # layout = "~/.config/mimi/tiling/monocle.py"
 
-# Windows the layout never sees. Each rule names windows by app (a glob on
-# the application name), bundle_id (a glob on the bundle identifier), title
-# (a regular expression) or size (narrower_than and shorter_than, in
-# points), and says whether the layout manages them. A pattern starting
-# with ! matches everything the rest does not. Rules are read in order and
-# the last one that matches decides. These are the ones most people never
-# want tiled.
+# Windows the layout never sees, and windows that open on a chosen space or
+# display. Each rule names windows by app (a glob on the application name),
+# bundle_id (a glob on the bundle identifier), title (a regular expression)
+# or size (narrower_than and shorter_than, in points). manage says whether
+# the layout sees them. space and display say where a new window goes, with
+# focus following unless follow = false. A pattern starting with ! matches
+# everything the rest does not. Rules are read in order and the last one
+# that matches decides. These are the ones most people never want tiled.
 # [[tiling.rules]]
 # bundle_id = "com.apple.finder"
 # manage = false
@@ -121,6 +122,9 @@ relayout_on_drag = false
 # narrower_than = 400
 # shorter_than = 300
 # manage = false
+# [[tiling.rules]]
+# bundle_id = "com.tinyspeck.slackmacgap"
+# space = 3
 
 # Move the frames into place over time instead of at once, through the
 # applications a step at a time; it needs nothing beyond Accessibility.

@@ -174,6 +174,32 @@ func MoveWindowToSpace(index int) (int, uint32, error) {
 	return pid, number, nil
 }
 
+// MoveWindowNumberToSpace moves a window to the space at the given 1-based
+// index by its window server number, which reaches a window on any space,
+// where MoveWindowToSpace reaches the frontmost through Accessibility.
+func MoveWindowNumberToSpace(number uint32, index int) error {
+	sid := uint64(C.MimiMissionControlSpaceID(C.int(index)))
+	if sid == 0 {
+		return derrors.Newf(
+			derrors.CodeActionFailed,
+			"failed to resolve Mission Control space at index %d",
+			index,
+		)
+	}
+
+	result := C.MimiMoveWindowNumberToSpace(C.uint32_t(number), C.uint64_t(sid))
+	if result == 0 {
+		return derrors.Newf(
+			derrors.CodeActionFailed,
+			"failed to move window %d to space %d",
+			number,
+			index,
+		)
+	}
+
+	return nil
+}
+
 // Space is one Mission Control space as the window server lists it: its
 // identifier, the display it belongs to, whether it is a full-screen
 // application space, and whether it is the one in front on its display.
@@ -217,7 +243,7 @@ func WindowSpaceID(number uint32) uint64 {
 }
 
 // WindowsOnSpace lists the real, unminimized windows on one space by number,
-// in the window server's order, front to back.
+// in theorder, front to back.
 func WindowsOnSpace(id uint64) []uint32 {
 	var count C.int
 

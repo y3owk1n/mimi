@@ -206,6 +206,65 @@ func (e *Executor) ResizeWindow(req geometry.Request) error {
 	return e.desktop.SetWindowFrame(win.ID, geometry.Resize(current, screen, req))
 }
 
+// MoveWindowNumberToSpace moves one window, by number, to the space at the
+// given 1-based index, on whatever space the window is now. With follow set
+// the destination space comes to the front and the window is focused there.
+func (e *Executor) MoveWindowNumberToSpace(pid int, number uint32, index int, follow bool) error {
+	err := e.desktop.EnsureAccessible()
+	if err != nil {
+		return err
+	}
+
+	if e.desktop.MissionControlActive() {
+		return derrors.New(
+			derrors.CodeActionFailed,
+			"cannot move window while Mission Control is active",
+		)
+	}
+
+	err = e.ensureSpaceExists(index)
+	if err != nil {
+		return err
+	}
+
+	err = e.desktop.MoveWindowNumberToSpace(number, index)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")
+	}
+
+	if !follow {
+		return nil
+	}
+
+	err = e.desktop.FocusSpace(index)
+	if err != nil {
+		e.desktop.RefreshWorkspaceTitle()
+
+		return derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"window moved, but failed to follow it to space %d",
+			index,
+		)
+	}
+
+	err = e.desktop.RaiseWindow(pid, number)
+	if err != nil {
+		e.desktop.RefreshWorkspaceTitle()
+
+		return derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"window moved to space %d, but failed to focus it there",
+			index,
+		)
+	}
+
+	e.desktop.RefreshWorkspaceTitle()
+
+	return nil
+}
+
 // sameApplicationOnly narrows windows to those owned by the same application
 // as windows[focusedIndex], keeping their order, and reports where the focused
 // window now sits. It is the focused window that names the application: with
@@ -337,4 +396,10 @@ func (e *Executor) animator() *animator {
 	}
 
 	return e.animation
+}
+
+// MoveWindowNumberToSpace moves a window by number to a space on the
+// desktop mimi is running on.
+func MoveWindowNumberToSpace(pid int, number uint32, index int, follow bool) error {
+	return defaultExecutor.MoveWindowNumberToSpace(pid, number, index, follow)
 }

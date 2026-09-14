@@ -21,7 +21,29 @@ type TilingRule struct {
 	// in points, is under the number. 0 is unset.
 	NarrowerThan float64 `json:"narrowerThan" toml:"narrower_than"`
 	ShorterThan  float64 `json:"shorterThan"  toml:"shorter_than"`
-	Manage       *bool   `json:"manage"       toml:"manage"`
+	// Manage says whether the layout sees a matching window. It may be
+	// left out on a rule that only places windows.
+	Manage *bool `json:"manage" toml:"manage"`
+	// Space and Display, as the actions count them, are where a window
+	// this rule matches goes when it is created. 0 leaves a side unset.
+	Space   int `json:"space"   toml:"space"`
+	Display int `json:"display" toml:"display"`
+	// Follow says whether the window is focused where it lands, and the
+	// space brought to the front. It is on unless set to false.
+	Follow *bool `json:"follow" toml:"follow"`
+}
+
+// Placement is where a rule sends a window when it is created: a space, a
+// display, or both, and whether focus goes with it.
+type Placement struct {
+	Space   int
+	Display int
+	Follow  bool
+}
+
+// Places reports whether the placement sends the window anywhere.
+func (p Placement) Places() bool {
+	return p.Space != 0 || p.Display != 0
 }
 
 // RuleWindow is what a rule is matched against: one window's application
@@ -41,7 +63,9 @@ type Rule struct {
 	title        Filter
 	narrowerThan float64
 	shorterThan  float64
-	manage       bool
+	// manage is nil on a rule that says nothing about managing.
+	manage    *bool
+	placement Placement
 }
 
 // Matches reports whether the rule names the window.
@@ -69,14 +93,27 @@ func CompileRule(rule TilingRule) (Rule, error) {
 		)
 	}
 
-	if rule.Manage == nil {
-		return Rule{}, derrors.New(derrors.CodeInvalidConfig, "manage is required")
+	if rule.Space < 0 || rule.Display < 0 {
+		return Rule{}, derrors.New(derrors.CodeInvalidConfig, "space and display must be >= 1")
+	}
+
+	placement := Placement{Space: rule.Space, Display: rule.Display, Follow: true}
+	if rule.Follow != nil {
+		placement.Follow = *rule.Follow
+	}
+
+	if rule.Manage == nil && !placement.Places() {
+		return Rule{}, derrors.New(
+			derrors.CodeInvalidConfig,
+			"manage is required on a rule that sets no space or display",
+		)
 	}
 
 	compiled := Rule{
 		narrowerThan: rule.NarrowerThan,
 		shorterThan:  rule.ShorterThan,
-		manage:       *rule.Manage,
+		manage:       rule.Manage,
+		placement:    placement,
 	}
 
 	var err error
@@ -121,12 +158,42 @@ func Managed(rules []Rule, win RuleWindow) bool {
 	managed := true
 
 	for _, rule := range rules {
-		if rule.Matches(win) {
-			managed = rule.manage
+		if rule.Matches(win) && rule.manage != nil {
+			managed = *rule.manage
 		}
 	}
 
 	return managed
+}
+
+// PlacementFor is where the rules send a window when it is created: what
+// the last rule naming it with a space or a display says, and false when
+// none does.
+func PlacementFor(rules []Rule, win RuleWindow) (Placement, bool) {
+	var (
+		placement Placement
+		found     bool
+	)
+
+	for _, rule := range rules {
+		if rule.Matches(win) && rule.placement.Places() {
+			placement, found = rule.placement, true
+		}
+	}
+
+	return placement, found
+}
+
+// AnyPlaces reports whether any rule sends windows somewhere, which is what
+// says the daemon has to watch windows being created.
+func AnyPlaces(rules []TilingRule) bool {
+	for _, rule := range rules {
+		if rule.Space != 0 || rule.Display != 0 {
+			return true
+		}
+	}
+
+	return false
 }
 
 // validateRules holds every [[tiling.rules]] entry to what CompileRules

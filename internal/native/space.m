@@ -690,14 +690,24 @@ int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID) {
 		return 0;
 	}
 
-	mimiEnsureApplication();
-
 	CGWindowID windowId = 0;
 	AXError err = _AXUIElementGetWindow((AXUIElementRef)windowElement, &windowId);
 	if (err != kAXErrorSuccess || windowId == 0) {
 		MIMI_LOG("_AXUIElementGetWindow failed with error %d (windowId=%u)", (int)err, (unsigned)windowId);
 		return 0;
 	}
+
+	return MimiMoveWindowNumberToSpace(windowId, spaceID);
+}
+
+int MimiMoveWindowNumberToSpace(uint32_t number, uint64_t spaceID) {
+	if (number == 0) {
+		return 0;
+	}
+
+	mimiEnsureApplication();
+
+	CGWindowID windowId = number;
 
 	// Create CFArray of window ID
 	CFNumberRef windowNumber = CFNumberCreate(NULL, kCFNumberSInt32Type, &windowId);
