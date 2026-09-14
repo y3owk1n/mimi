@@ -640,6 +640,8 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		return e.MinimizeWindow(cmd.Window)
 	case NameFullscreenWindow:
 		return e.ToggleFullscreenWindow(cmd.Window)
+	case NameUnminimizeWindow:
+		return e.UnminimizeWindow(cmd.Window)
 	case NameApplyFrames:
 		err := validateApplyFramesArgs(cmd.ApplyFrames)
 		if err != nil {
@@ -664,7 +666,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, fullscreen_window, apply_frames, tiling)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, unminimize_window, fullscreen_window, apply_frames, tiling)",
 			cmd.Name,
 		)
 	}

@@ -299,6 +299,12 @@ Minimize the frontmost window, or the window named with `--number`, to the
 Dock. A minimized window leaves the active space's window list, so
 `focus_window` and the tiling layouts no longer see it.
 
+### `mimi action unminimize_window --number <n>`
+
+Restore the window with that number from the Dock and bring it to the front.
+A minimized window is on no space's window list, so the number is required.
+`mimi query minimized` lists the candidates.
+
 ### `mimi action fullscreen_window`
 
 Put the frontmost window, or the window named with `--number`, into native
@@ -418,6 +424,17 @@ frame cannot be read is left out. Accessibility permission is required.
 ```
 $ mimi query windows
 {"focused":0,"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":0,"y":25,"width":1440,"height":875},"order":0,"space":2,"display":1}]}
+```
+
+### `mimi query minimized`
+
+Every minimized window of every application, from any space. These are the
+windows `mimi query windows` leaves out. `number` is what
+`unminimize_window --number` takes. Accessibility permission is required.
+
+```
+$ mimi query minimized
+{"windows":[{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page"}]}
 ```
 
 ### `mimi query displays`

@@ -62,6 +62,61 @@ type DisplayEntry struct {
 	Visible Frame  `json:"visible"`
 }
 
+// MinimizedEntry is one window in the Dock as the minimized query reports
+// it: its number, which unminimize_window takes, its owner, and its title.
+type MinimizedEntry struct {
+	Number   uint32 `json:"number"`
+	PID      int    `json:"pid"`
+	App      string `json:"app"`
+	BundleID string `json:"bundleId"`
+	Title    string `json:"title"`
+}
+
+// MinimizedInfo is what a minimized query reports: every window in the
+// Dock, of every regular application, on any space.
+type MinimizedInfo struct {
+	Windows []MinimizedEntry `json:"windows"`
+}
+
+// QueryMinimized lists the minimized windows of the desktop mimi is running
+// on.
+func QueryMinimized() (MinimizedInfo, error) {
+	return defaultExecutor.QueryMinimized()
+}
+
+// QueryMinimized lists every window in the Dock. It reads through
+// Accessibility, so it checks the permission first.
+func (e *Executor) QueryMinimized() (MinimizedInfo, error) {
+	err := e.desktop.EnsureAccessible()
+	if err != nil {
+		return MinimizedInfo{}, err
+	}
+
+	windows, err := e.desktop.MinimizedWindows()
+	if err != nil {
+		return MinimizedInfo{}, derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"failed to list minimized windows",
+		)
+	}
+
+	info := MinimizedInfo{Windows: make([]MinimizedEntry, 0, len(windows))}
+
+	for _, win := range windows {
+		app, _ := e.desktop.ApplicationInfo(win.PID)
+		info.Windows = append(info.Windows, MinimizedEntry{
+			Number:   win.Number,
+			PID:      win.PID,
+			App:      app.Name,
+			BundleID: app.BundleID,
+			Title:    win.Title,
+		})
+	}
+
+	return info, nil
+}
+
 // SpaceEntry is one space as the spaces query reports it: its 1-based index
 // in the order the space actions count, the window server's identifier for
 // it, the display it belongs to as move_window_to_display counts them, whether

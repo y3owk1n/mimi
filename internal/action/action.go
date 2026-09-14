@@ -29,6 +29,7 @@ const (
 	NameCloseWindow         Name = "close_window"
 	NameMinimizeWindow      Name = "minimize_window"
 	NameFullscreenWindow    Name = "fullscreen_window"
+	NameUnminimizeWindow    Name = "unminimize_window"
 )
 
 // Nouns the index-argument rule reports in: what a space argument and a

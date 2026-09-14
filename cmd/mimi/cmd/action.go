@@ -79,6 +79,15 @@ Dock. A minimized window leaves the active space's window list, so
 Examples:
   mimi action minimize_window
   mimi action minimize_window --number 4242`))
+	cmd.AddCommand(buildWindowCommand(state, action.NameUnminimizeWindow,
+		"Restore a minimized window from the Dock",
+		`Restore the window named with --number from the Dock and bring it to the
+front. A minimized window is on no space's window list, so the number is
+required. "mimi query minimized" lists the candidates.
+
+Examples:
+  mimi action unminimize_window --number 4242
+  mimi action unminimize_window --number $(mimi query minimized | jq '.windows[0].number')`))
 	cmd.AddCommand(buildWindowCommand(state, action.NameFullscreenWindow,
 		"Toggle native full screen on the frontmost window",
 		`Put the frontmost window, or the window named with --number, into native

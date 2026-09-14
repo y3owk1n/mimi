@@ -148,9 +148,10 @@ my-layout | mimi action apply_frames          # apply frames from any program
 
 # Close, minimize, full screen
 mimi action close_window | minimize_window | fullscreen_window [--number <id>]
+mimi action unminimize_window --number <id>   # ids from: mimi query minimized
 
 # Read the desktop
-mimi query space | spaces | window | windows | displays | margins
+mimi query space | spaces | window | windows | minimized | displays | margins
 ```
 
 `resize_window` honours the macOS tiled-window margins setting, so hand-placed and tiled windows line up. Every flag and preset is in the [CLI Reference](docs/CLI.md).

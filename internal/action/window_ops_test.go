@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"reflect"
 	"slices"
 	"testing"
 
@@ -94,6 +95,65 @@ func TestExecutor_WindowActions_ErrorPaths(t *testing.T) {
 				ExecuteCommand(action.NewWindowCommand(action.NameCloseWindow, testCase.number))
 			if !derrors.IsCode(err, testCase.code) {
 				t.Fatalf("close_window error = %v, want %s", err, testCase.code)
+			}
+		})
+	}
+}
+
+func TestExecutor_QueryMinimized_ListsEveryWindowInTheDock(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithListedWindows()
+	desktop.minimizedWindows = []action.MinimizedWindow{{PID: 100, Number: 7, Title: "Downloads"}}
+
+	got, err := action.NewExecutor(desktop).QueryMinimized()
+	if err != nil {
+		t.Fatalf("QueryMinimized() error = %v, want nil", err)
+	}
+
+	want := action.MinimizedInfo{Windows: []action.MinimizedEntry{
+		{Number: 7, PID: 100, App: safariName, BundleID: safariBundleID, Title: "Downloads"},
+	}}
+
+	if !reflect.DeepEqual(got, want) {
+		t.Fatalf("QueryMinimized() = %+v, want %+v", got, want)
+	}
+}
+
+func TestExecutor_UnminimizeWindow_RestoresAWindowInTheDock(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithListedWindows()
+	desktop.minimizedWindows = []action.MinimizedWindow{{PID: 100, Number: 7}}
+
+	err := action.NewExecutor(desktop).
+		ExecuteCommand(action.NewWindowCommand(action.NameUnminimizeWindow, 7))
+	if err != nil {
+		t.Fatalf("unminimize_window error = %v, want nil", err)
+	}
+
+	if !slices.Equal(desktop.unminimized, []uint32{7}) {
+		t.Fatalf("unminimized = %v, want [7]", desktop.unminimized)
+	}
+}
+
+func TestExecutor_UnminimizeWindow_ErrorPaths(t *testing.T) {
+	t.Parallel()
+
+	for name, testCase := range map[string]struct {
+		number uint32
+		code   derrors.Code
+	}{
+		"no number":     {0, derrors.CodeInvalidInput},
+		"not minimized": {4242, derrors.CodeActionFailed},
+	} {
+		t.Run(name, func(t *testing.T) {
+			t.Parallel()
+
+			err := action.NewExecutor(desktopWithListedWindows()).
+				ExecuteCommand(action.NewWindowCommand(action.NameUnminimizeWindow, testCase.number))
+			if !derrors.IsCode(err, testCase.code) {
+				t.Fatalf("unminimize_window error = %v, want %s", err, testCase.code)
 			}
 		})
 	}

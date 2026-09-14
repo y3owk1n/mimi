@@ -114,11 +114,25 @@ type fakeDesktop struct {
 	// title was asked to catch up with the active space.
 	refreshWorkspaceTitleCalls int
 
+	// minimizedWindows is what MinimizedWindows reports, and unminimized
+	// every window restored from it, in order.
+	minimizedWindows []action.MinimizedWindow
+	unminimized      []uint32
 	// closed is every window closed, in order. minimized and fullScreen
 	// hold each window's state after the actions that set them.
 	closed     []action.WindowID
 	minimized  map[action.WindowID]bool
 	fullScreen map[action.WindowID]bool
+}
+
+func (d *fakeDesktop) MinimizedWindows() ([]action.MinimizedWindow, error) {
+	return slices.Clone(d.minimizedWindows), nil
+}
+
+func (d *fakeDesktop) UnminimizeWindow(_ int, number uint32) error {
+	d.unminimized = append(d.unminimized, number)
+
+	return nil
 }
 
 func (d *fakeDesktop) CloseWindow(windowID action.WindowID) error {
