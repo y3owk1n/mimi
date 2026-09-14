@@ -250,3 +250,37 @@ def command(inp, name):
 
 def clamp(value, low, high):
     return max(low, min(high, value))
+
+
+def min_sizes(inp):
+    """{number: (width, height)} for every window mimi has seen refuse a
+    smaller size: the width and height it kept instead, 0 on an axis it
+    took as asked. mimi learns these by writing and reading back, since
+    macOS gives no way to ask, and hands them back as each window's
+    `minSize`. Give such a window that much and share the rest out, or it
+    lands over its neighbour."""
+    sizes = {}
+    for w in inp["windows"]:
+        m = w.get("minSize")
+        if m:
+            sizes[w["number"]] = (float(m.get("width", 0)), float(m.get("height", 0)))
+    return sizes
+
+
+def fit(sizes, mins):
+    """sizes with each raised to its minimum, the extra taken from the rest
+    in proportion to what they have to spare. When they have too little to
+    spare the overflow stays, and something overlaps, which is what
+    happens anyway when the minimums do not fit."""
+    sizes = list(sizes)
+    short = [max(0.0, m - s) for s, m in zip(sizes, mins)]
+    need = sum(short)
+    if need <= 0:
+        return sizes
+    spare = [0.0 if sh > 0 else max(0.0, s - m) for s, m, sh in zip(sizes, mins, short)]
+    total = sum(spare)
+    take = min(need, total)
+    return [
+        s + sh - (take * sp / total if total > 0 else 0)
+        for s, sh, sp in zip(sizes, short, spare)
+    ]

@@ -68,9 +68,16 @@ func buildTilingStateCommand(state *cliState) *cobra.Command {
 		Short: "Print the layout state the running daemon holds",
 		Long: `Print, as one line of JSON, what the daemon's tiling engine is remembering:
 one entry per display and space it has run the layout for, with the state the
-layout last returned there, and the windows the layout said it is not managing.
+layout last returned there, the windows the layout said it is not managing,
+and the minimum sizes it has learned: minSizes by window number, for windows
+it asked for less and watched refuse, and appMinSizes by bundle identifier,
+the largest any window of the application has shown, which a new window of
+that application is handed before it has refused anything. Both are absent
+when it has learned none.
 
-  {"spaces":[{"display":1,"spaceId":5,"space":2,"state":{...}}],"unmanaged":[]}
+  {"spaces":[{"display":1,"spaceId":5,"space":2,"state":{...}}],"unmanaged":[],
+   "minSizes":{"4242":{"width":800,"height":0}},
+   "appMinSizes":{"com.example.app":{"width":800,"height":0}}}
 
 Each space is named twice. spaceId is the window server's own identifier for
 it, which is what the engine files the state under and what never changes.
@@ -104,11 +111,14 @@ func buildTilingResetCommand(state *cliState) *cobra.Command {
 		Short: "Forget the layout state the running daemon holds",
 		Long: `Forget what the layout returned for the space in front on each display, so
 the next pass there starts it from a null state. With --all, forget every
-space the daemon remembers instead.
+space the daemon remembers instead. Either way, forget every minimum size
+the engine has learned, the applications' included, and empty the file that
+keeps them across restarts.
 
 This is the way out of a layout whose state has gone wrong: a tree that no
-longer matches the windows, a master that is not there. Restarting the daemon
-does the same thing to every display at once, which is rarely what is wanted.
+longer matches the windows, a master that is not there, or a minimum an
+application no longer has. Restarting the daemon does the same thing to every
+display at once, which is rarely what is wanted, and keeps the minimums.
 
 It prints how many spaces it forgot. Nothing is laid out by this; the next
 event runs the layout, or mimi tiling relayout does it now. It needs a running

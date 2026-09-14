@@ -64,7 +64,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, gap, maximised, serve, shown, unmanaged_of, write_output
+from rules import area, clamp, command, fit, gap, maximised, min_sizes, serve, shown, unmanaged_of, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -83,6 +83,11 @@ PEEK = 4
 # rearrange what is there, and that order stays. On startup and reload every
 # window is new, so the strip comes up in this order.
 PRIORITY = []  # e.g. ["com.apple.Terminal", "com.apple.Safari"]
+# {number: (width, height)} for the windows that refuse a smaller size, set
+# from the input once it is read. A column is at least as wide as its
+# widest such window, and its rows each at least as tall as theirs, so the
+# strip grows rather than have windows overlap.
+MINS = {}
 
 
 # --- the strip ----------------------------------------------------------------
@@ -136,10 +141,34 @@ def sync(columns, windows, focused):
             at += 1
 
 
+def least_width(column):
+    """The narrowest a column can be, in points: what its widest window that
+    refuses a smaller size needs, or 0."""
+    return max((MINS.get(n, (0.0, 0.0))[0] for n in column["windows"]), default=0.0)
+
+
 def col_width(column, box, gap):
     """A column's width in points: its fraction of the area counted with the
-    gaps, so two halves and the gap between them fill the area exactly."""
-    return column["width"] * (box["width"] + gap) - gap
+    gaps, so two halves and the gap between them fill the area exactly, or
+    the least its windows accept when that is more."""
+    return max(column["width"] * (box["width"] + gap) - gap, least_width(column))
+
+
+def least_fraction(column, box, gap):
+    """least_width as a fraction of the area, or 0."""
+    least = least_width(column)
+    return (least + gap) / (box["width"] + gap) if least else 0.0
+
+
+def row_heights(column, box, gap):
+    """The height of each row of a column: an equal share of the area each,
+    then any row raised to what its window needs at the others' cost. A
+    tabbed column has one row the whole height, whatever its windows need."""
+    if column.get("tabbed"):
+        return [box["height"]] * len(column["windows"])
+    n = len(column["windows"])
+    equal = (box["height"] - gap * (n - 1)) / n
+    return fit([equal] * n, [MINS.get(w, (0.0, 0.0))[1] for w in column["windows"]])
 
 
 def starts(columns, box, gap):
@@ -180,20 +209,11 @@ def frames_for(columns, box, edge, gap, offset):
         # focused one is seen and mimi marks how many are there. Otherwise
         # the windows are rows sharing the height between them.
         tabbed = bool(column.get("tabbed"))
-        n = 1 if tabbed else len(column["windows"])
-        height = (box["height"] - gap * (n - 1)) / n
-        for row, number in enumerate(column["windows"]):
-            frames.append(
-                (
-                    number,
-                    {
-                        "x": x,
-                        "y": box["y"] + (0 if tabbed else row * (height + gap)),
-                        "width": width,
-                        "height": height,
-                    },
-                )
-            )
+        y = box["y"]
+        for number, height in zip(column["windows"], row_heights(column, box, gap)):
+            frames.append((number, {"x": x, "y": y, "width": width, "height": height}))
+            if not tabbed:
+                y += height + gap
     return frames
 
 
@@ -245,6 +265,9 @@ def column_at(columns, box, gap, offset, x):
 
 
 def main(inp):
+    global MINS
+
+    MINS = min_sizes(inp)
     state = inp.get("state") or {}
     columns = state.get("columns") or []
     offset = float(state.get("offset") or 0)
@@ -340,17 +363,27 @@ def main(inp):
             columns.insert(at + 1, {"windows": [focused], "width": column["width"]})
             at += 1
         elif name == "width":
+            # From the width the column has, not the fraction it asked
+            # for: a column held at its windows' minimum is wider than its
+            # fraction, and the presets under that minimum all look the
+            # same, so the minimum stands in for them in the cycle.
             arg = args[0] if args else ""
+            least = least_fraction(column, box, GAP)
+            low = max(MIN_WIDTH, least)
+            have = max(column["width"], least)
+            presets = [p for p in PRESETS if p > least + 0.01]
+            if least:
+                presets.insert(0, least)
             if arg.startswith(("+", "-")):
-                column["width"] = clamp(column["width"] + float(arg), MIN_WIDTH, MAX_WIDTH)
+                column["width"] = clamp(have + float(arg), low, MAX_WIDTH)
             elif arg == "prev":
-                earlier = [p for p in PRESETS if p < column["width"] - 0.01]
-                column["width"] = earlier[-1] if earlier else PRESETS[-1]
+                earlier = [p for p in presets if p < have - 0.01]
+                column["width"] = earlier[-1] if earlier else presets[-1]
             elif arg:
-                column["width"] = clamp(float(arg), MIN_WIDTH, MAX_WIDTH)
+                column["width"] = clamp(float(arg), low, MAX_WIDTH)
             else:
-                later = [p for p in PRESETS if p > column["width"] + 0.01]
-                column["width"] = later[0] if later else PRESETS[0]
+                later = [p for p in presets if p > have + 0.01]
+                column["width"] = later[0] if later else presets[0]
         elif name == "center":
             xs, total = starts(columns, box, GAP)
             width = col_width(column, box, GAP)

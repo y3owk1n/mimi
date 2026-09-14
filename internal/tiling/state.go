@@ -3,10 +3,12 @@ package tiling
 import (
 	"cmp"
 	"encoding/json"
+	"maps"
 	"slices"
 	"strconv"
 	"strings"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
@@ -40,6 +42,14 @@ type State struct {
 	// number. The engine keeps one set for the desktop rather than one per
 	// space, because a window number names a window wherever it is.
 	Unmanaged []uint32 `json:"unmanaged"`
+	// MinSizes is the smallest size each window has been seen to accept,
+	// by number, for the windows the engine has asked for less and watched
+	// refuse. Absent when it has learned none.
+	MinSizes map[uint32]action.MinSize `json:"minSizes,omitempty"`
+	// AppMinSizes is the largest minimum any window of an application has
+	// shown, by bundle identifier: what a new window of that application
+	// is handed before it has refused anything itself. Absent when none.
+	AppMinSizes map[string]action.MinSize `json:"appMinSizes,omitempty"`
 }
 
 // State is what the engine is holding right now.
@@ -76,6 +86,14 @@ func (e *Engine) State() State {
 		return cmp.Compare(left.SpaceID, right.SpaceID)
 	})
 
+	if len(e.minSizes) > 0 {
+		held.MinSizes = maps.Clone(e.minSizes)
+	}
+
+	if len(e.appMinSizes) > 0 {
+		held.AppMinSizes = maps.Clone(e.appMinSizes)
+	}
+
 	for number := range e.unmanaged {
 		held.Unmanaged = append(held.Unmanaged, number)
 	}
@@ -95,6 +113,13 @@ func (e *Engine) State() State {
 func (e *Engine) Reset(all bool) (int, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
+
+	// A minimum is a window's rather than a space's, and a wrong one is
+	// as much a knot as a wrong state, so any reset forgets them all, the
+	// applications' included, and the store with them.
+	clear(e.minSizes)
+	clear(e.appMinSizes)
+	e.saveMinSizes()
 
 	if all {
 		dropped := len(e.states)

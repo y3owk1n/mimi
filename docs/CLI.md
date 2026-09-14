@@ -424,11 +424,16 @@ mimi tiling cmd ratio +0.05
 Print, as one line of JSON, the state the running daemon's engine holds. There
 is one entry per display and space it has run the layout for, with the state
 the layout last returned there. `unmanaged` lists the windows the layout said
-it is not managing.
+it is not managing. `minSizes`, when present, is the smallest size each window
+has been seen to accept, by number, which is what the layout is handed as each
+window's `minSize`. `appMinSizes` is the same by bundle identifier, the largest
+any window of the application has shown, which a new window of that
+application is handed before it has refused anything, and which survives a
+restart in `minsizes.json` beside the socket file.
 
 ```
 $ mimi tiling state | jq -c
-{"spaces":[{"display":1,"spaceId":5,"space":2,"state":{"ratio":0.6}}],"unmanaged":[4243]}
+{"spaces":[{"display":1,"spaceId":5,"space":2,"state":{"ratio":0.6}}],"unmanaged":[4243],"minSizes":{"4242":{"width":800,"height":0}}}
 ```
 
 Each space is named twice. `spaceId` is the window server's own identifier for
@@ -445,8 +450,9 @@ permission of its own.
 
 Forget what the layout returned for the space in front on each display, so
 the next pass there starts it from a null state. With `--all`, forget every
-space the daemon remembers. Prints how many spaces it forgot, as
-`{"dropped":N}`.
+space the daemon remembers. Either way, forget every minimum size the engine
+has learned, the applications' included, and empty `minsizes.json`. Prints how
+many spaces it forgot, as `{"dropped":N}`.
 
 ```bash
 mimi tiling reset
@@ -454,8 +460,10 @@ mimi tiling reset --all
 ```
 
 Use this when a layout's state has gone wrong, for example a tree that no
-longer matches the windows. Restarting the daemon clears the state for every
-display at once. This command lays nothing out. The next event runs the
+longer matches the windows, or when an application's minimum size has shrunk
+with an update and the engine still holds the old one. Restarting the daemon
+clears the state for every display at once, and keeps the minimums. This
+command lays nothing out. The next event runs the
 layout, or `mimi tiling relayout` runs it now. Needs a running daemon.
 
 ---
