@@ -141,7 +141,10 @@ func TestEngine_Pass_KeepsStatePerProgram(t *testing.T) {
 	cfg.Layouts = nil
 	engine.Update(cfg, layoutShell)
 
+	engine.mu.Lock()
 	inputs, err := engine.inputsLocked(Event{Kind: EventRelayout})
+	engine.mu.Unlock()
+
 	if err != nil {
 		t.Fatalf("inputsLocked() error = %v", err)
 	}
