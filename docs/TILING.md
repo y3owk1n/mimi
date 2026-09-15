@@ -150,6 +150,10 @@ nothing beyond the Accessibility permission tiling already has.
 
 ## The contract
 
+This section is the guide to the contract. [LAYOUT_CONTRACT.md](LAYOUT_CONTRACT.md)
+is the reference, with every field's type, when it is present, and what mimi
+does with each output field.
+
 Your program reads one JSON document on stdin and prints one on stdout.
 With `layout_mode = "resident"` in the config, the program keeps running. It
 reads one document per line on stdin for as long as stdin stays open, and
