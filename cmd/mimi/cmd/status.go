@@ -1,11 +1,14 @@
 package cmd
 
 import (
+	"fmt"
 	"os"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
 )
@@ -45,7 +48,60 @@ func newStatusCmd(state *cliState) *cobra.Command {
 				cmd.Println("ipc: socket not available (actions run directly until daemon starts)")
 			}
 
+			printProbe(cmd, socketPath)
+
 			return nil
 		},
 	}
+}
+
+// printProbe adds what the daemon says about itself, when one answers: its
+// build against this one, its uptime, its config, and what that config
+// turns on. A daemon of another build gets one line saying so and nothing
+// else.
+func printProbe(cmd *cobra.Command, socketPath string) {
+	status, err := probeDaemon(socketPath)
+	if derrors.IsCode(err, derrors.CodeDaemonUnavailable) {
+		return
+	}
+
+	if derrors.IsCode(err, derrors.CodeProtocolMismatch) ||
+		derrors.IsCode(err, derrors.CodeInvalidInput) {
+		cmd.Printf("daemon: another build than this CLI (%s), restart it\n", Version)
+
+		return
+	}
+
+	if err != nil {
+		cmd.Printf("daemon: could not be asked (%s)\n", derrors.Message(err))
+
+		return
+	}
+
+	build := status.Version
+	if status.Version != Version {
+		build += fmt.Sprintf(" (this CLI is %s, restart the daemon)", Version)
+	}
+
+	cmd.Printf(
+		"daemon: %s, up %s, config %s\n",
+		build,
+		time.Duration(status.UptimeSecs)*time.Second,
+		status.ConfigPath,
+	)
+	cmd.Printf(
+		"features: %d hook(s), tiling %s, borders %s, systray %s\n",
+		status.Features.Hooks,
+		onOff(status.Features.Tiling),
+		onOff(status.Features.Borders),
+		onOff(status.Features.Systray),
+	)
+}
+
+func onOff(enabled bool) string {
+	if enabled {
+		return "on"
+	}
+
+	return "off"
 }

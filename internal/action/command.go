@@ -47,6 +47,10 @@ type Command struct {
 	Window WindowArgs `json:"window,omitzero"`
 }
 
+// NewStatusCommand builds the status request: which build the daemon is
+// and what it is running.
+func NewStatusCommand() Command { return Command{Name: NameStatus} }
+
 // WindowArgs names the window an action acts on: the one with that window
 // server number on the active space, or the frontmost when Number is 0.
 type WindowArgs struct {
@@ -649,6 +653,11 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		return e.ApplyFrames(cmd.ApplyFrames)
+	case NameStatus:
+		return derrors.New(
+			derrors.CodeNotSupported,
+			"status is answered by the daemon, and no daemon is listening",
+		)
 	case NameTiling:
 		err := validateTilingArgs(cmd.Tiling)
 		if err != nil {
@@ -666,7 +675,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, unminimize_window, fullscreen_window, apply_frames, tiling)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, unminimize_window, fullscreen_window, apply_frames, tiling, status)",
 			cmd.Name,
 		)
 	}

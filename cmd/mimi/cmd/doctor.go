@@ -22,7 +22,8 @@ func newDoctorCmd(state *cliState) *cobra.Command {
 		Short: "Check the install for what stops mimi working",
 		Long: `Run the checks docs/TROUBLESHOOTING.md walks through, one line each:
 the config parses, Accessibility is granted, the daemon is running and its
-socket is where the CLI looks, the launchd service is up, every hook command
+socket is where the CLI looks, the daemon is the same build as this CLI,
+the launchd service is up, every hook command
 is on the PATH the service runs with, mimi can write the log file, and which
 dock swipe encoding a space switch is sent with on this macOS.
 
@@ -60,6 +61,13 @@ func gatherFacts(cmd *cobra.Command, state *cliState) doctor.Facts {
 
 	_, err = os.Stat(facts.SocketPath)
 	facts.SocketPresent = err == nil
+
+	facts.CLIVersion = Version
+
+	if facts.Alive && facts.SocketPresent {
+		status, err := probeDaemon(socketPath)
+		facts.DaemonVersion, facts.ProbeErr = status.Version, err
+	}
 
 	facts.Accessibility = permissions.Check().Accessibility
 	facts.Service = defaultService.Status(cmd.Context())

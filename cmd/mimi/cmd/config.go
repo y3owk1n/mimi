@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
-	"reflect"
 	"strings"
 	"syscall"
 
@@ -126,7 +125,7 @@ func newConfigValidateCmd(state *cliState) *cobra.Command {
 				os.Exit(1)
 			}
 
-			hookCount := countHooks(cfg)
+			hookCount := cfg.Hooks.Count()
 			cmd.Printf("Config valid (%d hook(s) defined)\n", hookCount)
 
 			return nil
@@ -175,26 +174,4 @@ func configProblems(cfg *config.Config, loadErr error) string {
 	}
 
 	return report.String()
-}
-
-// countHooks totals the hooks the config carries, across every kind.
-//
-// The kinds come from the fields of config.HooksConfig rather than a list kept
-// here: the list this replaced was never extended when the app hook kinds
-// arrived, so half of a user's hooks went uncounted.
-func countHooks(cfg *config.Config) int {
-	hooks := reflect.ValueOf(cfg.Hooks)
-
-	count := 0
-
-	for _, value := range hooks.Fields() {
-		entries, ok := value.Interface().([]config.HookEntry)
-		if !ok {
-			continue
-		}
-
-		count += len(entries)
-	}
-
-	return count
 }

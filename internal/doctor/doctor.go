@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/service"
 )
 
@@ -56,6 +57,7 @@ const (
 	checkAccessibility = "accessibility"
 	checkDaemon        = "daemon"
 	checkSocket        = "socket"
+	checkDaemonBuild   = "daemon build"
 	checkService       = "service"
 	checkHookCommands  = "hook commands"
 	checkLogFile       = "log file"
@@ -80,6 +82,13 @@ type Facts struct {
 	// Alive reports whether a process with PID answers a signal.
 	Alive         bool
 	SocketPresent bool
+
+	// CLIVersion is this build, and DaemonVersion the one the daemon
+	// reported over the socket. ProbeErr is why it reported none: the
+	// daemon refused the request as another build, or did not know it.
+	CLIVersion    string
+	DaemonVersion string
+	ProbeErr      error
 
 	Service service.Status
 	// ForeignAgent is the launchd job running the daemon when it is not
@@ -109,6 +118,7 @@ func Assess(facts Facts) []Check {
 		accessibilityCheck(facts),
 		daemonCheck(facts),
 		socketCheck(facts),
+		daemonBuildCheck(facts),
 		serviceCheck(facts),
 		hookCommandsCheck(facts),
 		logCheck(facts),
@@ -182,6 +192,42 @@ func socketCheck(facts Facts) Check {
 		}
 	default:
 		return Check{Name: checkSocket, Detail: facts.SocketPath}
+	}
+}
+
+func daemonBuildCheck(facts Facts) Check {
+	fix := "restart the daemon so it runs this build: mimi stop && mimi start, or mimi services restart"
+
+	switch {
+	case !facts.PIDFound || !facts.Alive || !facts.SocketPresent:
+		return Check{Name: checkDaemonBuild, Status: Skip, Detail: "no daemon to ask"}
+	case derrors.IsCode(facts.ProbeErr, derrors.CodeInvalidInput):
+		return Check{
+			Name:   checkDaemonBuild,
+			Status: Fail,
+			Detail: "another build than this CLI, one that predates the status request",
+			Fix:    fix,
+		}
+	case facts.ProbeErr != nil:
+		return Check{
+			Name:   checkDaemonBuild,
+			Status: Fail,
+			Detail: "another build than this CLI, " + derrors.Message(facts.ProbeErr),
+			Fix:    fix,
+		}
+	case facts.DaemonVersion != facts.CLIVersion:
+		return Check{
+			Name:   checkDaemonBuild,
+			Status: Fail,
+			Detail: fmt.Sprintf(
+				"daemon is %s, this CLI is %s",
+				facts.DaemonVersion,
+				facts.CLIVersion,
+			),
+			Fix: fix,
+		}
+	default:
+		return Check{Name: checkDaemonBuild, Detail: facts.DaemonVersion + ", same as this CLI"}
 	}
 }
 

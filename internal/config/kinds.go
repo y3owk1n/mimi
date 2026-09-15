@@ -178,6 +178,17 @@ func HookKindNames() []string {
 	return names
 }
 
+// Count is how many hooks are defined across every kind.
+func (h *HooksConfig) Count() int {
+	count := 0
+
+	for _, kind := range HookKinds {
+		count += len(*kind.Entries(h))
+	}
+
+	return count
+}
+
 // HasGroup reports whether at least one hook is defined in group.
 func (h *HooksConfig) HasGroup(group HookGroup) bool {
 	for _, kind := range HookKinds {

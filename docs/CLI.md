@@ -575,7 +575,22 @@ not running and exits 0.
 ### `mimi status`
 
 Show whether the daemon is running, whether Accessibility permission is
-granted, and whether the IPC socket is available.
+granted, and whether the IPC socket is available. When a daemon answers, two
+more lines say which build it is, how long it has run, which config it runs,
+and what that config turns on:
+
+```
+$ mimi status
+mimi: running (pid 4774)
+accessibility: granted
+ipc: socket available at /Users/me/.local/share/mimi/mimi.sock
+daemon: v0.20.0, up 2h3m0s, config /Users/me/.config/mimi/config.toml
+features: 3 hook(s), tiling on, borders on, systray off
+```
+
+A daemon left running across an upgrade is another build than the CLI
+asking, and the daemon line says so instead. Restart it so both run the same
+build.
 
 ### `mimi doctor`
 
@@ -597,7 +612,7 @@ ok    space switch   macOS 27 encoding
 ```
 
 The checks are the config parsing, Accessibility, the daemon and its socket,
-the launchd service, which names the agent running the daemon when it is not
+whether the daemon is the same build as the CLI asking, the launchd service, which names the agent running the daemon when it is not
 mimi's own (the Nix modules install their own), whether every hook command resolves on the `PATH` the
 service runs hooks with, whether mimi can write the log file, and which dock
 swipe encoding a space switch uses on this macOS. A `warn` is something

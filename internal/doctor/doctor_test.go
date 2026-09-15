@@ -38,6 +38,8 @@ func healthy() doctor.Facts {
 		PIDFound:      true,
 		Alive:         true,
 		SocketPresent: true,
+		CLIVersion:    "v1.2.3",
+		DaemonVersion: "v1.2.3",
 		Service: service.Status{
 			State: service.LoadStateLoaded,
 			PID:   service.OptionalInt{Value: 42, Known: true},
@@ -86,6 +88,27 @@ func TestAssess_NoDaemonSkipsTheSocket(t *testing.T) {
 
 	if statusOf(t, checks, "socket").Status != doctor.Skip {
 		t.Fatal("the socket check ran with no daemon to reach")
+	}
+
+	if statusOf(t, checks, "daemon build").Status != doctor.Skip {
+		t.Fatal("the build check ran with no daemon to ask")
+	}
+}
+
+func TestAssess_ADaemonOfAnotherBuildFails(t *testing.T) {
+	facts := healthy()
+	facts.DaemonVersion = "v1.2.2"
+
+	check := statusOf(t, doctor.Assess(facts), "daemon build")
+	if check.Status != doctor.Fail || !strings.Contains(check.Fix, "restart the daemon") {
+		t.Fatalf("got %+v", check)
+	}
+
+	facts = healthy()
+	facts.DaemonVersion, facts.ProbeErr = "", errBadTOML
+
+	if statusOf(t, doctor.Assess(facts), "daemon build").Status != doctor.Fail {
+		t.Fatal("a daemon that refused the request passed")
 	}
 }
 
