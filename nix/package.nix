@@ -23,13 +23,13 @@ if useZip then
       {
         "aarch64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-arm64.zip";
-          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.18.0/mimi-darwin-arm64.zip)`
-          sha256 = "sha256-ts8A9XFTt5/Kbo1oAw0QoaAcC8aznIfG031oMah5+D4=";
+          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.19.0/mimi-darwin-arm64.zip)`
+          sha256 = "sha256-3uO7zycKUYM+36xJon8/pSn2Wj0GTdDzw1O9+BY6l0c=";
         };
         "x86_64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-amd64.zip";
-          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.18.0/mimi-darwin-amd64.zip)`
-          sha256 = "sha256-8m5vXYOKpu2nyePFbYSihr01I0mD0FX+2bZsm6cgBWs=";
+          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.19.0/mimi-darwin-amd64.zip)`
+          sha256 = "sha256-3F/ePLlTWpLC5hvNxcpcUqe+fig9sA11RmxDv+j09T8=";
         };
       }
       .${stdenv.hostPlatform.system} or (throw "Unsupported system: ${stdenv.hostPlatform.system}");
