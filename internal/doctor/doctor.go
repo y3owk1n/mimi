@@ -201,6 +201,13 @@ func daemonBuildCheck(facts Facts) Check {
 	switch {
 	case !facts.PIDFound || !facts.Alive || !facts.SocketPresent:
 		return Check{Name: checkDaemonBuild, Status: Skip, Detail: "no daemon to ask"}
+	case derrors.IsCode(facts.ProbeErr, derrors.CodeInvalidInput):
+		return Check{
+			Name:   checkDaemonBuild,
+			Status: Fail,
+			Detail: "another build than this CLI, one that predates the status request",
+			Fix:    fix,
+		}
 	case facts.ProbeErr != nil:
 		return Check{
 			Name:   checkDaemonBuild,

@@ -2,11 +2,9 @@ package daemon
 
 import (
 	"encoding/json"
-	"os"
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/config"
-	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
 // Status is what the daemon says about itself when asked over the socket:
@@ -14,18 +12,14 @@ import (
 // of its features that config turns on. It is what tells a CLI whether the
 // daemon it reached is the same build as itself.
 type Status struct {
-	Version    string `json:"version"`
-	Protocol   int    `json:"protocol"`
-	PID        int    `json:"pid"`
-	UptimeSecs int    `json:"uptimeSecs"`
-	ConfigPath string `json:"configPath"`
-	// Accessibility is whether the daemon started with the permission,
-	// which is what its window features were enabled against.
-	Accessibility bool     `json:"accessibility"`
-	Features      Features `json:"features"`
+	Version    string   `json:"version"`
+	UptimeSecs int      `json:"uptimeSecs"`
+	ConfigPath string   `json:"configPath"`
+	Features   Features `json:"features"`
 }
 
-// Features is what the running config turns on.
+// Features is what the running config turns on, as far as the permission
+// the daemon started with lets it.
 type Features struct {
 	Hooks   int  `json:"hooks"`
 	Tiling  bool `json:"tiling"`
@@ -44,12 +38,9 @@ func statusAnswer(
 	cfg := current()
 
 	return json.Marshal(Status{
-		Version:       version,
-		Protocol:      ipc.ProtocolVersion,
-		PID:           os.Getpid(),
-		UptimeSecs:    int(time.Since(started).Seconds()),
-		ConfigPath:    configPath,
-		Accessibility: accessibility,
+		Version:    version,
+		UptimeSecs: int(time.Since(started).Seconds()),
+		ConfigPath: configPath,
 		Features: Features{
 			Hooks:   cfg.Hooks.Count(),
 			Tiling:  cfg.Tiling.Enabled && accessibility,

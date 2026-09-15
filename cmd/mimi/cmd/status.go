@@ -57,8 +57,8 @@ func newStatusCmd(state *cliState) *cobra.Command {
 
 // printProbe adds what the daemon says about itself, when one answers: its
 // build against this one, its uptime, its config, and what that config
-// turns on. A daemon of another build gets one line saying so, since the
-// mismatch is the answer.
+// turns on. A daemon of another build gets one line saying so and nothing
+// else.
 func printProbe(cmd *cobra.Command, socketPath string) {
 	status, err := probeDaemon(socketPath)
 	if derrors.IsCode(err, derrors.CodeDaemonUnavailable) {

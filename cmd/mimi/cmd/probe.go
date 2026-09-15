@@ -15,13 +15,6 @@ import (
 // daemon built before the status request did not know it.
 func probeDaemon(socketPath string) (daemon.Status, error) {
 	data, err := ipc.TryExecuteData(socketPath, action.NewStatusCommand())
-	if derrors.IsCode(err, derrors.CodeInvalidInput) {
-		return daemon.Status{}, derrors.New(
-			derrors.CodeInvalidInput,
-			"the daemon predates the status request",
-		)
-	}
-
 	if err != nil {
 		return daemon.Status{}, err
 	}

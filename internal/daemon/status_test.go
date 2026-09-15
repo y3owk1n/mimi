@@ -7,7 +7,6 @@ import (
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/config"
-	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
 func TestStatusAnswer_ReportsTheBuildAndTheConfigInEffect(t *testing.T) {
@@ -34,8 +33,7 @@ func TestStatusAnswer_ReportsTheBuildAndTheConfigInEffect(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	if status.Version != "v9.9.9" || status.Protocol != ipc.ProtocolVersion ||
-		status.ConfigPath != "/x/config.toml" {
+	if status.Version != "v9.9.9" || status.ConfigPath != "/x/config.toml" {
 		t.Fatalf("got %+v", status)
 	}
 

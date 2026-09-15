@@ -187,8 +187,8 @@ func runCore(
 		logger,
 	)
 
-	// The status request is answered off the action worker too: it reads
-	// the config the last reload applied and drives nothing.
+	// The status request drives nothing, so the connection answers it off
+	// the action worker, from the config the last reload applied.
 	ipcServer.HandleDirect(
 		action.NameStatus,
 		func(action.Command) (json.RawMessage, error) {
