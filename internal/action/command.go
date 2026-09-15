@@ -51,6 +51,10 @@ type Command struct {
 // and what it is running.
 func NewStatusCommand() Command { return Command{Name: NameStatus} }
 
+// NewEventsCommand builds the events request: every hookable event as it
+// happens, streamed until the client hangs up.
+func NewEventsCommand() Command { return Command{Name: NameEvents} }
+
 // WindowArgs names the window an action acts on: the one with that window
 // server number on the active space, or the frontmost when Number is 0.
 type WindowArgs struct {
@@ -658,6 +662,11 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 			derrors.CodeNotSupported,
 			"status is answered by the daemon, and no daemon is listening",
 		)
+	case NameEvents:
+		return derrors.New(
+			derrors.CodeNotSupported,
+			"events are streamed by the daemon, and no daemon is listening",
+		)
 	case NameTiling:
 		err := validateTilingArgs(cmd.Tiling)
 		if err != nil {
@@ -675,7 +684,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 	default:
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
-			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, unminimize_window, fullscreen_window, apply_frames, tiling, status)",
+			"unknown action %q (supported: focus_window, focus_app, space, move_window_to_space, move_window_to_display, focus_display, resize_window, close_window, minimize_window, unminimize_window, fullscreen_window, apply_frames, tiling, status, events)",
 			cmd.Name,
 		)
 	}

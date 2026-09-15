@@ -39,7 +39,10 @@ type Server struct {
 	// instead of the action worker: the ones whose handler drives the desktop
 	// through Serialize itself, and would deadlock waiting for the worker it
 	// was running on.
-	direct       map[action.Name]func(cmd action.Command) (json.RawMessage, error)
+	direct map[action.Name]func(cmd action.Command) (json.RawMessage, error)
+	// streams holds the requests answered with a stream of JSON lines that
+	// runs until the client hangs up, on the connection's own goroutine.
+	streams      map[action.Name]StreamHandler
 	directMu     sync.RWMutex
 	once         sync.Once
 	shutdownOnce sync.Once
@@ -58,7 +61,24 @@ func NewServer(path string) *Server {
 		enqueueTimeout: actionEnqueueTimeout,
 		execute:        action.ExecuteCommand,
 		direct:         map[action.Name]func(cmd action.Command) (json.RawMessage, error){},
+		streams:        map[action.Name]StreamHandler{},
 	}
+}
+
+// StreamHandler answers one request with a stream. It sends values as JSON
+// lines through send for as long as ctx lasts, which is until the client
+// hangs up, and returns when it is done. A send that fails means the client
+// is gone.
+type StreamHandler func(ctx context.Context, cmd action.Command, send func(v any) error) error
+
+// HandleStream routes every request for name to fn, which answers with a
+// stream rather than one response. The client first reads an ok response,
+// then one JSON line per value sent, until the connection closes.
+func (s *Server) HandleStream(name action.Name, fn StreamHandler) {
+	s.directMu.Lock()
+	defer s.directMu.Unlock()
+
+	s.streams[name] = fn
 }
 
 // HandleDirect routes every request for name to fn, run on the connection's
@@ -148,6 +168,16 @@ func (s *Server) Serialize(fn func() error) error {
 	return <-done
 }
 
+// streamHandler is the stream handler for name, if one is registered.
+func (s *Server) streamHandler(name action.Name) (StreamHandler, bool) {
+	s.directMu.RLock()
+	defer s.directMu.RUnlock()
+
+	fn, ok := s.streams[name]
+
+	return fn, ok
+}
+
 // directHandler is the direct handler for name, if one is registered.
 func (s *Server) directHandler(
 	name action.Name,
@@ -178,6 +208,34 @@ func (s *Server) startActionWorker() {
 	}()
 }
 
+// serveStream answers one request with a stream on its connection. The
+// stream ends when the client hangs up, which the read side reports, or
+// when the handler returns.
+func (s *Server) serveStream(
+	conn net.Conn,
+	reader *bufio.Reader,
+	cmd action.Command,
+	stream StreamHandler,
+) {
+	err := writeResponse(conn, Response{OK: true})
+	if err != nil {
+		return
+	}
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	// A client that hangs up ends the stream. Nothing else arrives on the
+	// connection, so a read returning is the hang-up.
+	go func() {
+		_, _ = reader.ReadByte()
+
+		cancel()
+	}()
+
+	_ = stream(ctx, cmd, json.NewEncoder(conn).Encode)
+}
+
 func (s *Server) handleConn(conn net.Conn) {
 	defer func() { _ = conn.Close() }()
 
@@ -186,6 +244,12 @@ func (s *Server) handleConn(conn net.Conn) {
 	req, err := readRequest(reader)
 	if err != nil {
 		_ = writeResponse(conn, responseFromError(err))
+
+		return
+	}
+
+	if stream, ok := s.streamHandler(req.Command.Name); ok {
+		s.serveStream(conn, reader, req.Command, stream)
 
 		return
 	}

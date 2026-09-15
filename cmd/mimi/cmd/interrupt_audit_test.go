@@ -134,6 +134,9 @@ var interruptAudit = []auditEntry{
 		"each hook runs under the command's context, so the interrupt kills "+
 			"the one running and the rest do not start. The command reports "+
 			"what ran"),
+	audited("hooks tail", interruptStopsTheWork,
+		"the stream runs under the command's context. The interrupt closes "+
+			"the connection and the command returns"),
 	audited("query", interruptRunsOn,
 		"as action: the body only reports the missing subcommand and returns"),
 	audited("query space", interruptRunsOn,

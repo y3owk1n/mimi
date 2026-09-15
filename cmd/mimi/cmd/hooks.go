@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"strings"
 	"time"
@@ -8,10 +9,12 @@ import (
 	"github.com/google/uuid"
 	"github.com/spf13/cobra"
 
+	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
+	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
 func newHooksCmd(state *cliState) *cobra.Command {
@@ -35,8 +38,84 @@ event you describe, in this process, the way the daemon would run them.
 
 	cmd.AddCommand(newHooksListCmd(state))
 	cmd.AddCommand(newHooksFireCmd(state))
+	cmd.AddCommand(newHooksTailCmd(state))
 
 	return cmd
+}
+
+// tailKindFlag narrows mimi hooks tail to some kinds.
+const tailKindFlag = "kind"
+
+func newHooksTailCmd(state *cliState) *cobra.Command {
+	cmd := &cobra.Command{
+		Use:   "tail",
+		Short: "Print every hookable event the daemon sees, as it happens",
+		Long: `Stream the events the running daemon publishes, one line of JSON each, the
+same document a hook reads on stdin, until Ctrl-C. This is what the hooks
+see before any filter, so it answers whether an event fires at all and what
+it carries, with no hook and no log level change.
+
+  $ mimi hooks tail --kind app_activate --kind workspace_changed
+  {"id":"...","kind":"app_activate","appName":"Safari","bundleId":"com.apple.Safari","pid":501,"at":"..."}
+
+--kind keeps only those kinds, as a [hooks] key or the event name, and may
+repeat. Needs a running daemon.`,
+		Args: cobra.NoArgs,
+		RunE: func(cobraCmd *cobra.Command, _ []string) error {
+			names, _ := cobraCmd.Flags().GetStringArray(tailKindFlag)
+
+			keep := map[events.EventKind]bool{}
+			for _, name := range names {
+				kind, ok := hookKindNamed(name)
+				if !ok {
+					return derrors.Newf(derrors.CodeInvalidInput, "unknown hook kind %q", name)
+				}
+
+				keep[kind] = true
+			}
+
+			socketPath := ipc.ResolveSocketPath(state.configPath)
+			out := cobraCmd.OutOrStdout()
+
+			err := ipc.Stream(
+				cobraCmd.Context(),
+				socketPath,
+				action.NewEventsCommand(),
+				func(line []byte) error {
+					if len(keep) > 0 && !keep[kindOf(line)] {
+						return nil
+					}
+
+					_, writeErr := out.Write(line)
+
+					return writeErr
+				},
+			)
+			if derrors.IsCode(err, derrors.CodeDaemonUnavailable) {
+				return derrors.New(
+					derrors.CodeDaemonUnavailable,
+					"no daemon is running, so there are no events to tail",
+				)
+			}
+
+			return err
+		},
+	}
+
+	cmd.Flags().StringArray(tailKindFlag, nil, "keep only this kind (repeatable)")
+
+	return cmd
+}
+
+// kindOf is the kind an event line names, "" when it cannot be read.
+func kindOf(line []byte) events.EventKind {
+	var evt struct {
+		Kind events.EventKind `json:"kind"`
+	}
+
+	_ = json.Unmarshal(line, &evt)
+
+	return evt.Kind
 }
 
 func newHooksListCmd(state *cliState) *cobra.Command {
