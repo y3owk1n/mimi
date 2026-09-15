@@ -46,6 +46,7 @@ func healthy() doctor.Facts {
 		},
 		LogFile:        "/tmp/mimi.log",
 		LogDirWritable: true,
+		Layouts:        []doctor.LayoutRun{{Command: sample, Frames: 2, Windows: 2}},
 	}
 }
 

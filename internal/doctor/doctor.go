@@ -62,7 +62,11 @@ const (
 	checkHookCommands  = "hook commands"
 	checkLogFile       = "log file"
 	checkSpaceSwitch   = "space switch"
+	checkLayout        = "layout"
 )
+
+// noConfig is what a check that needs the config says when it did not load.
+const noConfig = "no config"
 
 // Facts is everything Assess judges, gathered by the command.
 type Facts struct {
@@ -103,6 +107,10 @@ type Facts struct {
 	LogFile        string
 	LogDirWritable bool
 
+	// Layouts is every layout command the config names, run once each on
+	// the sample input.
+	Layouts []LayoutRun
+
 	// SwipeAugmented is which dock swipe encoding a space switch is sent
 	// with, and SwipeOverride the MIMI_FORCE_DOCK_SWIPE_AUGMENTATION value
 	// forcing it, "" when unset.
@@ -113,7 +121,7 @@ type Facts struct {
 // Assess judges the facts, one check per line of docs/TROUBLESHOOTING.md a
 // program can walk for the user.
 func Assess(facts Facts) []Check {
-	return []Check{
+	checks := []Check{
 		configCheck(facts),
 		accessibilityCheck(facts),
 		daemonCheck(facts),
@@ -122,8 +130,11 @@ func Assess(facts Facts) []Check {
 		serviceCheck(facts),
 		hookCommandsCheck(facts),
 		logCheck(facts),
-		swipeCheck(facts),
 	}
+
+	checks = append(checks, layoutChecks(facts)...)
+
+	return append(checks, swipeCheck(facts))
 }
 
 func configCheck(facts Facts) Check {
@@ -274,7 +285,7 @@ func serviceCheck(facts Facts) Check {
 
 func hookCommandsCheck(facts Facts) Check {
 	if facts.Config == nil {
-		return Check{Name: checkHookCommands, Status: Skip, Detail: "no config"}
+		return Check{Name: checkHookCommands, Status: Skip, Detail: noConfig}
 	}
 
 	if len(facts.MissingCommands) == 0 {
@@ -292,7 +303,7 @@ func hookCommandsCheck(facts Facts) Check {
 func logCheck(facts Facts) Check {
 	switch {
 	case facts.Config == nil:
-		return Check{Name: checkLogFile, Status: Skip, Detail: "no config"}
+		return Check{Name: checkLogFile, Status: Skip, Detail: noConfig}
 	case facts.LogFile == "":
 		return Check{
 			Name:   checkLogFile,
@@ -309,6 +320,61 @@ func logCheck(facts Facts) Check {
 		}
 	default:
 		return Check{Name: checkLogFile, Detail: facts.LogFile}
+	}
+}
+
+// layoutChecks is one check per layout command, or one skip when the config
+// names none.
+func layoutChecks(facts Facts) []Check {
+	if facts.Config == nil {
+		return []Check{{Name: checkLayout, Status: Skip, Detail: noConfig}}
+	}
+
+	if len(facts.Layouts) == 0 {
+		return []Check{{Name: checkLayout, Status: Skip, Detail: "tiling.layout is not set"}}
+	}
+
+	checks := make([]Check, 0, len(facts.Layouts))
+	for _, run := range facts.Layouts {
+		checks = append(checks, layoutCheck(run))
+	}
+
+	return checks
+}
+
+func layoutCheck(run LayoutRun) Check {
+	switch {
+	case run.Err != nil:
+		return Check{
+			Name:   checkLayout,
+			Status: Fail,
+			Detail: run.Command + ": " + derrors.Message(run.Err),
+			Fix:    "run it by hand with mimi tiling preview --input | " + run.Command,
+		}
+	case run.Empty:
+		return Check{
+			Name:   checkLayout,
+			Status: Warn,
+			Detail: run.Command + ": printed nothing, which the daemon reads as no frames",
+			Fix:    "print {\"frames\": [...], \"state\": null} even when there is nothing to move",
+		}
+	case run.Frames == 0:
+		return Check{
+			Name:   checkLayout,
+			Status: Warn,
+			Detail: fmt.Sprintf("%s: no frames for %d windows", run.Command, run.Windows),
+			Fix:    "give every window a frame on a preview event",
+		}
+	default:
+		return Check{
+			Name: checkLayout,
+			Detail: fmt.Sprintf(
+				"%s: %d frames for %d windows",
+				run.Command,
+				run.Frames,
+				run.Windows,
+			),
+		}
 	}
 }
 

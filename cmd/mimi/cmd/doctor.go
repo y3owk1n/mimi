@@ -4,6 +4,7 @@ import (
 	"os"
 	"path/filepath"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -14,6 +15,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
 	"github.com/y3owk1n/mimi/internal/service"
+	"github.com/y3owk1n/mimi/internal/tiling"
 )
 
 func newDoctorCmd(state *cliState) *cobra.Command {
@@ -24,8 +26,14 @@ func newDoctorCmd(state *cliState) *cobra.Command {
 the config parses, Accessibility is granted, the daemon is running and its
 socket is where the CLI looks, the daemon is the same build as this CLI,
 the launchd service is up, every hook command
-is on the PATH the service runs with, mimi can write the log file, and which
-dock swipe encoding a space switch is sent with on this macOS.
+is on the PATH the service runs with, mimi can write the log file, every
+layout the config names answers a sample input with frames, and which dock
+swipe encoding a space switch is sent with on this macOS.
+
+The layout check runs each layout once on a made-up desktop of two windows
+on one display, so it needs no Accessibility and touches no window. It
+catches a layout that cannot be run, exits with an error, times out, prints
+something that is not the output contract, or prints nothing.
 
 A failed check prints what to do about it. The command exits 1 when any
 check fails, so a script can gate on it.`,
@@ -81,6 +89,17 @@ func gatherFacts(cmd *cobra.Command, state *cliState) doctor.Facts {
 		facts.MissingCommands = doctor.MissingHookCommands(facts.Config, servicePath)
 		facts.LogFile = facts.Config.Settings.LogFile
 		facts.LogDirWritable = dirWritable(filepath.Dir(facts.LogFile))
+
+		timeout := time.Duration(facts.Config.Tiling.TimeoutSecs) * time.Second
+		for _, command := range tiling.LayoutCommands(facts.Config.Tiling) {
+			run := doctor.RunLayout(
+				cmd.Context(),
+				facts.Config.Settings.HookShell,
+				command,
+				timeout,
+			)
+			facts.Layouts = append(facts.Layouts, run)
+		}
 	}
 
 	facts.SwipeAugmented = native.DockSwipeAugmented()
