@@ -142,6 +142,9 @@ color = "#30e2e2e3"
 outline_color = "#e2e2e3"
 outline_width = 2
 radius = 12
+# The mark over the window a drop would act on, when the layout names one.
+target_color = "#30f5a623"
+target_outline_color = "#f5a623"
 
 # A layout can put several windows in one frame, so that only the one with
 # keyboard focus is seen. Nothing on screen says the others are there, so this

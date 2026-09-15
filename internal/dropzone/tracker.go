@@ -18,10 +18,15 @@ type Previewer interface {
 	DropPreview(ctx context.Context) (tiling.DropTarget, bool, error)
 }
 
-// Drawer puts the zone on screen and takes it off.
+// Drawer puts the zone on screen and takes it off, and marks the window a
+// drop would act on inside it.
 type Drawer interface {
 	Show(frame geometry.Rect, style Style)
 	Hide()
+	// ShowTarget marks a frame in the shown zone. Hide takes it down with
+	// the zone. HideTarget takes it down alone.
+	ShowTarget(frame geometry.Rect, style Style)
+	HideTarget()
 }
 
 // Mouse reports whether the left button is down, which is what makes a
@@ -50,6 +55,8 @@ type Tracker struct {
 	mu      sync.Mutex
 	enabled bool
 	style   Style
+	// mark is how the window a drop acts on is marked.
+	mark Style
 	// previewing is whether a preview is running; nudges meanwhile are
 	// dropped, since the next nudge comes before the drag has moved far.
 	previewing bool
@@ -84,6 +91,7 @@ func (t *Tracker) Update(cfg config.DropzoneConfig) {
 
 	t.enabled = cfg.Enabled
 	t.style = styleOf(cfg)
+	t.mark = targetStyleOf(cfg)
 
 	if !cfg.Enabled && t.shown {
 		t.shown = false
@@ -148,6 +156,19 @@ func (t *Tracker) preview() {
 	frame := target.Frame
 	t.draw.Show(geometry.Rect{X: frame.X, Y: frame.Y, W: frame.Width, H: frame.Height}, t.style)
 
+	if target.Target != nil {
+		t.logger.Debugw("dropzone: marking target",
+			"window", target.Target.Number, "action", target.Target.Action)
+
+		frame := target.Target.Frame
+		t.draw.ShowTarget(
+			geometry.Rect{X: frame.X, Y: frame.Y, W: frame.Width, H: frame.Height},
+			t.mark,
+		)
+	} else {
+		t.draw.HideTarget()
+	}
+
 	if !t.shown {
 		t.shown = true
 
@@ -191,6 +212,15 @@ func (t *Tracker) hideLocked() {
 func styleOf(cfg config.DropzoneConfig) Style {
 	fill, _ := config.ParseColor(cfg.Color)
 	outline, _ := config.ParseColor(cfg.OutlineColor)
+
+	return Style{Fill: fill, Outline: outline, Width: cfg.OutlineWidth, Radius: cfg.Radius}
+}
+
+// targetStyleOf is how a validated section marks the window a drop acts
+// on: its own colors, the same width and radius as the zone.
+func targetStyleOf(cfg config.DropzoneConfig) Style {
+	fill, _ := config.ParseColor(cfg.TargetColor)
+	outline, _ := config.ParseColor(cfg.TargetOutlineColor)
 
 	return Style{Fill: fill, Outline: outline, Width: cfg.OutlineWidth, Radius: cfg.Radius}
 }

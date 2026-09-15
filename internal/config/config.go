@@ -183,6 +183,10 @@ type DropzoneConfig struct {
 	OutlineColor string  `json:"outlineColor" toml:"outline_color"`
 	OutlineWidth float64 `json:"outlineWidth" toml:"outline_width"`
 	Radius       float64 `json:"radius"       toml:"radius"`
+	// TargetColor and TargetOutlineColor draw the mark over the window a
+	// drop would act on, when the layout names one.
+	TargetColor        string `json:"targetColor"        toml:"target_color"`
+	TargetOutlineColor string `json:"targetOutlineColor" toml:"target_outline_color"`
 }
 
 // AnimationConfig holds the [tiling.animation] section: whether windows

@@ -54,6 +54,50 @@ func TestEngine_DropPreview_AsksTheLayoutWhereTheDraggedWindowLands(t *testing.T
 	}
 }
 
+func TestEngine_DropPreview_MarksTheTargetTheLayoutNames(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.windows.Windows = append(desktop.windows.Windows, action.WindowEntry{
+		Number: 2, PID: 11, App: "B", Frame: action.Frame{X: 500, Width: 500, Height: 500},
+	})
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(
+		`jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 100, height: 100}},` +
+			`{number: 2, frame: {x: 500, y: 0, width: 100, height: 100}}], state: null,` +
+			` target: (if .event.kind == "window_move" then {window: 2, action: "swap"} else null end)}'`,
+	)
+	cfg.RelayoutOnDrag = true
+	engine.Update(cfg, shell)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	desktop.mu.Lock()
+	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
+	desktop.mu.Unlock()
+
+	target, ok, err := engine.DropPreview(ctx)
+	if err != nil || !ok {
+		t.Fatalf("DropPreview() = ok %v, err %v, want the layout's answer", ok, err)
+	}
+
+	want := &tiling.Highlight{
+		Number: 2,
+		Frame:  action.Frame{X: 500, Y: 0, Width: 100, Height: 100},
+		Action: "swap",
+	}
+	if target.Target == nil || *target.Target != *want {
+		t.Fatalf("target = %+v, want %+v", target.Target, want)
+	}
+}
+
 func TestEngine_DropPreview_NeedsRelayoutOnDrag(t *testing.T) {
 	t.Parallel()
 
