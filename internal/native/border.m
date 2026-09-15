@@ -29,6 +29,7 @@ extern CFTypeRef SLSTransactionCreate(int cid);
 extern CGError SLSTransactionMoveWindowWithGroup(CFTypeRef transaction, uint32_t wid, CGPoint origin);
 extern CGError SLSTransactionOrderWindow(CFTypeRef transaction, uint32_t wid, int mode, uint32_t relative);
 extern CGError SLSTransactionCommit(CFTypeRef transaction, int synchronous);
+extern CGError SLSTransactionSetWindowLevel(CFTypeRef transaction, uint32_t wid, int level);
 
 // The window server tells a connection about the windows it asked after, as
 // each event happens: a move at every step of a drag, where Accessibility
@@ -160,7 +161,18 @@ static void mimiOrder(MimiBorder *border, int mode, uint32_t number) {
 }
 
 // Put border right next to its window: under it outside, over it inside.
-static void mimiOrderBeside(MimiBorder *border, uint32_t number) { mimiOrder(border, gStyle.inside ? 1 : -1, number); }
+// The focused window's inside border goes a level up instead. An
+// application that raises its window cannot put it over a border there.
+// The focused window is in front, so a ring a level up draws over nothing
+// else, unless a window of another application floats over it.
+static void mimiOrderBeside(MimiBorder *border, uint32_t number) {
+	int level = gStyle.inside && border.active ? kCGNormalWindowLevel + 1 : kCGNormalWindowLevel;
+	CFTypeRef transaction = SLSTransactionCreate(SLSMainConnectionID());
+	SLSTransactionSetWindowLevel(transaction, border.number, level);
+	SLSTransactionOrderWindow(transaction, border.number, gStyle.inside ? 1 : -1, number);
+	SLSTransactionCommit(transaction, 1);
+	CFRelease(transaction);
+}
 
 // Whether Mission Control or App Expose is up: the Dock then has a window
 // over a whole display. They lay the windows out without their borders, so
@@ -687,16 +699,18 @@ static void mimiSyncOnMain(BOOL refocus) {
 		NSUInteger at = [numbers indexOfObject:key];
 		double radius = at < radii.count ? radii[at].doubleValue : -1;
 		BOOL reshaped = radius != border.radius;
+		BOOL releveled = border.active != active;
 		border.radius = radius;
-		if (fresh || reshaped || !CGRectEqualToRect(border.targetBounds, bounds) || border.active != active) {
+		if (fresh || reshaped || !CGRectEqualToRect(border.targetBounds, bounds) || releveled) {
 			mimiDrawBorder(border, bounds, active);
 		}
 		// The window server keeps no tie between a window and the border
 		// beside it, so a window that comes to the front leaves its border
 		// where it was, and the border follows it. The rest of the stack
 		// has not moved, so the other borders are left alone, unless they
-		// were all taken down.
-		if (fresh || reshow || number == raised) {
+		// were all taken down. A border whose window took or lost the focus
+		// changes level, and is ordered again with it.
+		if (fresh || reshow || releveled || number == raised) {
 			mimiOrderBeside(border, number);
 		}
 		[seen addObject:key];
