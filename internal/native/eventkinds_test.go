@@ -84,21 +84,21 @@ var mappedKinds = map[string]events.EventKind{
 	"MIMI_KIND_WILL_SLEEP":          events.SystemSleep,
 	"MIMI_KIND_DID_WAKE":            events.SystemWake,
 	"MIMI_KIND_DISPLAY_CHANGED":     events.DisplayChanged,
+	"MIMI_KIND_APPEARANCE_CHANGED":  events.AppearanceChanged,
 }
 
 // unmappedKinds are eventkinds.h symbols that are deliberately NOT part of
 // the hookable events.EventKind set kindFromInt produces (session, power-off,
-// volume and appearance events, which nothing observes yet).
+// and volume events, which nothing observes yet).
 // A symbol missing from both this set and mappedKinds fails
 // TestEventKindsHeader_EveryDefineIsAccountedFor, forcing a conscious choice
 // when a new C kind is added.
 var unmappedKinds = map[string]struct{}{
-	"MIMI_KIND_SESSION_RESIGN":     {},
-	"MIMI_KIND_SESSION_BECOME":     {},
-	"MIMI_KIND_WILL_POWER_OFF":     {},
-	"MIMI_KIND_VOLUME_MOUNT":       {},
-	"MIMI_KIND_VOLUME_UNMOUNT":     {},
-	"MIMI_KIND_APPEARANCE_CHANGED": {},
+	"MIMI_KIND_SESSION_RESIGN": {},
+	"MIMI_KIND_SESSION_BECOME": {},
+	"MIMI_KIND_WILL_POWER_OFF": {},
+	"MIMI_KIND_VOLUME_MOUNT":   {},
+	"MIMI_KIND_VOLUME_UNMOUNT": {},
 }
 
 func TestEventKindsHeader_MappedConstantsAgreeWithKindFromInt(t *testing.T) {

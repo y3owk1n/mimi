@@ -170,8 +170,17 @@ func TestGetObserverConfig(t *testing.T) {
 	}
 
 	emptyObs := getObserverConfig(&config.Config{})
-	if emptyObs.AppLifecycle || emptyObs.Workspace {
+	if emptyObs.AppLifecycle || emptyObs.Workspace || emptyObs.Appearance {
 		t.Errorf("expected all observers disabled on empty config, got: %+v", emptyObs)
+	}
+
+	appearanceObs := getObserverConfig(&config.Config{
+		Hooks: config.HooksConfig{
+			AppearanceChanged: []config.HookEntry{{Run: hookRunEcho}},
+		},
+	})
+	if !appearanceObs.Appearance {
+		t.Error("expected Appearance enabled for an appearance hook")
 	}
 
 	workspaceOnlyObs := getObserverConfig(&config.Config{
