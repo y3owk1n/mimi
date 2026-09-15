@@ -1,0 +1,96 @@
+package cmd
+
+import (
+	"os"
+	"path/filepath"
+	"syscall"
+
+	"github.com/spf13/cobra"
+
+	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/doctor"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/native"
+	"github.com/y3owk1n/mimi/internal/paths"
+	"github.com/y3owk1n/mimi/internal/permissions"
+	"github.com/y3owk1n/mimi/internal/service"
+)
+
+func newDoctorCmd(state *cliState) *cobra.Command {
+	return &cobra.Command{
+		Use:   "doctor",
+		Short: "Check the install for what stops mimi working",
+		Long: `Run the checks docs/TROUBLESHOOTING.md walks through, one line each:
+the config parses, Accessibility is granted, the daemon is running and its
+socket is where the CLI looks, the launchd service is up, every hook command
+is on the PATH the service runs with, mimi can write the log file, and which
+dock swipe encoding a space switch is sent with on this macOS.
+
+A failed check prints what to do about it. The command exits 1 when any
+check fails, so a script can gate on it.`,
+		Args: cobra.NoArgs,
+		RunE: func(cmd *cobra.Command, _ []string) error {
+			checks := doctor.Assess(gatherFacts(cmd, state))
+			cmd.Print(doctor.Format(checks))
+
+			if doctor.Failed(checks) {
+				return derrors.New(derrors.CodeActionFailed, "some checks failed")
+			}
+
+			return nil
+		},
+	}
+}
+
+// gatherFacts reads everything doctor.Assess judges.
+func gatherFacts(cmd *cobra.Command, state *cliState) doctor.Facts {
+	facts := doctor.Facts{ConfigPath: state.configPath}
+	facts.Config, facts.ConfigErr = config.Load(state.configPath)
+
+	pidPath, socketPath := state.runtimePaths()
+	facts.PIDPath, facts.SocketPath = paths.ExpandHome(pidPath), paths.ExpandHome(socketPath)
+
+	pid, err := readPID(pidPath)
+	if err == nil {
+		facts.PID, facts.PIDFound = pid, true
+
+		proc, findErr := os.FindProcess(pid)
+		facts.Alive = findErr == nil && proc.Signal(syscall.Signal(0)) == nil
+	}
+
+	_, err = os.Stat(facts.SocketPath)
+	facts.SocketPresent = err == nil
+
+	facts.Accessibility = permissions.Check().Accessibility
+	facts.Service = defaultService.Status(cmd.Context())
+
+	if facts.Alive && facts.Service.State == service.LoadStateNotLoaded {
+		facts.ForeignAgent = service.AgentForPID(cmd.Context(), facts.PID)
+	}
+
+	if facts.Config != nil {
+		servicePath := service.EffectivePath(facts.Config.Settings.ServicePath)
+		facts.MissingCommands = doctor.MissingHookCommands(facts.Config, servicePath)
+		facts.LogFile = facts.Config.Settings.LogFile
+		facts.LogDirWritable = dirWritable(filepath.Dir(facts.LogFile))
+	}
+
+	facts.SwipeAugmented = native.DockSwipeAugmented()
+	facts.SwipeOverride = os.Getenv("MIMI_FORCE_DOCK_SWIPE_AUGMENTATION")
+
+	return facts
+}
+
+// dirWritable reports whether a file can be created in dir.
+func dirWritable(dir string) bool {
+	probe, err := os.CreateTemp(dir, ".mimi-doctor-*")
+	if err != nil {
+		return false
+	}
+
+	name := probe.Name()
+	_ = probe.Close()
+	_ = os.Remove(name)
+
+	return true
+}

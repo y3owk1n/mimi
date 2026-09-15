@@ -49,7 +49,7 @@ the first one does depends on the command:
 | `mimi start`                 | Shuts the daemon down gracefully.                                               |
 | `mimi action *`              | Does not reach the action, which finishes. Press Ctrl-C again to end the process. |
 | `mimi config *`              | Does not reach the command, which finishes. Each is local file work, plus one signal for `reload`. |
-| `mimi status`, `mimi stop`   | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
+| `mimi status`, `mimi doctor`, `mimi stop` | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
 | `mimi query *`               | Does not reach the command, which finishes. Each is a few desktop reads and one line of output. |
 | `mimi tiling preview`        | Kills the layout program if it is still running. Nothing is applied either way. |
 | `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
@@ -576,6 +576,32 @@ not running and exits 0.
 
 Show whether the daemon is running, whether Accessibility permission is
 granted, and whether the IPC socket is available.
+
+### `mimi doctor`
+
+Run the checks [Troubleshooting](TROUBLESHOOTING.md) walks through, one line
+each, and print the fix under any that fails:
+
+```
+$ mimi doctor
+ok    config         /Users/me/.config/mimi/config.toml
+ok    accessibility  granted
+FAIL  daemon         stale PID file at /Users/me/.local/share/mimi/mimi.pid (pid 4242 is gone)
+      fix: mimi start overwrites it
+skip  socket         no daemon to reach
+ok    service        loaded and running (pid 4310)
+warn  hook commands  not on the service PATH: sketchybar
+      fix: set settings.service_path and run mimi services install, or call the command by absolute path
+ok    log file       /Users/me/.local/share/mimi/mimi.log
+ok    space switch   macOS 27 encoding
+```
+
+The checks are the config parsing, Accessibility, the daemon and its socket,
+the launchd service, which names the agent running the daemon when it is not
+mimi's own (the Nix modules install their own), whether every hook command resolves on the `PATH` the
+service runs hooks with, whether mimi can write the log file, and which dock
+swipe encoding a space switch uses on this macOS. A `warn` is something
+worth knowing that stops nothing. The command exits 1 when any check fails.
 
 ---
 

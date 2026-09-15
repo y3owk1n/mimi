@@ -183,6 +183,10 @@ var interruptAudit = []auditEntry{
 			"on it. Before the daemon reaches that watch — while the config "+
 			"onboarding alert is up, say — the first interrupt does nothing "+
 			"and the second ends the process"),
+	audited("doctor", interruptStopsTheWork,
+		"the service status runs its launchctl calls under the context and "+
+			"prints the unknown state when canceled. Every other check is a "+
+			"file read or a quick system call that runs on"),
 	audited("status", interruptRunsOn,
 		"reads the PID file, asks the Accessibility API whether mimi is "+
 			"trusted, and stats the socket; none of the three blocks"),

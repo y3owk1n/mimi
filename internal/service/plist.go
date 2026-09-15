@@ -213,6 +213,11 @@ func servicePathFor(servicePath string) string {
 	return servicePath
 }
 
+// EffectivePath is the PATH an installed service runs hooks with for a given
+// settings.service_path, which is what a check on a hook command resolves
+// against.
+func EffectivePath(servicePath string) string { return servicePathFor(servicePath) }
+
 // capturedStreams is where launchd writes the daemon's stdout and stderr. The
 // two always share a directory, so callers that need it can take it from
 // either.
