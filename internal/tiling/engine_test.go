@@ -3,6 +3,7 @@ package tiling_test
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"slices"
@@ -1217,27 +1218,46 @@ func commandTimeout(cfg config.TilingConfig, secs int) config.TilingConfig {
 }
 
 // TestEngine_Pass_RunsTheBeforeCommandsAtOnce pins that the before lines
-// start together. Two that each take 200ms hold the pass for one of them,
-// not both.
+// start together. Each line marks when it starts and when it ends, and
+// each has to start before the other ends, which two lines run one after
+// the other never do. The marks are files, so a slow runner that stretches
+// the pass cannot fail the test.
 func TestEngine_Pass_RunsTheBeforeCommandsAtOnce(t *testing.T) {
 	t.Parallel()
+
+	dir := t.TempDir()
+	line := func(name string) string {
+		return fmt.Sprintf("touch %s/%s.start; sleep 0.2; touch %s/%s.end", dir, name, dir, name)
+	}
 
 	desktop := newDesktop()
 	engine := tiling.New(desktop, nil, nil)
 	engine.Update(
-		enabled(`jq -c '{frames: [], state: null, before: ["sleep 0.2", "sleep 0.2"]}'`),
+		enabled(fmt.Sprintf(
+			`jq -c '{frames: [], state: null, before: [%q, %q]}'`,
+			line("a"),
+			line("b"),
+		)),
 		shell,
 	)
-
-	start := time.Now()
 
 	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
 	if err != nil {
 		t.Fatalf("Pass() error = %v", err)
 	}
 
-	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
-		t.Fatalf("pass took %s, want the two before lines overlapped", elapsed)
+	markedAt := func(name string) time.Time {
+		info, statErr := os.Stat(filepath.Join(dir, name))
+		if statErr != nil {
+			t.Fatalf("the before line left no %s mark: %v", name, statErr)
+		}
+
+		return info.ModTime()
+	}
+
+	if !markedAt("b.start").Before(markedAt("a.end")) ||
+		!markedAt("a.start").Before(markedAt("b.end")) {
+		t.Fatal("the two before lines ran one after the other, want them overlapped")
 	}
 }
 
