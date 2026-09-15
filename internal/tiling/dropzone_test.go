@@ -98,6 +98,44 @@ func TestEngine_DropPreview_MarksTheTargetTheLayoutNames(t *testing.T) {
 	}
 }
 
+func TestEngine_DropPreview_TellsTheLayoutWhichModifiersAreHeld(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	// The frame's x says which modifiers the layout was told: 50 for an
+	// option-drag, 0 otherwise, so the first pass still places the window.
+	cfg := enabled(
+		`jq -c '{frames: [{number: 1, frame: {x: (if .event.modifiers == ["option"] then 50 else 0 end),` +
+			` y: 0, width: 100, height: 100}}]}'`,
+	)
+	cfg.RelayoutOnDrag = true
+	engine.Update(cfg, shell)
+	engine.SetModifiers(func() []string { return []string{"option"} })
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	desktop.mu.Lock()
+	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
+	desktop.mu.Unlock()
+
+	target, ok, err := engine.DropPreview(ctx)
+	if err != nil || !ok {
+		t.Fatalf("DropPreview() = ok %v, err %v, want the layout's answer", ok, err)
+	}
+
+	if target.Frame.X != 50 {
+		t.Fatalf("frame x = %v, want 50 for an option-drag", target.Frame.X)
+	}
+}
+
 func TestEngine_DropPreview_NeedsRelayoutOnDrag(t *testing.T) {
 	t.Parallel()
 

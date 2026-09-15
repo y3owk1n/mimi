@@ -121,6 +121,12 @@ type Engine struct {
 	// visible is each display's visible frame by index, from the last read,
 	// which bounds what a window can be said to have refused.
 	visible map[int]action.Frame
+	// modifiers reports the modifier keys held, read while the button is
+	// down so a drag's settled event can carry them.
+	modifiers func() []string
+	// dragMods is the modifiers last seen held during the drag in
+	// progress, handed to the event the drag settles into.
+	dragMods []string
 	// mouseDown reports whether the left button is held, which is when a
 	// settled drag is still going on; nil never is.
 	mouseDown func() bool
@@ -300,6 +306,16 @@ func (e *Engine) SetMouse(down func() bool) {
 	defer e.mu.Unlock()
 
 	e.mouseDown = down
+}
+
+// SetModifiers names the function that reports the modifier keys held. The
+// engine reads it while a drag is held, and the event the drag settles into
+// carries what was held last, so a layout can tell an Option-drag apart.
+func (e *Engine) SetModifiers(held func() []string) {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	e.modifiers = held
 }
 
 // Stacker draws the stacks a layout named, and says how much of their frame
@@ -497,6 +513,8 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				}
 
 				kind, windows := e.userDragged()
+				mods := e.takeDragModifiers()
+
 				if kind == "" && asked == nil {
 					continue
 				}
@@ -504,7 +522,7 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				if kind == "" {
 					pending = *asked
 				} else {
-					pending.Kind, pending.Windows = kind, windows
+					pending.Kind, pending.Windows, pending.Modifiers = kind, windows, mods
 				}
 			}
 
@@ -609,12 +627,40 @@ func (e *Engine) Preview(ctx context.Context, event Event) ([]Input, []Output, e
 	return inputs, outputs, err
 }
 
-// dragHeld reports whether the user is still holding a drag.
+// dragHeld reports whether the user is still holding a drag, and while
+// they are, notes the modifier keys held with it.
 func (e *Engine) dragHeld() bool {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	return e.mouseDown != nil && e.mouseDown()
+	held := e.mouseDown != nil && e.mouseDown()
+	if held {
+		e.sampleModifiersLocked()
+	}
+
+	return held
+}
+
+// sampleModifiersLocked records the modifier keys held now as the drag's.
+// The caller holds the lock.
+func (e *Engine) sampleModifiersLocked() {
+	if e.modifiers == nil {
+		return
+	}
+
+	e.dragMods = e.modifiers()
+}
+
+// takeDragModifiers is the modifiers the drag in progress was last seen
+// with, and forgets them.
+func (e *Engine) takeDragModifiers() []string {
+	e.mu.Lock()
+	defer e.mu.Unlock()
+
+	mods := e.dragMods
+	e.dragMods = nil
+
+	return mods
 }
 
 // reduceAll runs the layout on every input at once, one goroutine each,

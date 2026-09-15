@@ -64,7 +64,9 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 		return DropTarget{}, false, nil
 	}
 
-	inputs := e.buildInputsLocked(Event{Kind: kind, Windows: dragged}, read)
+	e.sampleModifiersLocked()
+
+	inputs := e.buildInputsLocked(Event{Kind: kind, Windows: dragged, Modifiers: e.dragMods}, read)
 
 	layoutStart := time.Now()
 

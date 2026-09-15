@@ -333,6 +333,7 @@ func setupEventPipeline(
 	// The drop zone hears the same raw drags, and previews the drop with
 	// the tiling engine while the button is down.
 	tiler.SetMouse(native.LeftMouseButtonDown)
+	tiler.SetModifiers(native.ModifierKeys)
 
 	zone := dropzone.New(tiler, dropzone.NativeDrawer(), dropzone.NativeMouse(), logger)
 	zone.Update(dropzoneConfigFor(cfg, accessibilityGranted))

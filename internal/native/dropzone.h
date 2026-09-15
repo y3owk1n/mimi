@@ -24,5 +24,8 @@ void MimiDropzoneShowTarget(const MimiDropzoneStyle *style, double x, double y, 
 void MimiDropzoneHideTarget(void);
 /// Whether the left mouse button is down right now.
 int MimiLeftMouseButtonDown(void);
+/// The modifier keys held right now, as CGEventFlags bits, on the keyboard
+/// or posted by another process.
+unsigned long long MimiModifierFlags(void);
 
 #endif  // MIMI_DROPZONE_H

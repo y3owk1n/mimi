@@ -64,7 +64,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, fit, gap, maximised, min_sizes, serve, shown, unmanaged_of, write_output
+from rules import area, clamp, command, fit, gap, maximised, min_sizes, modifiers, serve, shown, unmanaged_of, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -408,6 +408,22 @@ def main(inp):
             if abs(now - was) > 1:
                 columns[index]["width"] = clamp((now + GAP) / (box["width"] + GAP), MIN_WIDTH, MAX_WIDTH)
 
+    elif event["kind"] == "window_move" and "option" in modifiers(inp):
+        # An option-drag floats the window where it was dropped.
+        floats = set(state.get("floating", []))
+        for number in event.get("windows", []):
+            index = column_of(columns, number)
+            if index is None:
+                continue
+            floats.add(number)
+            columns[index]["windows"].remove(number)
+            if not columns[index]["windows"]:
+                columns.pop(index)
+        state["floating"] = sorted(floats)
+        windows = [w for w in windows if w["number"] not in floats]
+        by_number = {w["number"]: w for w in windows}
+        if focused not in by_number:
+            focused = None
     elif event["kind"] == "window_move":
         for number in event.get("windows", []):
             index = column_of(columns, number)
@@ -417,7 +433,13 @@ def main(inp):
             centre = f["x"] + f["width"] / 2
             target = column_at(columns, box, GAP, offset, centre)
             if target is not None and target != index:
-                dropped_on = (columns[target]["windows"][0], "insert")
+                # A shift-drag makes the column tabbed, a stack where every
+                # window fills it and the dropped one is on top.
+                if "shift" in modifiers(inp):
+                    columns[target]["tabbed"] = True
+                    dropped_on = (columns[target]["windows"][0], "stack")
+                else:
+                    dropped_on = (columns[target]["windows"][0], "insert")
                 columns[index]["windows"].remove(number)
                 columns[target]["windows"].append(number)
                 if not columns[index]["windows"]:

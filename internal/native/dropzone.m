@@ -126,3 +126,11 @@ void MimiDropzoneHide(void) {
 int MimiLeftMouseButtonDown(void) {
 	return CGEventSourceButtonState(kCGEventSourceStateCombinedSessionState, kCGMouseButtonLeft) ? 1 : 0;
 }
+
+unsigned long long MimiModifierFlags(void) {
+	// The hardware state reads the keyboard. The session state adds keys
+	// other processes post, and an event posted without flags clears it.
+	// Reading both keeps a key held on the keyboard whatever else is posted.
+	return (unsigned long long)(CGEventSourceFlagsState(kCGEventSourceStateHIDSystemState) |
+	                            CGEventSourceFlagsState(kCGEventSourceStateCombinedSessionState));
+}

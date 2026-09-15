@@ -57,3 +57,35 @@ func HideDropzoneTarget() {
 func LeftMouseButtonDown() bool {
 	return C.MimiLeftMouseButtonDown() != 0
 }
+
+// The modifier keys as CGEventFlags names them.
+const (
+	flagShift   = 1 << 17
+	flagControl = 1 << 18
+	flagOption  = 1 << 19
+	flagCommand = 1 << 20
+)
+
+// ModifierKeys is the modifier keys held right now, by name, in a fixed
+// order: shift, control, option, command. Empty when none is held.
+func ModifierKeys() []string {
+	return modifierNames(uint64(C.MimiModifierFlags()))
+}
+
+// modifierNames is the keys a CGEventFlags value names.
+func modifierNames(flags uint64) []string {
+	var keys []string
+
+	for _, key := range []struct {
+		flag uint64
+		name string
+	}{
+		{flagShift, "shift"}, {flagControl, "control"}, {flagOption, "option"}, {flagCommand, "command"},
+	} {
+		if flags&key.flag != 0 {
+			keys = append(keys, key.name)
+		}
+	}
+
+	return keys
+}
