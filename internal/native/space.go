@@ -39,6 +39,19 @@ func FocusSpace(index int) error {
 		return derrors.New(derrors.CodeActionFailed, "failed to focus Mission Control space")
 	}
 
+	// The gesture reports that it was posted, not that the Dock took it.
+	// Reading the space in front back is what shows a dropped swipe.
+	inFront := func() uint64 { return uint64(C.MimiDisplayActiveSpaceID(C.uint32_t(did))) }
+	if !awaitSpace(inFront, sid) {
+		return derrors.Newf(
+			derrors.CodeActionFailed,
+			"space %d did not come in front within %s, the display is still on space %d",
+			index,
+			spaceSettleTimeout,
+			SpaceIndexes()[inFront()],
+		)
+	}
+
 	return nil
 }
 
