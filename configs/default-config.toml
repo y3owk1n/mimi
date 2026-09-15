@@ -342,3 +342,11 @@ focus_follows_mouse = false
 # on_appearance_changed = [
 #     "echo now $mimi_APPEARANCE"
 # ]
+
+# The lock screen came up, or the user unlocked it.
+# on_screen_locked = [
+#     "echo 'locked'"
+# ]
+# on_screen_unlocked = [
+#     "echo 'unlocked'"
+# ]

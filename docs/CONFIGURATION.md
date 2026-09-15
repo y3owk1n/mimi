@@ -542,6 +542,8 @@ and reload.
 | `on_system_wake` | The Mac has woken |
 | `on_display_changed` | A display is connected, disconnected, or changes resolution or arrangement |
 | `on_appearance_changed` | The system switches between light and dark mode. `mimi_APPEARANCE` is `dark` or `light`, the mode now in effect |
+| `on_screen_locked` | The lock screen comes up, whether from the menu, a hot corner, or the display sleeping with a password set |
+| `on_screen_unlocked` | The user unlocks the screen |
 
 System hooks carry no application, so their `mimi_APP_NAME`, `mimi_BUNDLE_ID`
 and `mimi_PID` are empty. A hook on `on_system_sleep` has until the Mac

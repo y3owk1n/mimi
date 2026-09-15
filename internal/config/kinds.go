@@ -22,8 +22,8 @@ const (
 	GroupWindow
 	// GroupWorkspace covers the Space/Desktop kinds.
 	GroupWorkspace
-	// GroupSystem covers sleep, wake, display and appearance changes, which
-	// need no extra permission.
+	// GroupSystem covers sleep, wake, display and appearance changes, and
+	// the screen locking, which need no extra permission.
 	GroupSystem
 )
 
@@ -169,6 +169,18 @@ var HookKinds = []HookKind{
 		TOMLKey: "on_appearance_changed",
 		Group:   GroupSystem,
 		Entries: func(h *HooksConfig) *[]HookEntry { return &h.AppearanceChanged },
+	},
+	{
+		Kind:    events.ScreenLocked,
+		TOMLKey: "on_screen_locked",
+		Group:   GroupSystem,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.ScreenLocked },
+	},
+	{
+		Kind:    events.ScreenUnlocked,
+		TOMLKey: "on_screen_unlocked",
+		Group:   GroupSystem,
+		Entries: func(h *HooksConfig) *[]HookEntry { return &h.ScreenUnlocked },
 	},
 }
 

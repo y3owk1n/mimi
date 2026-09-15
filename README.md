@@ -122,7 +122,7 @@ Actions and queries work without the daemon. Everything else needs it.
 | :------------- | :--------------: | :--------------------------------------------------------------------------- | :------------ |
 | **Actions**    | No               | Switch spaces, move windows across spaces and displays, resize, focus        | CLI flags     |
 | **Queries**    | No               | The active space, windows and displays as JSON                               | CLI flags     |
-| **Hooks**      | Yes              | Your shell command on 19 app, window, space and system events, with filters  | `[hooks]`     |
+| **Hooks**      | Yes              | Your shell command on 21 app, window, space and system events, with filters  | `[hooks]`     |
 | **Menu bar**   | Yes              | The active space number, a reload item and the last reload outcome           | `[systray]`   |
 | **Borders**    | Yes              | An outline around each window, coloured by focus                             | `[border]`    |
 | **Tiling**     | Yes              | Your layout program, run when windows change, with optional animation        | `[tiling]`    |

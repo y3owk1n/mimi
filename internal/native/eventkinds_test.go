@@ -85,6 +85,8 @@ var mappedKinds = map[string]events.EventKind{
 	"MIMI_KIND_DID_WAKE":            events.SystemWake,
 	"MIMI_KIND_DISPLAY_CHANGED":     events.DisplayChanged,
 	"MIMI_KIND_APPEARANCE_CHANGED":  events.AppearanceChanged,
+	"MIMI_KIND_SCREEN_LOCKED":       events.ScreenLocked,
+	"MIMI_KIND_SCREEN_UNLOCKED":     events.ScreenUnlocked,
 }
 
 // unmappedKinds are eventkinds.h symbols that are deliberately NOT part of

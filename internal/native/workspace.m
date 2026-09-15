@@ -102,9 +102,9 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		tempNotifToKind[NSWorkspaceDidUnhideApplicationNotification] = @(MIMI_KIND_APP_UNHIDE);
 	}
 
-	// The system group is sleep, wake, and the display set changing. The
-	// session and power-off kinds stay defined but unobserved, since
-	// nothing routes them to Go yet.
+	// The system group is sleep, wake, the display set changing, and the
+	// screen locking and unlocking. The session and power-off kinds stay
+	// defined but unobserved, since nothing routes them to Go yet.
 	if (systemState) {
 		tempNotifToKind[NSWorkspaceWillSleepNotification] = @(MIMI_KIND_WILL_SLEEP);
 		tempNotifToKind[NSWorkspaceDidWakeNotification] = @(MIMI_KIND_DID_WAKE);
@@ -112,6 +112,12 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		                                         selector:@selector(screenParametersChanged:)
 		                                             name:NSApplicationDidChangeScreenParametersNotification
 		                                           object:nil];
+
+		// macOS posts the lock and the unlock only on the distributed center,
+		// under names Apple does not document.
+		NSDistributedNotificationCenter *dnc = [NSDistributedNotificationCenter defaultCenter];
+		[dnc addObserver:self selector:@selector(screenLocked:) name:@"com.apple.screenIsLocked" object:nil];
+		[dnc addObserver:self selector:@selector(screenUnlocked:) name:@"com.apple.screenIsUnlocked" object:nil];
 	}
 
 	if (volume) {
@@ -147,6 +153,14 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 
 - (void)screenParametersChanged:(NSNotification *)note {
 	goWorkspaceEvent(MIMI_KIND_DISPLAY_CHANGED, "", "", 0, "", "");
+}
+
+- (void)screenLocked:(NSNotification *)note {
+	goWorkspaceEvent(MIMI_KIND_SCREEN_LOCKED, "", "", 0, "", "");
+}
+
+- (void)screenUnlocked:(NSNotification *)note {
+	goWorkspaceEvent(MIMI_KIND_SCREEN_UNLOCKED, "", "", 0, "", "");
 }
 
 - (void)appearanceChanged:(NSNotification *)note {

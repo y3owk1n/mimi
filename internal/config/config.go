@@ -274,6 +274,8 @@ type HooksConfig struct {
 	SystemWake        []HookEntry `json:"onSystemWake"        toml:"on_system_wake"`
 	DisplayChanged    []HookEntry `json:"onDisplayChanged"    toml:"on_display_changed"`
 	AppearanceChanged []HookEntry `json:"onAppearanceChanged" toml:"on_appearance_changed"`
+	ScreenLocked      []HookEntry `json:"onScreenLocked"      toml:"on_screen_locked"`
+	ScreenUnlocked    []HookEntry `json:"onScreenUnlocked"    toml:"on_screen_unlocked"`
 }
 
 // HookEntry defines a single hook command and its optional filters.
