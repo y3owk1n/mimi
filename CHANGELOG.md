@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.19.0](https://github.com/y3owk1n/mimi/compare/v0.18.0...v0.19.0) (2026-09-15)
+
+
+### Features
+
+* **border:** draw the border inside the window with placement = "inside" ([#292](https://github.com/y3owk1n/mimi/issues/292)) ([c99bcb5](https://github.com/y3owk1n/mimi/commit/c99bcb5d4611cd45b7b4733b5c966b7e7628f527))
+* **border:** skip the border for a window alone on its space ([#293](https://github.com/y3owk1n/mimi/issues/293)) ([6a7274b](https://github.com/y3owk1n/mimi/commit/6a7274b5828fc0cacf63ac2e9b1e66f80b9664fa))
+
+
+### Bug Fixes
+
+* **border:** hide borders with their windows in Mission Control and Show Desktop ([#291](https://github.com/y3owk1n/mimi/issues/291)) ([b662a26](https://github.com/y3owk1n/mimi/commit/b662a26775648d1222c992aa209fc79f93efb7f6))
+* **border:** keep an inside border above a window its app raises ([#295](https://github.com/y3owk1n/mimi/issues/295)) ([11fc6b9](https://github.com/y3owk1n/mimi/commit/11fc6b97018568b36ab6ebda88c5a7d30732d241))
+* **border:** stop an inside border flashing on every click ([#296](https://github.com/y3owk1n/mimi/issues/296)) ([32b095b](https://github.com/y3owk1n/mimi/commit/32b095bc4e1b4b852a78be0becd8252be7387978))
+* **border:** stop an inside border flashing when its window is clicked ([#299](https://github.com/y3owk1n/mimi/issues/299)) ([ec12358](https://github.com/y3owk1n/mimi/commit/ec123583790d4da710ca1659b0877689af05cef4))
+* **border:** stop the border flashing and drifting while a window resizes ([#297](https://github.com/y3owk1n/mimi/issues/297)) ([6e439ad](https://github.com/y3owk1n/mimi/commit/6e439adb71efe5612614e6b23b7d278ba62ab3cb))
+* **focus:** follow the mouse between two windows of one application ([#298](https://github.com/y3owk1n/mimi/issues/298)) ([7c3dd53](https://github.com/y3owk1n/mimi/commit/7c3dd53d78b465d58ababd7f9f5a95b9529a865c))
+* **mouse:** stop focus_follows_mouse focusing the window under a menu or panel ([#294](https://github.com/y3owk1n/mimi/issues/294)) ([68a6c0f](https://github.com/y3owk1n/mimi/commit/68a6c0f874a088e45f3b376d17370e3d70136ce3))
+* **tiling:** stop learning a window minimum from a clamped frame ([#289](https://github.com/y3owk1n/mimi/issues/289)) ([5d79f5d](https://github.com/y3owk1n/mimi/commit/5d79f5d1a8538f96963f52e350b4e4689afe106b))
+
 ## [0.18.0](https://github.com/y3owk1n/mimi/compare/v0.17.0...v0.18.0) (2026-09-14)
 
 
