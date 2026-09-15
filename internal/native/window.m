@@ -760,6 +760,49 @@ int MimiSetWindowFullScreen(void *window, int fullScreen) {
 	return 1;
 }
 
+// A shrinking window gets its size before its position, so that it never
+// overhangs the display between the two writes. The window server keeps
+// every window partly on screen, and a write that would push one past an
+// edge is clamped, which can change the size as well as the position.
+//
+// The first size write undershoots the target by this much, and the exact
+// size follows once the window has moved. Near the bottom of a display,
+// macOS 27 ignores a shrink of a few points, and the last steps of an
+// animation that keeps a window's bottom edge in place are all such
+// shrinks, so the window would stop short of its size. The window takes a
+// shrink this large, and takes any grow.
+static const double kMimiShrinkUndershoot = 24.0;
+
+static AXError MimiWriteSize(AXUIElementRef window, double w, double h) {
+	CGSize size = CGSizeMake((CGFloat)w, (CGFloat)h);
+	AXValueRef value = AXValueCreate(kAXValueCGSizeType, &size);
+	if (!value)
+		return kAXErrorFailure;
+
+	AXError err = AXUIElementSetAttributeValue(window, kAXSizeAttribute, value);
+	CFRelease(value);
+	if (err != kAXErrorSuccess) {
+		MIMI_LOG("AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)err);
+	}
+
+	return err;
+}
+
+static AXError MimiWritePosition(AXUIElementRef window, double x, double y) {
+	CGPoint point = CGPointMake((CGFloat)x, (CGFloat)y);
+	AXValueRef value = AXValueCreate(kAXValueCGPointType, &point);
+	if (!value)
+		return kAXErrorFailure;
+
+	AXError err = AXUIElementSetAttributeValue(window, kAXPositionAttribute, value);
+	CFRelease(value);
+	if (err != kAXErrorSuccess) {
+		MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)err);
+	}
+
+	return err;
+}
+
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 	if (!window)
 		return 0;
@@ -767,39 +810,29 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 	@autoreleasepool {
 		AXUIElementRef axWindow = (AXUIElementRef)window;
 
-		// Set position first to avoid size changes shifting the window
-		CGPoint point = CGPointMake((CGFloat)x, (CGFloat)y);
-		AXValueRef positionValue = AXValueCreate(kAXValueCGPointType, &point);
-		if (!positionValue)
-			return 0;
-
-		AXError posError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
-		if (posError != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
+		CGSize was = CGSizeZero;
+		CFTypeRef current = NULL;
+		if (AXUIElementCopyAttributeValue(axWindow, kAXSizeAttribute, &current) == kAXErrorSuccess && current) {
+			AXValueGetValue((AXValueRef)current, kAXValueCGSizeType, &was);
+			CFRelease(current);
 		}
 
-		// Then set size
-		CGSize size = CGSizeMake((CGFloat)w, (CGFloat)h);
-		AXValueRef sizeValue = AXValueCreate(kAXValueCGSizeType, &size);
-		if (!sizeValue) {
-			CFRelease(positionValue);
-			return 0;
-		}
+		int narrower = w < was.width;
+		int shorter = h < was.height;
+		AXError posError;
 
-		AXError sizeError = AXUIElementSetAttributeValue(axWindow, kAXSizeAttribute, sizeValue);
-		if (sizeError != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)sizeError);
+		if (narrower || shorter) {
+			MimiWriteSize(axWindow, narrower ? w - kMimiShrinkUndershoot : w, shorter ? h - kMimiShrinkUndershoot : h);
+			posError = MimiWritePosition(axWindow, x, y);
+			MimiWriteSize(axWindow, w, h);
+		} else {
+			// A growing window moves first, so the larger size lands
+			// where there is room for it. The second move corrects any
+			// shift the application made while applying the size.
+			posError = MimiWritePosition(axWindow, x, y);
+			MimiWriteSize(axWindow, w, h);
+			MimiWritePosition(axWindow, x, y);
 		}
-
-		// Re-set position to correct any shifts caused by resize
-		AXError posResetError = AXUIElementSetAttributeValue(axWindow, kAXPositionAttribute, positionValue);
-		if (posResetError != kAXErrorSuccess) {
-			MIMI_LOG(
-			    "AXUIElementSetAttributeValue(kAXPositionAttribute) reset failed with error %d", (int)posResetError);
-		}
-
-		CFRelease(sizeValue);
-		CFRelease(positionValue);
 
 		// A window that refuses its size still moved. A fixed-size window
 		// crossing to another display lands there at the size it keeps,

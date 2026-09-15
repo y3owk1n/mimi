@@ -1610,7 +1610,10 @@ const confirmRefusal = 500 * time.Millisecond
 //
 // A window seen larger than asked is read once more after confirmRefusal
 // before a minimum is learned from it, and nothing is learned while the
-// user holds a mouse button, since the size then is the user's.
+// user holds a mouse button, since the size then is the user's. After an
+// animated apply, an application can drop the last steps of the animation,
+// so a window still larger after the second read gets its frame written
+// once more without animation, and is read a third time.
 func (e *Engine) rememberLater(appliedAt time.Time) {
 	e.background.Go(func() {
 		// An animated apply returns as the windows set off, so the read
@@ -1634,9 +1637,10 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 		e.rememberFrames(windows, false)
 		suspect := e.refusedLocked(windows)
+		animated := e.animation != nil
 		e.mu.Unlock()
 
-		if !suspect {
+		if len(suspect) == 0 {
 			return
 		}
 
@@ -1645,6 +1649,35 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 		windows, err = e.readWindows()
 		if err != nil {
 			return
+		}
+
+		if animated {
+			e.mu.Lock()
+			current := e.appliedAt.Equal(appliedAt)
+			suspect = e.refusedLocked(windows)
+			e.mu.Unlock()
+
+			if !current || len(suspect) == 0 {
+				return
+			}
+
+			err := e.desktop.Apply(suspect, nil)
+			if err != nil {
+				e.logger.Debugw(
+					"rewriting suspect frames failed",
+					"count",
+					len(suspect),
+					"err",
+					err,
+				)
+			}
+
+			time.Sleep(confirmRefusal)
+
+			windows, err = e.readWindows()
+			if err != nil {
+				return
+			}
 		}
 
 		e.mu.Lock()
@@ -1657,10 +1690,11 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 	})
 }
 
-// refusedLocked reports whether any window the engine asked for a size is
-// larger than that on an axis, which is worth a second look. The caller
-// holds the lock.
-func (e *Engine) refusedLocked(windows action.WindowsInfo) bool {
+// refusedLocked is the asked frame of every window that is larger than it
+// on an axis. The caller holds the lock.
+func (e *Engine) refusedLocked(windows action.WindowsInfo) []action.WindowFrame {
+	var suspect []action.WindowFrame
+
 	for _, win := range windows.Windows {
 		asked, ok := e.requested[win.Number]
 		if !ok {
@@ -1668,11 +1702,11 @@ func (e *Engine) refusedLocked(windows action.WindowsInfo) bool {
 		}
 
 		if win.Frame.Width > asked.Width+samePoint || win.Frame.Height > asked.Height+samePoint {
-			return true
+			suspect = append(suspect, action.WindowFrame{Number: win.Number, Frame: asked})
 		}
 	}
 
-	return false
+	return suspect
 }
 
 // rememberFrames keeps where the windows the engine placed are in windows,
@@ -1735,9 +1769,21 @@ func (e *Engine) learnMinSize(
 		minSize = e.appMinSizes[bundleID]
 	}
 
+	// The window server clamps a frame asked for past the edge of the
+	// display, and what lands is the clamp's size, not a minimum.
+	visible := e.visible[display]
+	if visible.Width > 0 && (asked.X < visible.X-samePoint ||
+		asked.X+asked.Width > visible.X+visible.Width+samePoint) {
+		return false
+	}
+
+	if visible.Height > 0 && (asked.Y < visible.Y-samePoint ||
+		asked.Y+asked.Height > visible.Y+visible.Height+samePoint) {
+		return false
+	}
+
 	// No window has a minimum as large as its display. A window landed at
 	// that size took a frame that never applied, and is not a refusal.
-	visible := e.visible[display]
 	wholeWidth := visible.Width > 0 && landed.Width >= visible.Width-samePoint
 	wholeHeight := visible.Height > 0 && landed.Height >= visible.Height-samePoint
 
