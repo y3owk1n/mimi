@@ -279,11 +279,13 @@ static BOOL mimiFullScreen(CGRect frame, const CGRect *displays, const BOOL *ful
 }
 
 // Whether the window described by info gets a border, and where it is: not
-// one of ours, with bounds the window server gives, and not full screen.
+// one of ours, on the screen, with bounds the window server gives, and not
+// full screen. Finder keeps a window closed with Command-W rather than
+// destroying it, and it stays listed on its space, off the screen.
 static BOOL mimiBordered(
     NSDictionary *info, pid_t self, const CGRect *displays, const BOOL *fullScreen, uint32_t displayCount,
     CGRect *bounds) {
-	if ([info[(id)kCGWindowOwnerPID] intValue] == self)
+	if ([info[(id)kCGWindowOwnerPID] intValue] == self || ![info[(id)kCGWindowIsOnscreen] boolValue])
 		return NO;
 	if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], bounds))
 		return NO;

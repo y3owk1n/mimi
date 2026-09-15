@@ -119,7 +119,8 @@ var wakingKinds = map[events.EventKind]bool{
 // later and that move syncs again. A window no layout places has no later
 // event, and stays without a border until something else changes. A focus
 // moved between two windows of one application is reported before the
-// window server has the focused one in front.
+// window server has the focused one in front, and a closed window before
+// its application has taken it off the screen.
 //
 //nolint:gochecknoglobals // a fixed set
 var settlingKinds = map[events.EventKind]bool{
@@ -127,6 +128,7 @@ var settlingKinds = map[events.EventKind]bool{
 	events.AppUnhide:     true,
 	events.WindowCreated: true,
 	events.WindowFocus:   true,
+	events.WindowClosed:  true,
 	events.AXAttached:    true,
 }
 
