@@ -20,7 +20,8 @@ from rules import area, gap, serve, shown, unmanaged_of, write_output
 
 
 def main(inp):
-    box = area(inp, gap(inp))
+    state = inp.get("state") or {}
+    box = area(inp, gap(inp), state)
     numbers = [w["number"] for w in inp["windows"]]
 
     # Two or more windows in one place is a stack. mimi drops a stack of
@@ -29,7 +30,7 @@ def main(inp):
 
     write_output(
         [(number, box) for number in numbers],
-        None,
+        state,
         unmanaged=unmanaged_of(inp),
         stacks=stacks,
     )

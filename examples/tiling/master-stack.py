@@ -37,7 +37,7 @@ def main(inp):
         write_output([], None, unmanaged=unmanaged_of(inp))
         return
 
-    box = area(inp, GAP)
+    box = area(inp, GAP, state)
     numbers = [w["number"] for w in windows]
     by_number = {w["number"]: w for w in windows}
     focused = numbers[inp["focused"]] if inp["focused"] >= 0 else None

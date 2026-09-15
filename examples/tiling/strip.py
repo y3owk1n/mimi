@@ -272,7 +272,7 @@ def main(inp):
     columns = state.get("columns") or []
     offset = float(state.get("offset") or 0)
     GAP = gap(inp)
-    box = area(inp, GAP)
+    box = area(inp, GAP, state)
     edge = inp["display"]["visible"]
     event = inp["event"]
     focused = inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None

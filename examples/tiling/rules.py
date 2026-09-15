@@ -50,21 +50,49 @@ def gap(inp):
     return float(inp.get("gap", 0))
 
 
-def padding(inp, side):
-    """PADDING at one edge for the display this input is for."""
-    p = PADDING[side]
+def padding(inp, side, state=None):
+    """PADDING at one edge for the display this input is for, or what a
+    `padding` command put in `state` for this display and space instead."""
+    override = (state or {}).get("padding", {})
+    if override.get("off"):
+        return 0.0
+    p = override.get(side, PADDING[side])
     if isinstance(p, dict):
         p = p.get(inp["display"]["index"], 0)
     return float(p)
 
 
-def area(inp, gap):
+def padding_command(inp, state):
+    """Apply a `padding` command to `state`, when the event is one:
+
+      mimi tiling cmd padding off            # pad nothing, keep the values
+      mimi tiling cmd padding on
+      mimi tiling cmd padding right 320      # one side, every display
+      mimi tiling cmd padding reset          # back to PADDING in this file
+
+    State is per display and space, so the change is too."""
+    args = command(inp, "padding")
+    if not args:
+        return
+    override = state.setdefault("padding", {})
+    if args[0] == "reset":
+        override.clear()
+    elif args[0] in ("on", "off"):
+        override["off"] = args[0] == "off"
+    elif args[0] in PADDING and len(args) == 2:
+        override[args[0]] = float(args[1])
+
+
+def area(inp, gap, state=None):
     """The visible frame of the display this input is for, inset by gap on
     every side and by PADDING at each edge. mimi runs a layout once per
-    display, so this is the one area a run ever fills."""
+    display, so this is the one area a run ever fills. Given `state`, a
+    `padding` command is applied to it first."""
+    if state is not None:
+        padding_command(inp, state)
     v = inp["display"]["visible"]
-    top, bottom = padding(inp, "top"), padding(inp, "bottom")
-    left, right = padding(inp, "left"), padding(inp, "right")
+    top, bottom = padding(inp, "top", state), padding(inp, "bottom", state)
+    left, right = padding(inp, "left", state), padding(inp, "right", state)
     return {
         "x": v["x"] + gap + left,
         "y": v["y"] + gap + top,

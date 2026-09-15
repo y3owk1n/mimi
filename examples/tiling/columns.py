@@ -22,7 +22,7 @@ def main(inp):
         write_output([], None, unmanaged=unmanaged_of(inp))
         return
 
-    box = area(inp, GAP)
+    box = area(inp, GAP, state)
     n = len(windows)
     col = (box["width"] - GAP * (n - 1)) // n
     frames = [
