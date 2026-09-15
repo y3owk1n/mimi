@@ -213,7 +213,9 @@ static MimiBorder *mimiNewBorder(void) {
 	border.ignoresMouseEvents = YES;
 	border.releasedWhenClosed = NO;
 	border.animationBehavior = NSWindowAnimationBehaviorNone;
-	border.collectionBehavior = NSWindowCollectionBehaviorStationary | NSWindowCollectionBehaviorIgnoresCycle;
+	// Transient, so Mission Control, App Expose and Show Desktop hide the
+	// border with its window. A stationary window they leave in place.
+	border.collectionBehavior = NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
 	NSView *view = border.contentView;
 	view.wantsLayer = YES;
 	CAShapeLayer *ring = [CAShapeLayer layer];
