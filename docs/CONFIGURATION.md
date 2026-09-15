@@ -642,8 +642,20 @@ could not enumerate Mission Control. `mimi_DISPLAYS_COUNT` and
   variables above added to the environment the daemon started with. A
   change to your shell environment after the daemon started does not reach
   a hook until the daemon restarts.
-- stdin is `/dev/null`. The event reaches the hook only through the
-  variables.
+- stdin is the event as one line of JSON, then end of file. It is the same
+  document the `.events.jsonl` file beside `settings.log_file` holds. A hook
+  that wants the whole event reads it with `jq` instead of assembling it
+  from the variables:
+
+  ```toml
+  on_workspace_changed = [
+      { run = "jq -r .extra.space_index > /tmp/space" },
+  ]
+  ```
+
+  The fields are `id`, `kind`, `at`, and when set `appName`, `bundleId`,
+  `pid`, `windowTitle`, and `extra`, an object of the extra variables by
+  their lower-case names, `space_index` say.
 - mimi captures stdout and stderr together, up to 64 KiB, and logs them at
   debug level when the hook succeeds. Nothing reaches the daemon's own
   output.

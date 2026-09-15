@@ -3,6 +3,7 @@ package hooks //nolint:testpackage // tests unexported hookOutputBuffer / baseEn
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"fmt"
 	"os"
 	"os/exec"
@@ -285,6 +286,53 @@ func TestExecutorMergesBaseAndEventEnv(t *testing.T) {
 
 	if !strings.Contains(got, string(events.WindowCreated)) {
 		t.Errorf("hook output missing event env value %q\noutput: %q", events.WindowCreated, got)
+	}
+}
+
+func TestExecutorGivesTheHookTheEventOnStdin(t *testing.T) {
+	outputFile := filepath.Join(t.TempDir(), "stdin.json")
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{
+			WorkspaceChanged: []config.HookEntry{{Run: "cat > " + outputFile}},
+		},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	cfg := &config.SettingsConfig{HookShell: defaultShell, HookTimeoutSecs: 5, MaxHookWorkers: 1}
+	exec := NewExecutor(reg, cfg, zap.NewNop().Sugar())
+
+	when := time.Date(2026, time.September, 16, 9, 0, 0, 0, time.UTC)
+	exec.Handle(events.Event{
+		Kind:  events.WorkspaceChanged,
+		ID:    "stdin-test",
+		At:    when,
+		Extra: map[string]string{"space_index": "2"},
+	})
+
+	content, readErr := os.ReadFile(outputFile) //nolint:gosec // test-controlled path
+	if readErr != nil {
+		t.Fatalf("reading what the hook wrote: %v", readErr)
+	}
+
+	var got events.Event
+
+	err := json.Unmarshal(content, &got)
+	if err != nil {
+		t.Fatalf("stdin was not one JSON event: %v\n%s", err, content)
+	}
+
+	if got.Kind != events.WorkspaceChanged || got.ID != "stdin-test" || !got.At.Equal(when) ||
+		got.Extra["space_index"] != "2" {
+		t.Fatalf("got %+v", got)
+	}
+
+	if content[len(content)-1] != '\n' {
+		t.Fatal("the event did not end with a newline")
 	}
 }
 
