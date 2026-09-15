@@ -30,12 +30,15 @@ enum {
 // enough for a sync at every step of a drag.
 static const int kMimiSpaceFullScreen = 4;
 
-// A border is a window of our own, a little larger than the window it
-// belongs to and ordered right under it, so the window covers the middle and
-// the ring around it shows. Nothing is drawn over another application's
-// content, and a window that overlaps a bordered one covers the border as it
-// covers the window. The ring is a shape layer with the window's corner cut
-// out of it, so the corners under the window's own rounded ones stay clear.
+// A border is a window of our own. Outside, it is a little larger than the
+// window it belongs to and ordered right under it, so the window covers the
+// middle and the ring around it shows. Nothing is drawn over another
+// application's content, and a window that overlaps a bordered one covers
+// the border as it covers the window. Inside, it is the window's own size
+// and ordered right over it, so the ring covers the window's edge and
+// nothing else. A window over the bordered one covers both. Either way the
+// ring is a shape layer with the middle cut out of it, so the corners under
+// the window's own rounded ones stay clear.
 //
 // The window server is asked which windows are real and on the spaces in
 // front, the same test the queries use, and Accessibility which is focused,
@@ -78,13 +81,6 @@ static const int kMimiSpaceFullScreen = 4;
 // window.
 static const double kMimiFallbackRadius = 12;
 
-// Put border right under its window. The window server takes this order
-// against another application's window from AppKit, and ignores the same
-// order sent with SLSOrderWindow while still returning success.
-static void mimiOrderUnder(MimiBorder *border, uint32_t number) {
-	[border orderWindow:NSWindowBelow relativeTo:(NSInteger)number];
-}
-
 // The borders by the number of the window each belongs to, main thread only.
 static NSMutableDictionary<NSNumber *, MimiBorder *> *gBorders;
 static MimiBorderStyle gStyle;
@@ -98,6 +94,22 @@ static atomic_int gWantRefocus;
 static atomic_uint gFocusRequest;
 
 #pragma mark - Helpers
+
+// Put border right next to its window: under it outside, over it inside.
+// The window server takes this order against another application's window
+// from AppKit, and ignores the same order sent with SLSOrderWindow while
+// still returning success.
+static void mimiOrderBeside(MimiBorder *border, uint32_t number) {
+	[border orderWindow:gStyle.inside ? NSWindowAbove : NSWindowBelow relativeTo:(NSInteger)number];
+}
+
+// The border window's frame for a window at bounds: the bounds grown by the
+// width outside, the bounds themselves inside.
+static CGRect mimiBorderFrame(CGRect bounds) {
+	if (gStyle.inside)
+		return bounds;
+	return CGRectInset(bounds, -gStyle.width, -gStyle.width);
+}
 
 // NSWindow frames are y up from the primary display's bottom-left.
 static NSRect mimiBorderCocoaRect(CGRect rect) {
@@ -228,12 +240,16 @@ static MimiBorder *mimiNewBorder(void) {
 	return border;
 }
 
-CGPathRef MimiBorderRingPath(CGSize size, double width, double radius) {
-	CGRect frame = CGRectMake(0, 0, size.width + 2 * width, size.height + 2 * width);
+CGPathRef MimiBorderRingPath(CGSize size, double width, double radius, int inside) {
+	double grow = inside ? 0 : width;
+	CGRect frame = CGRectMake(0, 0, size.width + 2 * grow, size.height + 2 * grow);
 	CGRect hole = CGRectInset(frame, width, width);
-	double inner = MIN(radius, MIN(hole.size.width, hole.size.height) / 2);
+	// The window's own corner is the hole's edge outside and the frame's
+	// edge inside. The other edge runs parallel to it, width away.
+	double outer = MIN(radius + grow, MIN(frame.size.width, frame.size.height) / 2);
+	double inner = MIN(MAX(outer - width, 0), MIN(hole.size.width, hole.size.height) / 2);
 	CGMutablePathRef path = CGPathCreateMutable();
-	CGPathAddRoundedRect(path, NULL, frame, inner + width, inner + width);
+	CGPathAddRoundedRect(path, NULL, frame, outer, outer);
 	// The hole is a rounded rect even when square, so every ring path has
 	// the same elements and one animates into another.
 	CGPathAddRoundedRect(path, NULL, hole, MAX(inner, 0.001), MAX(inner, 0.001));
@@ -248,15 +264,15 @@ static double mimiRadiusFor(MimiBorder *border) {
 }
 
 // Draw border for bounds, in the colour for whether it is active: the
-// window frame is bounds grown by the width, and the ring is the window
-// frame with bounds cut out, both with rounded corners.
+// window frame is bounds grown by the width outside or bounds inside, and
+// the ring is the window frame with its middle cut out, both with rounded
+// corners.
 static void mimiDrawBorder(MimiBorder *border, CGRect bounds, BOOL active) {
-	double width = gStyle.width;
-	CGRect outer = CGRectInset(bounds, -width, -width);
+	CGRect outer = mimiBorderFrame(bounds);
 	[border setFrame:mimiBorderCocoaRect(outer) display:NO];
 
 	CGRect frame = CGRectMake(0, 0, outer.size.width, outer.size.height);
-	CGPathRef path = MimiBorderRingPath(bounds.size, width, mimiRadiusFor(border));
+	CGPathRef path = MimiBorderRingPath(bounds.size, gStyle.width, mimiRadiusFor(border), gStyle.inside);
 
 	CGColorRef color = mimiBorderColor(active ? gStyle.active : gStyle.inactive);
 	[CATransaction begin];
@@ -304,7 +320,7 @@ static void mimiFollow(uint32_t number) {
 		return;
 	}
 	border.targetBounds = bounds;
-	[border setFrame:mimiBorderCocoaRect(CGRectInset(bounds, -gStyle.width, -gStyle.width)) display:NO];
+	[border setFrame:mimiBorderCocoaRect(mimiBorderFrame(bounds)) display:NO];
 }
 
 static void mimiWindowServerEvent(uint32_t event, void *data, size_t length, void *context, int cid) {
@@ -413,7 +429,7 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		// has not moved, so the other borders are left alone. Ordering a
 		// shown window again is what flashes.
 		if (fresh || number == raised) {
-			mimiOrderUnder(border, number);
+			mimiOrderBeside(border, number);
 		}
 		[seen addObject:key];
 	}
@@ -445,6 +461,10 @@ void MimiBordersSetStyle(const MimiBorderStyle *style) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (!gBorders)
 			gBorders = [NSMutableDictionary new];
+		// A border drawn on the other side of its window has to change
+		// places with it, so a change of placement starts over.
+		if (gEnabled && gStyle.inside != copy.inside)
+			mimiCloseAll();
 		gStyle = copy;
 		gEnabled = YES;
 		for (MimiBorder *border in gBorders.allValues) {

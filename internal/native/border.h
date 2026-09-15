@@ -12,12 +12,14 @@ typedef struct {
 	double alpha;
 } MimiColor;
 
-/// How borders are drawn: how wide, the radius of the window's corner the
-/// border follows on its inside, or -1 to follow each window's own corner as
-/// the window server reports it, and the colour for the focused window and
-/// for every other.
+/// How borders are drawn: how wide, whether the ring sits inside the
+/// window's edge rather than around it, the radius of the window's corner
+/// the border follows, or -1 to follow each window's own corner as the
+/// window server reports it, and the colour for the focused window and for
+/// every other.
 typedef struct {
 	double width;
+	int inside;
 	double radius;
 	MimiColor active;
 	MimiColor inactive;
@@ -25,8 +27,9 @@ typedef struct {
 
 /// Draw borders with the given style from now on, restyling the borders
 /// already on screen. Borders are drawn for every real window on the spaces
-/// in front, under the window they belong to, so nothing draws over another
-/// application's content.
+/// in front. An outside border sits under the window it belongs to, so
+/// nothing draws over another application's content. An inside border sits
+/// right over it and covers only the window's own edge.
 void MimiBordersSetStyle(const MimiBorderStyle *style);
 
 /// Bring the borders up to date with the windows: add one for a window
@@ -49,9 +52,11 @@ uint32_t MimiBorderWindowNumber(uint32_t number);
 /// 0 when the window has none. Main thread only.
 int MimiBorderRing(uint32_t number, double *width, double *radius, MimiColor *color);
 
-/// A ring path for a window of size, in a rect grown by width on every side
-/// with its origin at zero: the outside rounded by radius plus width, the
-/// window's own rect cut out rounded by radius. The caller releases it.
-CGPathRef MimiBorderRingPath(CGSize size, double width, double radius);
+/// A ring path width wide for a window of size whose corners are rounded by
+/// radius, with its origin at zero. Outside, the rect is the window's grown
+/// by width on every side, rounded by radius plus width, with the window's
+/// own rect cut out. Inside, the rect is the window's own, with the rect
+/// width in from its edge cut out. The caller releases it.
+CGPathRef MimiBorderRingPath(CGSize size, double width, double radius, int inside);
 
 #endif  // MIMI_BORDER_H

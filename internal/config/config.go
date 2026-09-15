@@ -196,14 +196,19 @@ type AnimationConfig struct {
 }
 
 // BorderConfig holds the [border] section: whether the daemon draws a
-// border around every window on the spaces in front, how wide, the radius
-// of the window corner it follows, and the colors for the focused window
-// and for the rest. Colors are written as #rrggbb or #aarrggbb. The whole
-// section is reloadable; it needs Accessibility, like the window events it
-// follows.
+// border around every window on the spaces in front, how wide, whether it
+// sits outside the window or inside it, the radius of the window corner it
+// follows, and the colors for the focused window and for the rest. Colors
+// are written as #rrggbb or #aarrggbb. The whole section is reloadable; it
+// needs Accessibility, like the window events it follows.
 type BorderConfig struct {
 	Enabled bool    `json:"enabled" toml:"enabled"`
 	Width   float64 `json:"width"   toml:"width"`
+	// Placement is where the ring sits. BorderOutside draws it around the
+	// window frame, under the window, so it never covers the window's
+	// content. BorderInside draws it over the window's own edge, so a
+	// window flush against a neighbor or the screen edge still shows it.
+	Placement string `json:"placement" toml:"placement"`
 	// Radius is the corner radius of the window the border follows on its
 	// inside, in points. Left unset, each border follows its own window's
 	// corner as the window server reports it; 0 draws square corners.
@@ -232,6 +237,17 @@ func (b BorderConfig) CornerRadius() float64 {
 // FollowWindowRadius is the CornerRadius of a [border] section with no
 // radius set: every border follows its own window's corner.
 const FollowWindowRadius = -1
+
+// The border.placement values.
+const (
+	BorderOutside = "outside"
+	BorderInside  = "inside"
+)
+
+// Inside reports whether the border is drawn over the window's own edge.
+func (b BorderConfig) Inside() bool {
+	return b.Placement == BorderInside
+}
 
 // HooksConfig holds all hook entries grouped by event kind.
 type HooksConfig struct {

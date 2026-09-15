@@ -271,6 +271,10 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Border.Width = defaultBorderWidth
 	}
 
+	if cfg.Border.Placement == "" {
+		cfg.Border.Placement = BorderOutside
+	}
+
 	if cfg.Border.ActiveColor == "" {
 		cfg.Border.ActiveColor = defaultBorderActiveColor
 	}
@@ -499,6 +503,10 @@ func validateBorder(border BorderConfig) []string {
 			errs,
 			fmt.Sprintf("border.width must be between 1 and %d", int(maxBorderWidth)),
 		)
+	}
+
+	if border.Placement != BorderOutside && border.Placement != BorderInside {
+		errs = append(errs, "border.placement must be outside or inside")
 	}
 
 	if border.Radius != nil && *border.Radius < 0 {

@@ -185,6 +185,11 @@ far_color = "#30636366"
 enabled = false
 # Points, 1 to 32.
 width = 4
+# Where the ring sits. "outside" runs around the window frame, under the
+# window, and never covers its content. "inside" runs along the inside of
+# the window's edge, over it, so a window flush against a neighbour or the
+# screen edge keeps its whole border.
+placement = "outside"
 # The window corner radius the ring follows on its inside. Leave unset to
 # follow each window's own corners (macOS 26 and later; earlier releases get
 # a document window's). Set a number to draw every ring alike; 0 is square.

@@ -32,6 +32,14 @@ func TestLoad_BorderDefaults(t *testing.T) {
 		t.Errorf("border.radius = %v, want %v (follow the window)", got, want)
 	}
 
+	if got, want := cfg.Border.Placement, BorderOutside; got != want {
+		t.Errorf("border.placement = %q, want %q", got, want)
+	}
+
+	if cfg.Border.Inside() {
+		t.Error("Inside() = true for the default placement, want false")
+	}
+
 	if got, want := cfg.Border.ActiveColor, defaultBorderActiveColor; got != want {
 		t.Errorf("border.active_color = %q, want %q", got, want)
 	}
@@ -48,6 +56,15 @@ func TestLoad_BorderDefaults(t *testing.T) {
 
 	if cfg.Border.Enabled {
 		t.Fatal("border.enabled defaults to true, want false")
+	}
+
+	cfg, err = Load(writeConfig(t, borderedConfig+"placement = \"inside\"\n"))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	if !cfg.Border.Inside() {
+		t.Error("Inside() = false with placement = inside, want true")
 	}
 
 	// A radius of 0 is square corners, not following the window.
@@ -71,6 +88,7 @@ func TestLoad_RejectsABorderItCannotDraw(t *testing.T) {
 		"thin":     {"width = 0.5\n", widthMessage},
 		"wide":     {"width = 33\n", widthMessage},
 		"radius":   {"radius = -1\n", "border.radius must be >= 0"},
+		"placed":   {"placement = \"around\"\n", "border.placement must be outside or inside"},
 		"active":   {"active_color = \"red\"\n", "border.active_color must be #rrggbb or #aarrggbb"},
 		"inactive": {"inactive_color = \"#12345\"\n", "border.inactive_color must be #rrggbb or #aarrggbb"},
 		"not hex":  {"active_color = \"#gggggg\"\n", "border.active_color must be #rrggbb or #aarrggbb"},
