@@ -540,7 +540,7 @@ and reload.
 | ---- | ---------- |
 | `on_system_sleep` | The Mac is about to sleep |
 | `on_system_wake` | The Mac has woken |
-| `on_display_changed` | A display is connected, disconnected, or changes resolution or arrangement |
+| `on_display_changed` | A display is connected, disconnected, or changes resolution or arrangement. `mimi_DISPLAYS_COUNT` is how many are connected now and `mimi_DISPLAYS` the list `mimi query displays` prints, so a hook tells a dock from an undock |
 | `on_appearance_changed` | The system switches between light and dark mode. `mimi_APPEARANCE` is `dark` or `light`, the mode now in effect |
 | `on_screen_locked` | The lock screen comes up, whether from the menu, a hot corner, or the display sleeping with a password set |
 | `on_screen_unlocked` | The user unlocks the screen |
@@ -611,6 +611,8 @@ Every hook receives:
 | `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
 | `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
 | `mimi_APPEARANCE` | `dark` or `light`, the mode now in effect (`on_appearance_changed` only) |
+| `mimi_DISPLAYS_COUNT` | How many displays are connected now (`on_display_changed` only) |
+| `mimi_DISPLAYS` | The connected displays as JSON, the list `mimi query displays` prints (`on_display_changed` only) |
 
 Write references without your own quotes. mimi substitutes each value as a
 single shell token wrapped in single quotes, so a crafted window title cannot
