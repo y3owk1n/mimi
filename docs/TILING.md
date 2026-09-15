@@ -254,10 +254,13 @@ config.toml with `manage = false`. It is then left out of `windows` for
 every layout, with no edit to the layout. [CONFIGURATION.md](CONFIGURATION.md#rules)
 has the shape.
 
-`rules.py` handles the rest for you. `unmanaged_of(inp, state)` joins the
-windows mimi handed back as `unmanaged` with any the layout floated itself
-with `togglefloat`, and `write_output(..., unmanaged=...)` prints the
-result.
+`rules.py` handles the rest for you. `unmanaged_of(inp, state)` returns the
+windows in `state["floating"]` when the layout keeps that list. For a layout
+that keeps no such list it returns the `unmanaged` list mimi handed back,
+which is what the layout said last run. It never joins the two. mimi echoes
+the last answer on every run, so a window taken off the floating list would
+otherwise stay unmanaged for good. `write_output(..., unmanaged=...)` prints
+the result.
 
 ### Coordinates
 
