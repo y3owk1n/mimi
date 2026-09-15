@@ -5,6 +5,11 @@ and prints the fix under any that fails.
 
 ## `mimi action space` or `move_window_to_space` does nothing
 
+mimi reads the space in front back after the swipe. When the destination
+has not come in front within a second the action fails with `space N did
+not come in front`, so a swipe macOS dropped is an error and not a silent
+no-op. Then:
+
 1. Rebuild after pulling changes, if you run a source build.
 2. Grant Accessibility to the exact binary you run (`bin/mimi` or `Mimi.app`).
 3. Check the space index. Spaces are 1-based in Mission Control order (`mimi action space 1` is the first space).

@@ -154,8 +154,9 @@ mimi action focus_app Safari || open -a Safari
 ### `mimi action space <number|next|prev>`
 
 Focus a Mission Control space by 1-based index, or cycle with wrapping. mimi
-synthesizes a dock-swipe gesture, since no public macOS API switches spaces.
-When the destination is on another display, mimi first moves the pointer to
+synthesizes a dock-swipe gesture, since no public macOS API switches spaces,
+then reads the space in front back and fails when the destination has not
+come in front within a second. When the destination is on another display, mimi first moves the pointer to
 that display's center, and the pointer stays there. The same applies to
 `move_window_to_space --follow`.
 
