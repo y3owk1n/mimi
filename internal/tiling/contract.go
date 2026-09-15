@@ -114,6 +114,20 @@ type Output struct {
 	// run stays unmanaged until a later run for the same display leaves it
 	// out of this list.
 	Unmanaged []uint32 `json:"unmanaged,omitempty"`
+	// Target is, for a window_move or window_resize, the window the drag
+	// is acting on other than the dragged one: the one it swaps with, the
+	// column it joins, or the stack it lands in. The drop zone highlights
+	// it while the button is down, so the user sees which window a drop
+	// would affect before letting go. A pass ignores it.
+	Target *Target `json:"target,omitempty"`
+}
+
+// Target is the window a drag would act on and how, as the layout names
+// it. Action is the layout's own word, swap or insert or stack say. The
+// engine passes it through and gives it no meaning.
+type Target struct {
+	Window uint32 `json:"window"`
+	Action string `json:"action,omitempty"`
 }
 
 // Stack is windows the layout put in one place, with the one it means to be

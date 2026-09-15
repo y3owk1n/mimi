@@ -9,11 +9,22 @@ import (
 )
 
 // DropTarget is where the window the user is dragging would land if they
-// let go now: the window, by number, and the frame the layout would give
-// it.
+// let go now: the window, by number, the frame the layout would give it,
+// and the window the drop would act on when the layout named one.
 type DropTarget struct {
 	Number uint32
 	Frame  action.Frame
+	// Target is the window the layout said the drop acts on, where it is
+	// now, or nil when the layout named none or named the dragged window.
+	Target *Highlight
+}
+
+// Highlight is a window the drop zone marks while a drag is held: which,
+// its frame on screen now, and the layout's word for what the drop does.
+type Highlight struct {
+	Number uint32
+	Frame  action.Frame
+	Action string
 }
 
 // DropPreview asks the layout where the window the user is dragging would
@@ -75,10 +86,30 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 	for _, output := range outputs {
 		for _, frame := range output.Frames {
 			if frame.Number == dragged[0] {
-				return DropTarget{Number: frame.Number, Frame: frame.Frame}, true, nil
+				target := DropTarget{Number: frame.Number, Frame: frame.Frame}
+				target.Target = highlightOf(output.Target, dragged[0], read.windows.Windows)
+
+				return target, true, nil
 			}
 		}
 	}
 
 	return DropTarget{}, false, nil
+}
+
+// highlightOf is the target a layout named, placed where that window is
+// now, or nil when it named none, named the dragged window, or named a
+// window the read did not list.
+func highlightOf(target *Target, dragged uint32, windows []action.WindowEntry) *Highlight {
+	if target == nil || target.Window == dragged {
+		return nil
+	}
+
+	for _, win := range windows {
+		if win.Number == target.Window {
+			return &Highlight{Number: win.Number, Frame: win.Frame, Action: target.Action}
+		}
+	}
+
+	return nil
 }

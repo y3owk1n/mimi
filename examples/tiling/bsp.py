@@ -375,6 +375,7 @@ def main(inp):
     # the window ended up. A move dropped on another window swaps with it,
     # dropped on nothing it snaps back. A resize moved an edge, and resizes
     # that edge's split.
+    target = None
     if event["kind"] == "window_move":
         rects = {}
         layout(tree, box, rects)
@@ -386,6 +387,7 @@ def main(inp):
             other = leaf_at(rects, number, centre)
             if other is not None:
                 swap_leaves(tree, number, other)
+                target = (other, "swap")
     elif event["kind"] == "window_resize":
         placed = state.get("placed", {})
         for number in event.get("windows", []):
@@ -475,7 +477,9 @@ def main(inp):
     state["placed"] = {
         str(number): {k: int(round(v)) for k, v in rect.items()} for number, rect in frames
     }
-    write_output(frames, state, focus, unmanaged=unmanaged_of(inp, state), stacks=stacks)
+    write_output(
+        frames, state, focus, unmanaged=unmanaged_of(inp, state), stacks=stacks, target=target
+    )
 
 
 if __name__ == "__main__":

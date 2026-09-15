@@ -169,6 +169,7 @@ Every field is optional. An empty object, or nothing at all, changes nothing.
 | `stacks` | array of stack | Keeps them for the stack bar and hands them back in the input. mimi drops a stack that names fewer than two windows, or a window with no frame in this output, and the frames still apply. |
 | `before` | array of string | Runs every line through `settings.hook_shell -c` at once, before `focus` and the frames, and waits for all of them. mimi kills each past `tiling.command_timeout_secs`, default 1. A failure logs at debug and the frames still apply. |
 | `after` | array of string | Runs the lines in order once the frames are applied, and once the animation has ended when one runs, detached from the pass. mimi kills each past `tiling.command_timeout_secs`, drops their output, and logs a failure at debug. |
+| `target` | target | While a drag is held, marks that window in the drop zone. A pass ignores it. See [Target](#target). |
 
 ### Placement
 
@@ -180,6 +181,18 @@ Every field is optional. An empty object, or nothing at all, changes nothing.
 
 mimi places a window the user just dragged at once whatever `animate` says,
 so it does not slide away from under the pointer.
+
+### Target
+
+| Field | Type | Present | Meaning |
+| --- | --- | --- | --- |
+| `window` | integer | required | The window the drop acts on, other than the dragged one. A target naming the dragged window, or a window not in the input, marks nothing. |
+| `action` | string | optional | The layout's word for what the drop does to it, `swap` or `insert` say. mimi passes it through and gives it no meaning. |
+
+Only a `window_move` or `window_resize` output is read for it, and only by
+the drop zone while the button is down. The drop zone draws the target
+window's frame as it is on screen now, in `tiling.dropzone.target_color`
+and `target_outline_color`, next to the zone for the dragged window.
 
 ### What a pass does with several outputs
 

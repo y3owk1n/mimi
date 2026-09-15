@@ -10,6 +10,7 @@
 
 static NSWindow *gZone;
 static CALayer *gShape;
+static CALayer *gTarget;
 
 static NSRect mimiDropzoneCocoaRect(CGRect rect) {
 	double primaryHeight = CGDisplayBounds(CGMainDisplayID()).size.height;
@@ -40,8 +41,35 @@ static NSWindow *mimiDropzoneWindow(void) {
 	shape.anchorPoint = CGPointZero;
 	[view.layer addSublayer:shape];
 	gShape = shape;
+	CALayer *target = [CALayer layer];
+	target.anchorPoint = CGPointZero;
+	target.hidden = YES;
+	[view.layer addSublayer:target];
+	gTarget = target;
 	gZone = zone;
 	return zone;
+}
+
+// mimiDropzoneStyleLayer gives a layer the frame and look of one mark, in
+// the zone window's own coordinates, sliding it there when it is up.
+static void mimiDropzoneStyleLayer(CALayer *layer, const MimiDropzoneStyle *style, CGRect frame, BOOL slide) {
+	NSRect bounds = gZone.frame;
+	CGRect local = CGRectMake(
+	    frame.origin.x - bounds.origin.x, bounds.size.height - (frame.origin.y - bounds.origin.y) - frame.size.height,
+	    frame.size.width, frame.size.height);
+	[CATransaction begin];
+	[CATransaction setDisableActions:!slide];
+	layer.frame = local;
+	layer.cornerRadius = style->radius;
+	layer.borderWidth = style->width;
+	CGColorRef fill = CGColorCreateSRGB(style->fill.red, style->fill.green, style->fill.blue, style->fill.alpha);
+	CGColorRef outline =
+	    CGColorCreateSRGB(style->outline.red, style->outline.green, style->outline.blue, style->outline.alpha);
+	layer.backgroundColor = fill;
+	layer.borderColor = outline;
+	CGColorRelease(fill);
+	CGColorRelease(outline);
+	[CATransaction commit];
 }
 
 void MimiDropzoneShow(const MimiDropzoneStyle *style, double x, double y, double w, double h) {
@@ -57,26 +85,31 @@ void MimiDropzoneShow(const MimiDropzoneStyle *style, double x, double y, double
 		if (!shown || !NSEqualRects(zone.frame, mimiDropzoneCocoaRect(bounds))) {
 			[zone setFrame:mimiDropzoneCocoaRect(bounds) display:NO];
 		}
-		CGRect local = CGRectMake(
-		    frame.origin.x - bounds.origin.x,
-		    bounds.size.height - (frame.origin.y - bounds.origin.y) - frame.size.height, frame.size.width,
-		    frame.size.height);
-		[CATransaction begin];
 		// The zone jumps to the first frame and slides to the ones after.
-		[CATransaction setDisableActions:!shown];
-		gShape.frame = local;
-		gShape.cornerRadius = copy.radius;
-		gShape.borderWidth = copy.width;
-		CGColorRef fill = CGColorCreateSRGB(copy.fill.red, copy.fill.green, copy.fill.blue, copy.fill.alpha);
-		CGColorRef outline =
-		    CGColorCreateSRGB(copy.outline.red, copy.outline.green, copy.outline.blue, copy.outline.alpha);
-		gShape.backgroundColor = fill;
-		gShape.borderColor = outline;
-		CGColorRelease(fill);
-		CGColorRelease(outline);
-		[CATransaction commit];
+		mimiDropzoneStyleLayer(gShape, &copy, frame, shown);
 		if (!shown) {
 			[zone orderFrontRegardless];
+		}
+	});
+}
+
+void MimiDropzoneShowTarget(const MimiDropzoneStyle *style, double x, double y, double w, double h) {
+	MimiDropzoneStyle copy = *style;
+	CGRect frame = CGRectMake(x, y, w, h);
+	dispatch_async(dispatch_get_main_queue(), ^{
+		if (!gZone) {
+			return;
+		}
+		BOOL shown = !gTarget.hidden;
+		mimiDropzoneStyleLayer(gTarget, &copy, frame, shown);
+		gTarget.hidden = NO;
+	});
+}
+
+void MimiDropzoneHideTarget(void) {
+	dispatch_async(dispatch_get_main_queue(), ^{
+		if (gTarget) {
+			gTarget.hidden = YES;
 		}
 	});
 }
@@ -85,6 +118,7 @@ void MimiDropzoneHide(void) {
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (gZone) {
 			[gZone orderOut:nil];
+			gTarget.hidden = YES;
 		}
 	});
 }

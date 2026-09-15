@@ -303,6 +303,7 @@ def main(inp):
         remember(columns[at], focused)
 
     focus = None
+    dropped_on = None
 
     if event["kind"] == "command":
         name, args = event.get("name"), event.get("args", [])
@@ -416,6 +417,7 @@ def main(inp):
             centre = f["x"] + f["width"] / 2
             target = column_at(columns, box, GAP, offset, centre)
             if target is not None and target != index:
+                dropped_on = (columns[target]["windows"][0], "insert")
                 columns[index]["windows"].remove(number)
                 columns[target]["windows"].append(number)
                 if not columns[index]["windows"]:
@@ -485,6 +487,7 @@ def main(inp):
         focus,
         unmanaged=unmanaged_of(inp, state),
         stacks=stacks_of(inp, columns, focus),
+        target=dropped_on,
     )
 
 

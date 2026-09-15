@@ -35,6 +35,19 @@ func (nativeDrawer) Hide() {
 	native.HideDropzone()
 }
 
+func (nativeDrawer) ShowTarget(frame geometry.Rect, style Style) {
+	native.ShowDropzoneTarget(native.DropzoneStyle{
+		Fill:    native.Color(style.Fill),
+		Outline: native.Color(style.Outline),
+		Width:   style.Width,
+		Radius:  style.Radius,
+	}, frame.X, frame.Y, frame.W, frame.H)
+}
+
+func (nativeDrawer) HideTarget() {
+	native.HideDropzoneTarget()
+}
+
 func (nativeMouse) LeftButtonDown() bool {
 	return native.LeftMouseButtonDown()
 }

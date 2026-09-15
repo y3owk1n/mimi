@@ -203,6 +203,8 @@ color = "#30e2e2e3"        # the zone's fill, #rrggbb or #aarrggbb
 outline_color = "#e2e2e3"  # its outline
 outline_width = 2          # points, up to 32
 radius = 12                # corner radius in points
+target_color = "#30f5a623"         # the mark over the window a drop acts on
+target_outline_color = "#f5a623"   # its outline
 ```
 
 mimi ships no layout. `layout` is a command line that mimi runs through
@@ -341,8 +343,12 @@ release the button, and the settled drag then runs the layout for real.
 
 A layout that ignores drags shows the window's own frame. A layout whose
 answer depends on where the window is dropped, like the shipped `strip.py`,
-shows the column the window would join. The zone needs Accessibility and
-tiling enabled, and every key is reloadable.
+shows the column the window would join. A layout that names a `target` in its
+output, the window the drop acts on, gets that window marked as well, in
+`target_color` and `target_outline_color` with the zone's outline width and
+radius. The shipped `bsp.py` marks the window it would swap with and
+`strip.py` the column it would join. The zone needs Accessibility and tiling
+enabled, and every key is reloadable.
 
 ### Stacked windows
 

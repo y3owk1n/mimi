@@ -177,12 +177,16 @@ const (
 	defaultDropzoneColor        = "#30e2e2e3"
 	defaultDropzoneOutlineColor = "#e2e2e3"
 	defaultDropzoneOutlineWidth = 2.0
-	defaultDropzoneRadius       = 12.0
-	defaultStackbarColor        = "#b0636366"
-	defaultStackbarFarColor     = "#30636366"
-	defaultStackbarStep         = 10.0
-	defaultStackbarTaper        = 6.0
-	defaultStackbarRadius       = -1.0
+	// The target mark defaults to amber, so it reads as a different thing
+	// from the grey zone on any background.
+	defaultDropzoneTargetColor        = "#30f5a623"
+	defaultDropzoneTargetOutlineColor = "#f5a623"
+	defaultDropzoneRadius             = 12.0
+	defaultStackbarColor              = "#b0636366"
+	defaultStackbarFarColor           = "#30636366"
+	defaultStackbarStep               = 10.0
+	defaultStackbarTaper              = 6.0
+	defaultStackbarRadius             = -1.0
 )
 
 func applyDefaults(cfg *Config, systrayEnabledSet bool) {
@@ -241,6 +245,14 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 
 	if cfg.Tiling.Dropzone.OutlineWidth == 0 {
 		cfg.Tiling.Dropzone.OutlineWidth = defaultDropzoneOutlineWidth
+	}
+
+	if cfg.Tiling.Dropzone.TargetColor == "" {
+		cfg.Tiling.Dropzone.TargetColor = defaultDropzoneTargetColor
+	}
+
+	if cfg.Tiling.Dropzone.TargetOutlineColor == "" {
+		cfg.Tiling.Dropzone.TargetOutlineColor = defaultDropzoneTargetOutlineColor
 	}
 
 	if cfg.Tiling.Dropzone.Radius == 0 {
@@ -436,6 +448,16 @@ func validateDropzone(tiling TilingConfig) []string {
 	_, err = ParseColor(zone.OutlineColor)
 	if err != nil {
 		errs = append(errs, "tiling.dropzone.outline_color must be #rrggbb or #aarrggbb")
+	}
+
+	_, err = ParseColor(zone.TargetColor)
+	if err != nil {
+		errs = append(errs, "tiling.dropzone.target_color must be #rrggbb or #aarrggbb")
+	}
+
+	_, err = ParseColor(zone.TargetOutlineColor)
+	if err != nil {
+		errs = append(errs, "tiling.dropzone.target_outline_color must be #rrggbb or #aarrggbb")
 	}
 
 	if zone.OutlineWidth < 0 || zone.OutlineWidth > maxBorderWidth {
