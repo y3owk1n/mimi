@@ -30,6 +30,10 @@ const (
 	NameMinimizeWindow      Name = "minimize_window"
 	NameFullscreenWindow    Name = "fullscreen_window"
 	NameUnminimizeWindow    Name = "unminimize_window"
+	// NameStatus asks the daemon what build it is and what it is running.
+	// It drives nothing, so it is answered on the connection's goroutine
+	// rather than the action worker, and has no direct-path counterpart.
+	NameStatus Name = "status"
 )
 
 // Nouns the index-argument rule reports in: what a space argument and a

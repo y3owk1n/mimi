@@ -43,6 +43,9 @@ type reloader struct {
 	// process's lifetime, whatever a later config says, so they are what a
 	// reload compares against to decide whether to ask for a restart.
 	running *config.Config
+	// current is the config the last successful reload applied, and running
+	// until one has. It is what the daemon reports itself to be running.
+	current *config.Config
 
 	reg       *hooks.Registry
 	executor  *hooks.Executor
@@ -86,6 +89,7 @@ func newReloader(
 
 	return &reloader{
 		running:   running,
+		current:   running,
 		reg:       reg,
 		executor:  executor,
 		axTracker: axTracker,
@@ -170,10 +174,21 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 		rl.placer.Update(placementRulesFor(cfg, perm.Accessibility))
 	}
 
+	rl.current = cfg
+
 	return reloadChanges{
 		restartOnly:   config.RestartOnlyChanges(rl.running, cfg),
 		reinstallOnly: config.ReinstallOnlyChanges(rl.running, cfg),
 	}, nil
+}
+
+// Current is the config in effect: the last one a reload applied, or the one
+// the daemon started with.
+func (rl *reloader) Current() *config.Config {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	return rl.current
 }
 
 // reloadChanges are the settings a reload did not apply, grouped by what the

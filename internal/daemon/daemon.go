@@ -90,7 +90,7 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 	reportReload := reloadReporter(component)
 
 	go func() {
-		err := runCore(cfg, logger, configPath, quitCh, reportReload)
+		err := runCore(cfg, logger, configPath, version, quitCh, reportReload)
 
 		systray.Quit()
 
@@ -111,9 +111,12 @@ func runCore(
 	cfg *config.Config,
 	logger *zap.SugaredLogger,
 	configPath string,
+	version string,
 	quitCh <-chan struct{},
 	reportReload func(systray.ReloadOutcome),
 ) error {
+	started := time.Now()
+
 	err := writePID(cfg.Settings.PIDFile)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing pid file")
@@ -182,6 +185,21 @@ func runCore(
 		pipeline.follow,
 		pipeline.placer,
 		logger,
+	)
+
+	// The status request is answered off the action worker too: it reads
+	// the config the last reload applied and drives nothing.
+	ipcServer.HandleDirect(
+		action.NameStatus,
+		func(action.Command) (json.RawMessage, error) {
+			return statusAnswer(
+				version,
+				configPath,
+				started,
+				accessibilityGranted,
+				cfgReloader.Current,
+			)
+		},
 	)
 
 	onChange := func() {

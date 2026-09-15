@@ -189,7 +189,8 @@ var interruptAudit = []auditEntry{
 			"file read or a quick system call that runs on"),
 	audited("status", interruptRunsOn,
 		"reads the PID file, asks the Accessibility API whether mimi is "+
-			"trusted, and stats the socket; none of the three blocks"),
+			"trusted, stats the socket, and asks the daemon for its status "+
+			"under the client's own dial timeout; none of the four blocks"),
 	audited("stop", interruptRunsOn,
 		"reads the PID file and sends one SIGTERM"),
 }
