@@ -309,8 +309,9 @@ The shipped layouts import these from `rules.py`:
   layout mode. Run from a terminal, with no input piped in, it lays the
   desktop out once by itself instead (see
   [Trying a layout](#trying-a-layout-without-turning-it-on)).
-- **`gap(inp)`** returns the gap as mimi resolved it, and **`area(inp, gap)`**
-  returns the display's visible frame inset by it and by `PADDING`.
+- **`gap(inp)`** returns the gap as mimi resolved it, and
+  **`area(inp, gap, state)`** applies a `padding` command to `state`, then
+  returns the display's visible frame inset by the gap and by `PADDING`.
 - **`command(inp, "name")`** returns the args when the event is that command,
   else `None`.
 - **`maximised(inp, state, frames, area)`** applies the temporary maximise.
@@ -605,6 +606,19 @@ number, as `mimi query displays` counts them, pads those displays and
 leaves the rest at 0. `area()` subtracts it inside the gap, so every
 shipped layout and the temporary maximise honour it. A layout of your own
 that does not call `area()` can read one side with `padding(inp, "top")`.
+
+Change it while mimi runs with a command, from a hotkey or a shell:
+
+```bash
+mimi tiling cmd padding off          # pad nothing, keep the values
+mimi tiling cmd padding on
+mimi tiling cmd padding right 320    # one side, every display
+mimi tiling cmd padding reset        # back to PADDING in rules.py
+```
+
+Every shipped layout hands its `state` to `area()`, which applies the
+command there. State is per display and space, so the change is per space
+too. `mimi tiling reset` drops it with the rest of the state.
 
 A window that should never tile, such as a picture-in-picture window, is
 kept out with `[[tiling.rules]]` instead:

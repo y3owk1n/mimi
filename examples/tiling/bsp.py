@@ -330,7 +330,7 @@ def main(inp):
     GAP = gap(inp)
     MINS = min_sizes(inp)
     state = inp.get("state") or {}
-    box = area(inp, GAP)
+    box = area(inp, GAP, state)
     tree = state.get("tree")
     event = inp["event"]
     focused_win = inp["windows"][inp["focused"]] if inp["focused"] >= 0 else None

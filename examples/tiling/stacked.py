@@ -70,7 +70,7 @@ def find(columns, number):
 def main(inp):
     GAP = gap(inp)
     state = inp.get("state") or {}
-    box = area(inp, GAP)
+    box = area(inp, GAP, state)
     numbers = [w["number"] for w in inp["windows"]]
     focused = inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
 
