@@ -513,6 +513,13 @@ the mouse button, however long you pause mid-drag.
   or in the outer quarter of its own column gets a column of its own. Dropped
   higher or lower in its column, it takes that row.
 
+`event.modifiers` names the modifier keys held during the drag, as `shift`,
+`control`, `option` and `command`, so a drag with a key held can mean
+something else. In the shipped layouts an Option-drag floats the window where
+you dropped it, and a Shift-drag stacks it onto the window or column it was
+dropped on instead of swapping or joining. `modifiers(inp)` in `rules.py` is
+the set of keys held.
+
 With `[tiling.dropzone]` enabled as well, mimi shows where the window would
 land before you let go, by running your layout with the same event while you
 drag. These runs apply nothing, keep no state, and run no `before` or `after`

@@ -47,7 +47,7 @@ Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 
 import sys
 
-from rules import clamp as clamp_to, fit, min_sizes, shown, unmanaged_of
+from rules import clamp as clamp_to, fit, min_sizes, modifiers, shown, unmanaged_of
 from rules import area, command, gap, maximised, serve, write_output
 
 # The gap, set from the input once it is read. The tree functions below read
@@ -375,8 +375,17 @@ def main(inp):
     # the window ended up. A move dropped on another window swaps with it,
     # dropped on nothing it snaps back. A resize moved an edge, and resizes
     # that edge's split.
+    # An option-drag floats the window where it was dropped. A shift-drag
+    # stacks it into the leaf it was dropped on. A plain drag swaps.
     target = None
-    if event["kind"] == "window_move":
+    held = modifiers(inp)
+    if event["kind"] == "window_move" and "option" in held:
+        floated = {n for n in event.get("windows", []) if n in by_number}
+        state["floating"] = sorted(set(state.get("floating", [])) | floated)
+        for number in floated:
+            tree = remove(tree, number)
+            del by_number[number]
+    elif event["kind"] == "window_move":
         rects = {}
         layout(tree, box, rects)
         for number in event.get("windows", []):
@@ -385,7 +394,16 @@ def main(inp):
             now = by_number[number]["frame"]
             centre = (now["x"] + now["width"] / 2, now["y"] + now["height"] / 2)
             other = leaf_at(rects, number, centre)
-            if other is not None:
+            if other is None:
+                continue
+            if "shift" in held:
+                tree = remove(tree, number)
+                into = leaf_holding(tree, other)
+                if into is not None:
+                    set_members(into, [*members(into), number])
+                    surface(into, number)
+                target = (other, "stack")
+            else:
                 swap_leaves(tree, number, other)
                 target = (other, "swap")
     elif event["kind"] == "window_resize":

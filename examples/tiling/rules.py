@@ -169,6 +169,15 @@ def shown(inp, windows, focus=None):
     return min(windows, key=lambda number: order.get(number, 1 << 30))
 
 
+def modifiers(inp):
+    """The modifier keys held during a window_move or window_resize, as a
+    set of "shift", "control", "option" and "command". Empty for any other
+    event, and for a drag with none held. The shipped layouts float the
+    dragged window on an option-drag and stack it onto the target on a
+    shift-drag."""
+    return set(inp.get("event", {}).get("modifiers", []))
+
+
 def unmanaged_of(inp, state=None):
     """The windows mimi should leave alone: the ones it handed back as
     `unmanaged`, plus any the layout floated itself and keeps in

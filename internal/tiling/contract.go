@@ -25,6 +25,11 @@ type Event struct {
 	// about: the ones the user dragged, by number, so a layout knows which
 	// window moved or which edge was dragged without diffing frames itself.
 	Windows []uint32 `json:"windows,omitempty"`
+	// Modifiers are the modifier keys held during a window_move or
+	// window_resize, as shift, control, option, and command, so a layout
+	// can give an Option-drag or a Shift-drag a meaning of its own. Absent
+	// when none was held.
+	Modifiers []string `json:"modifiers,omitempty"`
 }
 
 // Input is everything the layout is told for one display: the event, the

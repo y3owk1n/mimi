@@ -73,6 +73,7 @@ full-screen space. Every input in one pass carries the same `event` and
 | `name` | string | `command` | The word after `mimi tiling cmd`. |
 | `args` | array of string | `command`, when any | The words after that. |
 | `windows` | array of integer | `window_move`, `window_resize` | The numbers of the windows the user dragged. |
+| `modifiers` | array of string | `window_move`, `window_resize`, when any | The modifier keys held during the drag, from `shift`, `control`, `option`, `command`, in that order. mimi reads the keys while the button is down and reports what was held last. |
 
 `app`, `bundleId` and `pid` come from the hook event that woke the pass and
 are present when that event named an application. mimi never puts a window
@@ -90,8 +91,8 @@ title in the input event.
 | `preview` | `mimi tiling preview` | none |
 | `relayout` | `mimi tiling relayout` | none |
 | `command` | `mimi tiling cmd <name> [args...]` | `name`, `args` |
-| `window_move` | With `relayout_on_drag`, the user released a drag that moved a window more than it resized it | `windows` |
-| `window_resize` | With `relayout_on_drag`, the user released a drag that resized a window at least as much as it moved it | `windows` |
+| `window_move` | With `relayout_on_drag`, the user released a drag that moved a window more than it resized it | `windows`, `modifiers` |
+| `window_resize` | With `relayout_on_drag`, the user released a drag that resized a window at least as much as it moved it | `windows`, `modifiers` |
 
 The drop zone, while a drag is held, runs the layout with the same
 `window_move` or `window_resize` event the release would send, and applies
