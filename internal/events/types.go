@@ -63,6 +63,10 @@ const (
 	// AppearanceChanged fires when the system switches between light and
 	// dark mode.
 	AppearanceChanged EventKind = "appearance_changed"
+	// ScreenLocked fires when the lock screen comes up.
+	ScreenLocked EventKind = "screen_locked"
+	// ScreenUnlocked fires when the user unlocks the screen.
+	ScreenUnlocked EventKind = "screen_unlocked"
 )
 
 // AllKinds lists every hookable event kind.
@@ -86,6 +90,8 @@ var AllKinds = []EventKind{
 	SystemWake,
 	DisplayChanged,
 	AppearanceChanged,
+	ScreenLocked,
+	ScreenUnlocked,
 }
 
 // Event carries information about a system event through the bus.

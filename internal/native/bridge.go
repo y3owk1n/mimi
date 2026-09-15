@@ -35,7 +35,8 @@ func EventDropCount() int64 { return eventDropped.Load() }
 type ObserverConfig struct {
 	AppLifecycle bool
 	Workspace    bool
-	// SystemState is sleep, wake, and the display set changing.
+	// SystemState is sleep, wake, the display set changing, and the screen
+	// locking and unlocking.
 	SystemState bool
 	// Appearance is the system switching between light and dark mode.
 	Appearance bool
@@ -263,6 +264,10 @@ func kindFromInt(kindInt int) events.EventKind {
 		return events.DisplayChanged
 	case int(C.MIMI_KIND_APPEARANCE_CHANGED):
 		return events.AppearanceChanged
+	case int(C.MIMI_KIND_SCREEN_LOCKED):
+		return events.ScreenLocked
+	case int(C.MIMI_KIND_SCREEN_UNLOCKED):
+		return events.ScreenUnlocked
 	default:
 		return events.EventKind("unknown")
 	}
