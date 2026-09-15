@@ -579,6 +579,7 @@ double *MimiCopyWindowList(int onScreenOnly, int *count, char ***names) {
 			row[6] = pid.doubleValue;
 			row[7] = [info[(id)kCGWindowLayer] doubleValue];
 			row[8] = isRegular.boolValue;
+			row[9] = [info[(id)kCGWindowAlpha] doubleValue];
 			titles[kept] = strdup(name ? name.UTF8String : "");
 			kept++;
 		}
