@@ -187,6 +187,10 @@ func runCore(
 		logger,
 	)
 
+	// A client asking for events gets them as they happen, from a
+	// subscription of its own that ends when it hangs up.
+	ipcServer.HandleStream(action.NameEvents, eventStream(pipeline.bus))
+
 	// The status request drives nothing, so the connection answers it off
 	// the action worker, from the config the last reload applied.
 	ipcServer.HandleDirect(

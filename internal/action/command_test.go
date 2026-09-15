@@ -40,7 +40,8 @@ func spaceCommandFor(t *testing.T, name action.Name, arg string) action.Command 
 	case action.NameFocusWindow, action.NameResizeWindow, action.NameMoveWindowToDisplay,
 		action.NameFocusApp, action.NameApplyFrames, action.NameTiling,
 		action.NameCloseWindow, action.NameMinimizeWindow, action.NameFullscreenWindow,
-		action.NameFocusDisplay, action.NameUnminimizeWindow, action.NameStatus:
+		action.NameFocusDisplay, action.NameUnminimizeWindow, action.NameStatus,
+		action.NameEvents:
 		t.Fatalf("%s takes no space argument", name)
 	default:
 		t.Fatalf("unknown action %q", name)

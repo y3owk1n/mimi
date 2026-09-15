@@ -34,6 +34,10 @@ const (
 	// It drives nothing, so it is answered on the connection's goroutine
 	// rather than the action worker, and has no direct-path counterpart.
 	NameStatus Name = "status"
+	// NameEvents asks the daemon to stream every hookable event as it
+	// happens, one JSON line each, until the client hangs up. It drives
+	// nothing and has no direct-path counterpart.
+	NameEvents Name = "events"
 )
 
 // Nouns the index-argument rule reports in: what a space argument and a

@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
+	"io"
 	"net"
 	"os"
 	"time"
@@ -79,6 +80,76 @@ func TryExecuteData(socketPath string, cmd action.Command) (json.RawMessage, err
 	}
 
 	return resp.Data, nil
+}
+
+// Stream sends a command the daemon answers with a stream and hands every
+// line it sends to each, until ctx ends, the daemon closes the stream, or
+// each returns an error. The errors are TryExecute's when the daemon is not
+// there or refuses the request.
+func Stream(
+	ctx context.Context,
+	socketPath string,
+	cmd action.Command,
+	each func(line []byte) error,
+) error {
+	socketPath = paths.ExpandHome(socketPath)
+
+	_, err := os.Stat(socketPath)
+	if err != nil {
+		if os.IsNotExist(err) {
+			return derrors.New(derrors.CodeDaemonUnavailable, "daemon socket not found")
+		}
+
+		return derrors.Wrapf(err, derrors.CodeIPCFailed, "checking daemon socket")
+	}
+
+	dialer := net.Dialer{Timeout: dialTimeout}
+
+	conn, err := dialer.DialContext(ctx, "unix", socketPath)
+	if err != nil {
+		return derrors.New(derrors.CodeDaemonUnavailable, "daemon not reachable")
+	}
+
+	defer func() { _ = conn.Close() }()
+
+	// Closing the connection is what ends a read blocked on the daemon.
+	stop := context.AfterFunc(ctx, func() { _ = conn.Close() })
+	defer stop()
+
+	reader := bufio.NewReader(conn)
+
+	err = writeRequest(conn, Request{Version: ProtocolVersion, Command: cmd})
+	if err != nil {
+		return err
+	}
+
+	resp, err := readResponse(reader)
+	if err != nil {
+		return err
+	}
+
+	err = errorFromResponse(resp)
+	if err != nil {
+		return err
+	}
+
+	for {
+		line, readErr := reader.ReadBytes('\n')
+		if len(line) > 0 {
+			err = each(line)
+			if err != nil {
+				return err
+			}
+		}
+
+		if readErr != nil {
+			if ctx.Err() != nil || errors.Is(readErr, io.EOF) {
+				return nil
+			}
+
+			return derrors.Wrapf(readErr, derrors.CodeIPCFailed, "reading the daemon's stream")
+		}
+	}
 }
 
 // ResolveSocketPath returns the configured socket path when --config is set,

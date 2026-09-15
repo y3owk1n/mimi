@@ -80,11 +80,13 @@ read `socketFile`.
 
 1. Run `mimi status` to confirm the daemon is running and Accessibility is granted.
 2. Run `mimi config validate` to confirm the config parses and the hooks are defined.
-3. Run `mimi hooks fire <kind> --app <name>` with the values the real event
-   would carry. It reports every hook of the kind as matched or skipped with
-   the reason, and shows what a matched one printed, without the daemon.
-4. Set `log_level = "debug"` in the config and check the logs.
-5. Window hooks require Accessibility. Workspace hooks do not.
+3. Run `mimi hooks tail` and do the thing. If no line appears, the daemon
+   never saw the event, and the hook is not the problem.
+4. Run `mimi hooks fire <kind> --app <name>` with the values a tailed event
+   carried. It reports every hook of the kind as matched or skipped with the
+   reason, and shows what a matched one printed, without the daemon.
+5. Set `log_level = "debug"` in the config and check the logs.
+6. Window hooks require Accessibility. Workspace hooks do not.
 
 ## A hook works by hand, but does nothing under the installed service
 

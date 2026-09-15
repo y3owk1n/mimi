@@ -53,6 +53,7 @@ the first one does depends on the command:
 | `mimi status`, `mimi doctor`, `mimi stop` | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
 | `mimi hooks list`            | Does not reach the command, which finishes. It reads one file. |
 | `mimi hooks fire`            | Kills the hook that is running and starts no more. It reports what ran. |
+| `mimi hooks tail`            | Closes the connection to the daemon and exits. This is how the command ends. |
 | `mimi query *`               | Does not reach the command, which finishes. Each is a few desktop reads and one line of output. |
 | `mimi tiling preview`        | Kills the layout program if it is still running. Nothing is applied either way. |
 | `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
@@ -635,8 +636,8 @@ worth knowing that stops nothing. The command exits 1 when any check fails.
 
 ## Hooks
 
-Both commands read the config from disk and need no daemon. A running
-daemon is not involved either way.
+`list` and `fire` read the config from disk and need no daemon. `tail` asks
+the running daemon for its events and needs one.
 
 ### `mimi hooks list`
 
@@ -687,6 +688,25 @@ daemon logs such as `app_activate`. The flags describe the event:
 A hook marked `async` runs in turn here like the rest. The command exits 1
 when a matched hook fails or times out, and 0 otherwise, including when no
 hook matched.
+
+### `mimi hooks tail [--kind <kind>]...`
+
+Stream the events the running daemon publishes, one line of JSON each, until
+Ctrl-C. Each line is the document a hook reads on stdin. This is what the
+hooks see before any filter, so it answers whether an event fires at all and
+what it carries, with no hook bound and no log level change.
+
+```
+$ mimi hooks tail --kind app_activate --kind workspace_changed
+{"id":"...","kind":"app_activate","appName":"Safari","bundleId":"com.apple.Safari","pid":501,"at":"..."}
+{"id":"...","kind":"workspace_changed","at":"...","extra":{"space_index":"2","space_count":"9","windows_count":"4","info":"..."}}
+```
+
+`--kind` keeps only those kinds, as a `[hooks]` key or the event name, and
+may repeat. Without it every hookable kind streams. The daemon's internal
+events never appear. A client that falls more than 64 events behind loses
+the rest until it catches up. Needs a running daemon, and fails at once
+without one.
 
 ---
 

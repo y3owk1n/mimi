@@ -92,3 +92,13 @@ func TestHooksFire_RejectsAnUnknownKind(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestHooksTail_SaysSoWithoutADaemon(t *testing.T) {
+	xdg := isolateConfigHome(t)
+	writeConfigFile(t, filepath.Join(xdg, "mimi", "config.toml"), hooksConfig)
+
+	_, err := runCommand(t, "hooks", "tail")
+	if err == nil || !strings.Contains(err.Error(), "no daemon is running") {
+		t.Fatalf("got %v", err)
+	}
+}
