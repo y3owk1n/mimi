@@ -15,6 +15,11 @@ import os
 import subprocess
 import sys
 
+# Points to keep clear at each edge, inside the gap, for a status bar or
+# desktop widgets. A number pads every display. A dict from display index
+# to a number pads those displays only: "right": {2: 320}.
+PADDING = {"top": 0, "bottom": 0, "left": 0, "right": 0}
+
 def serve(layout):
     """Run `layout(inp)` for every input the daemon sends, in either mode
     mimi runs a layout: once, for one document on stdin (`layout_mode =
@@ -45,16 +50,26 @@ def gap(inp):
     return float(inp.get("gap", 0))
 
 
+def padding(inp, side):
+    """PADDING at one edge for the display this input is for."""
+    p = PADDING[side]
+    if isinstance(p, dict):
+        p = p.get(inp["display"]["index"], 0)
+    return float(p)
+
+
 def area(inp, gap):
     """The visible frame of the display this input is for, inset by gap on
-    every side. mimi runs a layout once per display, so this is the one area
-    a run ever fills."""
+    every side and by PADDING at each edge. mimi runs a layout once per
+    display, so this is the one area a run ever fills."""
     v = inp["display"]["visible"]
+    top, bottom = padding(inp, "top"), padding(inp, "bottom")
+    left, right = padding(inp, "left"), padding(inp, "right")
     return {
-        "x": v["x"] + gap,
-        "y": v["y"] + gap,
-        "width": v["width"] - 2 * gap,
-        "height": v["height"] - 2 * gap,
+        "x": v["x"] + gap + left,
+        "y": v["y"] + gap + top,
+        "width": v["width"] - 2 * gap - left - right,
+        "height": v["height"] - 2 * gap - top - bottom,
     }
 
 

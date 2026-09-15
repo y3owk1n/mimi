@@ -14,6 +14,7 @@ the frames to the windows.
 - [Commands and hotkeys](#commands-and-hotkeys)
 - [Drags and the temporary maximise](#drags-and-the-temporary-maximise)
 - [Stacking windows in one place](#stacking-windows-in-one-place)
+- [Keeping an edge clear](#keeping-an-edge-clear)
 - [More than one display](#more-than-one-display)
 - [Trying a layout without turning it on](#trying-a-layout-without-turning-it-on)
 - [When nothing happens](#when-nothing-happens)
@@ -309,7 +310,7 @@ The shipped layouts import these from `rules.py`:
   desktop out once by itself instead (see
   [Trying a layout](#trying-a-layout-without-turning-it-on)).
 - **`gap(inp)`** returns the gap as mimi resolved it, and **`area(inp, gap)`**
-  returns the display's visible frame inset by it.
+  returns the display's visible frame inset by it and by `PADDING`.
 - **`command(inp, "name")`** returns the args when the event is that command,
   else `None`.
 - **`maximised(inp, state, frames, area)`** applies the temporary maximise.
@@ -585,6 +586,34 @@ alt - p         : mimi tiling cmd prev
 ```
 
 ---
+
+## Keeping an edge clear
+
+`display.visible` is what macOS leaves after the menu bar and the Dock.
+A status bar such as SketchyBar or the desktop widgets down the right side
+sit inside it, so the layout tiles over them. mimi has no padding setting
+for this. The layout owns the area it fills, and the drop zone and the
+stackbar follow the frames the layout prints, so padding is one edit in
+your copy of `rules.py`:
+
+```python
+PADDING = {"top": 32, "bottom": 0, "left": 0, "right": {2: 320}}
+```
+
+A number pads that edge on every display. A dict from display index to a
+number, as `mimi query displays` counts them, pads those displays and
+leaves the rest at 0. `area()` subtracts it inside the gap, so every
+shipped layout and the temporary maximise honour it. A layout of your own
+that does not call `area()` can read one side with `padding(inp, "top")`.
+
+A window that should never tile, such as a picture-in-picture window, is
+kept out with `[[tiling.rules]]` instead:
+
+```toml
+[[tiling.rules]]
+title = "^Picture in Picture$"
+manage = false
+```
 
 ## More than one display
 
