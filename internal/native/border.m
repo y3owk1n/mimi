@@ -14,7 +14,8 @@ extern int SLSSpaceGetType(int cid, uint64_t sid);
 
 // The window server tells a connection about the windows it asked after, as
 // each event happens: a move at every step of a drag, where Accessibility
-// tells the daemon a few times a second. The events are numbered as yabai
+// tells the daemon a few times a second, and a reorder, which Accessibility
+// reports only when it moves the focus. The events are numbered as yabai
 // and JankyBorders read them.
 typedef void (*MimiWindowServerProc)(uint32_t event, void *data, size_t length, void *context, int cid);
 extern CGError SLSRegisterConnectionNotifyProc(int cid, MimiWindowServerProc proc, uint32_t event, void *context);
@@ -23,6 +24,7 @@ extern CGError SLSRequestNotificationsForWindows(int cid, const uint32_t *window
 enum {
 	kMimiWindowServerMoved = 806,
 	kMimiWindowServerResized = 807,
+	kMimiWindowServerReordered = 808,
 };
 
 // SLSSpaceGetType's answer for a full-screen application's space, the same
@@ -101,6 +103,20 @@ static atomic_uint gFocusRequest;
 // still returning success.
 static void mimiOrderBeside(MimiBorder *border, uint32_t number) {
 	[border orderWindow:gStyle.inside ? NSWindowAbove : NSWindowBelow relativeTo:(NSInteger)number];
+}
+
+// Whether the window server has border on the wrong side of its window.
+// An application that orders its window to the front after the border was
+// made beside it leaves an inside border under the window.
+static BOOL mimiMisordered(MimiBorder *border, uint32_t number) {
+	uint32_t upper = gStyle.inside ? (uint32_t)border.windowNumber : number;
+	uint32_t lower = gStyle.inside ? number : (uint32_t)border.windowNumber;
+	NSArray *above = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenAboveWindow, upper));
+	for (NSDictionary *info in above) {
+		if ([info[(id)kCGWindowNumber] unsignedIntValue] == lower)
+			return YES;
+	}
+	return NO;
 }
 
 // The border window's frame for a window at bounds: the bounds grown by the
@@ -335,8 +351,23 @@ static void mimiFollow(uint32_t number) {
 	[border setFrame:mimiBorderCocoaRect(mimiBorderFrame(bounds)) display:NO];
 }
 
+// Put a window's border back beside it after the window server reordered
+// the window. A border still beside its window is left alone, since
+// ordering it again flashes.
+static void mimiReorder(uint32_t number) {
+	MimiBorder *border = gEnabled ? gBorders[@(number)] : nil;
+	if (border && mimiMisordered(border, number))
+		mimiOrderBeside(border, number);
+}
+
+static void mimiApply(uint32_t event, uint32_t number) {
+	if (event == kMimiWindowServerReordered)
+		mimiReorder(number);
+	else
+		mimiFollow(number);
+}
+
 static void mimiWindowServerEvent(uint32_t event, void *data, size_t length, void *context, int cid) {
-	(void)event;
 	(void)context;
 	(void)cid;
 	if (!data || length < sizeof(uint32_t))
@@ -344,11 +375,11 @@ static void mimiWindowServerEvent(uint32_t event, void *data, size_t length, voi
 	uint32_t number;
 	memcpy(&number, data, sizeof(number));
 	if ([NSThread isMainThread]) {
-		mimiFollow(number);
+		mimiApply(event, number);
 		return;
 	}
 	dispatch_async(dispatch_get_main_queue(), ^{
-		mimiFollow(number);
+		mimiApply(event, number);
 	});
 }
 
@@ -360,6 +391,7 @@ static void mimiFollowBordered(void) {
 		gFollowing = YES;
 		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerMoved, NULL);
 		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerResized, NULL);
+		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerReordered, NULL);
 	}
 	NSArray<NSNumber *> *keys = gBorders.allKeys;
 	uint32_t *numbers = calloc(keys.count + 1, sizeof(uint32_t));
@@ -449,8 +481,10 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		// under it, so a window that comes to the front leaves its border
 		// where it was, and the border follows it. The rest of the stack
 		// has not moved, so the other borders are left alone. Ordering a
-		// shown window again is what flashes.
-		if (fresh || number == raised) {
+		// shown window again is what flashes. The focused window's border
+		// is ordered again only when the window server has it on the
+		// wrong side.
+		if (fresh || number == raised || (refocus && active && mimiMisordered(border, number))) {
 			mimiOrderBeside(border, number);
 		}
 		[seen addObject:key];
