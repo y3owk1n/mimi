@@ -367,7 +367,7 @@ func cBool(value bool) C.int {
 
 // ListedWindow is one window as the window server lists it: its number, its
 // frame in screen coordinates, its owner, its layer, whether the owner is a
-// regular, visible application, and its title when the window server gives
+// regular, visible application, its alpha, and its title when the window server gives
 // it, which it does only with Screen Recording granted.
 type ListedWindow struct {
 	Number  uint32
@@ -375,6 +375,7 @@ type ListedWindow struct {
 	PID     int
 	Layer   int
 	Regular bool
+	Alpha   float64
 	Title   string
 	Named   bool
 }
@@ -419,6 +420,7 @@ func WindowList(onScreenOnly bool) []ListedWindow {
 			PID:     int(row[6]),
 			Layer:   int(row[7]),
 			Regular: row[8] != 0,
+			Alpha:   float64(row[9]),
 			Title:   C.GoString(titles[index]),
 		}
 

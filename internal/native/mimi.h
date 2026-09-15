@@ -103,9 +103,9 @@ int MimiSetWindowPosition(void *window, double x, double y);
 void MimiLogAnimationSteps(int windows, int frames, int failed, double elapsedMS, double slowestMS);
 
 /// Doubles per window in MimiCopyWindowList's result: number, x, y, width,
-/// height, whether the window server named it, owner pid, layer, and whether
-/// the owner is a regular, visible application.
-#define MIMI_WINDOW_DOUBLES 9
+/// height, whether the window server named it, owner pid, layer, whether
+/// the owner is a regular, visible application, and alpha.
+#define MIMI_WINDOW_DOUBLES 10
 
 /// Every window as the window server lists it, front to back, on screen only
 /// or on every space, with its name in *names when Screen Recording is
