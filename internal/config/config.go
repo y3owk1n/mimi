@@ -284,16 +284,17 @@ type HooksConfig struct {
 
 // HookEntry defines a single hook command and its optional filters.
 //
-// App, BundleID, Title and Space may each begin with "!" to match everything
-// the pattern does not; see SplitNegation. Space is a 1-based space number
-// kept as a string so that the negated form has somewhere to live, and is
-// accepted as a bare number in TOML as well.
+// App, BundleID, Title, Space and Display may each begin with "!" to match
+// everything the pattern does not; see SplitNegation. Space and Display are
+// 1-based numbers kept as strings so that the negated form has somewhere to
+// live, and are accepted as bare numbers in TOML as well.
 type HookEntry struct {
 	Run         string `json:"run"         toml:"run"`
 	App         string `json:"app"         toml:"app"`
 	BundleID    string `json:"bundleId"    toml:"bundle_id"`
 	Title       string `json:"title"       toml:"title"`
 	Space       string `json:"space"       toml:"space"`
+	Display     string `json:"display"     toml:"display"`
 	TimeoutSecs int    `json:"timeoutSecs" toml:"timeout_secs"`
 	Async       bool   `json:"async"       toml:"async"`
 }
@@ -350,20 +351,26 @@ func decodeHooks(raw rawHooksConfig) (HooksConfig, []string, error) {
 					Title:    getString(val, "title"),
 				}
 
-				space, ok := getSpace(val)
-				if !ok {
-					errs = append(
-						errs,
-						fmt.Sprintf(
-							"hooks.%s[%d]: space must be a number or a string, got %T",
-							field,
-							idx,
-							val["space"],
-						),
-					)
-				}
+				for _, index := range []struct {
+					key  string
+					into *string
+				}{{"space", &entry.Space}, {"display", &entry.Display}} {
+					number, ok := getIndex(val, index.key)
+					if !ok {
+						errs = append(
+							errs,
+							fmt.Sprintf(
+								"hooks.%s[%d]: %s must be a number or a string, got %T",
+								field,
+								idx,
+								index.key,
+								val[index.key],
+							),
+						)
+					}
 
-				entry.Space = space
+					*index.into = number
+				}
 
 				if timeout, ok := getInt(val, "timeout_secs"); ok {
 					entry.TimeoutSecs = timeout
@@ -466,23 +473,23 @@ func getString(m map[string]any, key string) string {
 	return ""
 }
 
-// getSpace reads a hook's space filter, which TOML delivers as a number when
-// written bare (space = 2) and as a string when negated (space = "!2"). Both
-// spell the same filter. An absent key is the empty filter; a value of any
-// other type is reported as false.
-func getSpace(m map[string]any) (string, bool) {
-	value, ok := m["space"]
+// getIndex reads a hook's space or display filter, which TOML delivers as a
+// number when written bare (space = 2) and as a string when negated
+// (space = "!2"). Both spell the same filter. An absent key is the empty
+// filter, and a value of any other type is reported as false.
+func getIndex(m map[string]any, key string) (string, bool) {
+	value, ok := m[key]
 	if !ok {
 		return "", true
 	}
 
-	switch space := value.(type) {
+	switch index := value.(type) {
 	case string:
-		return space, true
+		return index, true
 	case int64:
-		return strconv.FormatInt(space, 10), true
+		return strconv.FormatInt(index, 10), true
 	case float64:
-		return strconv.Itoa(int(space)), true
+		return strconv.Itoa(int(index)), true
 	default:
 		return "", false
 	}

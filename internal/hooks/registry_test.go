@@ -21,7 +21,8 @@ const (
 	testBundleIDMiss = "com.other.App"
 	// testSpaceIndexKey is the Extra key a workspace event carries its space
 	// under, which the space filter reads.
-	testSpaceIndexKey = "space_index"
+	testSpaceIndexKey   = "space_index"
+	testDisplayIndexKey = "display_index"
 )
 
 // allHookableKinds mirrors the twelve entries buildMap's literal map wires
@@ -288,6 +289,30 @@ func TestHookMatches(t *testing.T) {
 			entry: config.HookEntry{Run: testHookRun, Space: "!2"},
 			evt:   events.Event{},
 			want:  true,
+		},
+		{
+			name:  "display filter hit",
+			entry: config.HookEntry{Run: testHookRun, Display: "2"},
+			evt:   events.Event{Extra: map[string]string{testDisplayIndexKey: "2"}},
+			want:  true,
+		},
+		{
+			name:  "display filter miss",
+			entry: config.HookEntry{Run: testHookRun, Display: "2"},
+			evt:   events.Event{Extra: map[string]string{testDisplayIndexKey: "1"}},
+			want:  false,
+		},
+		{
+			name:  "negated display filter admits another display",
+			entry: config.HookEntry{Run: testHookRun, Display: "!2"},
+			evt:   events.Event{Extra: map[string]string{testDisplayIndexKey: "1"}},
+			want:  true,
+		},
+		{
+			name:  "an event carrying no display misses a display filter",
+			entry: config.HookEntry{Run: testHookRun, Display: "2"},
+			evt:   events.Event{},
+			want:  false,
 		},
 		{
 			name:  "app and title filters both match",

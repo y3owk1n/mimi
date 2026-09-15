@@ -20,6 +20,10 @@ type Hook struct {
 	// workspace events carry it, or "" for no filter.
 	space        string
 	spaceNegated bool
+	// display is the display index the hook is filtered to, in the form
+	// window and workspace events carry it, or "" for no filter.
+	display        string
+	displayNegated bool
 }
 
 // Registry maps event kinds to their registered hooks.
@@ -92,6 +96,10 @@ func (h *Hook) Matches(evt events.Event) (bool, string) {
 		return false, "space filter mismatch"
 	}
 
+	if h.display != "" && (evt.Extra["display_index"] == h.display) == h.displayNegated {
+		return false, "display filter mismatch"
+	}
+
 	return true, ""
 }
 
@@ -127,6 +135,13 @@ func buildMap(cfg *config.Config) (map[events.EventKind][]Hook, error) {
 
 			if entry.Space != "" {
 				hook.space, hook.spaceNegated, err = config.ParseSpaceFilter(entry.Space)
+				if err != nil {
+					return nil, err
+				}
+			}
+
+			if entry.Display != "" {
+				hook.display, hook.displayNegated, err = config.ParseDisplayFilter(entry.Display)
 				if err != nil {
 					return nil, err
 				}

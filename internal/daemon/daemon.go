@@ -301,6 +301,12 @@ func setupEventPipeline(
 	)
 	router.SetEnricher(events.DisplayChanged, displayChangeEvent(action.QueryDisplays))
 
+	for _, kind := range config.HookKinds {
+		if kind.Group == config.GroupWindow || kind.Group == config.GroupWorkspace {
+			router.SetEnricher(kind.Kind, displayIndexEvent(action.QueryDisplays))
+		}
+	}
+
 	reg := hooks.NewRegistry()
 
 	err := reg.Reload(cfg)

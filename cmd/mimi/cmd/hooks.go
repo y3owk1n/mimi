@@ -184,6 +184,10 @@ func entrySettings(entry config.HookEntry) string {
 		parts = append(parts, "space="+entry.Space)
 	}
 
+	if entry.Display != "" {
+		parts = append(parts, "display="+entry.Display)
+	}
+
 	if entry.TimeoutSecs > 0 {
 		parts = append(parts, fmt.Sprintf("timeout_secs=%d", entry.TimeoutSecs))
 	}
@@ -197,11 +201,12 @@ func entrySettings(entry config.HookEntry) string {
 
 // The flags mimi hooks fire takes to describe the event.
 const (
-	fireAppFlag    = "app"
-	fireBundleFlag = "bundle-id"
-	firePIDFlag    = "pid"
-	fireTitleFlag  = "title"
-	fireExtraFlag  = "extra"
+	fireAppFlag     = "app"
+	fireBundleFlag  = "bundle-id"
+	firePIDFlag     = "pid"
+	fireTitleFlag   = "title"
+	fireDisplayFlag = "display"
+	fireExtraFlag   = "extra"
 )
 
 func newHooksFireCmd(state *cliState) *cobra.Command {
@@ -270,6 +275,7 @@ running one is not involved.`,
 	cmd.Flags().String(fireBundleFlag, "", "the application's bundle identifier")
 	cmd.Flags().Int(firePIDFlag, 0, "the application's process id")
 	cmd.Flags().String(fireTitleFlag, "", "the window's title")
+	cmd.Flags().Int(fireDisplayFlag, 0, "the display the event happened on, 1-based")
 	cmd.Flags().StringArray(fireExtraFlag, nil, "an extra variable, as key=value (repeatable)")
 
 	return cmd
@@ -293,7 +299,12 @@ func eventFromFlags(cobraCmd *cobra.Command, kind events.EventKind) (events.Even
 	bundle, _ := flags.GetString(fireBundleFlag)
 	pid, _ := flags.GetInt(firePIDFlag)
 	title, _ := flags.GetString(fireTitleFlag)
+	display, _ := flags.GetInt(fireDisplayFlag)
 	extras, _ := flags.GetStringArray(fireExtraFlag)
+
+	if display > 0 {
+		extras = append(extras, fmt.Sprintf("display_index=%d", display))
+	}
 
 	evt := events.Event{
 		ID:          uuid.NewString(),

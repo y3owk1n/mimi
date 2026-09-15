@@ -41,3 +41,27 @@ func receive(t *testing.T, sub <-chan events.Event) events.Event {
 		return events.Event{}
 	}
 }
+
+func TestSetEnricher_RunsOnASettledDragToo(t *testing.T) {
+	router, sub := newTestRouter(t)
+	router.SetEnricher(events.WindowMove, func(evt events.Event) events.Event {
+		evt.Extra["display_index"] = "1"
+
+		return evt
+	})
+
+	router.handle(
+		events.Event{
+			Kind:     events.WindowMoving,
+			PID:      5,
+			WindowID: 9,
+			Extra:    map[string]string{"window_center": "1,2"},
+		},
+	)
+
+	got := receive(t, sub)
+	if got.Kind != events.WindowMove || got.Extra["display_index"] != "1" ||
+		got.Extra["window_center"] != "1,2" {
+		t.Fatalf("got %+v", got)
+	}
+}

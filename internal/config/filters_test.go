@@ -84,9 +84,10 @@ func TestLoad_SpaceFilterIsAcceptedAsANumberOrAString(t *testing.T) {
 	}
 }
 
-// TestLoad_RejectsFiltersThatCannotMean: a space filter on a hook whose
-// events carry no space, a space that is not one, and a filter that is only
-// the negation prefix are all reported by the key the user typed.
+// TestLoad_RejectsFiltersThatCannotMean: a space or display filter on a
+// hook whose events carry none, a number that is not one, and a filter
+// that is only the negation prefix are all reported by the key the user
+// typed.
 func TestLoad_RejectsFiltersThatCannotMean(t *testing.T) {
 	t.Parallel()
 
@@ -109,6 +110,14 @@ func TestLoad_RejectsFiltersThatCannotMean(t *testing.T) {
 		"space of another type": {
 			src:  "[hooks]\non_workspace_changed = [{ run = \"true\", space = true }]\n",
 			want: "hooks.on_workspace_changed[0]: space must be a number or a string",
+		},
+		"display on an app hook": {
+			src:  "[hooks]\non_app_activate = [{ run = \"true\", display = 1 }]\n",
+			want: "hooks.on_app_activate[0]: display applies to window and workspace hooks only",
+		},
+		"display zero": {
+			src:  "[hooks]\non_window_focus = [{ run = \"true\", display = 0 }]\n",
+			want: "hooks.on_window_focus[0]: display must be a 1-based display number",
 		},
 		"app filter that is only a !": {
 			src:  "[hooks]\non_app_activate = [{ run = \"true\", app = \"!\" }]\n",
