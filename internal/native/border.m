@@ -148,7 +148,6 @@ static BOOL gHidden;
 // asks faster than the main thread draws.
 static atomic_int gQueued;
 static atomic_int gWantRefocus;
-static atomic_uint gFocusRequest;
 
 #pragma mark - Helpers
 
@@ -204,17 +203,6 @@ static CGRect mimiBorderFrame(CGRect bounds) {
 
 static CGColorRef mimiBorderColor(MimiColor color) {
 	return CGColorCreateSRGB(color.red, color.green, color.blue, color.alpha);
-}
-
-// The window the user is typing into, by number, or 0 when there is none.
-// An Accessibility round trip into the frontmost application.
-static uint32_t mimiFocusedWindowNumber(void) {
-	void *window = MimiGetFrontmostWindow();
-	if (!window)
-		return 0;
-	uint32_t number = MimiGetWindowNumber(window);
-	MimiReleaseElement(window);
-	return number;
 }
 
 // The space ids in front on every display. displays and front get each
@@ -525,7 +513,7 @@ static void mimiReorder(uint32_t number) {
 		mimiOrderBeside(border, number);
 }
 
-static void mimiSyncOnMain(uint32_t focused, BOOL refocus);
+static void mimiSyncOnMain(BOOL refocus);
 
 // Take the borders down while Mission Control is up and bring them back
 // after. The Dock's windows come and go in a burst, which runs one check.
@@ -543,7 +531,7 @@ static void mimiCheckMissionControl(void) {
 			return;
 		BOOL up = mimiMissionControlUp();
 		if (gHidden && !up) {
-			mimiSyncOnMain(0, NO);
+			mimiSyncOnMain(NO);
 			return;
 		}
 		if (up && !gHidden) {
@@ -611,21 +599,18 @@ static void mimiFollowBordered(void) {
 
 #pragma mark - Sync
 
-// Bring the borders up to date, on the main thread. focused is the window
-// Accessibility named, or 0 to keep the last answer.
-static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
+// Bring the borders up to date, on the main thread. With refocus, the
+// focused window is found again. It is the front process's window nearest
+// the front, among the windows the borders are drawn for. Accessibility's
+// focused window is not asked. Safari keeps reporting the window that was
+// focused before when the focus moved without a click.
+static void mimiSyncOnMain(BOOL refocus) {
 	if (!gEnabled)
 		return;
 	if (gHidden && mimiMissionControlUp())
 		return;
 	BOOL reshow = gHidden;
 	gHidden = NO;
-
-	uint32_t raised = 0;
-	if (refocus && focused != gFocused) {
-		gFocused = focused;
-		raised = focused;
-	}
 
 	CGRect displays[16];
 	uint64_t front[16];
@@ -639,6 +624,25 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	CFArrayRef described = mimiDescribe(numbers);
 
 	pid_t self = getpid();
+	// The window server lists the windows on the screen front to back.
+	uint32_t raised = 0;
+	if (refocus) {
+		pid_t frontPid = MimiFrontmostPid();
+		uint32_t focused = 0;
+		NSSet<NSNumber *> *real = [NSSet setWithArray:numbers];
+		NSArray *onScreen =
+		    CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
+		for (NSDictionary *info in onScreen) {
+			if ([info[(id)kCGWindowOwnerPID] intValue] == frontPid && [real containsObject:info[(id)kCGWindowNumber]]) {
+				focused = [info[(id)kCGWindowNumber] unsignedIntValue];
+				break;
+			}
+		}
+		if (focused != gFocused) {
+			gFocused = focused;
+			raised = focused;
+		}
+	}
 	// How many windows get a border on each space, when a window alone on
 	// its space goes without.
 	NSCountedSet<NSNumber *> *crowd = nil;
@@ -721,7 +725,6 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 
 void MimiBordersSetStyle(const MimiBorderStyle *style) {
 	MimiBorderStyle copy = *style;
-	uint32_t focused = mimiFocusedWindowNumber();
 	dispatch_async(dispatch_get_main_queue(), ^{
 		if (!gBorders)
 			gBorders = [NSMutableDictionary new];
@@ -734,21 +737,19 @@ void MimiBordersSetStyle(const MimiBorderStyle *style) {
 		for (MimiBorder *border in gBorders.allValues) {
 			mimiDrawBorder(border, border.targetBounds, border.active);
 		}
-		mimiSyncOnMain(focused, YES);
+		mimiSyncOnMain(YES);
 	});
 }
 
 void MimiBordersSync(int refocus) {
-	if (refocus) {
-		atomic_store(&gFocusRequest, mimiFocusedWindowNumber());
+	if (refocus)
 		atomic_store(&gWantRefocus, 1);
-	}
 	if (atomic_exchange(&gQueued, 1))
 		return;
 	dispatch_async(dispatch_get_main_queue(), ^{
 		atomic_store(&gQueued, 0);
 		BOOL want = atomic_exchange(&gWantRefocus, 0) != 0;
-		mimiSyncOnMain(atomic_load(&gFocusRequest), want);
+		mimiSyncOnMain(want);
 	});
 }
 

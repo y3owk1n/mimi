@@ -1,6 +1,7 @@
 package native
 
 /*
+#include "mimi.h"
 #include "mouse.h"
 */
 import "C"
@@ -92,14 +93,22 @@ func WindowAmong(windows []ListedWindow, point Point, self int) (int, uint32, bo
 	return 0, 0, false
 }
 
-// FrontmostWindowNumber is the number of the window in front, or 0 when
-// there is none or it cannot be read.
-func FrontmostWindowNumber() uint32 {
-	element := FrontmostWindow()
-	if element == nil {
+// FrontWindowNumber is the number of the window in front, or 0 when there
+// is none: the frontmost application's first regular window as the window
+// server lists them, front to back. Accessibility's focused window is not
+// asked. Safari keeps reporting the window that was focused before when
+// the focus moved without a click.
+func FrontWindowNumber() uint32 {
+	pid := int(C.MimiFrontmostPid())
+	if pid == 0 {
 		return 0
 	}
-	defer element.Release()
 
-	return element.Number()
+	for _, win := range WindowList(true) {
+		if win.PID == pid && win.Layer == 0 && win.Regular && win.Alpha > 0 {
+			return win.Number
+		}
+	}
+
+	return 0
 }

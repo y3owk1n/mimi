@@ -37,6 +37,16 @@ void *MimiGetFocusedApplication(void) {
 	}
 }
 
+int MimiFrontmostPid(void) {
+	void *app = MimiGetFocusedApplication();
+	if (!app)
+		return 0;
+	pid_t pid = 0;
+	AXUIElementGetPid((AXUIElementRef)app, &pid);
+	CFRelease((AXUIElementRef)app);
+	return pid;
+}
+
 void MimiReleaseElement(void *element) {
 	if (element) {
 		CFRelease((AXUIElementRef)element);

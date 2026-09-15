@@ -16,6 +16,9 @@ int MimiAreElementsEqual(void *element1, void *element2);
 void **MimiGetAllFocusableWindowsOnActiveSpace(int *count);
 void **MimiGetAllFocusableWindowsOnActiveSpaceWithFocused(int *count, int *focusedIndex);
 void *MimiGetFrontmostWindow(void);
+/// The pid of the application the user is typing into, or 0 when there is
+/// none: the system-wide Accessibility answer, which is always current.
+int MimiFrontmostPid(void);
 int MimiActivateWindow(void *window);
 /// Return the process identifier of the application owning the window, or 0.
 int MimiGetWindowPID(void *window);
