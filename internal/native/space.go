@@ -55,6 +55,11 @@ func FocusSpace(index int) error {
 	return nil
 }
 
+// CursorDisplayID is the display the pointer is on, 0 when none.
+func CursorDisplayID() uint32 {
+	return uint32(C.MimiCursorDisplayID())
+}
+
 // SpaceCount returns the total number of Mission Control spaces.
 func SpaceCount() int {
 	return int(C.MimiCountMissionControlSpaces())

@@ -576,13 +576,14 @@ on_window_focus = [
 | `bundle_id` | Filter by bundle ID (glob, `*` is the only wildcard) |
 | `title` | Filter by window title (regex) |
 | `space` | Filter by the space now in front, as a 1-based number. Workspace hooks only |
+| `display` | Filter by the display the event happened on, as `move_window_to_display` counts them. Window and workspace hooks only |
 | `timeout_secs` | Override `settings.hook_timeout_secs` |
 | `async` | Run in background (default: false) |
 
 **Negating a filter.** A filter that begins with `!` matches everything the
 pattern does not. `app = "!Safari"` fires for every app except Safari. A
-filter that is only `!` is rejected. Write `space` as a bare number, or as a
-string when negated:
+filter that is only `!` is rejected. Write `space` and `display` as a bare
+number, or as a string when negated:
 
 ```toml
 [hooks]
@@ -596,7 +597,12 @@ on_window_focus = [
 ```
 
 If mimi could not resolve the space for a workspace event, that event fails
-every `space` filter and passes every negated one.
+every `space` filter and passes every negated one. The same holds for
+`display`: a window event carries the display holding the window's centre,
+or the nearest one when the centre is off every display, as `mimi query
+windows` reports it. A workspace event carries the display whose space
+changed. An event carrying neither fails every `display` filter and passes
+every negated one.
 
 ---
 
@@ -617,6 +623,7 @@ Every hook receives:
 | `mimi_INFO` | JSON workspace info (workspace events only) |
 | `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
 | `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
+| `mimi_DISPLAY_INDEX` | The display the event happened on, as `move_window_to_display` counts them (window and workspace events) |
 | `mimi_APPEARANCE` | `dark` or `light`, the mode now in effect (`on_appearance_changed` only) |
 | `mimi_DISPLAYS_COUNT` | How many displays are connected now (`on_display_changed` only) |
 | `mimi_DISPLAYS` | The connected displays as JSON, the list `mimi query displays` prints (`on_display_changed` only) |
@@ -631,15 +638,16 @@ extra variables below are set only on the hooks named.
 | Hook | `mimi_APP_NAME`, `mimi_BUNDLE_ID`, `mimi_PID` | `mimi_WINDOW_TITLE` | Extra |
 | --- | --- | --- | --- |
 | `on_app_*` | set | empty | none |
-| `on_window_*` | set | set, `""` when the window has none | none |
-| `on_workspace_changed` | empty | empty | `mimi_WINDOWS_COUNT`, `mimi_INFO`, `mimi_SPACE_INDEX`, `mimi_SPACE_COUNT` |
+| `on_window_*` | set | set, `""` when the window has none | `mimi_DISPLAY_INDEX` |
+| `on_workspace_changed` | empty | empty | `mimi_WINDOWS_COUNT`, `mimi_INFO`, `mimi_SPACE_INDEX`, `mimi_SPACE_COUNT`, `mimi_DISPLAY_INDEX` |
 | `on_system_sleep`, `on_system_wake` | empty | empty | none |
 | `on_display_changed` | empty | empty | `mimi_DISPLAYS_COUNT`, `mimi_DISPLAYS` |
 | `on_appearance_changed` | empty | empty | `mimi_APPEARANCE` |
 | `on_screen_locked`, `on_screen_unlocked` | empty | empty | none |
 
 `mimi_SPACE_INDEX` and `mimi_SPACE_COUNT` are absent, not empty, when mimi
-could not enumerate Mission Control. `mimi_DISPLAYS_COUNT` and
+could not enumerate Mission Control. `mimi_DISPLAY_INDEX` is absent when the
+window's frame could not be read. `mimi_DISPLAYS_COUNT` and
 `mimi_DISPLAYS` are absent when the displays could not be read.
 
 ### How a hook runs

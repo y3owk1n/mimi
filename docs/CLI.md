@@ -683,6 +683,7 @@ daemon logs such as `app_activate`. The flags describe the event:
 | `--bundle-id` | `mimi_BUNDLE_ID` |
 | `--pid` | `mimi_PID` |
 | `--title` | `mimi_WINDOW_TITLE` |
+| `--display` | `mimi_DISPLAY_INDEX`, which a `display` filter reads |
 | `--extra key=value` | `mimi_KEY`, for a variable the kind carries. Repeatable. `--extra space_index=2` is what a `space` filter reads. |
 
 A hook marked `async` runs in turn here like the rest. The command exits 1

@@ -108,6 +108,34 @@ static AXEntry *axRealWindowEntry(pid_t pid, AXUIElementRef element) {
 	return entry;
 }
 
+// axWindowCenter reads the window's center into *x and *y, and reports
+// whether it could. Two attribute reads, like the title read below.
+static BOOL axWindowCenter(AXUIElementRef element, double *x, double *y) {
+	CFTypeRef positionValue = NULL;
+	CFTypeRef sizeValue = NULL;
+	CGPoint origin = CGPointZero;
+	CGSize size = CGSizeZero;
+	BOOL read = NO;
+	if (AXUIElementCopyAttributeValue(element, kAXPositionAttribute, &positionValue) == kAXErrorSuccess &&
+	    positionValue) {
+		if (CFGetTypeID(positionValue) == AXValueGetTypeID() &&
+		    AXUIElementCopyAttributeValue(element, kAXSizeAttribute, &sizeValue) == kAXErrorSuccess && sizeValue &&
+		    CFGetTypeID(sizeValue) == AXValueGetTypeID()) {
+			read = AXValueGetValue((AXValueRef)positionValue, kAXValueCGPointType, &origin) &&
+			       AXValueGetValue((AXValueRef)sizeValue, kAXValueCGSizeType, &size);
+		}
+		CFRelease(positionValue);
+	}
+	if (sizeValue) {
+		CFRelease(sizeValue);
+	}
+	if (read) {
+		*x = origin.x + size.width / 2;
+		*y = origin.y + size.height / 2;
+	}
+	return read;
+}
+
 static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	CFTypeRef titleRef = NULL;
 	AXUIElementCopyAttributeValue(element, kAXTitleAttribute, &titleRef);
@@ -131,7 +159,11 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	// windows of one app that happen to share a title no longer collide.
 	unsigned long long windowID = (unsigned long long)(uintptr_t)element;
 
-	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID);
+	double centerX = 0;
+	double centerY = 0;
+	int hasCenter = axWindowCenter(element, &centerX, &centerY) ? 1 : 0;
+
+	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, hasCenter, centerX, centerY);
 }
 
 static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {

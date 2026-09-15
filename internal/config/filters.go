@@ -28,13 +28,28 @@ func SplitNegation(pattern string) (string, bool) {
 // compares two strings written by the same function, and whether the filter
 // is negated.
 func ParseSpaceFilter(filter string) (string, bool, error) {
+	return parseIndexFilter("space", filter)
+}
+
+// ParseDisplayFilter reads a hook's display filter the way ParseSpaceFilter
+// reads a space one: a 1-based display number, as move_window_to_display
+// counts them, optionally negated.
+func ParseDisplayFilter(filter string) (string, bool, error) {
+	return parseIndexFilter("display", filter)
+}
+
+// parseIndexFilter reads a 1-based number, optionally negated, as the
+// filter named noun.
+func parseIndexFilter(noun, filter string) (string, bool, error) {
 	pattern, negated := SplitNegation(filter)
 
 	index, err := strconv.Atoi(strings.TrimSpace(pattern))
 	if err != nil || index < 1 {
 		return "", false, derrors.Newf(
 			derrors.CodeInvalidConfig,
-			"space must be a 1-based space number, optionally prefixed with %s (got %q)",
+			"%s must be a 1-based %s number, optionally prefixed with %s (got %q)",
+			noun,
+			noun,
 			negation,
 			filter,
 		)
@@ -45,8 +60,8 @@ func ParseSpaceFilter(filter string) (string, bool, error) {
 
 // validateFilters holds the rules a hook entry's filters are held to beyond
 // what compiles: a filter that is nothing but the negation prefix names
-// nothing to negate, and a space filter only means something on a hook whose
-// events carry a space.
+// nothing to negate, and a space or display filter only means something on
+// a hook whose events carry one.
 func validateFilters(kind HookKind, entry HookEntry) []string {
 	var errs []string
 
@@ -60,17 +75,26 @@ func validateFilters(kind HookKind, entry HookEntry) []string {
 		}
 	}
 
-	if entry.Space == "" {
-		return sortedErrs(errs)
+	if entry.Space != "" {
+		if kind.Group != GroupWorkspace {
+			errs = append(errs, "space applies to workspace hooks only")
+		}
+
+		_, _, err := ParseSpaceFilter(entry.Space)
+		if err != nil {
+			errs = append(errs, derrors.Message(err))
+		}
 	}
 
-	if kind.Group != GroupWorkspace {
-		errs = append(errs, "space applies to workspace hooks only")
-	}
+	if entry.Display != "" {
+		if kind.Group != GroupWorkspace && kind.Group != GroupWindow {
+			errs = append(errs, "display applies to window and workspace hooks only")
+		}
 
-	_, _, err := ParseSpaceFilter(entry.Space)
-	if err != nil {
-		errs = append(errs, derrors.Message(err))
+		_, _, err := ParseDisplayFilter(entry.Display)
+		if err != nil {
+			errs = append(errs, derrors.Message(err))
+		}
 	}
 
 	return sortedErrs(errs)

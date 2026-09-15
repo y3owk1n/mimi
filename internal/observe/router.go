@@ -217,6 +217,12 @@ func (r *Router) handle(evt events.Event) {
 	default:
 	}
 
+	r.publish(evt)
+}
+
+// publish runs the event through its kind's enricher, logs it, and puts it
+// on the bus. Every event the router hands on goes through here.
+func (r *Router) publish(evt events.Event) {
 	r.mu.Lock()
 	enricher := r.enrich[evt.Kind]
 	r.mu.Unlock()
@@ -291,7 +297,7 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 		delete(r.timers, key)
 		r.mu.Unlock()
 
-		resizeEvt := events.Event{
+		r.publish(events.Event{
 			ID:          uuid.NewString(),
 			Kind:        settledKind(snapshot.Kind),
 			AppName:     snapshot.AppName,
@@ -300,15 +306,8 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 			WindowTitle: snapshot.WindowTitle,
 			WindowID:    snapshot.WindowID,
 			At:          time.Now(),
-		}
-		r.logger.Debugw("event",
-			"kind", resizeEvt.Kind,
-			"app", resizeEvt.AppName,
-			"bundle", resizeEvt.BundleID,
-			"pid", resizeEvt.PID,
-			"title_present", resizeEvt.WindowTitle != "",
-		)
-		r.bus.Publish(resizeEvt)
+			Extra:       snapshot.Extra,
+		})
 	})
 
 	return rState

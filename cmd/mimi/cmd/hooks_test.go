@@ -102,3 +102,36 @@ func TestHooksTail_SaysSoWithoutADaemon(t *testing.T) {
 		t.Fatalf("got %v", err)
 	}
 }
+
+func TestHooksList_ShowsADisplayFilter(t *testing.T) {
+	xdg := isolateConfigHome(t)
+	writeConfigFile(t, filepath.Join(xdg, "mimi", "config.toml"), `[hooks]
+on_window_focus = [{ run = "true", display = 2 }]
+`)
+
+	out, err := runCommand(t, "hooks", "list")
+	if err != nil {
+		t.Fatalf("hooks list: %v", err)
+	}
+
+	if !strings.Contains(out, "      display=2\n") {
+		t.Fatalf("got:\n%s", out)
+	}
+}
+
+func TestHooksFire_DisplayReachesTheFilter(t *testing.T) {
+	xdg := isolateConfigHome(t)
+	writeConfigFile(t, filepath.Join(xdg, "mimi", "config.toml"), `[hooks]
+on_window_focus = [{ run = "echo on $mimi_DISPLAY_INDEX", display = 2 }]
+`)
+
+	out, err := runCommand(t, "hooks", "fire", "on_window_focus", "--display", "2")
+	if err != nil || !strings.Contains(out, "    on 2\n") {
+		t.Fatalf("got %v:\n%s", err, out)
+	}
+
+	out, _ = runCommand(t, "hooks", "fire", "on_window_focus", "--display", "1")
+	if !strings.Contains(out, "[0] skipped: display filter mismatch") {
+		t.Fatalf("got:\n%s", out)
+	}
+}
