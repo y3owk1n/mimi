@@ -541,6 +541,7 @@ and reload.
 | `on_system_sleep` | The Mac is about to sleep |
 | `on_system_wake` | The Mac has woken |
 | `on_display_changed` | A display is connected, disconnected, or changes resolution or arrangement |
+| `on_appearance_changed` | The system switches between light and dark mode. `mimi_APPEARANCE` is `dark` or `light`, the mode now in effect |
 
 System hooks carry no application, so their `mimi_APP_NAME`, `mimi_BUNDLE_ID`
 and `mimi_PID` are empty. A hook on `on_system_sleep` has until the Mac
@@ -607,6 +608,7 @@ Every hook receives:
 | `mimi_INFO` | JSON workspace info (workspace events only) |
 | `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
 | `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
+| `mimi_APPEARANCE` | `dark` or `light`, the mode now in effect (`on_appearance_changed` only) |
 
 Write references without your own quotes. mimi substitutes each value as a
 single shell token wrapped in single quotes, so a crafted window title cannot

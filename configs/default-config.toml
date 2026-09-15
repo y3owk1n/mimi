@@ -336,3 +336,9 @@ focus_follows_mouse = false
 # on_display_changed = [
 #     "echo 'displays changed'"
 # ]
+
+# The system switched between light and dark mode. mimi_APPEARANCE is the mode
+# now in effect, "dark" or "light".
+# on_appearance_changed = [
+#     "echo now $mimi_APPEARANCE"
+# ]

@@ -37,6 +37,8 @@ type ObserverConfig struct {
 	Workspace    bool
 	// SystemState is sleep, wake, and the display set changing.
 	SystemState bool
+	// Appearance is the system switching between light and dark mode.
+	Appearance bool
 }
 
 // StartObservers initializes and starts configured macOS event observers.
@@ -60,7 +62,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 			boolToInt(obsCfg.SystemState),
 			0,
 			boolToInt(obsCfg.Workspace),
-			0,
+			boolToInt(obsCfg.Appearance),
 		)
 	}()
 	if !<-mainThread {
@@ -84,7 +86,7 @@ func UpdateObservers(obsCfg ObserverConfig) {
 		boolToInt(obsCfg.SystemState),
 		0,
 		boolToInt(obsCfg.Workspace),
-		0,
+		boolToInt(obsCfg.Appearance),
 	)
 }
 
@@ -125,6 +127,27 @@ func goWorkspaceEvent(kind C.int, appName, bundleID *C.char, pid C.int,
 		PID:      int(pid),
 		At:       time.Now(),
 	})
+}
+
+//export goAppearanceEvent
+func goAppearanceEvent(dark C.int) {
+	trySend(appearanceEvent(dark != 0))
+}
+
+// appearanceEvent is the event one light or dark mode switch publishes,
+// carrying the mode now in effect as mimi_APPEARANCE.
+func appearanceEvent(dark bool) events.Event {
+	appearance := "light"
+	if dark {
+		appearance = "dark"
+	}
+
+	return events.Event{
+		ID:    uuid.NewString(),
+		Kind:  events.AppearanceChanged,
+		At:    time.Now(),
+		Extra: map[string]string{"appearance": appearance},
+	}
 }
 
 //export goWorkspaceChangeEvent
@@ -238,6 +261,8 @@ func kindFromInt(kindInt int) events.EventKind {
 		return events.SystemWake
 	case int(C.MIMI_KIND_DISPLAY_CHANGED):
 		return events.DisplayChanged
+	case int(C.MIMI_KIND_APPEARANCE_CHANGED):
+		return events.AppearanceChanged
 	default:
 		return events.EventKind("unknown")
 	}

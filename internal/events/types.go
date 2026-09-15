@@ -60,6 +60,9 @@ const (
 	// DisplayChanged fires when a display is connected, disconnected, or
 	// changes resolution or arrangement.
 	DisplayChanged EventKind = "display_changed"
+	// AppearanceChanged fires when the system switches between light and
+	// dark mode.
+	AppearanceChanged EventKind = "appearance_changed"
 )
 
 // AllKinds lists every hookable event kind.
@@ -82,6 +85,7 @@ var AllKinds = []EventKind{
 	SystemSleep,
 	SystemWake,
 	DisplayChanged,
+	AppearanceChanged,
 }
 
 // Event carries information about a system event through the bus.

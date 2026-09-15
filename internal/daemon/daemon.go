@@ -716,6 +716,7 @@ func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 		// comes or goes, so it needs the system observer as a system hook
 		// does.
 		SystemState: cfg.Hooks.HasGroup(config.GroupSystem) || cfg.Tiling.Enabled,
+		Appearance:  len(cfg.Hooks.AppearanceChanged) > 0,
 	}
 }
 

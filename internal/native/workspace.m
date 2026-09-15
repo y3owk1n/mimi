@@ -150,7 +150,10 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 }
 
 - (void)appearanceChanged:(NSNotification *)note {
-	goWorkspaceEvent(MIMI_KIND_APPEARANCE_CHANGED, "", "", 0, "", "");
+	// The notification says the mode changed, not which it is now. The
+	// defaults key is set for dark and absent for light.
+	NSString *style = [[NSUserDefaults standardUserDefaults] stringForKey:@"AppleInterfaceStyle"];
+	goAppearanceEvent([style isEqualToString:@"Dark"] ? 1 : 0);
 }
 
 - (int)kindForNotificationName:(NSString *)name {
