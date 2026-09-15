@@ -64,6 +64,10 @@ func TestEngine_UpdateStylesEnablesAndClears(t *testing.T) {
 		t.Errorf("style.Radius = %v, want FollowWindowRadius", style.Radius)
 	}
 
+	if style.Inside {
+		t.Error("style.Inside = true for an outside placement, want false")
+	}
+
 	if !engine.KindFilter()(events.WindowFocus) || engine.KindFilter()(events.WindowTitleChange) {
 		t.Error("an enabled engine admits the waking kinds and nothing else")
 	}
@@ -81,6 +85,16 @@ func TestEngine_UpdateStylesEnablesAndClears(t *testing.T) {
 
 	if len(fake.styles) != 2 {
 		t.Errorf("SetStyle called %d times after a restyle, want 2", len(fake.styles))
+	}
+
+	cfg.Placement = config.BorderInside
+	engine.Update(cfg)
+
+	if len(fake.styles) != 3 || !fake.styles[2].Inside {
+		t.Errorf(
+			"styles after moving the border inside = %+v, want a third with Inside set",
+			fake.styles,
+		)
 	}
 
 	cfg.Enabled = false

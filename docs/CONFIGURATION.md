@@ -431,6 +431,7 @@ follow = false
 [border]
 enabled = true
 width = 4                   # points, 1 to 32
+placement = "outside"       # around the window, or "inside" over its edge
 # radius = 12               # force one corner radius; unset follows each window's own, 0 is square
 active_color = "#e2e2e3"    # the focused window, #rrggbb or #aarrggbb
 inactive_color = "#414141"  # every other window
@@ -443,9 +444,15 @@ it moves or resizes, and changes colour when focus moves. It disappears when
 the window closes, leaves the space, or its application hides. A full-screen
 window gets no border.
 
-Each border is a separate mimi window, ordered directly under the window it
-belongs to. The border never covers another application's content, and a
-window that overlaps a bordered window covers its border too. A colour with an
+Each border is a separate mimi window. With `placement = "outside"`, the
+default, it is ordered directly under the window it belongs to and the ring
+runs around the window's frame. The border never covers another application's
+content, and a window that overlaps a bordered window covers its border too.
+With `placement = "inside"`, the border is ordered directly over its window
+and the ring runs along the inside of the window's edge, `width` points deep.
+It draws on nothing outside the window, so a window flush against a
+neighbour or the screen edge keeps its whole border. The ring covers that
+much of the window's own edge, and clicks pass through it. A colour with an
 alpha channel draws a translucent border.
 
 Windows have different corner radii. With `radius` unset, each border uses the
