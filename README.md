@@ -101,6 +101,7 @@ mimi action space next      # works right away, no daemon
 mimi config init            # write ~/.config/mimi/config.toml
 mimi services install       # run the daemon at login, for hooks, borders and tiling
 mimi status                 # daemon state and permissions
+mimi doctor                 # every troubleshooting check, with the fix under a failure
 ```
 
 ### Set up with an agent

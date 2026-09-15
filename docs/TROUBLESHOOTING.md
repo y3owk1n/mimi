@@ -1,5 +1,8 @@
 # Troubleshooting
 
+Start with `mimi doctor`. It runs the checks below that a program can run
+and prints the fix under any that fails.
+
 ## `mimi action space` or `move_window_to_space` does nothing
 
 1. Rebuild after pulling changes, if you run a source build.

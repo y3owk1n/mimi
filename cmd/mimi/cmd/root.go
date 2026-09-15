@@ -70,6 +70,7 @@ Use "mimi start" to run the background daemon and react to window/space events v
 	root.AddCommand(newStartCmd(state))
 	root.AddCommand(newStopCmd(state))
 	root.AddCommand(newStatusCmd(state))
+	root.AddCommand(newDoctorCmd(state))
 	root.AddCommand(newConfigCmd(state))
 	root.AddCommand(newServicesCmd(state))
 	root.AddCommand(newActionCmd(state))
