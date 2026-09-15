@@ -51,6 +51,10 @@ type Router struct {
 	// it to settle. It is called on the router's goroutine and must not
 	// block.
 	onRaw func(events.Event)
+	// enrich adds to an event of its kind before it is published, for a
+	// payload the native layer cannot read itself, the display list say.
+	// Each runs on the router's goroutine.
+	enrich map[events.EventKind]func(events.Event) events.Event
 }
 
 type resizeState struct {
@@ -97,7 +101,17 @@ func NewRouterWithDebounce(
 		retryDelays:    axRetryDelays,
 		listRunning:    native.RegularApplicationPIDs,
 		debounceWindow: debounceWindow,
+		enrich:         map[events.EventKind]func(events.Event) events.Event{},
 	}
+}
+
+// SetEnricher names the function every event of kind passes through before
+// it is published.
+func (r *Router) SetEnricher(kind events.EventKind, enricher func(events.Event) events.Event) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+
+	r.enrich[kind] = enricher
 }
 
 // SetDebounceWindow updates the debounce window used for resize events. A
@@ -201,6 +215,14 @@ func (r *Router) handle(evt events.Event) {
 
 		return
 	default:
+	}
+
+	r.mu.Lock()
+	enricher := r.enrich[evt.Kind]
+	r.mu.Unlock()
+
+	if enricher != nil {
+		evt = enricher(evt)
 	}
 
 	r.logger.Debugw("event",

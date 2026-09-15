@@ -295,6 +295,7 @@ func setupEventPipeline(
 		logger,
 		time.Duration(cfg.Settings.ResizeDebounceMS)*time.Millisecond,
 	)
+	router.SetEnricher(events.DisplayChanged, displayChangeEvent(action.QueryDisplays))
 
 	reg := hooks.NewRegistry()
 

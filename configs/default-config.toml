@@ -333,8 +333,10 @@ focus_follows_mouse = false
 # ]
 
 # A display was connected, disconnected, or changed resolution or arrangement.
+# mimi_DISPLAYS_COUNT is how many are connected now, and mimi_DISPLAYS the
+# list "mimi query displays" prints.
 # on_display_changed = [
-#     "echo 'displays changed'"
+#     "echo $mimi_DISPLAYS_COUNT displays"
 # ]
 
 # The system switched between light and dark mode. mimi_APPEARANCE is the mode
