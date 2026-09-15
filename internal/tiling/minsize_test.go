@@ -523,6 +523,41 @@ func TestEngine_learnMinSize_IgnoresAWindowAsLargeAsItsDisplay(t *testing.T) {
 	}
 }
 
+// TestEngine_learnMinSize_IgnoresAFrameAskedOffTheDisplay pins that a
+// window asked for a frame past the display's edge learns nothing from
+// where it lands. The window server keeps part of every window on screen,
+// and the size it settles on is the clamp's, not the application's.
+func TestEngine_learnMinSize_IgnoresAFrameAskedOffTheDisplay(t *testing.T) {
+	t.Parallel()
+
+	engine := New(&clampingDesktop{}, nil, nil)
+	engine.visible[1] = action.Frame{Y: 30, Width: 1920, Height: 1050}
+
+	if grew := engine.learnMinSize(
+		1,
+		"app",
+		1,
+		action.Frame{X: -948, Y: 38, Width: 948, Height: 1034},
+		action.Frame{X: -955, Y: 38, Width: 959, Height: 1034},
+	); grew {
+		t.Fatal("a window asked for a frame off the display reported a minimum")
+	}
+
+	if _, ok := engine.minSizes[1]; ok {
+		t.Fatalf("minSize = %+v, want none", engine.minSizes[1])
+	}
+
+	if grew := engine.learnMinSize(
+		1,
+		"app",
+		1,
+		action.Frame{X: 8, Y: 38, Width: 948, Height: 1034},
+		action.Frame{X: 8, Y: 38, Width: 959, Height: 1034},
+	); !grew {
+		t.Fatal("a window asked for a frame on the display did not report its minimum")
+	}
+}
+
 // TestEngine_SetStore_DiscardsAnOlderStore pins that what a build without
 // the confirming read learned is not carried forward.
 func TestEngine_SetStore_DiscardsAnOlderStore(t *testing.T) {

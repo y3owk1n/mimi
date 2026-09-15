@@ -290,8 +290,7 @@ func (d *nativeDesktop) ApplicationInfo(pid int) (AppInfo, error) {
 // of a size makes.
 func (d *nativeDesktop) SetWindowFrame(windowID WindowID, frame geometry.Rect) error {
 	return d.withWindow(windowID, func(element *native.Element) error {
-		last, known := d.rememberedSize(windowID)
-		if known && sameLength(last.W, frame.W) && sameLength(last.H, frame.H) {
+		if d.atSize(element, windowID, frame) {
 			err := element.SetPosition(frame.X, frame.Y)
 			if err != nil {
 				return err
@@ -618,6 +617,31 @@ func (d *nativeDesktop) rememberFrame(id WindowID, frame geometry.Rect) {
 	defer d.framesMu.Unlock()
 
 	d.frames[id] = frame
+}
+
+// atSize reports whether the window already has the size of frame, so
+// that a write need only move it. The remembered size is the one mimi
+// last wrote, and an application can drop a write. A match there is
+// checked against a fresh window server list, which shows the size the
+// window kept and costs no round trip into the application.
+func (d *nativeDesktop) atSize(
+	element *native.Element,
+	windowID WindowID,
+	frame geometry.Rect,
+) bool {
+	last, known := d.rememberedSize(windowID)
+	if !known || !sameLength(last.W, frame.W) || !sameLength(last.H, frame.H) {
+		return false
+	}
+
+	d.relist()
+
+	listed, ok := d.listedWindow(element)
+	if !ok {
+		return true
+	}
+
+	return sameLength(listed.Frame.W, frame.W) && sameLength(listed.Frame.H, frame.H)
 }
 
 // rememberedSize is the size the window was last read at or written to,
