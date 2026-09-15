@@ -179,18 +179,20 @@ def modifiers(inp):
 
 
 def unmanaged_of(inp, state=None):
-    """The windows mimi should leave alone: the ones it handed back as
-    `unmanaged`, plus any the layout floated itself and keeps in
-    `state["floating"]`. Hand it to `write_output` so mimi's drag reading and
-    its drop zone agree with the layout about which windows are the layout's.
+    """The windows mimi should leave alone. A layout that keeps its floats in
+    `state["floating"]` gets that list. Any other layout gets the `unmanaged`
+    list mimi handed back, which is what it said last run. Never both. mimi
+    echoes the last answer on every run, so a window taken off the floating
+    list would stay unmanaged for good. Hand the result to `write_output` so
+    mimi's drag reading and its drop zone agree with the layout about which
+    windows are the layout's.
 
     Without it mimi keeps watching a window the layout has stopped placing,
     because not placing a window is also what a temporary maximise does to
     the windows under it, and those it should keep watching."""
-    numbers = set(inp.get("unmanaged", []))
-    if state:
-        numbers |= set(state.get("floating", []))
-    return sorted(numbers)
+    if state is not None and "floating" in state:
+        return sorted(state["floating"])
+    return sorted(inp.get("unmanaged", []))
 
 
 def write_output(frames, state, focus=None, unmanaged=None, stacks=None, target=None):
