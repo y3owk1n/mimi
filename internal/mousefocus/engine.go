@@ -27,7 +27,7 @@ type Desktop struct {
 func NativeDesktop() Desktop {
 	return Desktop{
 		WindowAt:   native.WindowAtPoint,
-		Frontmost:  native.FrontmostWindowNumber,
+		Frontmost:  native.FrontWindowNumber,
 		ButtonDown: native.LeftMouseButtonDown,
 		Focus:      action.FocusWindowNumber,
 		Start:      native.StartMouseMonitor,

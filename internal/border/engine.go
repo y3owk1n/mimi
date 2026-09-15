@@ -112,18 +112,21 @@ var wakingKinds = map[events.EventKind]bool{
 }
 
 // settlingKinds are the events that can arrive before the window server lists
-// the window they are about. An application reports a new window to
-// Accessibility, and activates, before the window server has finished making
-// it, so the sync the event wakes finds nothing to draw. The layout writes a
-// tiled window's frame a moment later and that move syncs again. A window no
-// layout places has no later event, and stays without a border until
-// something else changes.
+// the window they are about, or has it in its new place in the stack. An
+// application reports a new window to Accessibility, and activates, before
+// the window server has finished making it, so the sync the event wakes
+// finds nothing to draw. The layout writes a tiled window's frame a moment
+// later and that move syncs again. A window no layout places has no later
+// event, and stays without a border until something else changes. A focus
+// moved between two windows of one application is reported before the
+// window server has the focused one in front.
 //
 //nolint:gochecknoglobals // a fixed set
 var settlingKinds = map[events.EventKind]bool{
 	events.AppActivate:   true,
 	events.AppUnhide:     true,
 	events.WindowCreated: true,
+	events.WindowFocus:   true,
 	events.AXAttached:    true,
 }
 

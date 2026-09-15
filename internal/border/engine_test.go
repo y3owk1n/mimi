@@ -174,8 +174,9 @@ func TestEngine_RunSyncsOnEventsAndNudges(t *testing.T) {
 }
 
 // TestEngine_RunSyncsAgainWhileANewWindowSettles pins that the engine syncs
-// again after a window is created. The window server may not list the window
-// yet, and a window no layout places has no later event to draw its border on.
+// again after a window is created or focused. The window server may not list
+// a new window yet, or have a newly focused one in front yet, and a window no
+// layout places has no later event to draw its border on. A move syncs once.
 func TestEngine_RunSyncsAgainWhileANewWindowSettles(t *testing.T) {
 	t.Parallel()
 
@@ -185,7 +186,8 @@ func TestEngine_RunSyncsAgainWhileANewWindowSettles(t *testing.T) {
 	}{
 		{kind: events.WindowCreated, after: true},
 		{kind: events.AppActivate, after: true},
-		{kind: events.WindowFocus, after: false},
+		{kind: events.WindowFocus, after: true},
+		{kind: events.WindowMove, after: false},
 	}
 
 	for _, testCase := range tests {
