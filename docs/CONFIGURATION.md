@@ -299,7 +299,8 @@ to focus, plus `before`, `after`, `stacks` and `unmanaged`, which
 
 `version` changes when a field is renamed, removed or changes meaning. When a
 layout exits non-zero, times out, or prints the wrong shape, the daemon logs
-it and applies nothing.
+it and applies nothing. [LAYOUT_CONTRACT.md](LAYOUT_CONTRACT.md) is the
+field-by-field reference for both documents.
 
 ### Animation
 
@@ -613,6 +614,52 @@ Every hook receives:
 | `mimi_APPEARANCE` | `dark` or `light`, the mode now in effect (`on_appearance_changed` only) |
 | `mimi_DISPLAYS_COUNT` | How many displays are connected now (`on_display_changed` only) |
 | `mimi_DISPLAYS` | The connected displays as JSON, the list `mimi query displays` prints (`on_display_changed` only) |
+
+### Which variables each hook carries
+
+The seven variables from `mimi_EVENT` to `mimi_TIMESTAMP` are always set.
+`mimi_EVENT`, `mimi_EVENT_ID` and `mimi_TIMESTAMP` are never empty. The rest
+are empty strings on a hook whose event has nothing to put in them, and the
+extra variables below are set only on the hooks named.
+
+| Hook | `mimi_APP_NAME`, `mimi_BUNDLE_ID`, `mimi_PID` | `mimi_WINDOW_TITLE` | Extra |
+| --- | --- | --- | --- |
+| `on_app_*` | set | empty | none |
+| `on_window_*` | set | set, `""` when the window has none | none |
+| `on_workspace_changed` | empty | empty | `mimi_WINDOWS_COUNT`, `mimi_INFO`, `mimi_SPACE_INDEX`, `mimi_SPACE_COUNT` |
+| `on_system_sleep`, `on_system_wake` | empty | empty | none |
+| `on_display_changed` | empty | empty | `mimi_DISPLAYS_COUNT`, `mimi_DISPLAYS` |
+| `on_appearance_changed` | empty | empty | `mimi_APPEARANCE` |
+| `on_screen_locked`, `on_screen_unlocked` | empty | empty | none |
+
+`mimi_SPACE_INDEX` and `mimi_SPACE_COUNT` are absent, not empty, when mimi
+could not enumerate Mission Control. `mimi_DISPLAYS_COUNT` and
+`mimi_DISPLAYS` are absent when the displays could not be read.
+
+### How a hook runs
+
+- mimi runs `run` through `settings.hook_shell -c`, as one string, with the
+  variables above added to the environment the daemon started with. A
+  change to your shell environment after the daemon started does not reach
+  a hook until the daemon restarts.
+- stdin is `/dev/null`. The event reaches the hook only through the
+  variables.
+- mimi captures stdout and stderr together, up to 64 KiB, and logs them at
+  debug level when the hook succeeds. Nothing reaches the daemon's own
+  output.
+- A hook that exits non-zero logs at error level with its exit status. mimi
+  kills one that runs past `settings.hook_timeout_secs`, or its own
+  `timeout_secs`, and logs it at warn level. Neither stops the other hooks
+  for the event.
+- Hooks for one event run in config order. A hook without `async` runs
+  before the next hook of the same kind starts, and before the daemon reads
+  the next event, so a slow one delays everything behind it. An `async`
+  hook runs in the background. At most `settings.max_hook_workers` hooks
+  run at once, `async` or not, and the rest wait.
+- A hook runs only when every filter on its entry matches. `mimi config
+  validate` checks the filters parse. At `log_level = "debug"` the log
+  says `hook matched` or `hook skipped` with the reason for every hook the
+  event reached.
 
 Write references without your own quotes. mimi substitutes each value as a
 single shell token wrapped in single quotes, so a crafted window title cannot

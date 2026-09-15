@@ -35,7 +35,8 @@ curl -fsSL "https://raw.githubusercontent.com/y3owk1n/mimi/$tag/docs/CLI.md"
 ```
 
 The docs are `CLI.md` for every command and flag, `CONFIGURATION.md` for
-every key and hook, `TILING.md` for layouts, `TROUBLESHOOTING.md` when
+every key and hook, `TILING.md` for layouts, `LAYOUT_CONTRACT.md` for every
+field a layout reads and prints, `TROUBLESHOOTING.md` when
 something does not work, and `INSTALLATION.md` for install methods and the
 launchd service.
 

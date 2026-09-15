@@ -269,6 +269,7 @@ Space switching sends a synthetic dock swipe through `CGEvent`. Window-to-space 
 | [CLI Reference](docs/CLI.md)                     | Every command, flag and preset                       |
 | [Configuration Reference](docs/CONFIGURATION.md) | Settings, hooks, environment variables, borders      |
 | [Tiling Guide](docs/TILING.md)                   | From first run to writing a layout from scratch      |
+| [Layout Contract](docs/LAYOUT_CONTRACT.md)       | Every field a layout reads and prints                |
 | [Troubleshooting](docs/TROUBLESHOOTING.md)       | Common issues and fixes                              |
 
 | Working on mimi                          |                                          |
