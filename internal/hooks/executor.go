@@ -3,6 +3,7 @@ package hooks
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"errors"
 	"fmt"
 	"os"
@@ -177,6 +178,7 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 
 	runCmd := replaceEventVars(hook.Entry.Run, evt)
 	cmd := exec.CommandContext(ctx, shell, "-c", runCmd)
+	cmd.Stdin = bytes.NewReader(eventJSON(evt))
 
 	eventVars := eventEnv(evt)
 	cmd.Env = make([]string, 0, len(ex.baseEnv)+len(eventVars))
@@ -217,6 +219,18 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 }
 
 const baseEnvVarCount = 7
+
+// eventJSON is the event as one line of JSON, the same document the event
+// log writes, for the hook's stdin. A hook that wants the whole event
+// reads it with jq rather than assembling it from the variables.
+func eventJSON(evt events.Event) []byte {
+	data, err := json.Marshal(evt)
+	if err != nil {
+		return nil
+	}
+
+	return append(data, '\n')
+}
 
 func eventEnv(evt events.Event) []string {
 	vars := make([]string, 0, baseEnvVarCount+len(evt.Extra))
