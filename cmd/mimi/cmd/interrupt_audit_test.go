@@ -126,6 +126,14 @@ var interruptAudit = []auditEntry{
 			"nothing here waits for the daemon to finish reloading"),
 	audited("config validate", interruptRunsOn,
 		"reads and parses one local file and reports on it"),
+	audited("hooks", interruptRunsOn,
+		"prints usage and exits"),
+	audited("hooks list", interruptRunsOn,
+		"reads and parses one local file and prints it"),
+	audited("hooks fire", interruptStopsTheWork,
+		"each hook runs under the command's context, so the interrupt kills "+
+			"the one running and the rest do not start. The command reports "+
+			"what ran"),
 	audited("query", interruptRunsOn,
 		"as action: the body only reports the missing subcommand and returns"),
 	audited("query space", interruptRunsOn,

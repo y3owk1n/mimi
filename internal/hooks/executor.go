@@ -155,12 +155,84 @@ func (ex *Executor) Run(ctx context.Context, sub events.Subscriber) {
 	}
 }
 
-// run executes a single matched hook. hookIndex is the hook's 0-based
-// position within its kind, passed down from Handle's loop so the log lines
-// below can identify the hook without recording its command text. It is a
-// parameter rather than executor state because Handle may launch several
-// async hooks concurrently.
+// Outcome is what Fire reports for one hook of the kind: whether it matched
+// the event and why not when it did not, and how it ran when it did.
+type Outcome struct {
+	Index   int
+	Matched bool
+	Reason  string
+	Result  Result
+}
+
+// Fire runs the hooks for evt's kind by hand, one after another whatever
+// their async setting, and reports each. It is how mimi hooks fire shows a
+// user what the daemon would do with such an event.
+func (ex *Executor) Fire(ctx context.Context, evt events.Event) []Outcome {
+	hooks := ex.registry.HooksFor(evt.Kind)
+	outcomes := make([]Outcome, 0, len(hooks))
+
+	for index, hook := range hooks {
+		outcome := Outcome{Index: index}
+
+		outcome.Matched, outcome.Reason = hook.Matches(evt)
+		if outcome.Matched {
+			outcome.Result = ex.execute(ctx, hook, evt)
+		}
+
+		outcomes = append(outcomes, outcome)
+	}
+
+	return outcomes
+}
+
+// run executes a single matched hook and logs how it went. hookIndex is the
+// hook's 0-based position within its kind, passed down from Handle's loop so
+// the log lines below can identify the hook without recording its command
+// text. It is a parameter rather than executor state because Handle may
+// launch several async hooks concurrently.
 func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
+	result := ex.execute(context.Background(), hook, evt)
+
+	switch {
+	case result.TimedOut:
+		ex.logger.Warnw("hook timed out",
+			"kind", evt.Kind, "index", hookIndex, "timeout", result.Timeout)
+	case result.Err != nil:
+		ex.logger.Errorw("hook failed",
+			"kind", evt.Kind, "index", hookIndex,
+			"exit", result.Err)
+	default:
+		output := strings.TrimSpace(string(result.Output))
+
+		attrs := []any{
+			"kind", evt.Kind,
+			"index", hookIndex,
+			"elapsed", result.Elapsed.Round(time.Millisecond),
+		}
+		if output != "" {
+			attrs = append(attrs, "output", output)
+		}
+
+		ex.logger.Debugw("hook ok", attrs...)
+	}
+}
+
+// Result is how one hook run went: what it printed, capped as the daemon
+// caps it, how long it took, the bound it ran under, and why it failed when
+// it did.
+type Result struct {
+	Output   []byte
+	Elapsed  time.Duration
+	Timeout  time.Duration
+	TimedOut bool
+	Err      error
+}
+
+// execute runs one hook the way the daemon does, under its timeout and at
+// most max_hook_workers at once, and reports the result rather than logging
+// it. parent bounds the run beyond the timeout, for a caller that may be
+// interrupted.
+func (ex *Executor) execute(parent context.Context, hook Hook, evt events.Event) Result {
 	ex.sem <- struct{}{}
 	defer func() { <-ex.sem }()
 
@@ -173,7 +245,7 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 		timeout = time.Duration(hook.Entry.TimeoutSecs) * time.Second
 	}
 
-	ctx, cancel := context.WithTimeout(context.Background(), timeout)
+	ctx, cancel := context.WithTimeout(parent, timeout)
 	defer cancel()
 
 	runCmd := replaceEventVars(hook.Entry.Run, evt)
@@ -190,31 +262,13 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 	cmd.Stdout = outBuf
 	cmd.Stderr = outBuf
 	err := cmd.Run()
-	out := outBuf.Bytes()
-	elapsed := time.Since(start)
 
-	if err != nil {
-		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
-			ex.logger.Warnw("hook timed out",
-				"kind", evt.Kind, "index", hookIndex, "timeout", timeout)
-		} else {
-			ex.logger.Errorw("hook failed",
-				"kind", evt.Kind, "index", hookIndex,
-				"exit", err)
-		}
-	} else {
-		output := strings.TrimSpace(string(out))
-
-		attrs := []any{
-			"kind", evt.Kind,
-			"index", hookIndex,
-			"elapsed", elapsed.Round(time.Millisecond),
-		}
-		if output != "" {
-			attrs = append(attrs, "output", output)
-		}
-
-		ex.logger.Debugw("hook ok", attrs...)
+	return Result{
+		Output:   outBuf.Bytes(),
+		Elapsed:  time.Since(start),
+		Timeout:  timeout,
+		TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded),
+		Err:      err,
 	}
 }
 

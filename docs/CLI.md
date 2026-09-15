@@ -12,6 +12,7 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 - [Queries](#queries)
 - [Tiling](#tiling)
 - [Hook daemon](#hook-daemon)
+- [Hooks](#hooks)
 - [Service management](#service-management)
 - [Configuration management](#configuration-management)
 - [Shell completion](#shell-completion)
@@ -50,6 +51,8 @@ the first one does depends on the command:
 | `mimi action *`              | Does not reach the action, which finishes. Press Ctrl-C again to end the process. |
 | `mimi config *`              | Does not reach the command, which finishes. Each is local file work, plus one signal for `reload`. |
 | `mimi status`, `mimi doctor`, `mimi stop` | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
+| `mimi hooks list`            | Does not reach the command, which finishes. It reads one file. |
+| `mimi hooks fire`            | Kills the hook that is running and starts no more. It reports what ran. |
 | `mimi query *`               | Does not reach the command, which finishes. Each is a few desktop reads and one line of output. |
 | `mimi tiling preview`        | Kills the layout program if it is still running. Nothing is applied either way. |
 | `mimi tiling relayout`/`cmd` | With a daemon, as `mimi action *`. Without one, as `preview`, then the frames are applied. |
@@ -627,6 +630,63 @@ with an error, times out, prints something other than the output contract,
 or prints nothing. A layout named for one display or space in
 `[[tiling.layouts]]` gets a line of its own. A `warn` is something
 worth knowing that stops nothing. The command exits 1 when any check fails.
+
+---
+
+## Hooks
+
+Both commands read the config from disk and need no daemon. A running
+daemon is not involved either way.
+
+### `mimi hooks list`
+
+Print each hook kind that has at least one hook, with every entry under it:
+its position within the kind, its command, and the filters and settings on
+it.
+
+```
+$ mimi hooks list
+on_app_activate
+  [0] sketchybar --trigger front_app
+      app=!Finder
+  [1] echo active: $mimi_APP_NAME
+      async
+on_workspace_changed
+  [0] sketchybar --trigger space_change
+```
+
+The position is the `index` the daemon's debug log names in `hook matched`
+and `hook skipped`.
+
+### `mimi hooks fire <kind> [flags]`
+
+Build an event of one kind from the flags and run the kind's hooks against
+it in this process, one after another, the way the daemon runs them: through
+`settings.hook_shell`, with the `mimi_*` variables set and the event on
+stdin, under each hook's timeout. It reports every hook, matched or not,
+with a matched hook's output indented under it.
+
+```
+$ mimi hooks fire on_app_activate --app Safari --bundle-id com.apple.Safari
+[0] matched, ok in 12ms
+    active: Safari
+[1] skipped: app filter mismatch
+```
+
+The kind is a `[hooks]` key such as `on_app_activate`, or the event name the
+daemon logs such as `app_activate`. The flags describe the event:
+
+| Flag | Sets |
+| --- | --- |
+| `--app` | `mimi_APP_NAME` |
+| `--bundle-id` | `mimi_BUNDLE_ID` |
+| `--pid` | `mimi_PID` |
+| `--title` | `mimi_WINDOW_TITLE` |
+| `--extra key=value` | `mimi_KEY`, for a variable the kind carries. Repeatable. `--extra space_index=2` is what a `space` filter reads. |
+
+A hook marked `async` runs in turn here like the rest. The command exits 1
+when a matched hook fails or times out, and 0 otherwise, including when no
+hook matched.
 
 ---
 

@@ -102,6 +102,7 @@ mimi config init            # write ~/.config/mimi/config.toml
 mimi services install       # run the daemon at login, for hooks, borders and tiling
 mimi status                 # daemon state and permissions
 mimi doctor                 # every troubleshooting check, with the fix under a failure
+mimi hooks fire on_app_activate --app Safari   # run a hook by hand and see what matched
 ```
 
 ### Set up with an agent
