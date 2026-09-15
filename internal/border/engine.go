@@ -72,11 +72,12 @@ func styleOf(cfg config.BorderConfig) native.BorderStyle {
 	inactive, _ := config.ParseColor(cfg.InactiveColor)
 
 	return native.BorderStyle{
-		Width:    cfg.Width,
-		Inside:   cfg.Inside(),
-		Radius:   cfg.CornerRadius(),
-		Active:   native.Color(active),
-		Inactive: native.Color(inactive),
+		Width:          cfg.Width,
+		Inside:         cfg.Inside(),
+		HideWhenSingle: cfg.HideWhenSingle,
+		Radius:         cfg.CornerRadius(),
+		Active:         native.Color(active),
+		Inactive:       native.Color(inactive),
 	}
 }
 

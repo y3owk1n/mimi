@@ -432,6 +432,7 @@ follow = false
 enabled = true
 width = 4                   # points, 1 to 32
 placement = "outside"       # around the window, or "inside" over its edge
+hide_when_single = false    # no border for a window alone on its space
 # radius = 12               # force one corner radius; unset follows each window's own, 0 is square
 active_color = "#e2e2e3"    # the focused window, #rrggbb or #aarrggbb
 inactive_color = "#414141"  # every other window
@@ -454,6 +455,13 @@ It draws on nothing outside the window, so a window flush against a
 neighbour or the screen edge keeps its whole border. The ring covers that
 much of the window's own edge, and clicks pass through it. A colour with an
 alpha channel draws a translucent border.
+
+With `hide_when_single = true`, a window that is the only one on its space
+gets no border. The border appears when a second window opens on the space
+and goes when the space is back to one window. Windows on other spaces,
+hidden applications, minimized windows, and full-screen windows do not
+count. Each display has its own space in front, so one window on each of two
+displays is alone on both.
 
 Windows have different corner radii. With `radius` unset, each border uses the
 radius the window server reports for its window, which macOS 26 added. Earlier

@@ -190,6 +190,8 @@ width = 4
 # the window's edge, over it, so a window flush against a neighbour or the
 # screen edge keeps its whole border.
 placement = "outside"
+# Draw no border for a window that is the only one on its space.
+hide_when_single = false
 # The window corner radius the ring follows on its inside. Leave unset to
 # follow each window's own corners (macOS 26 and later; earlier releases get
 # a document window's). Set a number to draw every ring alike; 0 is square.
