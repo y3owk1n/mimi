@@ -608,14 +608,23 @@ ok    service        loaded and running (pid 4310)
 warn  hook commands  not on the service PATH: sketchybar
       fix: set settings.service_path and run mimi services install, or call the command by absolute path
 ok    log file       /Users/me/.local/share/mimi/mimi.log
+ok    layout         python3 ~/.config/mimi/layouts/bsp.py: 2 frames for 2 windows
 ok    space switch   macOS 27 encoding
 ```
 
 The checks are the config parsing, Accessibility, the daemon and its socket,
 whether the daemon is the same build as the CLI asking, the launchd service, which names the agent running the daemon when it is not
 mimi's own (the Nix modules install their own), whether every hook command resolves on the `PATH` the
-service runs hooks with, whether mimi can write the log file, and which dock
-swipe encoding a space switch uses on this macOS. A `warn` is something
+service runs hooks with, whether mimi can write the log file, whether every
+layout the config names answers a sample input with frames, and which dock
+swipe encoding a space switch uses on this macOS.
+
+The layout check runs each layout once, as `mimi tiling preview` would, on
+a made-up desktop of two windows on one display. It reads no window, so it
+needs no Accessibility, and it catches a layout that cannot be run, exits
+with an error, times out, prints something other than the output contract,
+or prints nothing. A layout named for one display or space in
+`[[tiling.layouts]]` gets a line of its own. A `warn` is something
 worth knowing that stops nothing. The command exits 1 when any check fails.
 
 ---

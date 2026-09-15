@@ -679,7 +679,9 @@ as `/dev/null`, the layout reads no input and does nothing.
 
 ## When nothing happens
 
-Work down this list.
+`mimi doctor` runs the layout once on a made-up desktop and says whether it
+answered with frames, timed out, or printed something else. Start there,
+then work down this list.
 
 1. **Is Accessibility granted?** Every window read and write needs it.
    Without it the daemon logs `accessibility permission not granted` with

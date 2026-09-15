@@ -250,7 +250,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 
 	e.programs = make(map[string]Layout)
 
-	for _, command := range commandsOf(cfg) {
+	for _, command := range LayoutCommands(cfg) {
 		if !resident {
 			e.programs[command] = Program{Shell: shell, Command: command, Timeout: timeout}
 
@@ -870,9 +870,9 @@ func (e *Engine) stopResidentLocked() {
 	clear(e.programs)
 }
 
-// commandsOf is every distinct command line the config names, the default
-// first, in the order the file names them.
-func commandsOf(cfg config.TilingConfig) []string {
+// LayoutCommands is every distinct layout command the config names, the
+// default first and then the per-display and per-space ones.
+func LayoutCommands(cfg config.TilingConfig) []string {
 	var commands []string
 
 	seen := map[string]bool{}
