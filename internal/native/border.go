@@ -11,16 +11,17 @@ type Color struct {
 }
 
 // BorderStyle is how window borders are drawn: how wide, whether the ring
-// sits inside the window's edge rather than around it, the radius of the
-// window corner the border follows, or FollowWindowRadius to follow each
-// window's own corner, and the colors for the focused window and for every
-// other.
+// sits inside the window's edge rather than around it, whether a window
+// alone on its space goes without, the radius of the window corner the
+// border follows, or FollowWindowRadius to follow each window's own corner,
+// and the colors for the focused window and for every other.
 type BorderStyle struct {
-	Width    float64
-	Inside   bool
-	Radius   float64
-	Active   Color
-	Inactive Color
+	Width          float64
+	Inside         bool
+	HideWhenSingle bool
+	Radius         float64
+	Active         Color
+	Inactive       Color
 }
 
 // FollowWindowRadius is the Radius that follows each window's own corner
@@ -33,11 +34,12 @@ const FollowWindowRadius = -1
 // shown.
 func SetBorderStyle(style BorderStyle) {
 	cStyle := C.MimiBorderStyle{
-		width:    C.double(style.Width),
-		inside:   boolToInt(style.Inside),
-		radius:   C.double(style.Radius),
-		active:   cColor(style.Active),
-		inactive: cColor(style.Inactive),
+		width:          C.double(style.Width),
+		inside:         boolToInt(style.Inside),
+		hideWhenSingle: boolToInt(style.HideWhenSingle),
+		radius:         C.double(style.Radius),
+		active:         cColor(style.Active),
+		inactive:       cColor(style.Inactive),
 	}
 	C.MimiBordersSetStyle(&cStyle)
 }

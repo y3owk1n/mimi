@@ -64,8 +64,8 @@ func TestEngine_UpdateStylesEnablesAndClears(t *testing.T) {
 		t.Errorf("style.Radius = %v, want FollowWindowRadius", style.Radius)
 	}
 
-	if style.Inside {
-		t.Error("style.Inside = true for an outside placement, want false")
+	if style.Inside || style.HideWhenSingle {
+		t.Errorf("style = %+v, want neither Inside nor HideWhenSingle", style)
 	}
 
 	if !engine.KindFilter()(events.WindowFocus) || engine.KindFilter()(events.WindowTitleChange) {
@@ -93,6 +93,16 @@ func TestEngine_UpdateStylesEnablesAndClears(t *testing.T) {
 	if len(fake.styles) != 3 || !fake.styles[2].Inside {
 		t.Errorf(
 			"styles after moving the border inside = %+v, want a third with Inside set",
+			fake.styles,
+		)
+	}
+
+	cfg.HideWhenSingle = true
+	engine.Update(cfg)
+
+	if len(fake.styles) != 4 || !fake.styles[3].HideWhenSingle {
+		t.Errorf(
+			"styles after hide_when_single = %+v, want a fourth with HideWhenSingle set",
 			fake.styles,
 		)
 	}

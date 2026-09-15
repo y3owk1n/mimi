@@ -194,6 +194,18 @@ static BOOL mimiFullScreen(CGRect frame, const CGRect *displays, const BOOL *ful
 	return under;
 }
 
+// Whether the window described by info gets a border, and where it is: not
+// one of ours, with bounds the window server gives, and not full screen.
+static BOOL mimiBordered(
+    NSDictionary *info, pid_t self, const CGRect *displays, const BOOL *fullScreen, uint32_t displayCount,
+    CGRect *bounds) {
+	if ([info[(id)kCGWindowOwnerPID] intValue] == self)
+		return NO;
+	if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], bounds))
+		return NO;
+	return !CGRectIsEmpty(*bounds) && !mimiFullScreen(*bounds, displays, fullScreen, displayCount);
+}
+
 // The window server's description of each window: its owner and bounds.
 // The ids go in as the pointers CGWindowListCreateDescriptionFromArray
 // reads, not as numbers.
@@ -384,22 +396,32 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	CFArrayRef described = mimiDescribe(numbers);
 
 	pid_t self = getpid();
+	// How many windows get a border on each space, when a window alone on
+	// its space goes without.
+	NSCountedSet<NSNumber *> *crowd = nil;
+	if (gStyle.hideWhenSingle) {
+		crowd = [NSCountedSet set];
+		for (NSDictionary *info in (__bridge NSArray *)described) {
+			CGRect bounds;
+			if (mimiBordered(info, self, displays, fullScreen, displayCount, &bounds))
+				[crowd addObject:@(mimiSpaceUnder(bounds, displays, front, displayCount))];
+		}
+	}
+
 	NSMutableSet<NSNumber *> *seen = [NSMutableSet set];
 	int made = 0;
 	int moved = 0;
 	for (NSDictionary *info in (__bridge NSArray *)described) {
-		if ([info[(id)kCGWindowOwnerPID] intValue] == self)
-			continue;
 		CGRect bounds;
-		if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds))
-			continue;
-		if (CGRectIsEmpty(bounds) || mimiFullScreen(bounds, displays, fullScreen, displayCount))
+		if (!mimiBordered(info, self, displays, fullScreen, displayCount, &bounds))
 			continue;
 
 		NSNumber *key = info[(id)kCGWindowNumber];
 		uint32_t number = key.unsignedIntValue;
 		BOOL active = number == gFocused;
 		uint64_t space = mimiSpaceUnder(bounds, displays, front, displayCount);
+		if (crowd && [crowd countForObject:@(space)] < 2)
+			continue;
 		MimiBorder *border = gBorders[key];
 		// A border stays on the space it was shown on, so a window that
 		// moved to another space left its border behind. Close that one

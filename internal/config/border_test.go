@@ -40,6 +40,10 @@ func TestLoad_BorderDefaults(t *testing.T) {
 		t.Error("Inside() = true for the default placement, want false")
 	}
 
+	if cfg.Border.HideWhenSingle {
+		t.Error("border.hide_when_single = true by default, want false")
+	}
+
 	if got, want := cfg.Border.ActiveColor, defaultBorderActiveColor; got != want {
 		t.Errorf("border.active_color = %q, want %q", got, want)
 	}

@@ -13,13 +13,14 @@ typedef struct {
 } MimiColor;
 
 /// How borders are drawn: how wide, whether the ring sits inside the
-/// window's edge rather than around it, the radius of the window's corner
-/// the border follows, or -1 to follow each window's own corner as the
-/// window server reports it, and the colour for the focused window and for
-/// every other.
+/// window's edge rather than around it, whether a window alone on its space
+/// goes without one, the radius of the window's corner the border follows,
+/// or -1 to follow each window's own corner as the window server reports
+/// it, and the colour for the focused window and for every other.
 typedef struct {
 	double width;
 	int inside;
+	int hideWhenSingle;
 	double radius;
 	MimiColor active;
 	MimiColor inactive;
