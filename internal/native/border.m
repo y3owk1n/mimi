@@ -4,7 +4,6 @@
 #import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
-#import <QuartzCore/QuartzCore.h>
 #import <stdatomic.h>
 #import <unistd.h>
 
@@ -12,11 +11,33 @@ extern int SLSMainConnectionID(void);
 extern CGError SLSGetWindowBounds(int cid, uint32_t wid, CGRect *bounds);
 extern int SLSSpaceGetType(int cid, uint64_t sid);
 
+// A border is a window the window server makes for the daemon directly,
+// not an AppKit window. A click on an application window does not raise it
+// over a border of this kind, as it does over an AppKit window ordered
+// above it, and an order set on the border against the window holds.
+extern CGError CGSNewRegionWithRect(const CGRect *rect, CFTypeRef *region);
+extern CGError SLSNewWindow(int cid, int type, float x, float y, CFTypeRef region, uint32_t *wid);
+extern CGError SLSReleaseWindow(int cid, uint32_t wid);
+extern CGError SLSSetWindowTags(int cid, uint32_t wid, const uint64_t *tags, int size);
+extern CGError SLSSetWindowShape(int cid, uint32_t wid, float x, float y, CFTypeRef region);
+extern CGError SLSSetWindowResolution(int cid, uint32_t wid, double resolution);
+extern CGError SLSSetWindowOpacity(int cid, uint32_t wid, bool opaque);
+extern CGError SLSSetWindowLevel(int cid, uint32_t wid, int level);
+extern CGError SLSMoveWindowsToManagedSpace(int cid, CFArrayRef windows, uint64_t sid);
+extern CGContextRef SLWindowContextCreate(int cid, uint32_t wid, CFDictionaryRef options);
+extern CGError SLSFlushWindowContentRegion(int cid, uint32_t wid, void *dirty);
+extern CGError SLSWindowFreezeWithOptions(int cid, uint32_t wid, CFTypeRef options);
+extern CGError SLSWindowThaw(int cid, uint32_t wid);
+extern CFTypeRef SLSTransactionCreate(int cid);
+extern CGError SLSTransactionMoveWindowWithGroup(CFTypeRef transaction, uint32_t wid, CGPoint origin);
+extern CGError SLSTransactionOrderWindow(CFTypeRef transaction, uint32_t wid, int mode, uint32_t relative);
+extern CGError SLSTransactionCommit(CFTypeRef transaction, int synchronous);
+
 // The window server tells a connection about the windows it asked after, as
 // each event happens: a move at every step of a drag, where Accessibility
 // tells the daemon a few times a second, and a reorder, which Accessibility
-// reports only when it moves the focus. The events are numbered as yabai
-// and JankyBorders read them.
+// reports only when it moves the focus. It also tells every connection as
+// windows are added and removed, the Dock's among them.
 typedef void (*MimiWindowServerProc)(uint32_t event, void *data, size_t length, void *context, int cid);
 extern CGError SLSRegisterConnectionNotifyProc(int cid, MimiWindowServerProc proc, uint32_t event, void *context);
 extern CGError SLSRequestNotificationsForWindows(int cid, const uint32_t *windows, int count);
@@ -25,31 +46,49 @@ enum {
 	kMimiWindowServerMoved = 806,
 	kMimiWindowServerResized = 807,
 	kMimiWindowServerReordered = 808,
+	kMimiWindowServerAdded = 1325,
+	kMimiWindowServerRemoved = 1326,
 };
+
+// The level of the window the Dock lays over each display while Mission
+// Control or App Expose is up.
+static const int kMimiDockOverlayLevel = 20;
 
 // SLSSpaceGetType's answer for a full-screen application's space, the same
 // "type" MimiDisplaySpaceIsFullScreen reads. Asking one space is cheap
 // enough for a sync at every step of a drag.
 static const int kMimiSpaceFullScreen = 4;
 
-// A border is a window of our own. Outside, it is a little larger than the
-// window it belongs to and ordered right under it, so the window covers the
-// middle and the ring around it shows. Nothing is drawn over another
-// application's content, and a window that overlaps a bordered one covers
-// the border as it covers the window. Inside, it is the window's own size
-// and ordered right over it, so the ring covers the window's edge and
-// nothing else. A window over the bordered one covers both. Either way the
-// ring is a shape layer with the middle cut out of it, so the corners under
-// the window's own rounded ones stay clear.
+// The tags a border window is made with.
+static const uint64_t kMimiBorderTags = (1ULL << 1) | (1ULL << 9);
+
+// Borders are drawn at Retina resolution on every display, since a window
+// keeps one resolution as it crosses from one display to another.
+static const double kMimiBorderResolution = 2;
+
+// Outside, a border is a little larger than the window it belongs to and
+// ordered right under it, so the window covers the middle and the ring
+// around it shows. Nothing is drawn over another application's content, and
+// a window that overlaps a bordered one covers the border as it covers the
+// window. Inside, it is the window's own size and ordered right over it, so
+// the ring covers the window's edge and nothing else. A window over the
+// bordered one covers both. Either way the ring is drawn with the middle
+// cleared, so the corners under the window's own rounded ones stay clear.
 //
 // The window server is asked which windows are real and on the spaces in
 // front, the same test the queries use, and Accessibility which is focused,
-// once per sync from the thread that asks. Every window and layer lives on
-// the main thread, where the daemon runs its application loop.
+// once per sync from the thread that asks. Every border lives on the main
+// thread, where the daemon runs its application loop.
 
 #pragma mark - Types
 
-@interface MimiBorder : NSWindow
+@interface MimiBorder : NSObject
+// number is the border window's own number.
+@property(nonatomic) uint32_t number;
+// context draws into the border window.
+@property(nonatomic) CGContextRef context;
+// size is the border window's, the size its shape was last set to.
+@property(nonatomic) CGSize size;
 // targetBounds is the target's frame the border was last drawn for, in screen
 // coordinates, y down.
 @property(nonatomic) CGRect targetBounds;
@@ -59,23 +98,9 @@ static const int kMimiSpaceFullScreen = 4;
 @property(nonatomic) BOOL active;
 // space is the space the border was shown on.
 @property(nonatomic) uint64_t space;
-@property(nonatomic, strong) CAShapeLayer *ring;
 @end
 
 @implementation MimiBorder
-
-- (BOOL)canBecomeKeyWindow {
-	return NO;
-}
-
-- (BOOL)canBecomeMainWindow {
-	return NO;
-}
-
-- (BOOL)isAccessibilityElement {
-	return NO;
-}
-
 @end
 
 // The corner radius drawn for a window whose own the window server does not
@@ -88,6 +113,8 @@ static NSMutableDictionary<NSNumber *, MimiBorder *> *gBorders;
 static MimiBorderStyle gStyle;
 static BOOL gEnabled;
 static uint32_t gFocused;
+// hidden is whether the borders are ordered out for Mission Control.
+static BOOL gHidden;
 
 // A sync asked for while one waits to run is folded into it, since a drag
 // asks faster than the main thread draws.
@@ -97,26 +124,45 @@ static atomic_uint gFocusRequest;
 
 #pragma mark - Helpers
 
-// Put border right next to its window: under it outside, over it inside.
-// The window server takes this order against another application's window
-// from AppKit, and ignores the same order sent with SLSOrderWindow while
-// still returning success.
-static void mimiOrderBeside(MimiBorder *border, uint32_t number) {
-	[border orderWindow:gStyle.inside ? NSWindowAbove : NSWindowBelow relativeTo:(NSInteger)number];
+// Order border above (1) or below (-1) window number, or off the screen (0).
+static void mimiOrder(MimiBorder *border, int mode, uint32_t number) {
+	CFTypeRef transaction = SLSTransactionCreate(SLSMainConnectionID());
+	SLSTransactionOrderWindow(transaction, border.number, mode, number);
+	SLSTransactionCommit(transaction, 0);
+	CFRelease(transaction);
 }
 
-// Whether the window server has border on the wrong side of its window.
-// An application that orders its window to the front after the border was
-// made beside it leaves an inside border under the window.
-static BOOL mimiMisordered(MimiBorder *border, uint32_t number) {
-	uint32_t upper = gStyle.inside ? (uint32_t)border.windowNumber : number;
-	uint32_t lower = gStyle.inside ? number : (uint32_t)border.windowNumber;
-	NSArray *above = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenAboveWindow, upper));
-	for (NSDictionary *info in above) {
-		if ([info[(id)kCGWindowNumber] unsignedIntValue] == lower)
+// Put border right next to its window: under it outside, over it inside.
+static void mimiOrderBeside(MimiBorder *border, uint32_t number) { mimiOrder(border, gStyle.inside ? 1 : -1, number); }
+
+// Whether Mission Control or App Expose is up: the Dock then has a window
+// over a whole display. They lay the windows out without their borders, so
+// the borders come down for them.
+static BOOL mimiMissionControlUp(void) {
+	NSArray *list = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
+	for (NSDictionary *info in list) {
+		if ([info[(id)kCGWindowLayer] intValue] != kMimiDockOverlayLevel)
+			continue;
+		if (![info[(id)kCGWindowOwnerName] isEqualToString:@"Dock"])
+			continue;
+		CGRect bounds;
+		if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds))
+			continue;
+		CGDirectDisplayID display;
+		uint32_t count = 0;
+		if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count &&
+		    CGRectEqualToRect(bounds, CGDisplayBounds(display)))
 			return YES;
 	}
 	return NO;
+}
+
+// Move border to origin, in screen coordinates, y down.
+static void mimiMoveBorder(MimiBorder *border, CGPoint origin) {
+	CFTypeRef transaction = SLSTransactionCreate(SLSMainConnectionID());
+	SLSTransactionMoveWindowWithGroup(transaction, border.number, origin);
+	SLSTransactionCommit(transaction, 0);
+	CFRelease(transaction);
 }
 
 // The border window's frame for a window at bounds: the bounds grown by the
@@ -125,13 +171,6 @@ static CGRect mimiBorderFrame(CGRect bounds) {
 	if (gStyle.inside)
 		return bounds;
 	return CGRectInset(bounds, -gStyle.width, -gStyle.width);
-}
-
-// NSWindow frames are y up from the primary display's bottom-left.
-static NSRect mimiBorderCocoaRect(CGRect rect) {
-	double primaryHeight = CGDisplayBounds(CGMainDisplayID()).size.height;
-	return NSMakeRect(
-	    rect.origin.x, primaryHeight - rect.origin.y - rect.size.height, rect.size.width, rect.size.height);
 }
 
 static CGColorRef mimiBorderColor(MimiColor color) {
@@ -241,31 +280,44 @@ static CFArrayRef mimiDescribe(NSArray<NSNumber *> *numbers) {
 
 #pragma mark - Drawing
 
-static MimiBorder *mimiNewBorder(void) {
-	MimiBorder *border = [[MimiBorder alloc] initWithContentRect:NSMakeRect(0, 0, 1, 1)
-	                                                   styleMask:NSWindowStyleMaskBorderless
-	                                                     backing:NSBackingStoreBuffered
-	                                                       defer:NO];
-	border.level = NSNormalWindowLevel;
-	border.opaque = NO;
-	border.backgroundColor = [NSColor clearColor];
-	border.hasShadow = NO;
-	border.ignoresMouseEvents = YES;
-	border.releasedWhenClosed = NO;
-	border.animationBehavior = NSWindowAnimationBehaviorNone;
-	// Transient, so Mission Control, App Expose and Show Desktop hide the
-	// border with its window. A stationary window they leave in place.
-	border.collectionBehavior = NSWindowCollectionBehaviorTransient | NSWindowCollectionBehaviorIgnoresCycle;
-	NSView *view = border.contentView;
-	view.wantsLayer = YES;
-	CAShapeLayer *ring = [CAShapeLayer layer];
-	ring.fillRule = kCAFillRuleEvenOdd;
-	ring.anchorPoint = CGPointZero;
-	ring.position = CGPointZero;
-	ring.autoresizingMask = kCALayerWidthSizable | kCALayerHeightSizable;
-	[view.layer addSublayer:ring];
-	border.ring = ring;
+// A region of size at the origin, the shape a border window takes.
+static CFTypeRef mimiRegion(CGSize size) {
+	CGRect rect = CGRectMake(0, 0, size.width, size.height);
+	CFTypeRef region = NULL;
+	CGSNewRegionWithRect(&rect, &region);
+	return region;
+}
+
+// A border window of size on space, off screen until it is moved and
+// ordered. It is made on the space so that it shows with the windows there
+// and not on whichever space is in front of the main display.
+static MimiBorder *mimiNewBorder(CGSize size, uint64_t space) {
+	int cid = SLSMainConnectionID();
+	CFTypeRef region = mimiRegion(size);
+	uint32_t number = 0;
+	SLSNewWindow(cid, kCGBackingStoreBuffered, -9999, -9999, region, &number);
+	CFRelease(region);
+	SLSSetWindowTags(cid, number, &kMimiBorderTags, 64);
+	SLSSetWindowResolution(cid, number, kMimiBorderResolution);
+	SLSSetWindowOpacity(cid, number, false);
+	SLSSetWindowLevel(cid, number, kCGNormalWindowLevel);
+	CFArrayRef windows = CFBridgingRetain(@[ @(number) ]);
+	SLSMoveWindowsToManagedSpace(cid, windows, space);
+	CFRelease(windows);
+
+	MimiBorder *border = [MimiBorder new];
+	border.number = number;
+	border.size = size;
+	border.space = space;
+	border.context = SLWindowContextCreate(cid, number, NULL);
+	CGContextSetInterpolationQuality(border.context, kCGInterpolationNone);
 	return border;
+}
+
+static void mimiCloseBorder(MimiBorder *border) {
+	CGContextRelease(border.context);
+	border.context = NULL;
+	SLSReleaseWindow(SLSMainConnectionID(), border.number);
 }
 
 CGPathRef MimiBorderRingPath(CGSize size, double width, double radius, int inside) {
@@ -294,32 +346,44 @@ static double mimiRadiusFor(MimiBorder *border) {
 // Draw border for bounds, in the colour for whether it is active: the
 // window frame is bounds grown by the width outside or bounds inside, and
 // the ring is the window frame with its middle cut out, both with rounded
-// corners.
+// corners. The window is reshaped when the frame's size changed, and moved
+// to the frame's origin.
 static void mimiDrawBorder(MimiBorder *border, CGRect bounds, BOOL active) {
+	int cid = SLSMainConnectionID();
 	CGRect outer = mimiBorderFrame(bounds);
-	[border setFrame:mimiBorderCocoaRect(outer) display:NO];
-
 	CGRect frame = CGRectMake(0, 0, outer.size.width, outer.size.height);
-	CGPathRef path = MimiBorderRingPath(bounds.size, gStyle.width, mimiRadiusFor(border), gStyle.inside);
 
+	// A reshape leaves the last drawing where it was until the next flush,
+	// so the window is frozen across the reshape and the redraw.
+	SLSWindowFreezeWithOptions(cid, border.number, NULL);
+	if (!CGSizeEqualToSize(outer.size, border.size)) {
+		CFTypeRef region = mimiRegion(outer.size);
+		SLSSetWindowShape(cid, border.number, 0, 0, region);
+		CFRelease(region);
+		border.size = outer.size;
+	}
+
+	CGPathRef path = MimiBorderRingPath(bounds.size, gStyle.width, mimiRadiusFor(border), gStyle.inside);
 	CGColorRef color = mimiBorderColor(active ? gStyle.active : gStyle.inactive);
-	[CATransaction begin];
-	[CATransaction setDisableActions:YES];
-	border.ring.contentsScale = border.backingScaleFactor;
-	border.ring.bounds = frame;
-	border.ring.path = path;
-	border.ring.fillColor = color;
-	[CATransaction commit];
+	CGContextRef context = border.context;
+	CGContextClearRect(context, frame);
+	CGContextAddPath(context, path);
+	CGContextSetFillColorWithColor(context, color);
+	CGContextEOFillPath(context);
+	CGContextFlush(context);
 	CGColorRelease(color);
 	CGPathRelease(path);
+	SLSFlushWindowContentRegion(cid, border.number, NULL);
+	SLSWindowThaw(cid, border.number);
 
+	mimiMoveBorder(border, outer.origin);
 	border.targetBounds = bounds;
 	border.active = active;
 }
 
 static void mimiCloseAll(void) {
 	for (MimiBorder *border in gBorders.allValues) {
-		[border close];
+		mimiCloseBorder(border);
 	}
 	[gBorders removeAllObjects];
 }
@@ -348,16 +412,50 @@ static void mimiFollow(uint32_t number) {
 		return;
 	}
 	border.targetBounds = bounds;
-	[border setFrame:mimiBorderCocoaRect(mimiBorderFrame(bounds)) display:NO];
+	mimiMoveBorder(border, mimiBorderFrame(bounds).origin);
 }
 
 // Put a window's border back beside it after the window server reordered
-// the window. A border still beside its window is left alone, since
-// ordering it again flashes.
+// the window, as when the window's application raised it.
 static void mimiReorder(uint32_t number) {
 	MimiBorder *border = gEnabled ? gBorders[@(number)] : nil;
-	if (border && mimiMisordered(border, number))
+	if (border)
 		mimiOrderBeside(border, number);
+}
+
+static void mimiSyncOnMain(uint32_t focused, BOOL refocus);
+
+// Take the borders down while Mission Control is up and bring them back
+// after. The Dock's windows come and go in a burst, which runs one check.
+// The Dock takes its overlay down after the burst, so while the borders are
+// down the check runs again a little later.
+static atomic_int gCheckQueued;
+static const int64_t kMimiMissionControlRecheck = 200 * NSEC_PER_MSEC;
+
+static void mimiCheckMissionControl(void) {
+	if (atomic_exchange(&gCheckQueued, 1))
+		return;
+	dispatch_async(dispatch_get_main_queue(), ^{
+		atomic_store(&gCheckQueued, 0);
+		if (!gEnabled)
+			return;
+		BOOL up = mimiMissionControlUp();
+		if (gHidden && !up) {
+			mimiSyncOnMain(0, NO);
+			return;
+		}
+		if (up && !gHidden) {
+			for (MimiBorder *border in gBorders.allValues) {
+				mimiOrder(border, 0, 0);
+			}
+			gHidden = YES;
+		}
+		if (gHidden) {
+			dispatch_after(dispatch_time(DISPATCH_TIME_NOW, kMimiMissionControlRecheck), dispatch_get_main_queue(), ^{
+				mimiCheckMissionControl();
+			});
+		}
+	});
 }
 
 static void mimiApply(uint32_t event, uint32_t number) {
@@ -372,6 +470,10 @@ static void mimiWindowServerEvent(uint32_t event, void *data, size_t length, voi
 	(void)cid;
 	if (!data || length < sizeof(uint32_t))
 		return;
+	if (event == kMimiWindowServerAdded || event == kMimiWindowServerRemoved) {
+		mimiCheckMissionControl();
+		return;
+	}
 	uint32_t number;
 	memcpy(&number, data, sizeof(number));
 	if ([NSThread isMainThread]) {
@@ -392,6 +494,8 @@ static void mimiFollowBordered(void) {
 		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerMoved, NULL);
 		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerResized, NULL);
 		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerReordered, NULL);
+		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerAdded, NULL);
+		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerRemoved, NULL);
 	}
 	NSArray<NSNumber *> *keys = gBorders.allKeys;
 	uint32_t *numbers = calloc(keys.count + 1, sizeof(uint32_t));
@@ -410,6 +514,11 @@ static void mimiFollowBordered(void) {
 static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	if (!gEnabled)
 		return;
+	if (gHidden && mimiMissionControlUp())
+		return;
+	BOOL reshow = gHidden;
+	gHidden = NO;
+
 	uint32_t raised = 0;
 	if (refocus && focused != gFocused) {
 		gFocused = focused;
@@ -459,14 +568,13 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 		// moved to another space left its border behind. Close that one
 		// and make a new one on the window's space.
 		if (border && border.space != space) {
-			[border close];
+			mimiCloseBorder(border);
 			border = nil;
 			moved++;
 		}
 		BOOL fresh = border == nil;
 		if (fresh) {
-			border = mimiNewBorder();
-			border.space = space;
+			border = mimiNewBorder(mimiBorderFrame(bounds).size, space);
 			gBorders[key] = border;
 			made++;
 		}
@@ -478,13 +586,11 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 			mimiDrawBorder(border, bounds, active);
 		}
 		// The window server keeps no tie between a window and the border
-		// under it, so a window that comes to the front leaves its border
+		// beside it, so a window that comes to the front leaves its border
 		// where it was, and the border follows it. The rest of the stack
-		// has not moved, so the other borders are left alone. Ordering a
-		// shown window again is what flashes. The focused window's border
-		// is ordered again only when the window server has it on the
-		// wrong side.
-		if (fresh || number == raised || (refocus && active && mimiMisordered(border, number))) {
+		// has not moved, so the other borders are left alone, unless they
+		// were all taken down.
+		if (fresh || reshow || number == raised) {
 			mimiOrderBeside(border, number);
 		}
 		[seen addObject:key];
@@ -496,7 +602,7 @@ static void mimiSyncOnMain(uint32_t focused, BOOL refocus) {
 	for (NSNumber *key in gBorders.allKeys) {
 		if ([seen containsObject:key])
 			continue;
-		[gBorders[key] close];
+		mimiCloseBorder(gBorders[key]);
 		[gBorders removeObjectForKey:key];
 		dropped++;
 	}
@@ -546,7 +652,7 @@ void MimiBordersSync(int refocus) {
 
 uint32_t MimiBorderWindowNumber(uint32_t number) {
 	MimiBorder *border = gEnabled ? gBorders[@(number)] : nil;
-	return border ? (uint32_t)border.windowNumber : 0;
+	return border ? border.number : 0;
 }
 
 int MimiBorderRing(uint32_t number, double *width, double *radius, MimiColor *color) {
