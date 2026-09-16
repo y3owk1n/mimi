@@ -4,6 +4,7 @@ package tiling
 import (
 	"context"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -76,14 +77,14 @@ func (d *pairDesktop) Apply(frames []action.WindowFrame, _ *action.Animation) er
 	return nil
 }
 
-// drag moves a window sideways, as the user would.
-func (d *pairDesktop) drag(number uint32, dx float64) {
+// dragSecond moves the second window sideways, as the user would.
+func (d *pairDesktop) dragSecond() {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
-	frame := d.frames[number]
-	frame.X += dx
-	d.frames[number] = frame
+	frame := d.frames[2]
+	frame.X += 120
+	d.frames[2] = frame
 }
 
 func (d *pairDesktop) count() int {
@@ -114,7 +115,7 @@ func runPairEngine(
 	desktop *pairDesktop,
 	layout string,
 	rules ...config.TilingRule,
-) (events.Subscriber, func(int, string)) {
+) (*Engine, events.Subscriber, func(int, string)) {
 	t.Helper()
 
 	engine := New(desktop, nil, nil)
@@ -155,7 +156,7 @@ func runPairEngine(
 
 	waitFor(1, "startup")
 
-	return sub, waitFor
+	return engine, sub, waitFor
 }
 
 // TestEngine_Run_ReadsADragOfAWindowTheLayoutStoppedPlacing pins the case a
@@ -166,7 +167,7 @@ func TestEngine_Run_ReadsADragOfAWindowTheLayoutStoppedPlacing(t *testing.T) {
 	t.Parallel()
 
 	desktop := newPairDesktop()
-	sub, waitFor := runPairEngine(t, desktop, maximizing(""))
+	_, sub, waitFor := runPairEngine(t, desktop, maximizing(""))
 
 	// A second pass, which maximizes the first window and returns no frame
 	// for the second.
@@ -176,7 +177,7 @@ func TestEngine_Run_ReadsADragOfAWindowTheLayoutStoppedPlacing(t *testing.T) {
 
 	time.Sleep(60 * time.Millisecond)
 
-	desktop.drag(2, 120)
+	desktop.dragSecond()
 
 	sub <- events.Event{Kind: events.WindowMove, PID: 11}
 
@@ -190,7 +191,7 @@ func TestEngine_Run_LeavesAWindowTheLayoutGaveUpAlone(t *testing.T) {
 	t.Parallel()
 
 	desktop := newPairDesktop()
-	sub, waitFor := runPairEngine(t, desktop, maximizing(", unmanaged: [2]"))
+	_, sub, waitFor := runPairEngine(t, desktop, maximizing(", unmanaged: [2]"))
 
 	sub <- events.Event{Kind: events.WindowFocus, PID: 10}
 
@@ -198,9 +199,39 @@ func TestEngine_Run_LeavesAWindowTheLayoutGaveUpAlone(t *testing.T) {
 
 	time.Sleep(60 * time.Millisecond)
 
-	desktop.drag(2, 120)
+	desktop.dragSecond()
 
 	sub <- events.Event{Kind: events.WindowMove, PID: 11}
 
 	waitFor(2, "a drag of the window the layout gave up")
+}
+
+// TestEngine_Run_ReadsAModifierDragOfAWindowTheLayoutGaveUp pins the way
+// back. A floated window is the user's to drag, but a drag of it with a
+// modifier key held asks the layout to tile it again, so it has to raise a
+// pass.
+func TestEngine_Run_ReadsAModifierDragOfAWindowTheLayoutGaveUp(t *testing.T) {
+	t.Parallel()
+
+	desktop := newPairDesktop()
+	engine, sub, waitFor := runPairEngine(t, desktop, maximizing(", unmanaged: [2]"))
+
+	// The button is seen down once, so the engine samples the keys the way
+	// it does while a real drag is held, then up.
+	var polls atomic.Int32
+
+	engine.SetMouse(func() bool { return polls.Add(1) == 1 })
+	engine.SetModifiers(func() []string { return []string{"option"} })
+
+	sub <- events.Event{Kind: events.WindowFocus, PID: 10}
+
+	waitFor(2, "the pass that gives the second window up")
+
+	time.Sleep(60 * time.Millisecond)
+
+	desktop.dragSecond()
+
+	sub <- events.Event{Kind: events.WindowMove, PID: 11}
+
+	waitFor(3, "an option-drag of the window the layout gave up")
 }

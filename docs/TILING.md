@@ -236,7 +236,7 @@ numbers compare correctly but need not start at 0 or run without gaps.
 | `frames` | The windows to place. Leave a window out to leave it where it is. Print nothing, or an empty list, to change nothing. With `[tiling.animation]` on, a frame may carry `"animate": false` to move that one window at once while the rest animate, for a window with no sensible starting position. mimi also moves a window the user just dragged at once. |
 | `state` | Any JSON. Handed back next run. Omit the key and the previous state is kept. Print `null` to clear it. |
 | `focus` | Optional. A window number to give keyboard focus, before the frames move. Use it to move focus along a layout's own structure where spatial `focus_window` cannot, such as a strip's parked columns. |
-| `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone. A window stays unmanaged until a later run for the same display leaves it out of this list. |
+| `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone, unless a modifier key is held. A window stays unmanaged until a later run for the same display leaves it out of this list. |
 | `target` | Optional, for a `window_move` or `window_resize`. The window the drop acts on other than the dragged one, as `{"window": n, "action": "swap"}`. `action` is your own word. With `[tiling.dropzone]` enabled, mimi marks that window while the button is down, in the zone's target colours, so the user sees which window a drop would swap with or join before letting go. A pass ignores it. |
 | `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. With `[tiling.stackbar]` enabled, mimi draws the ones behind `active` as a deck of cards and takes the room for them out of the window in front. Every member needs its own frame in `frames`. mimi drops a stack that names a window without a frame, or names fewer than two windows, and the frames still apply. |
 | `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
@@ -519,9 +519,15 @@ the mouse button, however long you pause mid-drag.
 `event.modifiers` names the modifier keys held during the drag, as `shift`,
 `control`, `option` and `command`, so a drag with a key held can mean
 something else. In the shipped layouts an Option-drag floats the window where
-you dropped it, and a Shift-drag stacks it onto the window or column it was
+you dropped it, an Option-drag of a floating window tiles it again where you
+dropped it, and a Shift-drag stacks it onto the window or column it was
 dropped on instead of swapping or joining. `modifiers(inp)` in `rules.py` is
-the set of keys held.
+the set of keys held. The shipped layouts read an Option-drag the same way
+whether mimi reports it as a move or a resize, since a window pulled out of
+a row changes size on the way. A plain drag of a floating window runs no
+layout. A
+drag of one with a modifier held does, which is what lets the mouse tile it
+again.
 
 With `[tiling.dropzone]` enabled as well, mimi shows where the window would
 land before you let go, by running your layout with the same event while you

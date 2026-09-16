@@ -54,7 +54,7 @@ func TestEngine_Run_IgnoresADragOfAWindowARuleKeepsOut(t *testing.T) {
 
 	manage := false
 	desktop := newPairDesktop()
-	sub, waitFor := runPairEngine(
+	_, sub, waitFor := runPairEngine(
 		t,
 		desktop,
 		`jq -c '{frames: [.windows[] | {number, frame}]}'`,
@@ -63,7 +63,7 @@ func TestEngine_Run_IgnoresADragOfAWindowARuleKeepsOut(t *testing.T) {
 
 	time.Sleep(60 * time.Millisecond)
 
-	desktop.drag(2, 120)
+	desktop.dragSecond()
 
 	sub <- events.Event{Kind: events.WindowMove, PID: 11}
 

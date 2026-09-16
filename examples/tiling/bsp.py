@@ -337,18 +337,28 @@ def main(inp):
     focused = focused_win["number"] if focused_win else None
 
     # togglefloat first: it changes which windows belong in the tree. The
-    # shared rules never see this list, so it lives in the state.
+    # shared rules never see this list, so it lives in the state. An
+    # option-drag of a floating window tiles it again, where it was dropped.
+    keys = modifiers(inp)
+    floats = set(state.get("floating", []))
     if command(inp, "togglefloat") is not None and focused:
-        floats = set(state.get("floating", []))
         floats ^= {focused}
-        state["floating"] = sorted(floats)
+    # A move and a resize both count. A window leaving a row changes size
+    # on the way out, and mimi then reads the drag as a resize.
+    landing = set()
+    option_drag = event["kind"] in ("window_move", "window_resize") and "option" in keys
+    if option_drag:
+        landing = {n for n in event.get("windows", []) if n in floats}
+        floats -= landing
+    state["floating"] = sorted(floats)
 
-    tiled = [w for w in inp["windows"] if w["number"] not in state.get("floating", [])]
+    tiled = [w for w in inp["windows"] if w["number"] not in floats]
     by_number = {w["number"]: w for w in tiled}
     present = set(by_number)
 
     # Sync the tree with what is on the space: drop what closed, add what
-    # opened beside the focused window (or the last leaf).
+    # opened beside the focused window (or the last leaf). A window dropped
+    # back in goes beside the leaf it was dropped on.
     for leaf in leaves(tree):
         for number in members(leaf):
             if number not in present:
@@ -360,6 +370,10 @@ def main(inp):
         layout(tree, box, rects)
         known = [leaf["win"] for leaf in leaves(tree)]
         target = focused if focused in known else (known[-1] if known else None)
+        if number in landing:
+            now = by_number[number]["frame"]
+            centre = (now["x"] + now["width"] / 2, now["y"] + now["height"] / 2)
+            target = leaf_at(rects, number, centre) or target
         tree = insert(tree, target, number, rects) if target else {"win": number}
 
     # The focused window is the one seen in its leaf. Everything below reads
@@ -378,10 +392,9 @@ def main(inp):
     # An option-drag floats the window where it was dropped. A shift-drag
     # stacks it into the leaf it was dropped on. A plain drag swaps.
     target = None
-    held = modifiers(inp)
-    if event["kind"] == "window_move" and "option" in held:
-        floated = {n for n in event.get("windows", []) if n in by_number}
-        state["floating"] = sorted(set(state.get("floating", [])) | floated)
+    if option_drag:
+        floated = {n for n in event.get("windows", []) if n in by_number and n not in landing}
+        state["floating"] = sorted(floats | floated)
         for number in floated:
             tree = remove(tree, number)
             del by_number[number]
@@ -396,7 +409,7 @@ def main(inp):
             other = leaf_at(rects, number, centre)
             if other is None:
                 continue
-            if "shift" in held:
+            if "shift" in keys:
                 tree = remove(tree, number)
                 into = leaf_holding(tree, other)
                 if into is not None:
