@@ -827,6 +827,10 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		"tiling pass applied",
 		"kind",
 		event.Kind,
+		"dragged",
+		len(event.Windows),
+		"modifiers",
+		event.Modifiers,
 		"displays",
 		len(inputs),
 		"frames",
@@ -1136,10 +1140,12 @@ func (e *Engine) tellStacks() {
 // stillPlaced is where the engine last put every window it is still watching,
 // which is the placements it carries into the next pass.
 //
-// A window the layout has stopped managing is dropped, and so is one this pass
-// did not see at all: a window that closed, or one on a display macOS took
-// over for a full-screen space. Neither is worth comparing against a frame
-// that no longer means anything. The caller holds the lock.
+// A window this pass did not see at all is dropped: one that closed, or one
+// on a display macOS took over for a full-screen space. Neither is worth
+// comparing against a frame that no longer means anything. A window the
+// layout has stopped managing is kept, so that a drag of it with a modifier
+// held, which does raise a pass, can be told from where it was. The caller
+// holds the lock.
 func (e *Engine) stillPlaced(inputs []Input) map[uint32]action.Frame {
 	seen := make(map[uint32]bool, len(e.applied))
 
@@ -1152,7 +1158,7 @@ func (e *Engine) stillPlaced(inputs []Input) map[uint32]action.Frame {
 	placed := make(map[uint32]action.Frame, len(e.applied))
 
 	for number, frame := range e.applied {
-		if e.unmanaged[number] || !seen[number] {
+		if !seen[number] {
 			continue
 		}
 
@@ -1585,7 +1591,15 @@ func (e *Engine) userDragged() (string, []uint32) {
 		return "", nil
 	}
 
-	return e.draggedLocked(windows)
+	kind, dragged := e.draggedLocked(windows)
+	if kind == "" {
+		// No managed window moved, so what moved was a plain drag of a
+		// window the layout has given up. Where that landed is where the
+		// next drag of it is measured from.
+		e.rememberFrames(windows, false)
+	}
+
+	return kind, dragged
 }
 
 // displaySignature names a set of displays by their ids and frames, so a
@@ -1603,7 +1617,12 @@ func displaySignature(displays []action.DisplayEntry) string {
 
 // draggedLocked is the windows in windows that are no longer where the
 // engine placed them, and whether, taken together, they were moved or
-// resized. The caller holds the lock.
+// resized.
+//
+// A window the layout has stopped managing counts only while a modifier key
+// is held. A plain drag of a floated window is the user putting it where
+// they like. A drag with a key held asks the layout to tile it again. The
+// caller holds the lock.
 func (e *Engine) draggedLocked(windows action.WindowsInfo) (string, []uint32) {
 	var (
 		dragged []uint32
@@ -1611,7 +1630,7 @@ func (e *Engine) draggedLocked(windows action.WindowsInfo) (string, []uint32) {
 	)
 
 	for _, win := range windows.Windows {
-		if e.unmanaged[win.Number] {
+		if e.unmanaged[win.Number] && len(e.dragMods) == 0 {
 			continue
 		}
 
@@ -1770,7 +1789,7 @@ func (e *Engine) rememberFrames(windows action.WindowsInfo, learn bool) {
 	learned := false
 
 	for _, win := range windows.Windows {
-		if _, ok := e.applied[win.Number]; !ok {
+		if _, ok := e.applied[win.Number]; !ok && !e.unmanaged[win.Number] {
 			continue
 		}
 

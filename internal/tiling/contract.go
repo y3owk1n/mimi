@@ -115,9 +115,10 @@ type Output struct {
 	// pass, which is what a layout maximizing one window over the rest
 	// does. Naming it here says the layout has no opinion about where it
 	// goes at all, so the engine stops watching it. Dragging an unmanaged
-	// window raises no pass and shows no drop zone. A window named on one
-	// run stays unmanaged until a later run for the same display leaves it
-	// out of this list.
+	// window raises no pass and shows no drop zone, unless a modifier key
+	// is held, which is what lets the mouse tile a floated window again. A
+	// window named on one run stays unmanaged until a later run for the
+	// same display leaves it out of this list.
 	Unmanaged []uint32 `json:"unmanaged,omitempty"`
 	// Target is, for a window_move or window_resize, the window the drag
 	// is acting on other than the dragged one: the one it swaps with, the

@@ -59,12 +59,12 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 		return DropTarget{}, false, nil
 	}
 
+	e.sampleModifiersLocked()
+
 	kind, dragged := e.draggedLocked(read.windows)
 	if len(dragged) == 0 {
 		return DropTarget{}, false, nil
 	}
-
-	e.sampleModifiersLocked()
 
 	inputs := e.buildInputsLocked(Event{Kind: kind, Windows: dragged, Modifiers: e.dragMods}, read)
 
@@ -80,6 +80,8 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 	}
 
 	e.logger.Debugw("drop preview",
+		"kind", kind,
+		"modifiers", e.dragMods,
 		"read_ms", readFor.Milliseconds(),
 		"layout_ms", time.Since(layoutStart).Milliseconds(),
 		"windows", len(read.windows.Windows),

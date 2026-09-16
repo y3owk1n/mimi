@@ -278,18 +278,37 @@ def main(inp):
     focused = inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
 
     # togglefloat first: it changes which windows belong on the strip. The
-    # shared rules never see this list, so it lives in the state.
+    # shared rules never see this list, so it lives in the state. An
+    # option-drag of a floating window puts it back, in the column it was
+    # dropped on, or in a column of its own on empty strip.
+    floats = set(state.get("floating", []))
     if command(inp, "togglefloat") is not None and focused is not None:
-        floats = set(state.get("floating", []))
         floats ^= {focused}
-        state["floating"] = sorted(floats)
-    windows = [w for w in inp["windows"] if w["number"] not in state.get("floating", [])]
+    # A move and a resize both count. A window leaving a row changes size
+    # on the way out, and mimi then reads the drag as a resize.
+    landing = []
+    option_drag = event["kind"] in ("window_move", "window_resize") and "option" in modifiers(inp)
+    if option_drag:
+        landing = [n for n in event.get("windows", []) if n in floats]
+        floats -= set(landing)
+    state["floating"] = sorted(floats)
+    windows = [w for w in inp["windows"] if w["number"] not in floats]
     by_number = {w["number"]: w for w in windows}
     focus_floating = focused is not None and focused not in by_number
     if focused not in by_number:
         focused = None
 
     sync(columns, windows, focused)
+    for number in landing:
+        index = column_of(columns, number)
+        f = by_number[number]["frame"]
+        target = column_at(columns, box, GAP, offset, f["x"] + f["width"] / 2)
+        if target is None or target == index:
+            continue
+        columns[index]["windows"].remove(number)
+        columns[target]["windows"].append(number)
+        if not columns[index]["windows"]:
+            columns.pop(index)
     if not columns:
         write_output(
             [],
@@ -397,23 +416,11 @@ def main(inp):
                 stacks=stacks_of(inp, columns, None),
             )
             return
-    elif event["kind"] == "window_resize":
-        placed = state.get("placed", {})
-        for number in event.get("windows", []):
-            index = column_of(columns, number)
-            if index is None or number not in by_number:
-                continue
-            now = by_number[number]["frame"]["width"]
-            was = placed.get(str(number), {}).get("width", now)
-            if abs(now - was) > 1:
-                columns[index]["width"] = clamp((now + GAP) / (box["width"] + GAP), MIN_WIDTH, MAX_WIDTH)
-
-    elif event["kind"] == "window_move" and "option" in modifiers(inp):
+    elif option_drag:
         # An option-drag floats the window where it was dropped.
-        floats = set(state.get("floating", []))
         for number in event.get("windows", []):
             index = column_of(columns, number)
-            if index is None:
+            if index is None or number in landing:
                 continue
             floats.add(number)
             columns[index]["windows"].remove(number)
@@ -424,6 +431,17 @@ def main(inp):
         by_number = {w["number"]: w for w in windows}
         if focused not in by_number:
             focused = None
+        at = column_of(columns, focused)
+    elif event["kind"] == "window_resize":
+        placed = state.get("placed", {})
+        for number in event.get("windows", []):
+            index = column_of(columns, number)
+            if index is None or number not in by_number:
+                continue
+            now = by_number[number]["frame"]["width"]
+            was = placed.get(str(number), {}).get("width", now)
+            if abs(now - was) > 1:
+                columns[index]["width"] = clamp((now + GAP) / (box["width"] + GAP), MIN_WIDTH, MAX_WIDTH)
     elif event["kind"] == "window_move":
         for number in event.get("windows", []):
             index = column_of(columns, number)

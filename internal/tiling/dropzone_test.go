@@ -224,3 +224,76 @@ func TestEngine_DropPreview_ReusesTheTitlesOfTheLastPass(t *testing.T) {
 		)
 	}
 }
+
+// givenUp is a layout that places its one window and says it has stopped
+// managing it, which is what a floated window looks like to the engine.
+const givenUp = `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 100, height: 100}}], unmanaged: [1]}'`
+
+func TestEngine_DropPreview_ShowsNothingForAPlainDragOfAWindowTheLayoutGaveUp(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(givenUp)
+	cfg.RelayoutOnDrag = true
+	engine.Update(cfg, shell)
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	desktop.mu.Lock()
+	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
+	desktop.mu.Unlock()
+
+	_, ok, err := engine.DropPreview(ctx)
+	if err != nil || ok {
+		t.Fatalf(
+			"DropPreview() = ok %v, err %v, want no zone for a plain drag of a floated window",
+			ok,
+			err,
+		)
+	}
+}
+
+func TestEngine_DropPreview_ShowsAModifierDragOfAWindowTheLayoutGaveUp(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	cfg := enabled(givenUp)
+	cfg.RelayoutOnDrag = true
+	engine.Update(cfg, shell)
+	engine.SetModifiers(func() []string { return []string{"option"} })
+
+	ctx := context.Background()
+
+	err := engine.Pass(ctx, tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	desktop.mu.Lock()
+	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
+	desktop.mu.Unlock()
+
+	target, ok, err := engine.DropPreview(ctx)
+	if err != nil || !ok {
+		t.Fatalf(
+			"DropPreview() = ok %v, err %v, want a zone for an option-drag of a floated window",
+			ok,
+			err,
+		)
+	}
+
+	if target.Number != 1 {
+		t.Fatalf("target number = %d, want 1", target.Number)
+	}
+}
