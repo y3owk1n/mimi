@@ -54,8 +54,13 @@ type Input struct {
 	Gap      float64               `json:"gap"`
 	Displays []action.DisplayEntry `json:"displays"`
 	Focused  int                   `json:"focused"`
-	Windows  []action.WindowEntry  `json:"windows"`
-	State    json.RawMessage       `json:"state"`
+	// FocusKeptOut is true when the focused window is one tiling.rules
+	// keep from the layout, so Focused is -1 while a window has focus. A
+	// layout that hands focus out after a close leaves it alone then, as
+	// when Finder takes focus back from a closing Quick Look panel.
+	FocusKeptOut bool                 `json:"focusKeptOut,omitempty"`
+	Windows      []action.WindowEntry `json:"windows"`
+	State        json.RawMessage      `json:"state"`
 	// Stacks is the stacks the layout last named on this display, handed
 	// back for the same reason Unmanaged is.
 	Stacks []Stack `json:"stacks,omitempty"`

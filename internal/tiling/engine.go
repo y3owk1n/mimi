@@ -1274,10 +1274,11 @@ type desktopRead struct {
 	// spaceIDs is which space is in front on each display, as the window
 	// server identifies it, where spaces is only where that space sits in
 	// Mission Control. The state a pass keeps is filed under this.
-	spaceIDs   map[uint32]uint64
-	fullScreen map[uint32]bool
-	margins    action.MarginsInfo
-	windows    action.WindowsInfo
+	spaceIDs     map[uint32]uint64
+	fullScreen   map[uint32]bool
+	margins      action.MarginsInfo
+	windows      action.WindowsInfo
+	focusKeptOut bool
 }
 
 // readInputsLocked reads what the inputs are built from. With quick set,
@@ -1331,7 +1332,7 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		return desktopRead{}, err
 	}
 
-	read.windows = e.managedLocked(read.windows)
+	read.windows, read.focusKeptOut = e.managedLocked(read.windows)
 
 	if !quick || !canReuse {
 		e.titles = make(map[uint32]string, len(read.windows.Windows))
@@ -1352,12 +1353,13 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 }
 
 // managedLocked is windows less the ones tiling.rules keep from the layout,
-// with the focused index following the window it named. The engine never
-// places a window a rule keeps out, so a drag of it raises no pass and it
-// gets no drop zone. The caller holds the lock.
-func (e *Engine) managedLocked(windows action.WindowsInfo) action.WindowsInfo {
+// with the focused index following the window it named. The second result
+// is whether the focused window was kept out. The engine never places a
+// window a rule keeps out, so a drag of it raises no pass and it gets no
+// drop zone. The caller holds the lock.
+func (e *Engine) managedLocked(windows action.WindowsInfo) (action.WindowsInfo, bool) {
 	if len(e.rules) == 0 {
-		return windows
+		return windows, false
 	}
 
 	managed := action.WindowsInfo{
@@ -1384,7 +1386,9 @@ func (e *Engine) managedLocked(windows action.WindowsInfo) action.WindowsInfo {
 		managed.Windows = append(managed.Windows, win)
 	}
 
-	return managed
+	keptOut := windows.Focused >= 0 && windows.Focused < len(windows.Windows) && managed.Focused < 0
+
+	return managed, keptOut
 }
 
 // inputsLocked is one input per display with windows, built from a full
@@ -1425,15 +1429,16 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 		}
 
 		input := Input{
-			Version:  InputVersion,
-			Event:    event,
-			Display:  display,
-			Space:    spaces[display.ID],
-			Gap:      gap,
-			Displays: displays,
-			Focused:  -1,
-			Windows:  []action.WindowEntry{},
-			spaceID:  read.spaceIDs[display.ID],
+			Version:      InputVersion,
+			Event:        event,
+			Display:      display,
+			Space:        spaces[display.ID],
+			Gap:          gap,
+			Displays:     displays,
+			Focused:      -1,
+			FocusKeptOut: read.focusKeptOut,
+			Windows:      []action.WindowEntry{},
+			spaceID:      read.spaceIDs[display.ID],
 		}
 
 		for _, win := range windows.Windows {
