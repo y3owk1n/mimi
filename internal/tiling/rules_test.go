@@ -11,7 +11,8 @@ import (
 
 // TestEngine_Inputs_LeaveOutAWindowARuleKeepsFromTheLayout pins what a
 // [[tiling.rules]] entry with manage = false does. The window never reaches
-// the layout, and the focused index still names the window that has focus.
+// the layout, the focused index still names the window that has focus, and
+// focusKeptOut says when that window is the one kept out.
 func TestEngine_Inputs_LeaveOutAWindowARuleKeepsFromTheLayout(t *testing.T) {
 	t.Parallel()
 
@@ -44,6 +45,10 @@ func TestEngine_Inputs_LeaveOutAWindowARuleKeepsFromTheLayout(t *testing.T) {
 
 	if got := inputs[0].Focused; got != -1 {
 		t.Fatalf("focused = %d, want -1 since the focused window was kept out", got)
+	}
+
+	if !inputs[0].FocusKeptOut {
+		t.Fatalf("focusKeptOut = false, want true since the focused window was kept out")
 	}
 }
 

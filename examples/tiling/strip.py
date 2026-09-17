@@ -294,7 +294,7 @@ def main(inp):
     state["floating"] = sorted(floats)
     windows = [w for w in inp["windows"] if w["number"] not in floats]
     by_number = {w["number"]: w for w in windows}
-    focus_floating = focused is not None and focused not in by_number
+    focus_floating = inp.get("focusKeptOut") or (focused is not None and focused not in by_number)
     if focused not in by_number:
         focused = None
 
