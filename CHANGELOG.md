@@ -1,5 +1,39 @@
 # Changelog
 
+## [0.20.0](https://github.com/y3owk1n/mimi/compare/v0.19.0...v0.20.0) (2026-09-17)
+
+
+### Features
+
+* **cli:** add mimi doctor to run the troubleshooting checks ([#304](https://github.com/y3owk1n/mimi/issues/304)) ([3c65173](https://github.com/y3owk1n/mimi/commit/3c65173cc0929eb457427fbdd57d353f933a3131))
+* **cli:** add mimi hooks list and mimi hooks fire ([#313](https://github.com/y3owk1n/mimi/issues/313)) ([010d205](https://github.com/y3owk1n/mimi/commit/010d20568844cdfbf09faa53b0f930db78c957ed))
+* **cli:** add mimi hooks tail to stream the daemon's events ([#317](https://github.com/y3owk1n/mimi/issues/317)) ([5fbf9e0](https://github.com/y3owk1n/mimi/commit/5fbf9e0c81e885daacb95b901e1d9386263cdc38))
+* **cli:** check every layout answers a sample input in mimi doctor ([#306](https://github.com/y3owk1n/mimi/issues/306)) ([0b57cb6](https://github.com/y3owk1n/mimi/commit/0b57cb6faee7ca750c20a8dc8f65b55e70e64fa2))
+* **cli:** report the daemon's build in mimi status and mimi doctor ([#305](https://github.com/y3owk1n/mimi/issues/305)) ([7d1f59f](https://github.com/y3owk1n/mimi/commit/7d1f59f0543b7790754438f2d8d52ef90e5087c8))
+* **hooks:** filter window and workspace hooks by display ([#318](https://github.com/y3owk1n/mimi/issues/318)) ([07db30b](https://github.com/y3owk1n/mimi/commit/07db30b7ab7b14557e480c9fe57b2419edd74b67))
+* **hooks:** fire on_appearance_changed when light or dark mode switches ([#308](https://github.com/y3owk1n/mimi/issues/308)) ([ed86d41](https://github.com/y3owk1n/mimi/commit/ed86d415ff210b969fcae8c7573cb384414db158))
+* **hooks:** fire on_screen_locked and on_screen_unlocked ([#309](https://github.com/y3owk1n/mimi/issues/309)) ([fc5cebb](https://github.com/y3owk1n/mimi/commit/fc5cebb8b10650543447e7faa39d2601957a81d9))
+* **hooks:** give every hook the event as JSON on stdin ([#312](https://github.com/y3owk1n/mimi/issues/312)) ([b07d8d0](https://github.com/y3owk1n/mimi/commit/b07d8d0da1a62ff85185d28128a41bf14812edc4))
+* **hooks:** tell on_display_changed hooks which displays are connected ([#310](https://github.com/y3owk1n/mimi/issues/310)) ([8395b0f](https://github.com/y3owk1n/mimi/commit/8395b0f810b2f303d2fac7cc272efef13c526613))
+* **tiling:** change the padding at runtime with mimi tiling cmd padding ([#302](https://github.com/y3owk1n/mimi/issues/302)) ([e8fd9e0](https://github.com/y3owk1n/mimi/commit/e8fd9e049e11ab115f541c575abb7c185f4a1edc))
+* **tiling:** keep a display edge clear with PADDING in rules.py ([#300](https://github.com/y3owk1n/mimi/issues/300)) ([24da94c](https://github.com/y3owk1n/mimi/commit/24da94cfeadf3471fb9bc1746122f8ad6829095c))
+* **tiling:** mark the window a drop would act on while dragging ([#314](https://github.com/y3owk1n/mimi/issues/314)) ([20bcc5d](https://github.com/y3owk1n/mimi/commit/20bcc5d59b472d55a78fdd58b8a1ea9b9f1b0751))
+* **tiling:** tell the layout which modifier keys a drag was held with ([#315](https://github.com/y3owk1n/mimi/issues/315)) ([658c13e](https://github.com/y3owk1n/mimi/commit/658c13e2ffe6998bdef8166b897283791c64d7ca))
+* **tiling:** tile a floated window again with an option-drag ([#320](https://github.com/y3owk1n/mimi/issues/320)) ([f05d0c8](https://github.com/y3owk1n/mimi/commit/f05d0c8896228a0ac4bfdc2afb88634ffcf7881f))
+
+
+### Bug Fixes
+
+* **border:** drop the border of a window closed with Command-W ([#303](https://github.com/y3owk1n/mimi/issues/303)) ([a8320d3](https://github.com/y3owk1n/mimi/commit/a8320d39a21fd2300a5dc07d74d7867e138fc731))
+* **space:** fail a space switch the Dock did not take ([#307](https://github.com/y3owk1n/mimi/issues/307)) ([3137dec](https://github.com/y3owk1n/mimi/commit/3137dece6002f3ffcc8fb570e71bad8c277fc68b))
+* **tiling:** leave focus on a window a rule keeps out after a close ([#321](https://github.com/y3owk1n/mimi/issues/321)) ([0bc6805](https://github.com/y3owk1n/mimi/commit/0bc6805ff3d41743c05dc927f3c96f35dcfeee4e))
+* **tiling:** let a floated window tile again after togglefloat ([#319](https://github.com/y3owk1n/mimi/issues/319)) ([ad8a0cb](https://github.com/y3owk1n/mimi/commit/ad8a0cbf32a1e8b8d13ffafe258a0f839cd2d858))
+
+
+### Documentation
+
+* add the layout contract reference and the hook environment matrix ([#311](https://github.com/y3owk1n/mimi/issues/311)) ([e12e8dd](https://github.com/y3owk1n/mimi/commit/e12e8dd7888f7e0174428586ceb07960cb655582))
+
 ## [0.19.0](https://github.com/y3owk1n/mimi/compare/v0.18.0...v0.19.0) (2026-09-15)
 
 
