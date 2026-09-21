@@ -283,7 +283,7 @@ Space switching sends a synthetic dock swipe through `CGEvent`. Window-to-space 
 
 ## Contributing
 
-mimi is written in Go, with Objective-C in `internal/native`, `internal/systray` and `internal/permissions`. `devbox shell` provisions the toolchain.
+mimi is written in Go, with Objective-C in `internal/native`, `internal/systray` and `internal/permissions`. `oku sync && oku allow` provisions the toolchain.
 
 ```bash
 just fmt && just lint && just test && just build   # the pre-commit gate

@@ -64,7 +64,7 @@ no trailing period.
   conventional-commits site does not list.)
 - Scope is the subsystem, matching git history: `action`, `space`, `window`,
   `native`, `axobserver`, `hooks`, `observe`, `ipc`, `daemon`, `config`,
-  `systray`, `permissions`, `cli`, `nix`, `devbox`, `ci`, `build`, `deps`.
+  `systray`, `permissions`, `cli`, `nix`, `oku`, `ci`, `build`, `deps`.
   Multiple scopes are comma-joined (`fix(action,space):`). Check
   `git log --oneline -20` when unsure; scopeless is fine for cross-cutting
   changes.
