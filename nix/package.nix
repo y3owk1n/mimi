@@ -23,12 +23,10 @@ if useZip then
       {
         "aarch64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-arm64.zip";
-          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.20.0/mimi-darwin-arm64.zip)`
           sha256 = "sha256-R2VBvGlZODegX+zB5aAjJXwPgcgeEW0NR42Ah5+P3W4=";
         };
         "x86_64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-amd64.zip";
-          # run `nix hash convert --hash-algo sha256 (nix-prefetch-url https://github.com/y3owk1n/mimi/releases/download/v0.20.0/mimi-darwin-amd64.zip)`
           sha256 = "sha256-3QHPs/NFYSB3+zgB9chmkkwdZVW6Z1kFa2xMOOOKXso=";
         };
       }
@@ -124,10 +122,8 @@ else
 
     src = lib.cleanSource ../.;
 
-    # run the following command to get the sha256 hash
-    # `nix-shell -p go --run 'go mod vendor'`
-    # `nix hash path vendor`
-    # `rm -rf vendor`
+    # scripts/update-nix-hashes.sh writes this, and the two zip hashes above.
+    # The nix-hashes workflow runs it after every push to main.
     vendorHash = "sha256-7gqj0UtPbrRQ3X1aaT1OH6Pg4kVE9LYny5uBsQ6Lc4Y=";
 
     ldflags = [
