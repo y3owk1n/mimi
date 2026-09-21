@@ -12,7 +12,7 @@ Space switching and window-to-space moves ride undocumented private APIs and syn
 
 ## Commands
 
-`just` is the build system; `devbox shell` provisions the toolchain.
+`just` is the build system; `oku sync && oku allow` provisions the toolchain.
 
 ```bash
 just build          # build bin/mimi

@@ -44,7 +44,7 @@ This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 - golangci-lint: `brew install golangci-lint`
 - clang-format, which `just fmt` and `just fmt-check` run on the Objective-C files: `brew install clang-format`
 
-`devbox shell` installs pinned versions of all of these except the Xcode tools, from `devbox.json`. CI runs every check through devbox.
+`oku sync && oku allow` installs pinned versions of all of these except the Xcode tools, from `oku.toml`, with [oku](https://github.com/y3owk1n/oku). CI installs the same versions with the setup actions.
 
 ### Clone and verify
 
