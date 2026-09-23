@@ -30,30 +30,13 @@ jobs:
                   repository: ${{ github.event.pull_request.head.repo.full_name }}
                   ref: ${{ github.head_ref }}
 
-            - name: Setup Go
-              uses: actions/setup-go@v7
-              with:
-                  go-version-file: "go.mod"
-                  cache: true
-
-            # Install only, the lint step runs it
-            - name: Setup Golangci
-              if: matrix.check == 'lint'
-              uses: golangci/golangci-lint-action@v9
-              with:
-                  version: v2.12.2
-                  install-only: true
-
-            - name: Install just
-              uses: extractions/setup-just@53165ef7e734c5c07cb06b3c8e7b647c5aa16db3 # v4.0.0
-              with:
-                  just-version: "1.54.0"
-
-            # clang-format for the Objective-C sources, at the version oku.toml
-            # pins. The PyPI wheel holds a static binary.
-            - name: Install clang-format
-              if: matrix.check == 'formatting'
-              run: pipx install clang-format==21.1.8
+            # oku installs go, golangci-lint, just and clang-format at the
+            # versions oku.lock pins. The action installs the oku release of its
+            # own tag.
+            - name: Setup the toolchain
+              uses: y3owk1n/oku@v0.6.1
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
 
             - name: Run just lint (macOS)
               if: matrix.check == 'lint' && runner.os == 'macOS'

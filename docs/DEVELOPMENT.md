@@ -5,7 +5,7 @@
 - macOS (required for CGO/Objective-C)
 - Go 1.26.4 or later (`go.mod`)
 - [just](https://github.com/casey/just) (build system)
-- [oku](https://github.com/y3owk1n/oku) (optional, provisions Go, just, golangci-lint and clang-format at the versions `oku.toml` pins)
+- [oku](https://github.com/y3owk1n/oku) (optional, provisions Go, just, golangci-lint and clang-format at the versions `oku.lock` pins, which CI uses too)
 
 ```bash
 oku sync && oku allow
