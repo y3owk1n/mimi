@@ -74,8 +74,7 @@ func (execLauncher) list(ctx context.Context, label string) (bool, error) {
 		return false, ctxErr
 	}
 
-	var exitErr *exec.ExitError
-	if errors.As(err, &exitErr) {
+	if _, ok := errors.AsType[*exec.ExitError](err); ok {
 		return false, nil
 	}
 
