@@ -7,7 +7,6 @@ package native
 import "C"
 
 import (
-	"time"
 	"unsafe"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -617,16 +616,4 @@ func TiledWindowMarginSize() float64 {
 // MissionControlActive reports whether Mission Control is currently open.
 func MissionControlActive() bool {
 	return bool(C.MimiIsMissionControlActive())
-}
-
-// LogAnimationSteps logs what a stepped animation cost: how many windows
-// and frames, over how long, and the slowest single write.
-func LogAnimationSteps(windows, frames, failed int, elapsed, slowest time.Duration) {
-	C.MimiLogAnimationSteps(
-		C.int(windows),
-		C.int(frames),
-		C.int(failed),
-		C.double(float64(elapsed)/float64(time.Millisecond)),
-		C.double(float64(slowest)/float64(time.Millisecond)),
-	)
 }

@@ -729,12 +729,8 @@ static void mimiSyncOnMain(BOOL refocus) {
 		dropped++;
 	}
 
-	if (made || dropped || moved) {
+	if (made || dropped || moved)
 		mimiFollowBordered();
-		MIMI_LOG(
-		    "borders synced: %lu shown, %d added, %d dropped, %d moved across spaces", (unsigned long)gBorders.count,
-		    made, dropped, moved);
-	}
 }
 
 #pragma mark - C Interface
