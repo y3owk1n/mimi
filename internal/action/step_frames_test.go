@@ -258,6 +258,38 @@ func TestExecutor_ApplyFrames_SendsAWindowOnItsWayOnToItsNewFrame(t *testing.T) 
 	}
 }
 
+func TestExecutor_ApplyFrames_LeavesAWindowAlreadyHomeAlone(t *testing.T) {
+	t.Parallel()
+
+	desktop := newSteppingDesktop()
+	animation := action.Animation{DurationMS: 60, Easing: linearEasing}
+
+	err := action.NewExecutor(desktop).ExecuteCommand(animatedApplyFramesCommand(
+		&animation,
+		action.WindowFrame{
+			Number: 4242,
+			Frame:  action.Frame{X: 0, Y: 25, Width: 960, Height: 1055},
+		},
+	))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+	}
+
+	select {
+	case <-desktop.landed:
+		t.Error("a window already at its frame ran an animation")
+	case <-time.After(150 * time.Millisecond):
+	}
+
+	if steps := desktop.stepsOf(1); len(steps) != 0 {
+		t.Errorf("a window already at its frame was stepped %d times", len(steps))
+	}
+
+	if switches := desktop.enhancedSwitches(t, 0); len(switches) != 0 {
+		t.Errorf("enhanced interface switched %d times, want untouched", len(switches))
+	}
+}
+
 func TestExecutor_ApplyFrames_ReportsTheWindowThatRefused(t *testing.T) {
 	t.Parallel()
 

@@ -140,7 +140,7 @@ type stepping struct {
 // send puts a window on its way to finish. A window already on its way to
 // that very frame keeps going; one on its way elsewhere turns from where it
 // is. A window at rest sets off from where its application has it, which is
-// a round trip.
+// a round trip. A window already at finish is left where it is.
 func (w *appWorker) send(
 	desktop Desktop,
 	windowID WindowID,
@@ -171,6 +171,12 @@ func (w *appWorker) send(
 
 	w.mu.Lock()
 	defer w.mu.Unlock()
+
+	if start == finish {
+		delete(w.moving, windowID)
+
+		return nil
+	}
 
 	w.moving[windowID] = &stepping{
 		start:    start,
