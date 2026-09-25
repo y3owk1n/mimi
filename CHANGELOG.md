@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.20.1](https://github.com/y3owk1n/mimi/compare/v0.20.0...v0.20.1) (2026-09-25)
+
+
+### Bug Fixes
+
+* quiet the console and skip animating windows already in place ([#327](https://github.com/y3owk1n/mimi/issues/327)) ([5ed2781](https://github.com/y3owk1n/mimi/commit/5ed278112dd449365eb311ff109900d2cd5af12c))
+
 ## [0.20.0](https://github.com/y3owk1n/mimi/compare/v0.19.0...v0.20.0) (2026-09-17)
 
 
