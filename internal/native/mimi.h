@@ -101,9 +101,6 @@ double *MimiCopyScreenFrames(int *count);
 double *MimiGetWindowFrame(void *window);
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
 int MimiSetWindowPosition(void *window, double x, double y);
-/// Log what a stepped animation cost: how many windows and frames, over how
-/// long, and the slowest single write, all in milliseconds.
-void MimiLogAnimationSteps(int windows, int frames, int failed, double elapsedMS, double slowestMS);
 
 /// Doubles per window in MimiCopyWindowList's result: number, x, y, width,
 /// height, whether the window server named it, owner pid, layer, whether
