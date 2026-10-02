@@ -447,11 +447,11 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 		timer   *time.Timer
 		fire    <-chan time.Time
 		pending Event
-		// asked is a pass the engine asked of itself that a later event
-		// displaced before it fired, kept so that it runs once that event
-		// turns out to be nothing: the engine's own writes echo back as
-		// drags, and one of those landing on top of a relayout used to
-		// drop it.
+		// asked is a pass the engine asked of itself, or an event that is
+		// not a drag, that a later event displaced before it fired. The
+		// loop keeps it and runs it once that event turns out to be
+		// nothing. The engine's own writes echo back as drags, and so do
+		// the windows a space switch slides.
 		asked *Event
 	)
 
@@ -491,7 +491,13 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 				return
 			}
 
-			arm(eventOf(evt))
+			event := eventOf(evt)
+			if fire != nil && isDrag(event.Kind) && !isDrag(pending.Kind) {
+				displaced := pending
+				asked = &displaced
+			}
+
+			arm(event)
 		case event := <-e.wake:
 			asked = &event
 
@@ -1443,6 +1449,12 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 
 		for _, win := range windows.Windows {
 			if displayOf(win.Frame, displays) != display.ID || coversMenuBar(win.Frame, display) {
+				continue
+			}
+
+			// A space switch slides the windows of both spaces across the
+			// display, and the window server lists them all until it ends.
+			if win.Space != 0 && win.Space != input.Space {
 				continue
 			}
 

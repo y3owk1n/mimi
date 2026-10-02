@@ -725,6 +725,47 @@ func TestEngine_Pass_LeavesAWindowCoveringTheMenuBarOut(t *testing.T) {
 	}
 }
 
+// TestEngine_Pass_LeavesWindowsOfAnotherSpaceOut pins that a pass lays out
+// only the windows on the space in front. The window server lists the
+// windows of both spaces while a switch slides them across the display.
+func TestEngine_Pass_LeavesWindowsOfAnotherSpaceOut(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.windows = action.WindowsInfo{Focused: 1, Windows: []action.WindowEntry{
+		{Number: 1, PID: 10, App: "A", Space: 2, Frame: action.Frame{Width: 500, Height: 1000}},
+		{
+			Number: 2,
+			PID:    11,
+			App:    "B",
+			Space:  1,
+			Frame:  action.Frame{X: 500, Width: 500, Height: 1000},
+		},
+		{Number: 3, PID: 12, App: "C", Frame: action.Frame{X: 250, Width: 500, Height: 1000}},
+	}}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null}'`), shell)
+
+	inputs, _, err := engine.Preview(context.Background(), tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if len(inputs) != 1 || inputs[0].Space != 2 {
+		t.Fatalf("inputs = %+v; want one input for space 2", inputs)
+	}
+
+	numbers := make([]uint32, 0, len(inputs[0].Windows))
+	for _, win := range inputs[0].Windows {
+		numbers = append(numbers, win.Number)
+	}
+
+	if !slices.Equal(numbers, []uint32{1, 3}) {
+		t.Fatalf("windows = %v; want 1 and 3, the window on no single space", numbers)
+	}
+}
+
 // TestEngine_Pass_WaitsForACreatedWindowToBeListed pins that a window_created
 // pass does not lay out until the window server lists the new window, which
 // it does a little after Accessibility reports it.

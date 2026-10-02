@@ -380,6 +380,64 @@ func TestEngine_Run_KeepsAnAskedPassUnderAnOwnResizeEcho(t *testing.T) {
 	<-done
 }
 
+// TestEngine_Run_KeepsASpaceSwitchPassUnderItsMoveEchoes pins that the
+// engine lays out a space switch even when the windows it slides raise moves
+// before the debounce ends, as activating an application on another space
+// does.
+func TestEngine_Run_KeepsASpaceSwitchPassUnderItsMoveEchoes(t *testing.T) {
+	t.Parallel()
+
+	desktop := &clampingDesktop{
+		frames: map[uint32]action.Frame{
+			1: {Width: 500, Height: 500},
+			2: {X: 500, Width: 500, Height: 500},
+		},
+	}
+	engine := New(desktop, nil, nil)
+	engine.resizeGrace = time.Second
+	engine.Update(config.TilingConfig{
+		Enabled:        true,
+		RelayoutOnDrag: true,
+		DebounceMS:     50,
+		TimeoutSecs:    5,
+		Layout:         `jq -c '{frames: [.windows[] | {number, frame}], state: null}'`,
+	}, "/bin/sh")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	sub := make(events.Subscriber, 8)
+	done := make(chan struct{})
+
+	go func() {
+		engine.Run(ctx, sub)
+		close(done)
+	}()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for desktop.count() < 1 && time.Now().Before(deadline) {
+		time.Sleep(5 * time.Millisecond)
+	}
+
+	sub <- events.Event{Kind: events.WorkspaceChanged}
+
+	time.Sleep(10 * time.Millisecond)
+
+	sub <- events.Event{Kind: events.WindowMove, PID: 20}
+
+	deadline = time.Now().Add(3 * time.Second)
+	for desktop.count() < 2 && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	if got := desktop.count(); got != 2 {
+		t.Fatalf("applied %d times, want the space switch laid out under the move", got)
+	}
+
+	cancel()
+	<-done
+}
+
 // TestEngine_SetStore_SeedsNewWindowsFromTheirApplication pins the store:
 // a minimum learned for one window is kept for its application, written
 // to the store, read back by the next engine, and handed to a window of
