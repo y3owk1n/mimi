@@ -1442,7 +1442,7 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 		}
 
 		for _, win := range windows.Windows {
-			if displayOf(win.Frame, displays) != display.ID {
+			if displayOf(win.Frame, displays) != display.ID || coversMenuBar(win.Frame, display) {
 				continue
 			}
 
@@ -1493,6 +1493,14 @@ func displayOf(frame action.Frame, displays []action.DisplayEntry) uint32 {
 	display, _ := action.DisplayOf(frame, displays)
 
 	return display.ID
+}
+
+// coversMenuBar reports whether a window fills its whole display, menu bar
+// included. No ordinary window can. A window entering or leaving full screen
+// does, such as the window Safari opens for a full-screen video, which sits
+// on the space it left for a moment each way.
+func coversMenuBar(frame action.Frame, display action.DisplayEntry) bool {
+	return display.Visible.Y > display.Frame.Y && sameFrame(frame, display.Frame)
 }
 
 // spacesChangedLocked reports whether any display the inputs were read on

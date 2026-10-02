@@ -693,6 +693,38 @@ func TestEngine_Pass_LeavesAFullScreenDisplayAlone(t *testing.T) {
 	}
 }
 
+// TestEngine_Pass_LeavesAWindowCoveringTheMenuBarOut pins that the engine
+// leaves a window filling its whole display, menu bar included, out of the
+// input. Only a window entering or leaving full screen fills it, such as the
+// window Safari opens for a full-screen video.
+func TestEngine_Pass_LeavesAWindowCoveringTheMenuBarOut(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.displays = []action.DisplayEntry{{
+		Index:   1,
+		ID:      7,
+		Frame:   action.Frame{Width: 1000, Height: 1000},
+		Visible: action.Frame{Y: 30, Width: 1000, Height: 970},
+	}}
+	desktop.windows = action.WindowsInfo{Focused: 1, Windows: []action.WindowEntry{
+		{Number: 1, PID: 10, App: "A", Frame: action.Frame{Y: 30, Width: 500, Height: 970}},
+		{Number: 2, PID: 10, App: "A", Frame: action.Frame{Width: 1000, Height: 1000}},
+	}}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(`jq -c '{frames: [], state: null}'`), shell)
+
+	inputs, _, err := engine.Preview(context.Background(), tiling.Event{Kind: tiling.EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	if len(inputs) != 1 || len(inputs[0].Windows) != 1 || inputs[0].Windows[0].Number != 1 {
+		t.Fatalf("inputs = %+v; want window 1 alone", inputs)
+	}
+}
+
 // TestEngine_Pass_WaitsForACreatedWindowToBeListed pins that a window_created
 // pass does not lay out until the window server lists the new window, which
 // it does a little after Accessibility reports it.
