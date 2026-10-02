@@ -44,10 +44,6 @@ void MimiBordersSync(int refocus);
 /// MimiBordersSetStyle.
 void MimiBordersClear(void);
 
-/// The window number of the border drawn under window number, or 0 when it
-/// has none. Main thread only.
-uint32_t MimiBorderWindowNumber(uint32_t number);
-
 /// Describe the border drawn under window number, for drawing a copy of it
 /// elsewhere: how wide, the corner radius it follows, and its colour. Returns
 /// 0 when the window has none. Main thread only.
