@@ -134,29 +134,7 @@ func (s *Server) Run(ctx context.Context) error {
 		_ = os.Remove(s.path)
 	}()
 
-	for {
-		conn, acceptErr := listener.Accept()
-		if acceptErr != nil {
-			select {
-			case <-ctx.Done():
-				return nil
-			default:
-				if errors.Is(acceptErr, net.ErrClosed) {
-					return nil
-				}
-
-				// A failure that persists repeats on every pass of this
-				// loop, so only the first is logged.
-				if s.acceptWarned.CompareAndSwap(false, true) {
-					s.logger.Warnw("connection not accepted", "err", acceptErr)
-				}
-
-				continue
-			}
-		}
-
-		go s.handleConn(conn)
-	}
+	return s.serve(ctx, listener)
 }
 
 // Shutdown closes the action channel so the worker goroutine started by Run
@@ -307,4 +285,51 @@ func (s *Server) handleConn(conn net.Conn) {
 	err = <-done
 
 	_ = writeResponse(conn, responseFromError(err))
+}
+
+// Bounds of the wait after a failed accept. The first wait is short, so a
+// one-off failure delays no client by a noticeable amount. Each wait doubles up
+// to the ceiling, so a failure that persists, such as running out of file
+// descriptors, does not keep a CPU core busy.
+const (
+	acceptBackoffFirst  = 5 * time.Millisecond
+	acceptBackoffMax    = time.Second
+	acceptBackoffFactor = 2
+)
+
+// serve accepts connections on listener until ctx ends or the listener
+// closes, handing each to its own goroutine.
+func (s *Server) serve(ctx context.Context, listener net.Listener) error {
+	backoff := acceptBackoffFirst
+
+	for {
+		conn, acceptErr := listener.Accept()
+		if acceptErr == nil {
+			backoff = acceptBackoffFirst
+
+			go s.handleConn(conn)
+
+			continue
+		}
+
+		// Shutdown closes the listener, so a closed listener is the normal
+		// end rather than a failure to report.
+		if ctx.Err() != nil || errors.Is(acceptErr, net.ErrClosed) {
+			return nil //nolint:nilerr // a closed listener is how serving ends
+		}
+
+		// A failure that persists repeats on every pass of this loop, so
+		// only the first is logged.
+		if s.acceptWarned.CompareAndSwap(false, true) {
+			s.logger.Warnw("connection not accepted", "err", acceptErr)
+		}
+
+		select {
+		case <-ctx.Done():
+			return nil
+		case <-time.After(backoff):
+		}
+
+		backoff = min(acceptBackoffFactor*backoff, acceptBackoffMax)
+	}
 }
