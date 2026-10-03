@@ -467,13 +467,16 @@ static void mimiClearRing(CGContextRef context, CGRect box, double thick) {
 // Draw the part of ring that falls in own into edge, a window at frame.
 // ring has its origin at outer's bottom-left corner, and the context's is
 // the window's bottom-left corner, y up. Each strip draws only its own part,
-// so a translucent corner is not drawn twice. When was is null, the whole
-// window is cleared first. Otherwise only the ring last drawn at was is
-// cleared, since a stretched edge is the size of the display. was is
-// measured from the window's top-left corner, y down.
+// so a translucent corner is not drawn twice. The ring is filled once for
+// each of strips that own overlaps. One fill of the whole ring makes
+// CoreGraphics allocate a buffer the size of the ring, middle included. The
+// allocator keeps those pages after CoreGraphics frees the buffer. When was
+// is null, the whole window is cleared first. Otherwise only the ring last
+// drawn at was is cleared, since a stretched edge is the size of the
+// display. was is measured from the window's top-left corner, y down.
 static void mimiDrawEdge(
-    MimiEdge *edge, CGPathRef ring, CGRect outer, CGRect frame, CGRect own, CGColorRef color, CGRect was,
-    double thick) {
+    MimiEdge *edge, CGPathRef ring, CGRect outer, CGRect frame, CGRect own, const CGRect *strips, CGColorRef color,
+    CGRect was, double thick) {
 	CGContextRef context = edge->context;
 	if (CGRectIsNull(was))
 		CGContextClearRect(context, CGRectMake(0, 0, frame.size.width, frame.size.height));
@@ -481,16 +484,21 @@ static void mimiDrawEdge(
 		mimiClearRing(
 		    context, CGRectMake(was.origin.x, frame.size.height - CGRectGetMaxY(was), was.size.width, was.size.height),
 		    thick);
-	CGContextSaveGState(context);
-	CGContextClipToRect(
-	    context,
-	    CGRectMake(
-	        own.origin.x - frame.origin.x, CGRectGetMaxY(frame) - CGRectGetMaxY(own), own.size.width, own.size.height));
-	CGContextTranslateCTM(context, outer.origin.x - frame.origin.x, CGRectGetMaxY(frame) - CGRectGetMaxY(outer));
-	CGContextAddPath(context, ring);
 	CGContextSetFillColorWithColor(context, color);
-	CGContextEOFillPath(context);
-	CGContextRestoreGState(context);
+	for (int i = 0; i < kMimiEdgeCount; i++) {
+		CGRect part = CGRectIntersection(own, strips[i]);
+		if (CGRectIsEmpty(part))
+			continue;
+		CGContextSaveGState(context);
+		CGContextClipToRect(
+		    context, CGRectMake(
+		                 part.origin.x - frame.origin.x, CGRectGetMaxY(frame) - CGRectGetMaxY(part), part.size.width,
+		                 part.size.height));
+		CGContextTranslateCTM(context, outer.origin.x - frame.origin.x, CGRectGetMaxY(frame) - CGRectGetMaxY(outer));
+		CGContextAddPath(context, ring);
+		CGContextEOFillPath(context);
+		CGContextRestoreGState(context);
+	}
 	CGContextFlush(context);
 }
 
@@ -506,8 +514,10 @@ static void mimiDrawBorder(MimiBorder *border, CGRect bounds, BOOL active) {
 	double depth = mimiEdgeDepth(outer, radius);
 	CGRect own[kMimiEdgeCount];
 	CGRect frames[kMimiEdgeCount];
+	CGRect strips[kMimiEdgeCount];
 	CGRect stretch = border.stretch;
 	mimiEdgeFrames(outer, depth, border.stretched ? &stretch : NULL, frames, own);
+	mimiEdgeFrames(outer, depth, NULL, strips, strips);
 	double scale = mimiScaleUnder(outer);
 	CGPathRef ring = MimiBorderRingPath(bounds.size, gStyle.width, radius, gStyle.inside);
 	CGColorRef color = mimiBorderColor(active ? gStyle.active : gStyle.inactive);
@@ -535,7 +545,7 @@ static void mimiDrawBorder(MimiBorder *border, CGRect bounds, BOOL active) {
 		CGRect at = CGRectOffset(outer, -origin.x, -origin.y);
 		if (edge->number && (repaint || old[i].number || !CGRectEqualToRect(at, edge->ring))) {
 			CGRect was = repaint || old[i].number || !border.stretched ? CGRectNull : edge->ring;
-			mimiDrawEdge(edge, ring, outer, frames[i], own[i], color, was, gStyle.width + radius + 1);
+			mimiDrawEdge(edge, ring, outer, frames[i], own[i], strips, color, was, gStyle.width + radius + 1);
 			SLSFlushWindowContentRegion(cid, edge->number, NULL);
 		}
 		if (edge->number && !CGPointEqualToPoint(origin, edge->frame.origin))
