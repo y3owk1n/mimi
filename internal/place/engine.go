@@ -185,10 +185,10 @@ func (e *Engine) Update(rules []config.TilingRule) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
+	// The tiling engine compiles the same rules and warns when they are
+	// rejected, so this does not warn a second time.
 	compiled, err := config.CompileRules(rules)
 	if err != nil {
-		e.logger.Warnw("rules rejected", "err", err)
-
 		compiled = nil
 	}
 
@@ -284,6 +284,8 @@ func (e *Engine) sweep() {
 func (e *Engine) created(ctx context.Context, evt events.Event) {
 	fresh := e.freshWindows(ctx, evt.PID)
 	if len(fresh) == 0 {
+		e.logger.Debugw("no new window listed", "pid", evt.PID)
+
 		return
 	}
 
@@ -364,7 +366,11 @@ func (e *Engine) place(win Window, placement config.Placement) {
 				"err",
 				err,
 			)
+
+			return
 		}
+
+		e.logger.Debugw("window placed", "window", win.Number, "display", placement.Display)
 
 		return
 	}
@@ -380,5 +386,9 @@ func (e *Engine) place(win Window, placement config.Placement) {
 			"err",
 			err,
 		)
+
+		return
 	}
+
+	e.logger.Debugw("window placed", "window", win.Number, "space", placement.Space)
 }

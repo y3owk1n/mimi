@@ -8,6 +8,7 @@ import (
 	"errors"
 	"io"
 	"os/exec"
+	"strings"
 	"sync"
 	"syscall"
 	"time"
@@ -116,7 +117,11 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 		// exited between passes. It is started once more before the pass
 		// is given up on.
 		if attempt == 0 && served > 0 && errors.Is(reduceErr, errResidentGone) {
-			r.logger.Debugw("resident layout exited, restarting")
+			if said := strings.TrimSpace(stderr); said != "" {
+				r.logger.Warnw("resident layout exited, restarting", "stderr", said)
+			} else {
+				r.logger.Warn("resident layout exited, restarting")
+			}
 
 			continue
 		}
@@ -130,6 +135,17 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 			return Output{}, derrors.Newf(
 				derrors.CodeActionFailed,
 				"layout exited without answering%s",
+				stderrSuffix(stderr),
+			)
+		}
+
+		// A program that crashed mid-answer or ran past its timeout has
+		// usually written why to stderr, so the pass's error includes it.
+		if strings.TrimSpace(stderr) != "" {
+			return Output{}, derrors.Wrapf(
+				reduceErr,
+				derrors.CodeActionFailed,
+				"layout failed%s",
 				stderrSuffix(stderr),
 			)
 		}

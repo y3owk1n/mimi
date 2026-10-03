@@ -388,15 +388,20 @@ func (e *Executor) locateWindows(windows []WindowEntry) {
 		return
 	}
 
-	displays, _ := e.QueryDisplays()
+	displays, err := e.QueryDisplays()
+	if err != nil {
+		logger().Debugw("windows listed without their display", "err", err)
+	}
 
 	spaceIndexes := map[uint64]int{}
 
 	spaces, err := e.desktop.Spaces()
-	if err == nil {
-		for index, space := range spaces {
-			spaceIndexes[space.ID] = index + 1
-		}
+	if err != nil {
+		logger().Debugw("windows listed without their space", "err", err)
+	}
+
+	for index, space := range spaces {
+		spaceIndexes[space.ID] = index + 1
 	}
 
 	for index := range windows {

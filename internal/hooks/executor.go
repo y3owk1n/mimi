@@ -197,10 +197,12 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 	case result.TimedOut:
 		ex.logger.Warnw("hook timed out",
 			"kind", evt.Kind, "index", hookIndex, "timeout", result.Timeout)
+		ex.logFailedOutput(hookIndex, evt, result)
 	case result.Err != nil:
 		ex.logger.Warnw("hook failed",
 			"kind", evt.Kind, "index", hookIndex,
 			"exit", result.Err)
+		ex.logFailedOutput(hookIndex, evt, result)
 	default:
 		output := strings.TrimSpace(string(result.Output))
 
@@ -215,6 +217,17 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 
 		ex.logger.Debugw("hook ok", attrs...)
 	}
+}
+
+// logFailedOutput logs what a failed hook printed, at debug only, since it is
+// the hook's own output and the warning above it must not carry it.
+func (ex *Executor) logFailedOutput(hookIndex int, evt events.Event, result Result) {
+	output := strings.TrimSpace(string(result.Output))
+	if output == "" {
+		return
+	}
+
+	ex.logger.Debugw("hook output", "kind", evt.Kind, "index", hookIndex, "output", output)
 }
 
 // Result is how one hook run went: what it printed, capped as the daemon

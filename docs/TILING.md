@@ -408,8 +408,10 @@ cg.CGWarpMouseCursorPosition(CGPoint(x, y))
 
 Each `after` line runs through `settings.hook_shell`, detached, so a slow
 command never holds up a pass. mimi drops its output and logs a non-zero exit
-at debug. With `[tiling.animation]` on, the lines start once the animation
-has ended, so a command that reads a window's frame reads the final one.
+as a warning, with the line's `index` and whether mimi killed it for running
+past its timeout. With `[tiling.animation]` on, the lines start once the
+animation has ended, so a command that reads a window's frame reads the final
+one.
 The lines run in order, one after another, and mimi kills one past
 `tiling.command_timeout_secs`.
 
@@ -727,9 +729,11 @@ then work down this list.
    their state, which a daemon restart would lose. `mimi tiling reset --all`
    forgets every space.
 5. **Read the daemon log.** With `log_level = "debug"` every pass logs
-   `pass applied` with the event kind, display count, and frame count.
-   A failing pass logs `pass failed` with the reason. A slow layout
-   fails with `layout timed out`. Raise `timeout_secs`.
+   `pass applied` with the event kind, display count, and frame count, or
+   `pass applied nothing` when the layout returned no frames, focus, or
+   commands. A failing pass logs `pass failed` with the reason. A slow layout
+   fails with `layout timed out`. Raise `timeout_secs`. The `enabled` and
+   `disabled` lines at info say when tiling turned on or off.
 6. **Is the window one mimi tiles?** `mimi query windows` lists the windows a
    layout can be given: windows of regular, unhidden applications on the
    current space. Sheets, popovers, and minimized windows are not there. The

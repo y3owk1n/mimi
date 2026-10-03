@@ -203,3 +203,28 @@ func TestNewLogger_LogFileStaysJSONForEveryFormat(t *testing.T) {
 		})
 	}
 }
+
+func TestNewLogger_UnknownLevelWarnsAndFallsBackToInfo(t *testing.T) {
+	cfg := newTestConfig(formatText, "")
+	cfg.Settings.LogLevel = "verbose"
+
+	buf := &bytes.Buffer{}
+	logger := newLogger(cfg, zapcore.AddSync(buf), false)
+
+	warning := buf.String()
+	if !strings.Contains(warning, "WARN") || !strings.Contains(warning, "settings.log_level") {
+		t.Errorf("an unknown log_level was accepted silently: %q", warning)
+	}
+
+	if strings.Contains(warning, "verbose") {
+		t.Errorf("the warning logged the user's config text: %q", warning)
+	}
+
+	buf.Reset()
+	logger.Debug("hidden")
+	logger.Info("shown")
+
+	if strings.Contains(buf.String(), "hidden") || !strings.Contains(buf.String(), "shown") {
+		t.Errorf("unknown log_level did not fall back to info: %q", buf.String())
+	}
+}

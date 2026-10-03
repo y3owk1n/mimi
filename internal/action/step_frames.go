@@ -245,6 +245,10 @@ func (w *appWorker) run() {
 				report.Frames++
 
 				if err != nil {
+					// The client got its answer when the windows started
+					// moving, so a failed step shows up nowhere else.
+					logger().Debugw("animation step failed, window left where it is", "pid", w.pid, "err", err)
+
 					report.Failed++
 					landed = true
 				}

@@ -63,7 +63,10 @@ type Tracker struct {
 	// shown is whether the zone is on screen, and so whether the watcher
 	// that hides it on release is running.
 	shown bool
-	last  time.Time
+	// logged is the zone and target last logged, so a drag logs where its
+	// drop would land when that changes and not on every preview.
+	logged tiling.DropTarget
+	last   time.Time
 }
 
 // previewInterval is the least time between two previews: a layout run
@@ -111,8 +114,6 @@ func (t *Tracker) Nudge() {
 	}
 
 	if !t.mouse.LeftButtonDown() {
-		t.logger.Debugw("window moved with the button up")
-
 		return
 	}
 
@@ -145,21 +146,17 @@ func (t *Tracker) preview() {
 	}
 
 	if !t.enabled || !found || !t.mouse.LeftButtonDown() {
-		t.logger.Debugw("nothing to show", "enabled", t.enabled, "found", found)
 		t.hideLocked()
 
 		return
 	}
 
-	t.logger.Debugw("showing", "window", target.Number)
+	t.logLanding(target)
 
 	frame := target.Frame
 	t.draw.Show(geometry.Rect{X: frame.X, Y: frame.Y, W: frame.Width, H: frame.Height}, t.style)
 
 	if target.Target != nil {
-		t.logger.Debugw("marking target",
-			"window", target.Target.Number, "action", target.Target.Action)
-
 		frame := target.Target.Frame
 		t.draw.ShowTarget(
 			geometry.Rect{X: frame.X, Y: frame.Y, W: frame.Width, H: frame.Height},
@@ -174,6 +171,28 @@ func (t *Tracker) preview() {
 
 		go t.watchRelease()
 	}
+}
+
+// logLanding logs where a drop would land when that differs from what was
+// last logged: the dragged window's zone, and the window it would act on.
+// The caller holds the lock.
+func (t *Tracker) logLanding(target tiling.DropTarget) {
+	sameTarget := (target.Target == nil) == (t.logged.Target == nil) &&
+		(target.Target == nil || *target.Target == *t.logged.Target)
+	if t.shown && target.Number == t.logged.Number && target.Frame == t.logged.Frame && sameTarget {
+		return
+	}
+
+	t.logged = target
+
+	if target.Target == nil {
+		t.logger.Debugw("showing", "window", target.Number)
+
+		return
+	}
+
+	t.logger.Debugw("showing",
+		"window", target.Number, "target", target.Target.Number, "action", target.Target.Action)
 }
 
 // watchRelease hides the zone once the button comes up.

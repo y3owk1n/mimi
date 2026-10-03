@@ -8,10 +8,12 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
+	"sync/atomic"
 	"syscall"
 	"time"
 
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/border"
@@ -52,6 +54,7 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 	runDone := make(chan error, 1)
 
 	native.SetLogger(logger.Named("native"))
+	action.SetLogger(logger.Named("action"))
 
 	warnUnknownHookKeys(cfg, logger)
 
@@ -134,6 +137,8 @@ func runCore(
 	// drives the desktop through its action worker; it starts listening
 	// below, once the pipeline runs.
 	ipcServer := ipc.NewServer(cfg.Settings.SocketFile)
+
+	ipcServer.SetLogger(logger.Named("ipc"))
 	defer ipcServer.Shutdown()
 
 	pipeline, ctx, cancel, err := setupEventPipeline(
@@ -147,12 +152,8 @@ func runCore(
 	}
 	defer cancel()
 
-	if cfg.Tiling.Enabled && !accessibilityGranted {
-		logger.Warnw("accessibility permission not granted, feature disabled", "feature", "tiling")
-	}
-
-	if cfg.Border.Enabled && !accessibilityGranted {
-		logger.Warnw("accessibility permission not granted, feature disabled", "feature", "borders")
+	if !accessibilityGranted {
+		warnAccessibilityGated(cfg, logger)
 	}
 
 	// A tiling command from the CLI reaches the engine here, off the action
@@ -248,21 +249,16 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 
 	obsCfg := getObserverConfig(cfg)
 	if !native.StartObservers(obsCfg, accessibilityPrompt) {
+		// Only the startup Accessibility prompt stops the observers, and
+		// only when the user does not grant access.
+		logger.Infow("shutting down", "trigger", "accessibility_prompt")
+
 		return nil, false
 	}
 
 	perm = permissions.Check()
-	accessibilityGranted = perm.Accessibility
 
-	if cfg.Hooks.HasGroup(config.GroupWindow) && !accessibilityGranted {
-		logger.Warnw(
-			"accessibility permission not granted, feature disabled",
-			"feature",
-			"window hooks",
-		)
-	}
-
-	return &obsCfg, accessibilityGranted
+	return &obsCfg, perm.Accessibility
 }
 
 // eventPipeline bundles the dependencies setupEventPipeline wires together:
@@ -303,6 +299,8 @@ func setupEventPipeline(
 	axEnabled := accessibilityGranted && hasWindowEvents(cfg)
 
 	bus := events.NewBus()
+	bus.SetDropHandler(dropLogger(logger))
+
 	axTracker := observe.NewAXTracker(axEnabled)
 	router := observe.NewRouterWithDebounce(
 		bus,
@@ -310,11 +308,22 @@ func setupEventPipeline(
 		logger.Named("observe"),
 		time.Duration(cfg.Settings.ResizeDebounceMS)*time.Millisecond,
 	)
-	router.SetEnricher(events.DisplayChanged, displayChangeEvent(action.QueryDisplays))
+	// A failed lookup leaves the event without its display fields, which a
+	// hook's display filter then reads as a mismatch.
+	queryDisplays := func() ([]action.DisplayEntry, error) {
+		displays, err := action.QueryDisplays()
+		if err != nil {
+			logger.Debugw("display lookup failed, event carries no display", "err", err)
+		}
+
+		return displays, err
+	}
+
+	router.SetEnricher(events.DisplayChanged, displayChangeEvent(queryDisplays))
 
 	for _, kind := range config.HookKinds {
 		if kind.Group == config.GroupWindow || kind.Group == config.GroupWorkspace {
-			router.SetEnricher(kind.Kind, displayIndexEvent(action.QueryDisplays))
+			router.SetEnricher(kind.Kind, displayIndexEvent(queryDisplays))
 		}
 	}
 
@@ -619,8 +628,31 @@ func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.Su
 // only — place either count becomes observable: the native counter lives in
 // the daemon process's own address space (mimi status runs in the CLI
 // process and can never see it), and the bus has no other reader.
+// dropLogger logs the first event the bus drops as a warning, since a hook
+// or an engine then missed something, and every later one at debug, since a
+// subscriber that is behind drops many in a row.
+func dropLogger(logger *zap.SugaredLogger) func(events.EventKind, int) {
+	var warned atomic.Bool
+
+	return func(kind events.EventKind, buffer int) {
+		if warned.CompareAndSwap(false, true) {
+			logger.Warnw("event dropped, a subscriber is behind", "kind", kind, "buffer", buffer)
+
+			return
+		}
+
+		logger.Debugw("event dropped, a subscriber is behind", "kind", kind, "buffer", buffer)
+	}
+}
+
 func logEventDropCounts(nativeDropped, busDropped int64, logger *zap.SugaredLogger) {
-	logger.Infow(
+	level := zapcore.InfoLevel
+	if nativeDropped > 0 || busDropped > 0 {
+		level = zapcore.WarnLevel
+	}
+
+	logger.Logw(
+		level,
 		"event drop counts",
 		"native_dropped", nativeDropped,
 		"bus_dropped", busDropped,
@@ -649,6 +681,31 @@ func hasWindowEvents(cfg *config.Config) bool {
 	return cfg.Hooks.HasGroup(config.GroupWindow) || cfg.Tiling.Enabled || cfg.Border.Enabled ||
 		cfg.Mouse.FocusFollowsMouse ||
 		config.AnyPlaces(cfg.Tiling.Rules)
+}
+
+// warnAccessibilityGated warns about each feature cfg turns on that cannot
+// run without Accessibility, at startup and on every reload while the
+// permission is missing.
+func warnAccessibilityGated(cfg *config.Config, logger *zap.SugaredLogger) {
+	gated := []struct {
+		feature string
+		on      bool
+	}{
+		{"tiling", cfg.Tiling.Enabled},
+		{"borders", cfg.Border.Enabled},
+		{"window hooks", cfg.Hooks.HasGroup(config.GroupWindow)},
+		{"focus follows mouse", cfg.Mouse.FocusFollowsMouse},
+	}
+
+	for _, each := range gated {
+		if each.on {
+			logger.Warnw(
+				"accessibility permission not granted, feature disabled",
+				"feature",
+				each.feature,
+			)
+		}
+	}
 }
 
 // borderConfigFor is the [border] section as the engine gets it: as

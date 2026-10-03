@@ -8,6 +8,7 @@ import (
 
 	"github.com/google/uuid"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/native"
@@ -37,9 +38,13 @@ type Router struct {
 	ax     *AXTracker
 	logger *zap.SugaredLogger
 
-	mu          sync.Mutex
-	timers      map[string]*resizeState
-	retries     map[int]*axRetry
+	mu      sync.Mutex
+	timers  map[string]*resizeState
+	retries map[int]*axRetry
+	// gaveUp is the applications whose install has given up since they
+	// launched, so the warning that it did is not repeated on every
+	// activation that tries again.
+	gaveUp      map[int]bool
 	retryDelays []time.Duration
 	// listRunning names the applications to attach to at startup; it is the
 	// native enumeration, replaced in tests.
@@ -98,6 +103,7 @@ func NewRouterWithDebounce(
 		logger:         logger,
 		timers:         make(map[string]*resizeState),
 		retries:        make(map[int]*axRetry),
+		gaveUp:         make(map[int]bool),
 		retryDelays:    axRetryDelays,
 		listRunning:    native.RegularApplicationPIDs,
 		debounceWindow: debounceWindow,
@@ -201,6 +207,7 @@ func (r *Router) handle(evt events.Event) {
 			r.ax.Remove(evt.PID)
 			r.cancelTimersForPID(evt.PID)
 			r.cancelRetry(evt.PID)
+			r.forgetGaveUp(evt.PID)
 		}
 	case events.WindowResizing, events.WindowMoving:
 		r.mu.Lock()
@@ -328,7 +335,14 @@ func (r *Router) scheduleRetry(evt events.Event, attempt int) {
 	}
 
 	if attempt >= len(r.retryDelays) {
-		r.logger.Warnw(
+		level := zapcore.WarnLevel
+		if r.gaveUp[evt.PID] {
+			level = zapcore.DebugLevel
+		}
+
+		r.gaveUp[evt.PID] = true
+		r.logger.Logw(
+			level,
 			"AX observer install gave up, window events from this application will not fire",
 			"pid",
 			evt.PID,
@@ -344,6 +358,13 @@ func (r *Router) scheduleRetry(evt events.Event, attempt int) {
 	retry := &axRetry{evt: evt, attempt: attempt}
 	retry.timer = time.AfterFunc(r.retryDelays[attempt], func() { r.retryInstall(evt.PID, retry) })
 	r.retries[evt.PID] = retry
+}
+
+// forgetGaveUp lets the next launch of pid warn again if its install gives up.
+func (r *Router) forgetGaveUp(pid int) {
+	r.mu.Lock()
+	delete(r.gaveUp, pid)
+	r.mu.Unlock()
 }
 
 // retryInstall is one attempt off the timer. On success it publishes

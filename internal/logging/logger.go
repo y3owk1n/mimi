@@ -44,7 +44,7 @@ func newLogger(
 	consoleWriter zapcore.WriteSyncer,
 	isTerminal bool,
 ) *zap.SugaredLogger {
-	level := parseLevel(cfg.Settings.LogLevel)
+	level, knownLevel := parseLevel(cfg.Settings.LogLevel)
 	format, knownFormat := parseFormat(cfg.Settings.LogFormat)
 
 	cores := []zapcore.Core{
@@ -68,6 +68,15 @@ func newLogger(
 	core := zapcore.NewTee(cores...)
 
 	logger := zap.New(core, zap.AddCaller(), zap.AddStacktrace(zapcore.ErrorLevel)).Sugar()
+
+	if !knownLevel {
+		// The value itself stays out of the log; it is the user's config text.
+		logger.Warnw(
+			"unrecognized settings.log_level, using info",
+			"valid",
+			"debug|info|warn|error",
+		)
+	}
 
 	if !knownFormat {
 		// The value itself stays out of the log; it is the user's config text.
@@ -145,19 +154,33 @@ func WriteEventLog(
 	defer func() { _ = logFile.Close() }()
 
 	enc := json.NewEncoder(logFile)
+
+	warned := false
 	for {
 		select {
 		case <-ctx.Done():
 			return
-		case e, ok := <-sub:
+		case evt, ok := <-sub:
 			if !ok {
 				return
 			}
 
-			err := enc.Encode(e)
-			if err != nil {
-				logger.Warnw("event log write failed", "err", err)
+			err := enc.Encode(evt)
+			if err == nil {
+				continue
 			}
+
+			// A full disk fails every write after the first, so only the
+			// first is a warning.
+			if !warned {
+				warned = true
+
+				logger.Warnw("event log write failed", "err", err)
+
+				continue
+			}
+
+			logger.Debugw("event log write failed", "err", err)
 		}
 	}
 }
@@ -173,17 +196,20 @@ func openAppend(path string) (*os.File, error) {
 	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:mnd
 }
 
-func parseLevel(s string) zapcore.Level {
-	switch strings.ToLower(s) {
+// parseLevel maps a configured log_level onto its zap level, reporting
+// whether the value was recognized. An empty value is the unset default, and
+// anything unrecognized falls back to info.
+func parseLevel(level string) (zapcore.Level, bool) {
+	switch strings.ToLower(level) {
 	case "debug":
-		return zapcore.DebugLevel
-	case "info":
-		return zapcore.InfoLevel
+		return zapcore.DebugLevel, true
+	case "", "info":
+		return zapcore.InfoLevel, true
 	case "warn", "warning":
-		return zapcore.WarnLevel
+		return zapcore.WarnLevel, true
 	case "error":
-		return zapcore.ErrorLevel
+		return zapcore.ErrorLevel, true
 	default:
-		return zapcore.InfoLevel
+		return zapcore.InfoLevel, false
 	}
 }

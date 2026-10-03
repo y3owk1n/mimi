@@ -81,7 +81,7 @@ func (t *Tracker) Update(cfg config.StackbarConfig) {
 		// The config was validated before it got here, so this is a
 		// build that let an unparseable color through rather than
 		// anything the user can fix.
-		t.logger.Warnw("stack cards disabled, colors do not parse", "err", err)
+		t.logger.Warnw("stack card config not applied, colors do not parse", "err", err)
 
 		return
 	}

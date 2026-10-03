@@ -815,6 +815,7 @@ func (d *nativeDesktop) listOnScreen(learn bool) ([]Window, int, map[uint32]geom
 
 	windows := make([]Window, 0, len(onScreen))
 	focused := uint32(0)
+	unlisted := 0
 
 	for _, window := range onScreen {
 		if window.Layer != 0 || !window.Regular {
@@ -825,6 +826,7 @@ func (d *nativeDesktop) listOnScreen(learn bool) ([]Window, int, map[uint32]geom
 		if !ok {
 			if learn {
 				d.missing[window.Number] = time.Now()
+				unlisted++
 			}
 
 			continue
@@ -881,6 +883,12 @@ func (d *nativeDesktop) listOnScreen(learn bool) ([]Window, int, map[uint32]geom
 	}
 
 	d.listed = listing(onScreen)
+
+	// An application that does not list a window it has on screen keeps it
+	// out of every action until the window shows up in its list.
+	if unlisted > 0 {
+		logger().Debugw("windows on screen not listed by their application", "count", unlisted)
+	}
 
 	return windows, focusedIndex, frames
 }

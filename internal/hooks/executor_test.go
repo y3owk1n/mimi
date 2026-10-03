@@ -456,7 +456,8 @@ func assertNoLeak(t *testing.T, logs *observer.ObservedLogs, secrets ...string) 
 // TestRun_HookFailedLogsIndexWithoutCommandOrOutput pins the contract that the
 // "hook failed" line, which fires at warn without the user opting into
 // anything, identifies the hook by its index within its kind and carries
-// neither the command text nor the hook's stdout/stderr. See issue #117.
+// neither the command text nor the hook's stdout/stderr, which only a debug
+// "hook output" line carries. See issue #117.
 func TestRun_HookFailedLogsIndexWithoutCommandOrOutput(t *testing.T) {
 	t.Parallel()
 
@@ -522,7 +523,18 @@ func TestRun_HookFailedLogsIndexWithoutCommandOrOutput(t *testing.T) {
 		t.Errorf("\"hook failed\" entry missing \"exit\" field: %+v", fields)
 	}
 
-	assertNoLeak(t, logs, secretCmd, secretOutput)
+	// Per #117 the output stays on the debug path: one "hook output" line,
+	// and nowhere at warn or above.
+	assertNoLeak(t, logs, secretCmd)
+	assertNoLeak(t, logs.Filter(func(entry observer.LoggedEntry) bool {
+		return entry.Level >= zapcore.WarnLevel
+	}), secretOutput)
+
+	outputEntries := logs.FilterMessage("hook output").All()
+	if len(outputEntries) != 1 || outputEntries[0].Level != zapcore.DebugLevel ||
+		outputEntries[0].ContextMap()["output"] != secretOutput {
+		t.Errorf("want one debug \"hook output\" entry carrying the output, got %+v", outputEntries)
+	}
 }
 
 // TestRun_HookTimedOutLogsIndexNotCommand pins that the "hook timed out" line

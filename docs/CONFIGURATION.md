@@ -93,10 +93,10 @@ service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" # PATH for the i
 entry, with the time, the level, the subsystem, the message, and each field as
 `key=value`. The subsystem is a name such as `tiling`, `hooks`, or `observe`.
 For the daemon itself it is the source file and line instead. mimi colors the
-level when the console is a terminal. `json` writes one JSON object per entry. The `log_file` log is always
-JSON, so you can pipe it through `jq`. An unrecognized `log_format` logs a
-warning and falls back to `text`. An unrecognized `log_level` falls back to
-`info`.
+level when the console is a terminal. `json` writes one JSON object per entry.
+The `log_file` log is always JSON, so you can pipe it through `jq`. An
+unrecognized `log_format` logs a warning and falls back to `text`. An
+unrecognized `log_level` logs a warning and falls back to `info`.
 
 ### socket_file
 
@@ -141,8 +141,9 @@ carry only counts, IDs, kinds, PIDs, booleans, and the hook's `index` within
 its kind. mimi never logs window titles or `run` commands.
 
 One exception: at `debug`, the `"hook ok"` line includes the hook's captured
-stdout and stderr as `output` (trimmed, capped at 64 KiB). At `info` and above
-no hook output reaches the log.
+stdout and stderr as `output` (trimmed, capped at 64 KiB). A hook that fails or
+times out logs its output the same way, on a `"hook output"` line after the
+warning. At `info` and above no hook output reaches the log.
 
 ---
 

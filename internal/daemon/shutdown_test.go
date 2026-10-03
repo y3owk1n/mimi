@@ -2,6 +2,7 @@
 package daemon
 
 import (
+	"fmt"
 	"testing"
 
 	"go.uber.org/zap"
@@ -49,5 +50,57 @@ func TestLogEventDropCounts_LogsBothCountersAsDistinctFields(t *testing.T) {
 
 	if gotBus != busDropped {
 		t.Errorf("bus_dropped = %v, want %d", gotBus, busDropped)
+	}
+}
+
+func TestLogEventDropCounts_WarnsWhenAnythingWasDropped(t *testing.T) {
+	t.Parallel()
+
+	for _, testCase := range []struct {
+		name        string
+		native, bus int64
+		wantLevel   zapcore.Level
+	}{
+		{"nothing dropped", 0, 0, zapcore.InfoLevel},
+		{"native dropped", 1, 0, zapcore.WarnLevel},
+		{"bus dropped", 0, 2, zapcore.WarnLevel},
+	} {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			core, logs := observer.New(zapcore.DebugLevel)
+			logEventDropCounts(testCase.native, testCase.bus, zap.New(core).Sugar())
+
+			if entries := logs.All(); len(entries) != 1 || entries[0].Level != testCase.wantLevel {
+				t.Errorf("entries = %+v, want one at %v", entries, testCase.wantLevel)
+			}
+		})
+	}
+}
+
+func TestDropLogger_WarnsOnceThenLogsAtDebug(t *testing.T) {
+	t.Parallel()
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	onDrop := dropLogger(zap.New(core).Sugar())
+
+	onDrop("window_moved", 256)
+	onDrop("window_moved", 256)
+	onDrop("window_focused", 256)
+
+	entries := logs.All()
+	if len(entries) != 3 {
+		t.Fatalf("got %d entries, want 3", len(entries))
+	}
+
+	if entries[0].Level != zapcore.WarnLevel || entries[1].Level != zapcore.DebugLevel ||
+		entries[2].Level != zapcore.DebugLevel {
+		t.Errorf("levels = [%v, %v, %v], want a warning first and debug after",
+			entries[0].Level, entries[1].Level, entries[2].Level)
+	}
+
+	if fmt.Sprint(entries[0].ContextMap()["kind"]) != "window_moved" ||
+		entries[0].ContextMap()["buffer"] != int64(256) {
+		t.Errorf("first drop fields = %v, want kind and buffer", entries[0].ContextMap())
 	}
 }

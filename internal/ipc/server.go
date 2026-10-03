@@ -11,7 +11,10 @@ import (
 	"path/filepath"
 	"runtime"
 	"sync"
+	"sync/atomic"
 	"time"
+
+	"go.uber.org/zap"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -46,6 +49,8 @@ type Server struct {
 	directMu     sync.RWMutex
 	once         sync.Once
 	shutdownOnce sync.Once
+	logger       *zap.SugaredLogger
+	acceptWarned atomic.Bool
 }
 
 type actionJob struct {
@@ -62,6 +67,15 @@ func NewServer(path string) *Server {
 		execute:        action.ExecuteCommand,
 		direct:         map[action.Name]func(cmd action.Command) (json.RawMessage, error){},
 		streams:        map[action.Name]StreamHandler{},
+		logger:         zap.NewNop().Sugar(),
+	}
+}
+
+// SetLogger logs what the server handles itself and no client hears about:
+// a panic on the action worker, and a failed accept. It is set before Run.
+func (s *Server) SetLogger(logger *zap.SugaredLogger) {
+	if logger != nil {
+		s.logger = logger
 	}
 }
 
@@ -131,6 +145,12 @@ func (s *Server) Run(ctx context.Context) error {
 					return nil
 				}
 
+				// A failure that persists repeats on every pass of this
+				// loop, so only the first is logged.
+				if s.acceptWarned.CompareAndSwap(false, true) {
+					s.logger.Warnw("connection not accepted", "err", acceptErr)
+				}
+
 				continue
 			}
 		}
@@ -197,8 +217,13 @@ func (s *Server) startActionWorker() {
 		for job := range s.actionCh {
 			func() {
 				defer func() {
-					if r := recover(); r != nil {
-						job.done <- fmt.Errorf("action worker panic: %v", r) //nolint:err113 // panic value is runtime-only
+					if recovered := recover(); recovered != nil {
+						// The client hears only the panic's value, and an
+						// engine's own call through Serialize may not log
+						// even that, so the stack is logged here.
+						s.logger.Errorw("action worker panicked", "panic", fmt.Sprint(recovered))
+
+						job.done <- fmt.Errorf("action worker panic: %v", recovered) //nolint:err113 // panic value is runtime-only
 					}
 				}()
 

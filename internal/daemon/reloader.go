@@ -141,6 +141,9 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	rl.router.SetDebounceWindow(time.Duration(cfg.Settings.ResizeDebounceMS) * time.Millisecond)
 
 	perm := permissions.Check()
+	if !perm.Accessibility {
+		warnAccessibilityGated(cfg, rl.logger)
+	}
 
 	observeWindows := perm.Accessibility && hasWindowEvents(cfg)
 

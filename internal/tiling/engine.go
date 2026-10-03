@@ -3,7 +3,9 @@ package tiling
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
+	"io/fs"
 	"math"
 	"os"
 	"os/exec"
@@ -283,6 +285,18 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 		}
 	}
 
+	switch {
+	case cfg.Enabled && (!wasEnabled || hadLayouts != layoutSignature(cfg)):
+		e.logger.Infow("enabled",
+			"mode", cfg.LayoutMode,
+			"layouts", len(LayoutCommands(cfg)),
+			"on_drag", cfg.RelayoutOnDrag,
+			"animated", cfg.Animation.Enabled,
+		)
+	case !cfg.Enabled && wasEnabled:
+		e.logger.Info("disabled")
+	}
+
 	if !cfg.Enabled || (wasEnabled && hadLayouts == layoutSignature(cfg)) {
 		return
 	}
@@ -347,6 +361,18 @@ func (e *Engine) SetStore(path string) {
 
 	data, err := os.ReadFile(path)
 	if err != nil {
+		if !errors.Is(err, fs.ErrNotExist) {
+			e.logger.Warnw(
+				"learned minimums discarded",
+				"reason",
+				"unreadable",
+				"path",
+				path,
+				"err",
+				err,
+			)
+		}
+
 		return
 	}
 
@@ -767,6 +793,8 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	e.tellStacks()
 
 	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
+		e.logger.Debugw("pass applied nothing", "kind", event.Kind, "displays", len(inputs))
+
 		return nil
 	}
 
@@ -872,11 +900,19 @@ func (e *Engine) animationDelay(frames []action.WindowFrame) time.Duration {
 func (e *Engine) runBefore(ctx context.Context, lines []string) {
 	var runs sync.WaitGroup
 
-	for _, line := range lines {
+	for index, line := range lines {
 		runs.Go(func() {
 			err := runLine(ctx, e.shell, line, e.commandTimeout)
 			if err != nil {
-				e.logger.Warnw("before command failed", "err", err)
+				e.logger.Warnw(
+					"before command failed",
+					"index",
+					index,
+					"timed_out",
+					derrors.IsCode(err, derrors.CodeTimeout),
+					"err",
+					err,
+				)
 			}
 		})
 	}
@@ -887,6 +923,8 @@ func (e *Engine) runBefore(ctx context.Context, lines []string) {
 // runLine runs one command line through the shell and kills it past
 // timeout, when there is one.
 func runLine(ctx context.Context, shell, line string, timeout time.Duration) error {
+	parent := ctx
+
 	if timeout > 0 {
 		var cancel context.CancelFunc
 
@@ -894,7 +932,14 @@ func runLine(ctx context.Context, shell, line string, timeout time.Duration) err
 		defer cancel()
 	}
 
-	return exec.CommandContext(ctx, shell, "-c", line).Run()
+	// Only the line's own deadline counts as a timeout. A pass that ends
+	// while the line runs did not make the line slow.
+	err := exec.CommandContext(ctx, shell, "-c", line).Run()
+	if err != nil && parent.Err() == nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
+		return derrors.Wrapf(err, derrors.CodeTimeout, "killed after %s", timeout)
+	}
+
+	return err
 }
 
 // runAfterLocked starts every After line once delay has passed, in order
@@ -911,12 +956,20 @@ func (e *Engine) runAfterLocked(lines []string, delay time.Duration) {
 	e.background.Go(func() {
 		time.Sleep(delay)
 
-		for _, line := range lines {
+		for index, line := range lines {
 			// The command outlives the pass, so the pass's context
 			// must not bound it.
 			err := runLine(context.Background(), shell, line, timeout)
 			if err != nil {
-				logger.Warnw("after command failed", "err", err)
+				logger.Warnw(
+					"after command failed",
+					"index",
+					index,
+					"timed_out",
+					derrors.IsCode(err, derrors.CodeTimeout),
+					"err",
+					err,
+				)
 			}
 		}
 	})
@@ -1601,6 +1654,8 @@ func (e *Engine) userDragged() (string, []uint32) {
 
 	windows, displays, fullScreen, err := e.readDesktop()
 	if err != nil {
+		e.logger.Debugw("drag not classified, desktop unreadable", "err", err)
+
 		return "", nil
 	}
 
@@ -1720,6 +1775,8 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 		windows, err := e.readWindows()
 		if err != nil {
+			e.logger.Debugw("frames not read back, windows unreadable", "err", err)
+
 			return
 		}
 
@@ -1744,6 +1801,8 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 		windows, err = e.readWindows()
 		if err != nil {
+			e.logger.Debugw("frames not read back, windows unreadable", "err", err)
+
 			return
 		}
 

@@ -19,11 +19,21 @@ type Bus struct {
 	subs      []Subscriber
 	filters   []KindFilter
 	dropCount atomic.Int64
+	onDrop    func(kind EventKind, buffer int)
 }
 
 // NewBus creates a new event bus.
 func NewBus() *Bus {
 	return &Bus{}
+}
+
+// SetDropHandler has the bus call onDrop with the event's kind and the
+// subscriber's buffer size each time Publish discards an event because that
+// buffer is full. It is set before anything publishes.
+func (b *Bus) SetDropHandler(onDrop func(kind EventKind, buffer int)) {
+	b.mu.Lock()
+	b.onDrop = onDrop
+	b.mu.Unlock()
 }
 
 // Subscribe adds a new subscriber with the given buffer size.
@@ -79,6 +89,10 @@ func (b *Bus) Publish(evt Event) {
 		case sub <- evt:
 		default:
 			b.dropCount.Add(1)
+
+			if b.onDrop != nil {
+				b.onDrop(evt.Kind, cap(sub))
+			}
 		}
 	}
 }

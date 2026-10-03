@@ -198,3 +198,31 @@ func TestBus_Unsubscribe_KeepsRemainingFiltersAligned(t *testing.T) {
 		t.Fatalf("subA got %+v ok=%v, want for-a", gotA, okA)
 	}
 }
+
+func TestBus_SetDropHandler_ReportsEachDropWithItsKindAndBuffer(t *testing.T) {
+	t.Parallel()
+
+	bus := events.NewBus()
+
+	type drop struct {
+		kind   events.EventKind
+		buffer int
+	}
+
+	var drops []drop
+
+	bus.SetDropHandler(func(kind events.EventKind, buffer int) {
+		drops = append(drops, drop{kind, buffer})
+	})
+
+	_ = bus.Subscribe(1)
+
+	bus.Publish(events.Event{Kind: testKindA})
+	bus.Publish(events.Event{Kind: testKindB})
+	bus.Publish(events.Event{Kind: testKindC})
+
+	want := []drop{{testKindB, 1}, {testKindC, 1}}
+	if len(drops) != len(want) || drops[0] != want[0] || drops[1] != want[1] {
+		t.Errorf("drops = %v, want %v", drops, want)
+	}
+}

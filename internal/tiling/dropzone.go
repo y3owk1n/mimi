@@ -8,6 +8,10 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
+// slowPreview is how long a drop preview's read and layout may take before
+// the drag lags behind the pointer: the drop zone asks for one every 40 ms.
+const slowPreview = 40 * time.Millisecond
+
 // DropTarget is where the window the user is dragging would land if they
 // let go now: the window, by number, the frame the layout would give it,
 // and the window the drop would act on when the layout named one.
@@ -79,13 +83,17 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 		)
 	}
 
-	e.logger.Debugw("drop preview",
-		"kind", kind,
-		"modifiers", e.dragMods,
-		"read_ms", readFor.Milliseconds(),
-		"layout_ms", time.Since(layoutStart).Milliseconds(),
-		"windows", len(read.windows.Windows),
-	)
+	// A preview runs up to 25 times a second through a drag, so only one
+	// slow enough to lag the drag is worth a line.
+	if layoutFor := time.Since(layoutStart); readFor+layoutFor > slowPreview {
+		e.logger.Debugw("drop preview slow",
+			"kind", kind,
+			"modifiers", e.dragMods,
+			"read_ms", readFor.Milliseconds(),
+			"layout_ms", layoutFor.Milliseconds(),
+			"windows", len(read.windows.Windows),
+		)
+	}
 
 	for _, output := range outputs {
 		for _, frame := range output.Frames {
