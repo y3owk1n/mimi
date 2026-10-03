@@ -34,13 +34,13 @@ func TestComponent_HandleReloadConfig_ReportsTheRequestNotTheOutcome(t *testing.
 			name:          "asking for a reload succeeds",
 			requestReload: func(context.Context, string) error { return nil },
 			wantLevel:     zapcore.InfoLevel,
-			wantMessage:   "config reload requested from systray",
+			wantMessage:   "config reload requested",
 		},
 		{
 			name:          "asking for a reload fails",
 			requestReload: func(context.Context, string) error { return errReloadFailed },
 			wantLevel:     zapcore.WarnLevel,
-			wantMessage:   "failed to request config reload from systray",
+			wantMessage:   "config reload request failed",
 		},
 	}
 

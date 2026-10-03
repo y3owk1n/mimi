@@ -156,7 +156,7 @@ func WriteEventLog(
 
 			err := enc.Encode(e)
 			if err != nil {
-				logger.Warnw("event log write error", "err", err)
+				logger.Warnw("event log write failed", "err", err)
 			}
 		}
 	}

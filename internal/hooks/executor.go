@@ -198,7 +198,7 @@ func (ex *Executor) run(hookIndex int, hook Hook, evt events.Event) {
 		ex.logger.Warnw("hook timed out",
 			"kind", evt.Kind, "index", hookIndex, "timeout", result.Timeout)
 	case result.Err != nil:
-		ex.logger.Errorw("hook failed",
+		ex.logger.Warnw("hook failed",
 			"kind", evt.Kind, "index", hookIndex,
 			"exit", result.Err)
 	default:

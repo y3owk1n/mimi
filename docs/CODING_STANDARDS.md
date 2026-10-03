@@ -91,10 +91,14 @@ The daemon names each subsystem's logger where it wires it (`logger.Named("tilin
 
 ### Log levels
 
-- `debug`: high-volume diagnostics, such as event routing and AX observer installs
-- `info`: daemon lifecycle, such as startup, shutdown, and config reload
-- `warn`: degradation the user can act on, such as a missing Accessibility permission or a failed config reload
-- `error`: failed operations, with the error passed as a field (`"err", err`) and the IDs needed to find the failure
+- `debug`: anything per event, per pass, or per drag, such as event routing, hook matching, and AX observer installs
+- `info`: daemon lifecycle and config, such as startup, shutdown, and a config reload
+- `warn`: mimi degraded or fell back and kept running, such as a missing Accessibility permission, a failed config reload, or a user hook or command that failed
+- `error`: an operation failed with no fallback and nothing upstream reports it. Every error prints a stack trace, so a failure the user caused, such as a hook exiting non-zero, is a warning
+
+Log an error once, where it is handled. A function that returns an error does not also log it.
+
+Messages are lowercase, with no trailing period, emoji, or prefix. A reason that follows the message goes after a comma (`"pass skipped, space changed"`), not a colon or semicolon.
 
 ### Fields
 
@@ -102,7 +106,7 @@ Use structured fields instead of interpolated messages:
 
 ```go
 logger.Warnw("config reload failed", "trigger", trigger, "err", err)
-logger.Errorw("hook failed", "kind", evt.Kind, "index", hookIndex, "exit", err)
+logger.Warnw("hook failed", "kind", evt.Kind, "index", hookIndex, "exit", err)
 ```
 
 Never log window titles, hook command contents, or other user payloads. Log counts, lengths, IDs, booleans, and durations instead.

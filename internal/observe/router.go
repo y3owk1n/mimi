@@ -191,7 +191,7 @@ func (r *Router) handle(evt events.Event) {
 			if ok := r.ax.Install(evt.PID); ok {
 				r.cancelRetry(evt.PID)
 			} else {
-				r.logger.Debugw("AX observer install failed; will retry",
+				r.logger.Debugw("AX observer install failed, retrying",
 					"pid", evt.PID, "app", evt.AppName)
 				r.scheduleRetry(evt, 0)
 			}
@@ -329,7 +329,7 @@ func (r *Router) scheduleRetry(evt events.Event, attempt int) {
 
 	if attempt >= len(r.retryDelays) {
 		r.logger.Warnw(
-			"AX observer install gave up; window events from this application will not fire",
+			"AX observer install gave up, window events from this application will not fire",
 			"pid",
 			evt.PID,
 			"app",

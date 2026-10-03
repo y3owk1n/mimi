@@ -53,7 +53,7 @@ func newStartCmd(state *cliState) *cobra.Command {
 			}
 
 			if truncated > 0 {
-				logger.Infow("captured console logs truncated", "count", truncated)
+				logger.Debugw("captured console logs truncated", "count", truncated)
 			}
 
 			return daemon.Run(cfg, logger, state.configPath, Version)

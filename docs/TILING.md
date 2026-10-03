@@ -240,8 +240,8 @@ numbers compare correctly but need not start at 0 or run without gaps.
 | `unmanaged` | Optional. The windows this run was given that you are leaving alone, by number, such as the ones you float. mimi then leaves them alone too, so dragging one raises no pass and shows no drop zone, unless a modifier key is held. A window stays unmanaged until a later run for the same display leaves it out of this list. |
 | `target` | Optional, for a `window_move` or `window_resize`. The window the drop acts on other than the dragged one, as `{"window": n, "action": "swap"}`. `action` is your own word. With `[tiling.dropzone]` enabled, mimi marks that window while the button is down, in the zone's target colours, so the user sees which window a drop would swap with or join before letting go. A pass ignores it. |
 | `stacks` | Optional. The sets of windows you put in one place, as `[{"windows": [n, ...], "active": n}]`. With `[tiling.stackbar]` enabled, mimi draws the ones behind `active` as a deck of cards and takes the room for them out of the window in front. Every member needs its own frame in `frames`. mimi drops a stack that names a window without a frame, or names fewer than two windows, and the frames still apply. |
-| `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs at debug and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
-| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output, and logs a failure at debug. Use it to act on the frames the layout returned, since a hook runs before they are applied. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `before` | Optional. Command lines mimi runs through `settings.hook_shell` before the focus and the frames, all at once. mimi waits for every one and kills one past `tiling.command_timeout_secs`. A failure logs a warning and the frames still apply. See [Running commands around the frames](#running-commands-around-the-frames). |
+| `after` | Optional. Command lines mimi runs through `settings.hook_shell` once the frames have been applied, and once the animation has ended when one runs. They run in order, detached. mimi kills one past `tiling.command_timeout_secs`, drops their output, and logs a failure as a warning. Use it to act on the frames the layout returned, since a hook runs before they are applied. See [Running commands around the frames](#running-commands-around-the-frames). |
 
 **Leaving a window out of `frames` is not the same as naming it in
 `unmanaged`.** Omitting a frame says only that the window does not move this
@@ -710,7 +710,7 @@ then work down this list.
 
 1. **Is Accessibility granted?** Every window read and write needs it.
    Without it the daemon logs `accessibility permission not granted` with
-   `tiling disabled` at startup and treats tiling as disabled, so a
+   `feature=tiling` at startup and treats tiling as disabled, so a
    `mimi tiling cmd` sent to the daemon reports that tiling is disabled.
 2. **Is it enabled, and is the layout there?** `mimi config validate` rejects
    `enabled = true` with no `layout`. The layout is a command line run through
@@ -727,8 +727,8 @@ then work down this list.
    their state, which a daemon restart would lose. `mimi tiling reset --all`
    forgets every space.
 5. **Read the daemon log.** With `log_level = "debug"` every pass logs
-   `tiling pass applied` with the event kind, display count, and frame count.
-   A failing pass logs `tiling pass failed` with the reason. A slow layout
+   `pass applied` with the event kind, display count, and frame count.
+   A failing pass logs `pass failed` with the reason. A slow layout
    fails with `layout timed out`. Raise `timeout_secs`.
 6. **Is the window one mimi tiles?** `mimi query windows` lists the windows a
    layout can be given: windows of regular, unhidden applications on the

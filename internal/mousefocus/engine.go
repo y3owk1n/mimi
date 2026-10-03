@@ -140,6 +140,6 @@ func (e *Engine) settle(point native.Point) {
 
 	err := e.serialize(func() error { return e.desktop.Focus(number) })
 	if err != nil {
-		e.logger.Debugw("focus follows mouse", "window", number, "err", err)
+		e.logger.Debugw("focus failed", "window", number, "err", err)
 	}
 }

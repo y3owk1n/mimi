@@ -57,11 +57,12 @@ plist. Run it again to apply a change. A restart does not apply it:
 - `settings.service_path`
 
 A reload still applies everything reloadable. It then logs a warning that
-names the settings it could not apply and what each needs:
+names the settings it could not apply and what each needs. This example
+leaves out the time and source location that start each line:
 
 ```text
-2026-10-04 00:24:59.086+08:00  WARN daemon/daemon.go:490: config reloaded; restart required for changed restart-only settings trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
-2026-10-04 00:24:59.086+08:00  WARN daemon/daemon.go:498: config reloaded; run `mimi services install` for changed reinstall-only settings trigger=sighup reinstall_only=["settings.service_path"]
+WARN config reloaded, restart required for changed restart-only settings trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
+WARN config reloaded, run `mimi services install` for changed reinstall-only settings trigger=sighup reinstall_only=["settings.service_path"]
 ```
 
 The daemon compares against the config it started with, so the warning

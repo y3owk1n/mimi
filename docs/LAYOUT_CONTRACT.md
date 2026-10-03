@@ -34,7 +34,7 @@ What a failure does:
 
 | The program | mimi |
 | --- | --- |
-| Exits non-zero (oneshot) | Logs `tiling pass failed` at warn with the stderr tail. Applies nothing. |
+| Exits non-zero (oneshot) | Logs `pass failed` at warn with the stderr tail. Applies nothing. |
 | Prints something that is not the output shape | Same. The error names the decoding problem. |
 | Runs past the timeout | Kills it and logs the same. |
 | Exits, in resident mode | Logs it, and the next pass starts it again. After a failure in a row the restart waits 100 ms, doubling up to 5 s. |
@@ -168,8 +168,8 @@ Every field is optional. An empty object, or nothing at all, changes nothing.
 | `focus` | integer | Gives that window keyboard focus before the frames move. A window that cannot be focused logs at debug and the frames still apply. |
 | `unmanaged` | array of integer | Stops watching those windows: a drag of one raises no pass and shows no drop zone, unless a modifier key is held, and they are handed back in the input's `unmanaged`. mimi reclassifies only the windows this input listed, so a run for one display never speaks for another's. A window stays unmanaged until a later run for the same display leaves it out. |
 | `stacks` | array of stack | Keeps them for the stack bar and hands them back in the input. mimi drops a stack that names fewer than two windows, or a window with no frame in this output, and the frames still apply. |
-| `before` | array of string | Runs every line through `settings.hook_shell -c` at once, before `focus` and the frames, and waits for all of them. mimi kills each past `tiling.command_timeout_secs`, default 1. A failure logs at debug and the frames still apply. |
-| `after` | array of string | Runs the lines in order once the frames are applied, and once the animation has ended when one runs, detached from the pass. mimi kills each past `tiling.command_timeout_secs`, drops their output, and logs a failure at debug. |
+| `before` | array of string | Runs every line through `settings.hook_shell -c` at once, before `focus` and the frames, and waits for all of them. mimi kills each past `tiling.command_timeout_secs`, default 1. A failure logs a warning and the frames still apply. |
+| `after` | array of string | Runs the lines in order once the frames are applied, and once the animation has ended when one runs, detached from the pass. mimi kills each past `tiling.command_timeout_secs`, drops their output, and logs a failure as a warning. |
 | `target` | target | While a drag is held, marks that window in the drop zone. A pass ignores it. See [Target](#target). |
 
 ### Placement

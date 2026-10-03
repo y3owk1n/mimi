@@ -93,7 +93,7 @@ func (w *Watcher) Run(ctx context.Context) error {
 				return nil
 			}
 
-			w.logger.Warnw("config watcher error", "err", err)
+			w.logger.Warnw("watcher error", "err", err)
 		}
 	}
 }
@@ -107,6 +107,6 @@ func (w *Watcher) Run(ctx context.Context) error {
 // tells "my editor's save was never noticed" apart from "it was noticed and
 // the config was rejected".
 func (w *Watcher) notifyChange() {
-	w.logger.Debug("config file changed")
+	w.logger.Debug("file changed")
 	w.onChange()
 }

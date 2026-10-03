@@ -187,7 +187,7 @@ func (e *Engine) Update(rules []config.TilingRule) {
 
 	compiled, err := config.CompileRules(rules)
 	if err != nil {
-		e.logger.Warnw("placement rules rejected", "err", err)
+		e.logger.Warnw("rules rejected", "err", err)
 
 		compiled = nil
 	}

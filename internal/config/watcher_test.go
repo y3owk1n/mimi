@@ -73,8 +73,8 @@ func TestWatcher_NotifyChange_ReportsTheChangeAndNothingMore(t *testing.T) {
 
 			entry := entries[0]
 
-			if entry.Message != "config file changed" {
-				t.Errorf("log message = %q, want %q", entry.Message, "config file changed")
+			if entry.Message != "file changed" {
+				t.Errorf("log message = %q, want %q", entry.Message, "file changed")
 			}
 
 			if entry.Level != zapcore.DebugLevel {

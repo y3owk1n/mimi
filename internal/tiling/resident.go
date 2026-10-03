@@ -116,7 +116,7 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 		// exited between passes. It is started once more before the pass
 		// is given up on.
 		if attempt == 0 && served > 0 && errors.Is(reduceErr, errResidentGone) {
-			r.logger.Debugw("resident layout exited; restarting")
+			r.logger.Debugw("resident layout exited, restarting")
 
 			continue
 		}

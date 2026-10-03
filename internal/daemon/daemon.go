@@ -146,11 +146,11 @@ func runCore(
 	defer cancel()
 
 	if cfg.Tiling.Enabled && !accessibilityGranted {
-		logger.Warn("accessibility permission not granted — tiling disabled")
+		logger.Warnw("accessibility permission not granted, feature disabled", "feature", "tiling")
 	}
 
 	if cfg.Border.Enabled && !accessibilityGranted {
-		logger.Warn("accessibility permission not granted — borders disabled")
+		logger.Warnw("accessibility permission not granted, feature disabled", "feature", "borders")
 	}
 
 	// A tiling command from the CLI reaches the engine here, off the action
@@ -211,7 +211,12 @@ func runCore(
 	}
 
 	watcher := config.NewWatcher(configPath, onChange, logger.Named("config"))
-	go func() { _ = watcher.Run(ctx) }()
+	go func() {
+		err := watcher.Run(ctx)
+		if err != nil {
+			logger.Warnw("config watcher not running, edits will not reload", "err", err)
+		}
+	}()
 
 	go func() {
 		err := ipcServer.Run(ctx)
@@ -248,7 +253,11 @@ func setupObservers(cfg *config.Config, logger *zap.SugaredLogger) (*native.Obse
 	accessibilityGranted = perm.Accessibility
 
 	if cfg.Hooks.HasGroup(config.GroupWindow) && !accessibilityGranted {
-		logger.Warn("accessibility permission not granted — window hooks disabled")
+		logger.Warnw(
+			"accessibility permission not granted, feature disabled",
+			"feature",
+			"window hooks",
+		)
 	}
 
 	return &obsCfg, accessibilityGranted
@@ -436,8 +445,8 @@ const (
 const (
 	reloadFailedMessage            = "config reload failed"
 	reloadedMessage                = "config reloaded"
-	reloadRestartRequiredMessage   = "config reloaded; restart required for changed restart-only settings"
-	reloadReinstallRequiredMessage = "config reloaded; run `mimi services install` for changed reinstall-only settings"
+	reloadRestartRequiredMessage   = "config reloaded, restart required for changed restart-only settings"
+	reloadReinstallRequiredMessage = "config reloaded, run `mimi services install` for changed reinstall-only settings"
 )
 
 // reloadConfig loads the config at configPath, applies it, and logs the
@@ -551,7 +560,7 @@ func warnUnknownHookKeys(cfg *config.Config, logger *zap.SugaredLogger) {
 	}
 
 	logger.Warnw(
-		"config names hook kinds that do not exist; those hooks will never fire",
+		"config names hook kinds that do not exist, those hooks will never fire",
 		"count", len(cfg.UnknownHookKeys),
 		"recognized", strings.Join(config.HookKindNames(), "|"),
 	)
@@ -574,7 +583,7 @@ func runSignalLoop(
 	for {
 		select {
 		case <-quitCh:
-			logger.Info("shutting down from systray")
+			logger.Infow("shutting down", "trigger", "systray")
 			shutdown(cancel, pipeline, logger)
 
 			return

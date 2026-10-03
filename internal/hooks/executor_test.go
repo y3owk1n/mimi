@@ -454,8 +454,8 @@ func assertNoLeak(t *testing.T, logs *observer.ObservedLogs, secrets ...string) 
 }
 
 // TestRun_HookFailedLogsIndexWithoutCommandOrOutput pins the contract that the
-// "hook failed" line — which fires at ERROR, i.e. without the user opting into
-// anything — identifies the hook by its index within its kind and carries
+// "hook failed" line, which fires at warn without the user opting into
+// anything, identifies the hook by its index within its kind and carries
 // neither the command text nor the hook's stdout/stderr. See issue #117.
 func TestRun_HookFailedLogsIndexWithoutCommandOrOutput(t *testing.T) {
 	t.Parallel()

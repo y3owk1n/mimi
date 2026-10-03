@@ -128,8 +128,6 @@ func (c *Component) handleEvents() {
 		select {
 		case <-c.ctx.Done():
 			return
-		case <-c.mVersion.ClickedCh:
-			c.logger.Debugw("mimi version selected from systray", "version", c.version)
 		case <-c.mSourceCode.ClickedCh:
 			c.openURL("https://github.com/y3owk1n/mimi", "source code")
 		case <-c.mConfigDocs.ClickedCh:
@@ -170,7 +168,7 @@ func (c *Component) openURL(url string, label string) {
 	go func() {
 		err := exec.CommandContext(c.ctx, "/usr/bin/open", url).Run()
 		if err != nil {
-			c.logger.Warnw("failed to open systray link", "label", label, "err", err)
+			c.logger.Warnw("link not opened", "label", label, "err", err)
 		}
 	}()
 }
@@ -183,10 +181,10 @@ func (c *Component) openURL(url string, label string) {
 func (c *Component) handleReloadConfig() {
 	err := c.requestReload(c.ctx, c.configPath)
 	if err != nil {
-		c.logger.Warnw("failed to request config reload from systray", "err", err)
+		c.logger.Warnw("config reload request failed", "err", err)
 
 		return
 	}
 
-	c.logger.Info("config reload requested from systray")
+	c.logger.Info("config reload requested")
 }

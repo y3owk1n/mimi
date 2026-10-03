@@ -32,6 +32,7 @@ Pre-commit gate: `just fmt && just lint && just test && just build`. CI runs `ju
 - All Objective-C and CGO lives in `internal/native/`, `internal/systray/`, and `internal/permissions/`. Go packages elsewhere must not open CGO of their own.
 - Errors go through `derrors` (`internal/errors`) with a code — `derrors.New(derrors.CodeInvalidInput, …)` / `derrors.Wrapf(err, …)`. Never return a bare `errors.New` across a package boundary.
 - Logging is `*zap.SugaredLogger`; constructors tolerate a `nil` logger by falling back to `zap.NewNop()`. Never log window titles, hook command contents, or other user payloads — log counts, IDs, durations, booleans.
+- Log levels: `debug` for anything per event, `info` for lifecycle and config, `warn` when mimi degraded and kept running. A failing user hook is a warning. Use `error` only for a failure with no fallback that nothing else reports, because every error prints a stack trace. Log an error once, where it is handled. The daemon names each subsystem's logger, so a message never repeats that name. `docs/CODING_STANDARDS.md` has the rest.
 - `just fmt-check` gates Objective-C formatting separately from Go. Both must pass.
 - Tabs for indentation, LF endings, final newline (`.editorconfig`).
 - Conventional commits; `release-please-config.json` decides which types reach the changelog. The repo squash-merges with the PR title as the commit subject, so the title is the line that ships.

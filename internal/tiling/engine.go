@@ -229,7 +229,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	if err != nil {
 		// Load validated every rule, so a bad one reached the engine some
 		// other way. The layout then sees every window.
-		e.logger.Warnw("tiling rules rejected", "err", err)
+		e.logger.Warnw("rules rejected", "err", err)
 	}
 
 	e.rules = rules
@@ -353,11 +353,17 @@ func (e *Engine) SetStore(path string) {
 	var kept minSizeStore
 
 	err = json.Unmarshal(data, &kept)
-	if err != nil || kept.Version != minSizeStoreVersion {
+	if err != nil {
+		e.logger.Warnw("learned minimums discarded", "reason", "unreadable", "path", path)
+
+		return
+	}
+
+	if kept.Version != minSizeStoreVersion {
 		// A store without this version was written by a build that could
 		// learn a minimum from a window that had not finished resizing.
 		// The engine drops what it holds and learns again.
-		e.logger.Infow("learned minimums from an older build discarded", "path", path)
+		e.logger.Infow("learned minimums discarded", "reason", "older_build", "path", path)
 
 		return
 	}
@@ -536,7 +542,7 @@ func (e *Engine) Run(ctx context.Context, sub events.Subscriber) {
 
 			err := e.Pass(ctx, pending)
 			if err != nil {
-				e.logger.Warnw("tiling pass failed", "kind", pending.Kind, "err", err)
+				e.logger.Warnw("pass failed", "kind", pending.Kind, "err", err)
 			}
 		}
 	}
@@ -737,7 +743,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 				e.keepState(key, out.State)
 			} else {
 				e.logger.Debugw(
-					"layout state dropped: the space it is for could not be named",
+					"layout state dropped, its space has no name",
 					"display", input.Display.ID,
 					"space", input.Space,
 				)
@@ -768,7 +774,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	// refuse every frame, and the switch itself raises the event that lays
 	// the new space out.
 	if e.spacesChangedLocked(inputs) {
-		e.logger.Debugw("tiling pass skipped: space changed")
+		e.logger.Debugw("pass skipped, space changed")
 
 		return nil
 	}
@@ -791,7 +797,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	if focus != 0 {
 		focusErr := e.run(func() error { return e.desktop.Focus(focus) })
 		if focusErr != nil {
-			e.logger.Debugw("tiling pass could not focus", "window", focus, "err", focusErr)
+			e.logger.Debugw("pass could not focus", "window", focus, "err", focusErr)
 		}
 	}
 
@@ -830,7 +836,7 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	e.runAfterLocked(after, e.animationDelay(frames))
 
 	e.logger.Debugw(
-		"tiling pass applied",
+		"pass applied",
 		"kind",
 		event.Kind,
 		"dragged",
@@ -870,7 +876,7 @@ func (e *Engine) runBefore(ctx context.Context, lines []string) {
 		runs.Go(func() {
 			err := runLine(ctx, e.shell, line, e.commandTimeout)
 			if err != nil {
-				e.logger.Debugw("tiling before command failed", "err", err)
+				e.logger.Warnw("before command failed", "err", err)
 			}
 		})
 	}
@@ -910,7 +916,7 @@ func (e *Engine) runAfterLocked(lines []string, delay time.Duration) {
 			// must not bound it.
 			err := runLine(context.Background(), shell, line, timeout)
 			if err != nil {
-				logger.Debugw("tiling after command failed", "err", err)
+				logger.Warnw("after command failed", "err", err)
 			}
 		}
 	})
@@ -1038,7 +1044,7 @@ func (e *Engine) keepStacks(input Input, frames []action.WindowFrame, stacks []S
 
 	for _, stack := range stacks {
 		if len(stack.Windows) < stackNeeds {
-			e.logger.Debugw("stack ignored: fewer than two windows", "windows", len(stack.Windows))
+			e.logger.Debugw("stack ignored, fewer than two windows", "windows", len(stack.Windows))
 
 			continue
 		}
@@ -1054,7 +1060,7 @@ func (e *Engine) keepStacks(input Input, frames []action.WindowFrame, stacks []S
 		}
 
 		if unplaced != 0 {
-			e.logger.Debugw("stack ignored: a member has no frame", "window", unplaced)
+			e.logger.Debugw("stack ignored, a member has no frame", "window", unplaced)
 
 			continue
 		}
