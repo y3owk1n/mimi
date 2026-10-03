@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.20.2](https://github.com/y3owk1n/mimi/compare/v0.20.1...v0.20.2) (2026-10-03)
+
+
+### Bug Fixes
+
+* **config:** keep reloading after the config file is deleted and recreated ([#342](https://github.com/y3owk1n/mimi/issues/342)) ([e070a84](https://github.com/y3owk1n/mimi/commit/e070a844c342c3419abb3db5bdbb5b7f96f2e003))
+* **config:** report misspelled keys instead of ignoring them ([#343](https://github.com/y3owk1n/mimi/issues/343)) ([fbed2e8](https://github.com/y3owk1n/mimi/commit/fbed2e8bc480cd9d0efd4841d0ff82825abd2210))
+* **ipc:** stop the daemon spinning when it cannot accept connections ([#345](https://github.com/y3owk1n/mimi/issues/345)) ([70cb524](https://github.com/y3owk1n/mimi/commit/70cb524114a7c823865e2cd3eb6333580ff30faa))
+* **space:** find the cursor's display when SkyLight cannot read the cursor ([#344](https://github.com/y3owk1n/mimi/issues/344)) ([d8d519a](https://github.com/y3owk1n/mimi/commit/d8d519a4b433a3aabcb33d622100e87c572e7d85))
+* **space:** judge a window-to-space move by where the window lands ([#346](https://github.com/y3owk1n/mimi/issues/346)) ([bda6330](https://github.com/y3owk1n/mimi/commit/bda6330109c8209a41131c993786cbc935653558))
+* **tiling:** keep Safari's video full-screen window out of the layout ([#332](https://github.com/y3owk1n/mimi/issues/332)) ([7556650](https://github.com/y3owk1n/mimi/commit/7556650ec3623eb78bb8427da5be048dab96e466))
+* **tiling:** keep the layout when the Dock switches spaces ([#334](https://github.com/y3owk1n/mimi/issues/334)) ([ac82793](https://github.com/y3owk1n/mimi/commit/ac827934b00393d8f5f91e062074cf11b38701f5))
+
+
+### Performance Improvements
+
+* **border:** keep each border to thin strips around its window ([#335](https://github.com/y3owk1n/mimi/issues/335)) ([0e9fc2e](https://github.com/y3owk1n/mimi/commit/0e9fc2e1d235a16a3b30ef66f3e4001da76da30e))
+* **border:** stop resizes leaving the daemon's memory high ([#336](https://github.com/y3owk1n/mimi/issues/336)) ([6d8d87f](https://github.com/y3owk1n/mimi/commit/6d8d87fe176273a62108689d283044821d73964d))
+
+
+### Improvements
+
+* **log:** log what failed silently and quiet the drag noise ([#341](https://github.com/y3owk1n/mimi/issues/341)) ([c011642](https://github.com/y3owk1n/mimi/commit/c0116428181e3d53df33984e1647118bf873b3fb))
+* **log:** put daemon logs at the right level and wording ([#338](https://github.com/y3owk1n/mimi/issues/338)) ([0a04e1b](https://github.com/y3owk1n/mimi/commit/0a04e1b0a067f2c8b320c70af63308462ddcc3a0))
+* **log:** readable one-line console logs ([#337](https://github.com/y3owk1n/mimi/issues/337)) ([87b5f8b](https://github.com/y3owk1n/mimi/commit/87b5f8bf8e5ef9d99d235127cdd7163736213c61))
+* **native:** log the native failures that were silent ([#340](https://github.com/y3owk1n/mimi/issues/340)) ([ce44559](https://github.com/y3owk1n/mimi/commit/ce445598e882f337b1dc6a5e39496988858813df))
+* **native:** route native logs through the daemon logger ([#339](https://github.com/y3owk1n/mimi/issues/339)) ([d840fb4](https://github.com/y3owk1n/mimi/commit/d840fb4bfd0010ef573ccc1e614e621ce39f1455))
+
 ## [0.20.1](https://github.com/y3owk1n/mimi/compare/v0.20.0...v0.20.1) (2026-09-27)
 
 
