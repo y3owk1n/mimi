@@ -29,6 +29,12 @@ type Config struct {
 	// part of the config file, so it carries no toml tag, and it is excluded
 	// from JSON so `mimi config dump` keeps printing the config as written.
 	UnknownHookKeys []string `json:"-" toml:"-"`
+
+	// UnknownKeys lists the keys that set nothing, such as a misspelled
+	// `enabeld` under [tiling] or `ap` in a hook entry, as dotted paths,
+	// sorted. Like UnknownHookKeys, loading records them for each caller to
+	// report.
+	UnknownKeys []string `json:"-" toml:"-"`
 }
 
 // SettingsConfig holds the [settings] section of the config.

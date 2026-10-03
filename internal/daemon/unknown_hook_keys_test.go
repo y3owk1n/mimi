@@ -1,4 +1,4 @@
-//nolint:testpackage // tests warnUnknownHookKeys, an unexported function
+//nolint:testpackage // tests warnUnknownKeys, an unexported function
 package daemon
 
 import (
@@ -26,7 +26,7 @@ func TestWarnUnknownHookKeys_CountsWithoutNamingTheKeys(t *testing.T) {
 
 	const typo = "on_window_focussed"
 
-	warnUnknownHookKeys(&config.Config{UnknownHookKeys: []string{typo, "on_another_typo"}}, logger)
+	warnUnknownKeys(&config.Config{UnknownHookKeys: []string{typo, "on_another_typo"}}, logger)
 
 	entries := logs.All()
 	if len(entries) != 1 {
@@ -67,9 +67,41 @@ func TestWarnUnknownHookKeys_SaysNothingWhenThereAreNone(t *testing.T) {
 	core, logs := observer.New(zapcore.WarnLevel)
 	logger := zap.New(core).Sugar()
 
-	warnUnknownHookKeys(&config.Config{}, logger)
+	warnUnknownKeys(&config.Config{}, logger)
 
 	if got := logs.Len(); got != 0 {
 		t.Errorf("a clean config should log nothing, got %d entries", got)
+	}
+}
+
+// TestWarnUnknownHookKeys_CountsUnknownSettingsWithoutNamingThem pins that a
+// misspelled setting outside [hooks] warns at startup and reload, by count,
+// under the same rule that keeps the user's config text out of the log.
+func TestWarnUnknownHookKeys_CountsUnknownSettingsWithoutNamingThem(t *testing.T) {
+	t.Parallel()
+
+	core, logs := observer.New(zapcore.WarnLevel)
+
+	const typo = "tiling.enabeld"
+
+	warnUnknownKeys(&config.Config{UnknownKeys: []string{typo}}, zap.New(core).Sugar())
+
+	entries := logs.All()
+	if len(entries) != 1 {
+		t.Fatalf("expected exactly one warning, got %d", len(entries))
+	}
+
+	if count, _ := entries[0].ContextMap()["count"].(int64); count != 1 {
+		t.Errorf("count field: got %v, want 1", entries[0].ContextMap()["count"])
+	}
+
+	if strings.Contains(entries[0].Message, typo) {
+		t.Errorf("the warning named the user's key: %q", entries[0].Message)
+	}
+
+	for _, value := range entries[0].ContextMap() {
+		if text, ok := value.(string); ok && strings.Contains(text, typo) {
+			t.Errorf("a field named the user's key: %q", text)
+		}
 	}
 }

@@ -142,12 +142,13 @@ func newConfigValidateCmd(state *cliState) *cobra.Command {
 // validation fails. Reporting them together is the point -- a user fixing a
 // typo should not have to fix an unrelated error first to discover it.
 func configProblems(cfg *config.Config, loadErr error) string {
-	var unknown []string
+	var unknown, unknownKeys []string
 	if cfg != nil {
 		unknown = cfg.UnknownHookKeys
+		unknownKeys = cfg.UnknownKeys
 	}
 
-	if loadErr == nil && len(unknown) == 0 {
+	if loadErr == nil && len(unknown) == 0 && len(unknownKeys) == 0 {
 		return ""
 	}
 
@@ -157,6 +158,12 @@ func configProblems(cfg *config.Config, loadErr error) string {
 
 	if loadErr != nil {
 		fmt.Fprintf(&report, "  %s\n", loadErr)
+	}
+
+	// A key mimi does not know sets nothing, so a misspelled one leaves its
+	// setting at the default. The daemon carries on, and validate says so.
+	for _, key := range unknownKeys {
+		fmt.Fprintf(&report, "  %s: not a recognized setting\n", key)
 	}
 
 	// A hook kind mimi does not know is a hook that will never fire. The

@@ -149,6 +149,10 @@ func configCheck(facts Facts) Check {
 		check.Status = Warn
 		check.Detail = "unknown hook kinds: " + strings.Join(facts.Config.UnknownHookKeys, ", ")
 		check.Fix = "run mimi config validate for the recognized kinds"
+	case len(facts.Config.UnknownKeys) > 0:
+		check.Status = Warn
+		check.Detail = "unrecognized settings: " + strings.Join(facts.Config.UnknownKeys, ", ")
+		check.Fix = "fix or remove them, then run mimi config validate"
 	}
 
 	return check

@@ -512,8 +512,9 @@ the setting is on.
 ## Hooks
 
 The hook kinds below are the complete set. `mimi config validate` rejects any
-other key under `[hooks]`, and the daemon logs a warning about it on startup
-and reload.
+other key under `[hooks]`. It also rejects a hook entry field that is not one of
+the fields listed here. The daemon logs a warning about either on startup and
+reload.
 
 ### Application Lifecycle
 

@@ -68,6 +68,23 @@ func TestConfigProblems_ReportsAnUnrecognizedKeyAlongsideOtherErrors(t *testing.
 	}
 }
 
+func TestConfigProblems_NamesUnrecognizedSettings(t *testing.T) {
+	t.Parallel()
+
+	cfg := &config.Config{UnknownKeys: []string{"hooks.on_window_focus[0].ap", "tiling.enabeld"}}
+
+	got := configProblems(cfg, nil)
+
+	for _, line := range []string{
+		"hooks.on_window_focus[0].ap: not a recognized setting",
+		"tiling.enabeld: not a recognized setting",
+	} {
+		if !strings.Contains(got, line) {
+			t.Errorf("report should say %q, got:\n%s", line, got)
+		}
+	}
+}
+
 func TestConfigProblems_ToleratesANilConfig(t *testing.T) {
 	t.Parallel()
 

@@ -111,7 +111,7 @@ func Load(path string) (*Config, error) {
 
 	var raw rawConfig
 
-	_, err = toml.Decode(string(data), &raw)
+	meta, err := toml.Decode(string(data), &raw)
 	if err != nil {
 		return nil, derrors.Wrapf(err, derrors.CodeSerializationFailed, "parsing config")
 	}
@@ -128,6 +128,7 @@ func Load(path string) (*Config, error) {
 		Border:          raw.Border,
 		Mouse:           raw.Mouse,
 		UnknownHookKeys: unknownHookKeys,
+		UnknownKeys:     unknownKeys(meta, raw.Hooks, unknownHookKeys),
 	}
 
 	systrayEnabledSet := raw.Systray.Enabled != nil
@@ -560,4 +561,54 @@ func expandPaths(cfg *Config) {
 	cfg.Settings.LogFile = paths.ExpandHome(cfg.Settings.LogFile)
 	cfg.Settings.PIDFile = paths.ExpandHome(cfg.Settings.PIDFile)
 	cfg.Settings.SocketFile = paths.ExpandHome(cfg.Settings.SocketFile)
+}
+
+// hookEntryFields are the fields a hook entry written as a table may set.
+//
+//nolint:gochecknoglobals // a fixed set, read only
+var hookEntryFields = map[string]bool{
+	"run": true, "app": true, "bundle_id": true, "title": true,
+	"space": true, "display": true, "timeout_secs": true, "async": true,
+}
+
+// unknownKeys returns the keys that set nothing, as dotted paths, sorted and
+// without repeats. Outside [hooks] they are the keys the decode left unused.
+// Inside [hooks] the decoder counts every field as unused, because [hooks]
+// decodes into a map, so this checks each entry against hookEntryFields
+// instead. It skips the entries of a hook kind in unknownHookKeys, which is
+// reported on its own.
+func unknownKeys(meta toml.MetaData, hooks rawHooksConfig, unknownHookKeys []string) []string {
+	var unknown []string
+
+	for _, key := range meta.Undecoded() {
+		if len(key) > 0 && key[0] == "hooks" {
+			continue
+		}
+
+		unknown = append(unknown, key.String())
+	}
+
+	for kind, value := range hooks {
+		items, isList := value.([]any)
+		if !isList || slices.Contains(unknownHookKeys, kind) {
+			continue
+		}
+
+		for index, item := range items {
+			entry, isTable := item.(map[string]any)
+			if !isTable {
+				continue
+			}
+
+			for field := range entry {
+				if !hookEntryFields[field] {
+					unknown = append(unknown, fmt.Sprintf("hooks.%s[%d].%s", kind, index, field))
+				}
+			}
+		}
+	}
+
+	slices.Sort(unknown)
+
+	return slices.Compact(unknown)
 }

@@ -812,12 +812,15 @@ existing config.
 
 Parse and validate the config. When the config is valid, it prints the hook
 count and exits 0. When it is not, it prints the problems on stderr and exits 1.
-A key under `[hooks]` that names no hook kind fails here. The daemon only
-warns about such a key and runs the rest.
+A key under `[hooks]` that names no hook kind fails here, and so does any
+other key mimi does not recognize, such as a misspelled setting or a field of a
+hook entry. The daemon only warns about such a key, by count, and runs the
+rest.
 
 ```
 $ mimi config validate
 Config invalid:
+  tiling.enabeld: not a recognized setting
   hooks.on_window_focussed: not a recognized hook kind
 
 Recognized hook kinds:

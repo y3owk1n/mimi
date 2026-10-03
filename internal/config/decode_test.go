@@ -10,6 +10,7 @@ package config //nolint:testpackage // exercises unexported decodeHooks directly
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 
@@ -223,6 +224,52 @@ func TestLoad_RecordsUnknownHookKeysWithoutFailing(t *testing.T) {
 			"the recognized hook should still load, got %d entries",
 			len(cfg.Hooks.AppActivate),
 		)
+	}
+}
+
+func TestLoad_RecordsUnknownKeysWithoutFailing(t *testing.T) {
+	t.Parallel()
+
+	path := writeConfig(t, `
+[settings]
+log_level = "info"
+log_lvl = "debug"
+
+[tiling]
+enabeld = true
+
+[hooks]
+on_window_focus = [{ run = "echo focus", app = "Code", async = true, ap = "Code" }]
+on_window_focussed = [{ run = "echo typo", ap = "Code" }]
+`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("an unrecognized key must not stop the config loading: %v", err)
+	}
+
+	// The entry under an unknown hook kind is reported as that kind, not
+	// field by field.
+	want := []string{"hooks.on_window_focus[0].ap", "settings.log_lvl", "tiling.enabeld"}
+	if !slices.Equal(cfg.UnknownKeys, want) {
+		t.Errorf("UnknownKeys: got %v, want %v", cfg.UnknownKeys, want)
+	}
+
+	if cfg.Settings.LogLevel != "info" || len(cfg.Hooks.WindowFocus) != 1 {
+		t.Errorf("the recognized keys should still load, got %+v", cfg)
+	}
+}
+
+func TestLoad_TheDefaultConfigHasNoUnknownKeys(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(filepath.Join("..", "..", "configs", "default-config.toml"))
+	if err != nil {
+		t.Fatalf("load the default config: %v", err)
+	}
+
+	if len(cfg.UnknownKeys) != 0 {
+		t.Errorf("the default config sets keys mimi does not recognize: %v", cfg.UnknownKeys)
 	}
 }
 

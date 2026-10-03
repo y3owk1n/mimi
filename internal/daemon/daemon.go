@@ -56,7 +56,7 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 	native.SetLogger(logger.Named("native"))
 	action.SetLogger(logger.Named("action"))
 
-	warnUnknownHookKeys(cfg, logger)
+	warnUnknownKeys(cfg, logger)
 
 	reload := func(ctx context.Context, path string) error {
 		process, err := os.FindProcess(os.Getpid())
@@ -500,7 +500,7 @@ func reloadConfig(
 		return
 	}
 
-	warnUnknownHookKeys(newCfg, logger)
+	warnUnknownKeys(newCfg, logger)
 
 	if changes.empty() {
 		logger.Infow(reloadedMessage, "trigger", trigger)
@@ -557,15 +557,22 @@ func reloadReporter(component *systray.Component) func(systray.ReloadOutcome) {
 	return component.ReportReload
 }
 
-// warnUnknownHookKeys notes that the config asked for hook kinds mimi does not
-// have. The daemon runs anyway on the hooks it did understand, so this is a
-// warning rather than a refusal to start; `mimi config validate` is the one
-// that fails.
+// warnUnknownKeys notes that the config sets keys mimi does not recognize, and
+// asks for hook kinds mimi does not have. The daemon runs anyway on what it
+// did understand, so this is a warning rather than a refusal to start. `mimi
+// config validate` is the one that fails.
 //
 // The keys themselves stay out of the log -- they are the user's config text.
-// The count says something is wrong and the recognized set says what is
-// allowed, which is enough to send someone to validate.
-func warnUnknownHookKeys(cfg *config.Config, logger *zap.SugaredLogger) {
+// The count says something is wrong, and for hook kinds the recognized set
+// says what is allowed, which is enough to send someone to validate.
+func warnUnknownKeys(cfg *config.Config, logger *zap.SugaredLogger) {
+	if len(cfg.UnknownKeys) > 0 {
+		logger.Warnw(
+			"config sets keys mimi does not recognize, they are ignored",
+			"count", len(cfg.UnknownKeys),
+		)
+	}
+
 	if len(cfg.UnknownHookKeys) == 0 {
 		return
 	}
