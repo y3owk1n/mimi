@@ -117,12 +117,24 @@ CFArrayRef MimiCopyRealWindowsOnSpaces(CFArrayRef spaceIDs, CFArrayRef *radii) {
 	uint64_t clearTags = 0;
 	CFArrayRef windows = SLSCopyWindowsWithOptionsAndTags(
 	    SLSMainConnectionID(), 0, spaceIDs, kMimiWindowsNotMinimized, &setTags, &clearTags);
-	if (!windows)
+	if (!windows) {
+		// Every border sync asks, so a refusal would repeat on each one.
+		static dispatch_once_t listOnce;
+		dispatch_once(&listOnce, ^{
+			MimiLog(MimiLogLevelWarn, @"window server window list unavailable", @{@"step" : @"copy_windows"});
+		});
 		return CFBridgingRetain(real);
+	}
 
 	CFIndex count = CFArrayGetCount(windows);
 	if (count > 0) {
 		CFTypeRef query = SLSWindowQueryWindows(SLSMainConnectionID(), windows, (int)count);
+		if (!query) {
+			static dispatch_once_t queryOnce;
+			dispatch_once(&queryOnce, ^{
+				MimiLog(MimiLogLevelWarn, @"window server window list unavailable", @{@"step" : @"query_windows"});
+			});
+		}
 		if (query) {
 			CFTypeRef iterator = SLSWindowQueryResultCopyWindows(query);
 			if (iterator) {
@@ -176,8 +188,15 @@ int MimiSetEnhancedUserInterface(int pid, int enabled) {
 			was = (CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(value)) ? 1 : 0;
 			CFRelease(value);
 		}
-		if (was >= 0 && was != enabled)
-			AXUIElementSetAttributeValue(app, attribute, enabled ? kCFBooleanTrue : kCFBooleanFalse);
+		if (was >= 0 && was != enabled) {
+			AXError err = AXUIElementSetAttributeValue(app, attribute, enabled ? kCFBooleanTrue : kCFBooleanFalse);
+			if (err != kAXErrorSuccess)
+				MimiLog(
+				    MimiLogLevelDebug, @"AX write failed",
+				    @{@"attribute" : @"AXEnhancedUserInterface",
+					  @"pid" : @(pid),
+					  @"ax_error" : @(err)});
+		}
 		CFRelease(app);
 		return was;
 	}

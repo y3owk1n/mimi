@@ -3,6 +3,7 @@ package native
 
 import (
 	"bytes"
+	"fmt"
 	"testing"
 
 	"go.uber.org/zap"
@@ -29,7 +30,7 @@ func TestLogNative_FieldsBecomeLogFieldsAtTheNativeLevel(t *testing.T) {
 	}
 
 	fields := entry.ContextMap()
-	if fields["pid"] != float64(42) || fields["attribute"] != "AXSize" {
+	if fmt.Sprint(fields["pid"]) != "42" || fields["attribute"] != "AXSize" {
 		t.Errorf("fields = %v, want pid=42 attribute=AXSize", fields)
 	}
 }

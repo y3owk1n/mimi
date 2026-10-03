@@ -1,6 +1,7 @@
 #import "border.h"
 
 #import "mimi.h"
+#import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
 #import <stdatomic.h>
@@ -359,8 +360,17 @@ static void mimiMakeEdge(MimiBorder *border, MimiEdge *edge, CGSize size, double
 	int cid = SLSMainConnectionID();
 	CFTypeRef region = mimiRegion(size);
 	uint32_t number = 0;
-	SLSNewWindow(cid, kCGBackingStoreBuffered, -9999, -9999, region, &number);
+	CGError created = SLSNewWindow(cid, kCGBackingStoreBuffered, -9999, -9999, region, &number);
 	CFRelease(region);
+	if (created != kCGErrorSuccess || number == 0) {
+		// Borders are made on every focus change, and a window server that
+		// refuses one refuses them all, so this logs once.
+		static dispatch_once_t refusedOnce;
+		dispatch_once(&refusedOnce, ^{
+			MimiLog(MimiLogLevelWarn, @"border window not created, borders will not show", @{@"cg_error" : @(created)});
+		});
+		return;
+	}
 	SLSSetWindowTags(cid, number, &kMimiBorderTags, 64);
 	SLSSetWindowResolution(cid, number, scale);
 	SLSSetWindowOpacity(cid, number, false);
@@ -371,6 +381,12 @@ static void mimiMakeEdge(MimiBorder *border, MimiEdge *edge, CGSize size, double
 
 	edge->number = number;
 	edge->context = SLWindowContextCreate(cid, number, NULL);
+	if (!edge->context) {
+		static dispatch_once_t contextOnce;
+		dispatch_once(&contextOnce, ^{
+			MimiLog(MimiLogLevelWarn, @"border drawing context not created, borders will not show", nil);
+		});
+	}
 	CGContextSetInterpolationQuality(edge->context, kCGInterpolationNone);
 }
 
@@ -713,11 +729,18 @@ static void mimiFollowBordered(void) {
 	int cid = SLSMainConnectionID();
 	if (!gFollowing) {
 		gFollowing = YES;
-		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerMoved, NULL);
-		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerResized, NULL);
-		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerReordered, NULL);
-		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerAdded, NULL);
-		SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, kMimiWindowServerRemoved, NULL);
+		const uint32_t followed[] = {
+		    kMimiWindowServerMoved, kMimiWindowServerResized, kMimiWindowServerReordered,
+		    kMimiWindowServerAdded, kMimiWindowServerRemoved,
+		};
+		for (size_t i = 0; i < sizeof(followed) / sizeof(followed[0]); i++) {
+			CGError registered = SLSRegisterConnectionNotifyProc(cid, mimiWindowServerEvent, followed[i], NULL);
+			if (registered != kCGErrorSuccess)
+				MimiLog(
+				    MimiLogLevelWarn, @"window server notifications unavailable, borders will not follow drags",
+				    @{@"event" : @(followed[i]),
+					  @"cg_error" : @(registered)});
+		}
 	}
 	NSArray<NSNumber *> *keys = gBorders.allKeys;
 	uint32_t *numbers = calloc(keys.count + 1, sizeof(uint32_t));
@@ -725,8 +748,13 @@ static void mimiFollowBordered(void) {
 	for (NSNumber *key in keys) {
 		numbers[count++] = key.unsignedIntValue;
 	}
-	SLSRequestNotificationsForWindows(cid, numbers, count);
+	CGError requested = SLSRequestNotificationsForWindows(cid, numbers, count);
 	free(numbers);
+	if (requested != kCGErrorSuccess)
+		MimiLog(
+		    MimiLogLevelDebug, @"window server notifications not requested",
+		    @{@"cg_error" : @(requested),
+			  @"windows" : @(count)});
 }
 
 #pragma mark - Sync

@@ -1,6 +1,7 @@
 #import "mouse.h"
 
 #include "_cgo_export.h"
+#import "mimi_log.h"
 #import "workspace.h"
 
 #include <CoreGraphics/CoreGraphics.h>
@@ -15,6 +16,9 @@ static CFRunLoopSourceRef gMouseSource;
 
 static CGEventRef mimiMouseMoved(CGEventTapProxy proxy, CGEventType type, CGEventRef event, void *info) {
 	if (type == kCGEventTapDisabledByTimeout || type == kCGEventTapDisabledByUserInput) {
+		MimiLog(
+		    MimiLogLevelDebug, @"mouse event tap disabled by macOS, re-enabling",
+		    @{@"reason" : type == kCGEventTapDisabledByTimeout ? @"timeout" : @"user_input"});
 		if (gMouseTap)
 			CGEventTapEnable(gMouseTap, true);
 		return event;
@@ -32,8 +36,10 @@ static void mimiMouseMonitorStartOnRunLoop(void) {
 	gMouseTap = CGEventTapCreate(
 	    kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, CGEventMaskBit(kCGEventMouseMoved),
 	    mimiMouseMoved, NULL);
-	if (!gMouseTap)
+	if (!gMouseTap) {
+		MimiLog(MimiLogLevelDebug, @"mouse event tap not created", nil);
 		return;
+	}
 
 	gMouseSource = CFMachPortCreateRunLoopSource(NULL, gMouseTap, 0);
 	CFRunLoopAddSource(CFRunLoopGetCurrent(), gMouseSource, kCFRunLoopCommonModes);
@@ -54,8 +60,10 @@ static void mimiMouseMonitorStopOnRunLoop(void) {
 
 int MimiMouseMonitorStart(void) {
 	CFRunLoopRef rl = GetRunLoop();
-	if (!rl)
+	if (!rl) {
+		MimiLog(MimiLogLevelDebug, @"mouse monitor not started, no run loop", nil);
 		return 0;
+	}
 
 	if (CFRunLoopGetCurrent() == rl) {
 		mimiMouseMonitorStartOnRunLoop();
@@ -70,7 +78,9 @@ int MimiMouseMonitorStart(void) {
 		dispatch_semaphore_signal(done);
 	});
 	CFRunLoopWakeUp(rl);
-	dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC));
+	if (dispatch_semaphore_wait(done, dispatch_time(DISPATCH_TIME_NOW, 2 * NSEC_PER_SEC)) != 0)
+		MimiLog(MimiLogLevelDebug, @"mouse monitor start timed out", nil);
+
 	return started;
 }
 

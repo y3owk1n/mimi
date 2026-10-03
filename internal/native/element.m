@@ -4,6 +4,7 @@
 //
 
 #import "mimi.h"
+#import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -20,6 +21,10 @@ void *MimiGetFocusedApplication(void) {
 			if (error == kAXErrorSuccess && focusedApp) {
 				return (void *)focusedApp;
 			}
+
+			MimiLog(
+			    MimiLogLevelDebug, @"AX focused application unavailable, asking NSWorkspace",
+			    @{@"ax_error" : @(error)});
 		}
 
 		// Last resort only. NSWorkspace answers this out of state it refreshes

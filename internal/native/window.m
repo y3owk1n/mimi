@@ -776,9 +776,6 @@ static AXError MimiWriteSize(AXUIElementRef window, double w, double h) {
 
 	AXError err = AXUIElementSetAttributeValue(window, kAXSizeAttribute, value);
 	CFRelease(value);
-	if (err != kAXErrorSuccess) {
-		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXSize", @"ax_error" : @(err)});
-	}
 
 	return err;
 }
@@ -791,9 +788,6 @@ static AXError MimiWritePosition(AXUIElementRef window, double x, double y) {
 
 	AXError err = AXUIElementSetAttributeValue(window, kAXPositionAttribute, value);
 	CFRelease(value);
-	if (err != kAXErrorSuccess) {
-		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXPosition", @"ax_error" : @(err)});
-	}
 
 	return err;
 }
@@ -831,8 +825,14 @@ int MimiSetWindowFrame(void *window, double x, double y, double w, double h) {
 
 		// A window that refuses its size still moved. A fixed-size window
 		// crossing to another display lands there at the size it keeps,
-		// and a caller that cares about the size reads the frame back.
-		return (posError == kAXErrorSuccess) ? 1 : 0;
+		// and a caller that cares about the size reads the frame back, so
+		// only a refused move is logged.
+		if (posError != kAXErrorSuccess) {
+			MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXPosition", @"ax_error" : @(posError)});
+			return 0;
+		}
+
+		return 1;
 	}
 }
 
@@ -874,12 +874,17 @@ int MimiActivateWindow(void *window) {
 		AXUIElementRef axWindow = (AXUIElementRef)window;
 
 		pid_t pid;
-		if (AXUIElementGetPid(axWindow, &pid) != kAXErrorSuccess)
+		AXError pidErr = AXUIElementGetPid(axWindow, &pid);
+		if (pidErr != kAXErrorSuccess) {
+			MimiLog(MimiLogLevelDebug, @"window not activated, its pid is unreadable", @{@"ax_error" : @(pidErr)});
 			return 0;
+		}
 
 		NSRunningApplication *app = [NSRunningApplication runningApplicationWithProcessIdentifier:pid];
-		if (!app)
+		if (!app) {
+			MimiLog(MimiLogLevelDebug, @"window not activated, its application is not running", @{@"pid" : @(pid)});
 			return 0;
+		}
 
 		[app activateWithOptions:0];
 

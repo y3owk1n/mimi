@@ -284,6 +284,8 @@ int MimiGetActiveWorkspaceNumber(void) {
 			return skyLightIndex;
 		}
 
+		MimiLog(MimiLogLevelDebug, @"space number not found through SkyLight, reading the window list", nil);
+
 		CFArrayRef windowList = CGWindowListCopyWindowInfo(
 		    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
 		if (windowList) {

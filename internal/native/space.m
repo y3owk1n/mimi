@@ -462,11 +462,8 @@ static bool mimiPostAugmentedDockSwipe(double sign) {
 
 	for (size_t i = 0; i < sizeof(phases) / sizeof(phases[0]); i++) {
 		CGEventRef event = mimiCreateAugmentedDockSwipeEvent(phases[i], sign);
-		if (!event) {
-			MimiLog(MimiLogLevelDebug, @"augmented dock swipe event not built", @{@"phase" : @(phases[i])});
-
+		if (!event)
 			return false;
-		}
 
 		CGEventPost(kCGSessionEventTap, event);
 		CFRelease(event);
@@ -512,6 +509,11 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 		// Could not resolve local indices (e.g. transient state).
 		// Best-effort fallback: ensure the right display is active so the OS
 		// picks the closest matching space on that display.
+		MimiLog(
+		    MimiLogLevelDebug, @"space gesture fallback, local index unresolved",
+		    @{@"display" : @(new_did),
+			  @"from_index" : @(fromIdx),
+			  @"to_index" : @(toIdx)});
 		mimiSetActiveMenuBarDisplay(new_did);
 		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
 
@@ -733,16 +735,28 @@ int MimiMoveWindowNumberToSpace(uint32_t number, uint64_t spaceID) {
 		    "on");
 	});
 
-	if (SLSPerformAsynchronousBridgedWindowManagementOperation) {
-		Class cls = objc_getClass("SLSBridgedMoveWindowsToManagedSpaceOperation");
-		if (cls) {
-			id operation = [(id<SLSBridgedMoveWindowsToManagedSpaceOperationProtocol>)[cls alloc]
-			    initWithWindows:(__bridge id)windowList
-			            spaceID:spaceID];
-			if (operation) {
-				SLSPerformAsynchronousBridgedWindowManagementOperation((__bridge void *)operation);
-				success = 1;
-			}
+	Class cls = SLSPerformAsynchronousBridgedWindowManagementOperation
+	                ? objc_getClass("SLSBridgedMoveWindowsToManagedSpaceOperation")
+	                : Nil;
+
+	// Which path moves windows depends on the macOS release, and a move
+	// that does nothing is easier to explain knowing which one ran.
+	static dispatch_once_t pathOnce;
+	dispatch_once(&pathOnce, ^{
+		MimiLog(
+		    MimiLogLevelInfo, @"window to space move path chosen", @{
+			    @"bridged" : @(cls != Nil),
+			    @"bridged_symbol" : @(SLSPerformAsynchronousBridgedWindowManagementOperation != NULL),
+		    });
+	});
+
+	if (cls) {
+		id operation = [(id<SLSBridgedMoveWindowsToManagedSpaceOperationProtocol>)[cls alloc]
+		    initWithWindows:(__bridge id)windowList
+		            spaceID:spaceID];
+		if (operation) {
+			SLSPerformAsynchronousBridgedWindowManagementOperation((__bridge void *)operation);
+			success = 1;
 		}
 	}
 

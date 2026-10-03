@@ -185,10 +185,14 @@ CGEventRef MimiDockSwipeAugment(CGEventRef event) {
 	// version 2. Bail out rather than append bytes the Dock may misparse.
 	if (length < 4 || bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != kMimiCGEventDataFormatVersion) {
 		// Warn rather than debug, although the failure reaches Go. A new format
-		// means a macOS update changed the encoding, and a user should see that.
-		MimiLog(
-		    MimiLogLevelWarn, @"dock swipe augmentation failed, unexpected event data format",
-		    @{@"length" : @(length)});
+		// means a macOS update changed the encoding, and a user should see that
+		// once, not on every phase of every swipe.
+		static dispatch_once_t formatOnce;
+		dispatch_once(&formatOnce, ^{
+			MimiLog(
+			    MimiLogLevelWarn, @"dock swipe augmentation failed, unexpected event data format",
+			    @{@"length" : @(length)});
+		});
 		CFRelease(data);
 
 		return NULL;
@@ -273,6 +277,10 @@ bool MimiDockSwipeRequiresAugmentation(void) {
 	}
 
 	cached = (major >= 27) ? 1 : 0;
+	MimiLog(
+	    MimiLogLevelDebug, @"dock swipe encoding chosen",
+	    @{@"macos_major" : @(major),
+		  @"augmented" : @(cached == 1)});
 
 	return cached == 1;
 }

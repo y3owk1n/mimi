@@ -113,7 +113,12 @@ func nativeFields(fieldsJSON string) []any {
 
 	var fields map[string]any
 
-	err := json.Unmarshal([]byte(fieldsJSON), &fields)
+	// Numbers stay as written, so an error code prints as -25200 and not
+	// as a float.
+	decoder := json.NewDecoder(strings.NewReader(fieldsJSON))
+	decoder.UseNumber()
+
+	err := decoder.Decode(&fields)
 	if err != nil {
 		return []any{"fields", fieldsJSON}
 	}
