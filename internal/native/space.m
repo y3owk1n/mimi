@@ -33,7 +33,9 @@ extern uint64_t SLSManagedDisplayGetCurrentSpace(int cid, CFStringRef uuid);
 extern CGError SLSSetActiveMenuBarDisplayIdentifier(int cid, CFStringRef uuid, CFStringRef repeat_uuid);
 extern CGError SLSGetCurrentCursorLocation(int cid, CGPoint *point);
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
-extern CGError SLSMoveWindowsToManagedSpace(int cid, CFArrayRef window_list, uint64_t sid);
+// SLSMoveWindowsToManagedSpace reports nothing, so a caller that needs to know
+// whether a window moved reads where it is afterwards.
+extern void SLSMoveWindowsToManagedSpace(int cid, CFArrayRef window_list, uint64_t sid);
 
 #pragma mark - Run Loop Helpers
 
@@ -772,25 +774,27 @@ int MimiMoveWindowNumberToSpace(uint32_t number, uint64_t spaceID) {
 		}
 	}
 
-	// Fallback to SLSMoveWindowsToManagedSpace
-	if (!success) {
-		CGError cgErr = SLSMoveWindowsToManagedSpace(SLSMainConnectionID(), windowList, spaceID);
-		if (cgErr == kCGErrorSuccess) {
-			success = 1;
-		} else {
-			MimiLog(
-			    MimiLogLevelDebug, @"SLSMoveWindowsToManagedSpace failed",
-			    @{@"cg_error" : @(cgErr),
-				  @"window" : @(windowId),
-				  @"space" : @(spaceID)});
-		}
-	}
-
-	CFRelease(windowList);
-
 	if (success) {
+		CFRelease(windowList);
 		mimiPumpRunLoop(kMimiMoveWindowProcessingDelay);
+
+		return success;
 	}
 
-	return success;
+	// The fallback returns nothing, so the move worked only if the window
+	// is on the space once the window server has processed it.
+	SLSMoveWindowsToManagedSpace(SLSMainConnectionID(), windowList, spaceID);
+	CFRelease(windowList);
+	mimiPumpRunLoop(kMimiMoveWindowProcessingDelay);
+
+	if (MimiSpaceForWindowNumber(windowId) != spaceID) {
+		MimiLog(
+		    MimiLogLevelDebug, @"window not on its new space after the move",
+		    @{@"window" : @(windowId),
+			  @"space" : @(spaceID)});
+
+		return 0;
+	}
+
+	return 1;
 }

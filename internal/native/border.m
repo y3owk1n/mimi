@@ -22,7 +22,7 @@ extern CGError SLSSetWindowTags(int cid, uint32_t wid, const uint64_t *tags, int
 extern CGError SLSSetWindowResolution(int cid, uint32_t wid, double resolution);
 extern CGError SLSSetWindowOpacity(int cid, uint32_t wid, bool opaque);
 extern CGError SLSSetWindowLevel(int cid, uint32_t wid, int level);
-extern CGError SLSMoveWindowsToManagedSpace(int cid, CFArrayRef windows, uint64_t sid);
+extern void SLSMoveWindowsToManagedSpace(int cid, CFArrayRef windows, uint64_t sid);
 extern CGContextRef SLWindowContextCreate(int cid, uint32_t wid, CFDictionaryRef options);
 extern CGError SLSFlushWindowContentRegion(int cid, uint32_t wid, void *dirty);
 extern CFTypeRef SLSTransactionCreate(int cid);
