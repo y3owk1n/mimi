@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"os"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 
@@ -13,13 +14,14 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/events"
 )
 
 // newTestConfig is a config with nothing set but the logging settings a test
 // cares about.
 func newTestConfig(format, logFile string) *config.Config {
 	cfg := &config.Config{}
-	cfg.Settings.LogLevel = "info"
+	cfg.Settings.LogLevel = "debug"
 	cfg.Settings.LogFormat = format
 	cfg.Settings.LogFile = logFile
 
@@ -55,26 +57,63 @@ func TestNewLogger_JSONFormatWritesJSONToConsole(t *testing.T) {
 	}
 }
 
-func TestNewLogger_TextFormatWritesTheHumanReadableConsoleLine(t *testing.T) {
+func TestNewLogger_TextFormatWritesOneLinePerEntry(t *testing.T) {
+	const timestamp = `^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}\.\d{3}(Z|[+-]\d{2}:\d{2}) `
+
+	tests := []struct {
+		name string
+		log  func(*zap.SugaredLogger)
+		want string
+	}{
+		{
+			name: "named logger with context and entry fields in order",
+			log: func(logger *zap.SugaredLogger) {
+				logger.Named("tiling").With("layout", "bsp").
+					Infow("pass applied", "windows", 3, "focused", true)
+			},
+			want: ` INFO tiling: pass applied layout=bsp windows=3 focused=true$`,
+		},
+		{
+			name: "unnamed logger targets the calling file and quotes spaced values",
+			log:  func(logger *zap.SugaredLogger) { logger.Warnw("option inert", "option", "a b") },
+			want: ` WARN logging/logger_test\.go:\d+: option inert option="a b"$`,
+		},
+		{
+			name: "named string type prints bare",
+			log: func(logger *zap.SugaredLogger) {
+				logger.Named("observe").Debugw("event", "kind", events.EventKind("window_created"))
+			},
+			want: `DEBUG observe: event kind=window_created$`,
+		},
+		{
+			name: "newline in message stays on one line",
+			log:  func(logger *zap.SugaredLogger) { logger.Named("hooks").Info("first\nsecond") },
+			want: ` INFO hooks: first\\nsecond$`,
+		},
+	}
+
 	for _, format := range []string{formatText, ""} {
-		t.Run("format "+format, func(t *testing.T) {
-			logger, buf := newTestLogger(format, false)
+		for _, testCase := range tests {
+			t.Run("format "+format+"/"+testCase.name, func(t *testing.T) {
+				logger, buf := newTestLogger(format, false)
 
-			logger.Infow("hello", "count", 1)
+				testCase.log(logger)
 
-			out := buf.String()
-			if !strings.Contains(out, "\tINFO\t") || !strings.Contains(out, "\thello\t") {
-				t.Errorf("console output is not the human-readable line: %q", out)
-			}
+				output := strings.TrimSuffix(buf.String(), "\n")
+				if strings.Contains(output, "\n") {
+					t.Fatalf("console output spans more than one line: %q", output)
+				}
 
-			if !strings.Contains(out, `{"count": 1}`) {
-				t.Errorf("console output lost its fields: %q", out)
-			}
+				if strings.Contains(output, "\x1b[") {
+					t.Errorf("non-terminal console output carries color escapes: %q", output)
+				}
 
-			if strings.Contains(out, "\x1b[") {
-				t.Errorf("non-terminal console output carries color escapes: %q", out)
-			}
-		})
+				pattern := regexp.MustCompile(timestamp + testCase.want)
+				if !pattern.MatchString(output) {
+					t.Errorf("console line = %q, want it to match %q", output, pattern)
+				}
+			})
+		}
 	}
 }
 
@@ -109,7 +148,7 @@ func TestNewLogger_UnknownFormatWarnsAndFallsBackToText(t *testing.T) {
 	buf.Reset()
 	logger.Info("hello")
 
-	if !strings.Contains(buf.String(), "\thello") {
+	if !strings.Contains(buf.String(), " hello") {
 		t.Errorf("unknown log_format did not fall back to text: %q", buf.String())
 	}
 }

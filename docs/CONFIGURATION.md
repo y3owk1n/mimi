@@ -60,10 +60,8 @@ A reload still applies everything reloadable. It then logs a warning that
 names the settings it could not apply and what each needs:
 
 ```text
-config reloaded; restart required for changed restart-only settings
-  trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
-config reloaded; run `mimi services install` for changed reinstall-only settings
-  trigger=sighup reinstall_only=["settings.service_path"]
+2026-10-04 00:24:59.086+08:00  WARN daemon/daemon.go:490: config reloaded; restart required for changed restart-only settings trigger=sighup restart_only=["settings.log_level","settings.max_hook_workers"]
+2026-10-04 00:24:59.086+08:00  WARN daemon/daemon.go:498: config reloaded; run `mimi services install` for changed reinstall-only settings trigger=sighup reinstall_only=["settings.service_path"]
 ```
 
 The daemon compares against the config it started with, so the warning
@@ -90,7 +88,11 @@ resize_debounce_ms = 250                     # on_window_resize and on_window_mo
 service_path = "/opt/homebrew/bin:/usr/local/bin:/usr/bin:/bin" # PATH for the installed service. reinstall-only
 ```
 
-`log_format` selects the console encoder only. The `log_file` log is always
+`log_format` selects the console output only. `text` writes one line per
+entry, with the time, the level, the subsystem, the message, and each field as
+`key=value`. The subsystem is a name such as `tiling`, `hooks`, or `observe`.
+For the daemon itself it is the source file and line instead. mimi colors the
+level when the console is a terminal. `json` writes one JSON object per entry. The `log_file` log is always
 JSON, so you can pipe it through `jq`. An unrecognized `log_format` logs a
 warning and falls back to `text`. An unrecognized `log_level` falls back to
 `info`.

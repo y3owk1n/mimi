@@ -111,7 +111,7 @@ func (t *Tracker) Nudge() {
 	}
 
 	if !t.mouse.LeftButtonDown() {
-		t.logger.Debugw("dropzone: window moved with the button up")
+		t.logger.Debugw("window moved with the button up")
 
 		return
 	}
@@ -141,23 +141,23 @@ func (t *Tracker) preview() {
 	t.previewing = false
 
 	if err != nil {
-		t.logger.Debugw("dropzone preview failed", "err", err)
+		t.logger.Debugw("preview failed", "err", err)
 	}
 
 	if !t.enabled || !found || !t.mouse.LeftButtonDown() {
-		t.logger.Debugw("dropzone: nothing to show", "enabled", t.enabled, "found", found)
+		t.logger.Debugw("nothing to show", "enabled", t.enabled, "found", found)
 		t.hideLocked()
 
 		return
 	}
 
-	t.logger.Debugw("dropzone: showing", "window", target.Number)
+	t.logger.Debugw("showing", "window", target.Number)
 
 	frame := target.Frame
 	t.draw.Show(geometry.Rect{X: frame.X, Y: frame.Y, W: frame.Width, H: frame.Height}, t.style)
 
 	if target.Target != nil {
-		t.logger.Debugw("dropzone: marking target",
+		t.logger.Debugw("marking target",
 			"window", target.Target.Number, "action", target.Target.Action)
 
 		frame := target.Target.Frame

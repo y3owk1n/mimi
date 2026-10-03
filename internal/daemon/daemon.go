@@ -80,7 +80,7 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 			reload,
 			requestQuit,
 			cfg.Systray.ShowWorkspaceNumber,
-			logger,
+			logger.Named("systray"),
 		)
 	}
 
@@ -210,7 +210,7 @@ func runCore(
 		reloadConfig(configPath, cfgReloader, reloadTriggerFsnotify, reportReload, logger)
 	}
 
-	watcher := config.NewWatcher(configPath, onChange, logger)
+	watcher := config.NewWatcher(configPath, onChange, logger.Named("config"))
 	go func() { _ = watcher.Run(ctx) }()
 
 	go func() {
@@ -296,7 +296,7 @@ func setupEventPipeline(
 	router := observe.NewRouterWithDebounce(
 		bus,
 		axTracker,
-		logger,
+		logger.Named("observe"),
 		time.Duration(cfg.Settings.ResizeDebounceMS)*time.Millisecond,
 	)
 	router.SetEnricher(events.DisplayChanged, displayChangeEvent(action.QueryDisplays))
@@ -314,7 +314,7 @@ func setupEventPipeline(
 		return nil, nil, nil, derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading hooks")
 	}
 
-	executor := hooks.NewExecutor(reg, &cfg.Settings, logger)
+	executor := hooks.NewExecutor(reg, &cfg.Settings, logger.Named("hooks"))
 
 	// Subscribe the executor with a kind filter so the bus can drop events
 	// for which no hooks are registered, avoiding a channel send on the
@@ -326,7 +326,7 @@ func setupEventPipeline(
 	// while it is disabled. Without Accessibility it stays disabled whatever
 	// the config says: it could read no window, and would log a failure on
 	// every event.
-	tiler := tiling.New(tiling.LiveDesktop{}, serialize, logger)
+	tiler := tiling.New(tiling.LiveDesktop{}, serialize, logger.Named("tiling"))
 	tiler.SetStore(
 		filepath.Join(filepath.Dir(paths.ExpandHome(cfg.Settings.SocketFile)), "minsizes.json"),
 	)
@@ -345,7 +345,12 @@ func setupEventPipeline(
 	tiler.SetMouse(native.LeftMouseButtonDown)
 	tiler.SetModifiers(native.ModifierKeys)
 
-	zone := dropzone.New(tiler, dropzone.NativeDrawer(), dropzone.NativeMouse(), logger)
+	zone := dropzone.New(
+		tiler,
+		dropzone.NativeDrawer(),
+		dropzone.NativeMouse(),
+		logger.Named("dropzone"),
+	)
 	zone.Update(dropzoneConfigFor(cfg, accessibilityGranted))
 	router.SetRawListener(func(events.Event) {
 		borders.Nudge()
@@ -354,18 +359,18 @@ func setupEventPipeline(
 
 	// The stack indicator is drawn from the stacks a pass ends with, so the
 	// engine tells it rather than the bus.
-	bars := stackbar.New(stackbar.NativeDrawer(), logger)
+	bars := stackbar.New(stackbar.NativeDrawer(), logger.Named("stackbar"))
 	bars.Update(stackbarConfigFor(cfg, accessibilityGranted))
 	tiler.SetStacks(bars)
 
 	// Focus follows the pointer through the same action path a hotkey
 	// takes, on the same worker, so it never races an action.
-	follow := mousefocus.New(mousefocus.NativeDesktop(), serialize, logger)
+	follow := mousefocus.New(mousefocus.NativeDesktop(), serialize, logger.Named("mousefocus"))
 	follow.Update(mouseConfigFor(cfg, accessibilityGranted))
 
 	// Windows a rule sends to a space or a display go there as they are
 	// created. The moves go through the action worker like any action.
-	placer := place.New(place.NativeDesktop(serialize), logger)
+	placer := place.New(place.NativeDesktop(serialize), logger.Named("place"))
 	placer.Update(placementRulesFor(cfg, accessibilityGranted))
 	placeSub := bus.SubscribeWithFilter(borderSubBufSize, placer.KindFilter())
 

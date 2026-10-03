@@ -48,7 +48,7 @@ func newLogger(
 	format, knownFormat := parseFormat(cfg.Settings.LogFormat)
 
 	cores := []zapcore.Core{
-		zapcore.NewCore(consoleEncoder(format, isTerminal), consoleWriter, level),
+		consoleCoreFor(format, consoleWriter, level, isTerminal),
 	}
 
 	if cfg.Settings.LogFile != "" {
@@ -95,25 +95,20 @@ func parseFormat(format string) (string, bool) {
 	}
 }
 
-// consoleEncoder builds the console encoder for a parsed log format:
-// human-readable for text, JSON for json. Only the human-readable encoder
-// colorizes its level, and only when the console is a terminal.
-func consoleEncoder(format string, isTerminal bool) zapcore.Encoder {
+// consoleCoreFor builds the console core for a parsed log format: one line per
+// entry for text, JSON for json. Only the text line carries color, and only
+// when the console is a terminal.
+func consoleCoreFor(
+	format string,
+	consoleWriter zapcore.WriteSyncer,
+	level zapcore.LevelEnabler,
+	isTerminal bool,
+) zapcore.Core {
 	if format == formatJSON {
-		return zapcore.NewJSONEncoder(jsonEncoderConfig())
+		return zapcore.NewCore(zapcore.NewJSONEncoder(jsonEncoderConfig()), consoleWriter, level)
 	}
 
-	encoderConfig := zap.NewDevelopmentEncoderConfig()
-
-	encoderConfig.EncodeTime = zapcore.ISO8601TimeEncoder
-
-	if isTerminal {
-		encoderConfig.EncodeLevel = zapcore.CapitalColorLevelEncoder
-	} else {
-		encoderConfig.EncodeLevel = zapcore.CapitalLevelEncoder
-	}
-
-	return zapcore.NewConsoleEncoder(encoderConfig)
+	return newConsoleCore(consoleWriter, level, isTerminal)
 }
 
 // jsonEncoderConfig is the machine-parseable encoder configuration, shared by
