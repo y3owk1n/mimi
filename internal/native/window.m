@@ -666,7 +666,7 @@ int MimiSetWindowPosition(void *window, double x, double y) {
 		AXError posError = AXUIElementSetAttributeValue((AXUIElementRef)window, kAXPositionAttribute, positionValue);
 		CFRelease(positionValue);
 		if (posError != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)posError);
+			MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXPosition", @"ax_error" : @(posError)});
 			return 0;
 		}
 
@@ -682,14 +682,14 @@ int MimiCloseWindow(void *window) {
 		CFTypeRef button = NULL;
 		AXError err = AXUIElementCopyAttributeValue((AXUIElementRef)window, kAXCloseButtonAttribute, &button);
 		if (err != kAXErrorSuccess || !button) {
-			MIMI_LOG("AXUIElementCopyAttributeValue(kAXCloseButtonAttribute) failed with error %d", (int)err);
+			MimiLog(MimiLogLevelDebug, @"AX read failed", @{@"attribute" : @"AXCloseButton", @"ax_error" : @(err)});
 			return 0;
 		}
 
 		err = AXUIElementPerformAction((AXUIElementRef)button, kAXPressAction);
 		CFRelease(button);
 		if (err != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementPerformAction(kAXPressAction) on close button failed with error %d", (int)err);
+			MimiLog(MimiLogLevelDebug, @"AX action failed", @{@"action" : @"AXPress", @"ax_error" : @(err)});
 			return 0;
 		}
 
@@ -718,7 +718,7 @@ int MimiSetWindowMinimized(void *window, int minimized) {
 	AXError err = AXUIElementSetAttributeValue(
 	    (AXUIElementRef)window, kAXMinimizedAttribute, minimized ? kCFBooleanTrue : kCFBooleanFalse);
 	if (err != kAXErrorSuccess) {
-		MIMI_LOG("AXUIElementSetAttributeValue(kAXMinimizedAttribute) failed with error %d", (int)err);
+		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXMinimized", @"ax_error" : @(err)});
 		return 0;
 	}
 
@@ -748,7 +748,7 @@ int MimiSetWindowFullScreen(void *window, int fullScreen) {
 	AXError err = AXUIElementSetAttributeValue(
 	    (AXUIElementRef)window, kMimiAXFullScreenAttribute, fullScreen ? kCFBooleanTrue : kCFBooleanFalse);
 	if (err != kAXErrorSuccess) {
-		MIMI_LOG("AXUIElementSetAttributeValue(AXFullScreen) failed with error %d", (int)err);
+		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXFullScreen", @"ax_error" : @(err)});
 		return 0;
 	}
 
@@ -777,7 +777,7 @@ static AXError MimiWriteSize(AXUIElementRef window, double w, double h) {
 	AXError err = AXUIElementSetAttributeValue(window, kAXSizeAttribute, value);
 	CFRelease(value);
 	if (err != kAXErrorSuccess) {
-		MIMI_LOG("AXUIElementSetAttributeValue(kAXSizeAttribute) failed with error %d", (int)err);
+		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXSize", @"ax_error" : @(err)});
 	}
 
 	return err;
@@ -792,7 +792,7 @@ static AXError MimiWritePosition(AXUIElementRef window, double x, double y) {
 	AXError err = AXUIElementSetAttributeValue(window, kAXPositionAttribute, value);
 	CFRelease(value);
 	if (err != kAXErrorSuccess) {
-		MIMI_LOG("AXUIElementSetAttributeValue(kAXPositionAttribute) failed with error %d", (int)err);
+		MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXPosition", @"ax_error" : @(err)});
 	}
 
 	return err;
@@ -885,17 +885,28 @@ int MimiActivateWindow(void *window) {
 
 		AXError mainErr = AXUIElementSetAttributeValue(axWindow, kAXMainAttribute, kCFBooleanTrue);
 		if (mainErr != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementSetAttributeValue(kAXMainAttribute) failed with error %d (pid=%d)", (int)mainErr, pid);
+			MimiLog(
+			    MimiLogLevelDebug, @"AX write failed",
+			    @{@"attribute" : @"AXMain",
+				  @"pid" : @(pid),
+				  @"ax_error" : @(mainErr)});
 		}
 		AXError focusErr = AXUIElementSetAttributeValue(axWindow, kAXFocusedAttribute, kCFBooleanTrue);
 		if (focusErr != kAXErrorSuccess) {
-			MIMI_LOG(
-			    "AXUIElementSetAttributeValue(kAXFocusedAttribute) failed with error %d (pid=%d)", (int)focusErr, pid);
+			MimiLog(
+			    MimiLogLevelDebug, @"AX write failed",
+			    @{@"attribute" : @"AXFocused",
+				  @"pid" : @(pid),
+				  @"ax_error" : @(focusErr)});
 		}
 
 		AXError raiseError = AXUIElementPerformAction(axWindow, kAXRaiseAction);
 		if (raiseError != kAXErrorSuccess) {
-			MIMI_LOG("AXUIElementPerformAction(kAXRaiseAction) failed with error %d (pid=%d)", (int)raiseError, pid);
+			MimiLog(
+			    MimiLogLevelDebug, @"AX action failed",
+			    @{@"action" : @"AXRaise",
+				  @"pid" : @(pid),
+				  @"ax_error" : @(raiseError)});
 		}
 
 		return (raiseError == kAXErrorSuccess) ? 1 : 0;

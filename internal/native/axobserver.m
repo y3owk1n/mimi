@@ -382,7 +382,7 @@ static bool axInstallBlock(int pid) {
 	AXObserverRef observer = NULL;
 	AXError err = AXObserverCreate(pid, axCallback, &observer);
 	if (err != kAXErrorSuccess) {
-		MIMI_LOG("AXObserverCreate failed for pid=%d with error %d", pid, (int)err);
+		MimiLog(MimiLogLevelDebug, @"AXObserverCreate failed", @{@"pid" : @(pid), @"ax_error" : @(err)});
 		CFRelease(appElement);
 
 		return false;
@@ -397,9 +397,11 @@ static bool axInstallBlock(int pid) {
 	for (size_t i = 0; i < notifCount; i++) {
 		AXError addErr = AXObserverAddNotification(observer, appElement, notifications[i], (void *)(intptr_t)pid);
 		if (addErr != kAXErrorSuccess) {
-			MIMI_LOG(
-			    "AXObserverAddNotification failed for %@ with error %d (pid=%d)", (__bridge NSString *)notifications[i],
-			    (int)addErr, pid);
+			MimiLog(
+			    MimiLogLevelDebug, @"AXObserverAddNotification failed",
+			    @{@"notification" : (__bridge NSString *)notifications[i],
+				  @"pid" : @(pid),
+				  @"ax_error" : @(addErr)});
 			CFRelease(observer);
 			CFRelease(appElement);
 

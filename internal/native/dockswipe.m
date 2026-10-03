@@ -173,7 +173,7 @@ CGEventRef MimiDockSwipeAugment(CGEventRef event) {
 
 	CFDataRef data = CGEventCreateData(kCFAllocatorDefault, event);
 	if (!data) {
-		MIMI_LOG("dock swipe augmentation failed: could not serialize event");
+		MimiLog(MimiLogLevelDebug, @"dock swipe augmentation failed, event did not serialize", nil);
 
 		return NULL;
 	}
@@ -184,7 +184,11 @@ CGEventRef MimiDockSwipeAugment(CGEventRef event) {
 	// The trailing-field encoding below is only known to hold for format
 	// version 2. Bail out rather than append bytes the Dock may misparse.
 	if (length < 4 || bytes[0] != 0 || bytes[1] != 0 || bytes[2] != 0 || bytes[3] != kMimiCGEventDataFormatVersion) {
-		MIMI_LOG("dock swipe augmentation failed: unexpected event data format (length=%ld)", (long)length);
+		// Warn rather than debug, although the failure reaches Go. A new format
+		// means a macOS update changed the encoding, and a user should see that.
+		MimiLog(
+		    MimiLogLevelWarn, @"dock swipe augmentation failed, unexpected event data format",
+		    @{@"length" : @(length)});
 		CFRelease(data);
 
 		return NULL;
@@ -229,7 +233,7 @@ CGEventRef MimiDockSwipeAugment(CGEventRef event) {
 	CFRelease(newData);
 
 	if (!augmented) {
-		MIMI_LOG("dock swipe augmentation failed: could not rebuild event from data");
+		MimiLog(MimiLogLevelDebug, @"dock swipe augmentation failed, event did not rebuild", nil);
 	}
 
 	return augmented;
@@ -244,7 +248,7 @@ bool MimiDockSwipeRequiresAugmentation(void) {
 	const char *override = getenv("MIMI_FORCE_DOCK_SWIPE_AUGMENTATION");
 	if (override) {
 		cached = (strcmp(override, "1") == 0) ? 1 : 0;
-		MIMI_LOG("dock swipe augmentation forced by environment (enabled=%d)", cached);
+		MimiLog(MimiLogLevelInfo, @"dock swipe augmentation forced by environment", @{@"enabled" : @(cached == 1)});
 
 		return cached == 1;
 	}
@@ -254,7 +258,7 @@ bool MimiDockSwipeRequiresAugmentation(void) {
 	char version[32];
 	size_t size = sizeof(version);
 	if (sysctlbyname("kern.osproductversion", version, &size, NULL, 0) != 0) {
-		MIMI_LOG("could not read kern.osproductversion; assuming legacy dock swipe encoding");
+		MimiLog(MimiLogLevelWarn, @"macOS version unreadable, using the legacy dock swipe encoding", nil);
 		cached = 0;
 
 		return false;
@@ -262,7 +266,7 @@ bool MimiDockSwipeRequiresAugmentation(void) {
 
 	int major = 0;
 	if (sscanf(version, "%d", &major) != 1) {
-		MIMI_LOG("could not parse kern.osproductversion; assuming legacy dock swipe encoding");
+		MimiLog(MimiLogLevelWarn, @"macOS version unparseable, using the legacy dock swipe encoding", nil);
 		cached = 0;
 
 		return false;

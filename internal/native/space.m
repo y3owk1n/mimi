@@ -463,7 +463,7 @@ static bool mimiPostAugmentedDockSwipe(double sign) {
 	for (size_t i = 0; i < sizeof(phases) / sizeof(phases[0]); i++) {
 		CGEventRef event = mimiCreateAugmentedDockSwipeEvent(phases[i], sign);
 		if (!event) {
-			MIMI_LOG("failed to build augmented dock swipe event (phase=%d)", phases[i]);
+			MimiLog(MimiLogLevelDebug, @"augmented dock swipe event not built", @{@"phase" : @(phases[i])});
 
 			return false;
 		}
@@ -693,7 +693,7 @@ int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID) {
 	CGWindowID windowId = 0;
 	AXError err = _AXUIElementGetWindow((AXUIElementRef)windowElement, &windowId);
 	if (err != kAXErrorSuccess || windowId == 0) {
-		MIMI_LOG("_AXUIElementGetWindow failed with error %d (windowId=%u)", (int)err, (unsigned)windowId);
+		MimiLog(MimiLogLevelDebug, @"_AXUIElementGetWindow failed", @{@"ax_error" : @(err), @"window" : @(windowId)});
 		return 0;
 	}
 
@@ -752,9 +752,11 @@ int MimiMoveWindowNumberToSpace(uint32_t number, uint64_t spaceID) {
 		if (cgErr == kCGErrorSuccess) {
 			success = 1;
 		} else {
-			MIMI_LOG(
-			    "SLSMoveWindowsToManagedSpace failed with error %d (windowId=%u, spaceID=%llu)", (int)cgErr,
-			    (unsigned)windowId, (unsigned long long)spaceID);
+			MimiLog(
+			    MimiLogLevelDebug, @"SLSMoveWindowsToManagedSpace failed",
+			    @{@"cg_error" : @(cgErr),
+				  @"window" : @(windowId),
+				  @"space" : @(spaceID)});
 		}
 	}
 

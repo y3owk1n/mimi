@@ -31,12 +31,12 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
 		skyLight = dlopen("/System/Library/PrivateFrameworks/SkyLight.framework/SkyLight", RTLD_LAZY);
+		if (!skyLight)
+			MimiLog(MimiLogLevelWarn, @"SkyLight not loaded, the menu bar shows no space number", nil);
 	});
 
-	if (!skyLight) {
-		MIMI_LOG("dlopen of SkyLight.framework failed: %s", dlerror());
+	if (!skyLight)
 		return -1;
-	}
 
 	// Function pointer types for private SkyLight APIs.
 	typedef int (*SLSMainConnectionIDFunc)(void);
@@ -59,11 +59,15 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	    (SLSCopyManagedDisplaySpacesFunc)dlsym(skyLight, "SLSCopyManagedDisplaySpaces");
 
 	if (!SLSMainConnectionID || !SLSCopyActiveMenuBarDisplayIdentifier || !SLSCopyManagedDisplaySpaces) {
-		MIMI_LOG(
-		    "dlsym failed: missing required SkyLight symbols (SLSMainConnectionID=%p, "
-		    "SLSCopyActiveMenuBarDisplayIdentifier=%p, SLSCopyManagedDisplaySpaces=%p)",
-		    (void *)SLSMainConnectionID, (void *)SLSCopyActiveMenuBarDisplayIdentifier,
-		    (void *)SLSCopyManagedDisplaySpaces);
+		static dispatch_once_t missingOnce;
+		dispatch_once(&missingOnce, ^{
+			MimiLog(
+			    MimiLogLevelWarn, @"SkyLight symbols missing, the menu bar shows no space number", @{
+				    @"main_connection" : @(SLSMainConnectionID != NULL),
+				    @"active_menu_bar_display" : @(SLSCopyActiveMenuBarDisplayIdentifier != NULL),
+				    @"managed_display_spaces" : @(SLSCopyManagedDisplaySpaces != NULL),
+			    });
+		});
 		return -1;
 	}
 

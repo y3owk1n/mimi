@@ -27,7 +27,7 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 	CFArrayRef windowList = CGWindowListCopyWindowInfo(
 	    kCGWindowListOptionOnScreenOnly | kCGWindowListExcludeDesktopElements, kCGNullWindowID);
 	if (!windowList) {
-		MIMI_LOG("CGWindowListCopyWindowInfo returned NULL");
+		MimiLog(MimiLogLevelDebug, @"window list unavailable", nil);
 		return nil;
 	}
 

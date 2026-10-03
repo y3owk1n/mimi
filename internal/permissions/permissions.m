@@ -37,13 +37,16 @@ static int MimiResetPermissionDecision(NSString *service) {
 
 		int status = [task terminationStatus];
 		if (status != 0) {
-			MIMI_LOG(
-			    "tccutil reset %@ %@ exited with status %d; system permission dialog may not appear", service, bundleID,
-			    status);
+			MimiLog(
+			    MimiLogLevelWarn, @"permission reset failed, the system prompt may not appear",
+			    @{@"service" : service,
+				  @"status" : @(status)});
 			return 0;
 		}
 	} @catch (NSException *exception) {
-		MIMI_LOG("failed to reset %@ permission decision: %@", service, exception);
+		MimiLog(
+		    MimiLogLevelWarn, @"permission reset failed, the system prompt may not appear",
+		    @{@"service" : service, @"exception" : exception.name});
 		return 0;
 	}
 
@@ -86,9 +89,7 @@ int MimiCheckAccessibilityPermissions(void) {
 
 int MimiRequestAccessibilityPermissions(void) {
 	@autoreleasepool {
-		if (!MimiResetPermissionDecision(@"Accessibility")) {
-			MIMI_LOG("continuing with Accessibility permission request after reset failure");
-		}
+		MimiResetPermissionDecision(@"Accessibility");
 
 		NSDictionary *options = @{(__bridge id)kAXTrustedCheckOptionPrompt : @YES};
 		Boolean trusted = AXIsProcessTrustedWithOptions((__bridge CFDictionaryRef)options);

@@ -328,10 +328,10 @@ reads a window's frame reads the final one.
 
 How smooth the motion looks depends on each application. A window whose
 application is slow to answer moves in fewer, larger steps, and a resize costs
-an application several times what a move does. Each animation logs a
-`Mimi: animation:` line through NSLog with how many windows and frames it
-stepped, how long it took, and its slowest write. Look there when one looks
-rough.
+an application several times what a move does. At `log_level = "debug"`,
+each animation logs an `animation stepped` line with how many windows and
+frames it stepped, how long it took, and its slowest write. Check that line
+when an animation looks rough.
 
 ### Drop zone
 

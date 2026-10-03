@@ -12,6 +12,9 @@ import "C"
 import (
 	"sync"
 	"unsafe"
+
+	// MimiLog, which systray.m calls, is defined in native.
+	_ "github.com/y3owk1n/mimi/internal/native"
 )
 
 var (

@@ -1,7 +1,6 @@
 #import "border.h"
 
 #import "mimi.h"
-#import "mimi_log.h"
 
 #import <Cocoa/Cocoa.h>
 #import <stdatomic.h>

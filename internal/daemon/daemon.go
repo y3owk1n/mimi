@@ -51,6 +51,8 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 
 	runDone := make(chan error, 1)
 
+	native.SetLogger(logger.Named("native"))
+
 	warnUnknownHookKeys(cfg, logger)
 
 	reload := func(ctx context.Context, path string) error {

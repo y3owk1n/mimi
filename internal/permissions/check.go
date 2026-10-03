@@ -12,6 +12,8 @@ import (
 	"unsafe"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	// MimiLog, which permissions.m calls, is defined in native.
+	_ "github.com/y3owk1n/mimi/internal/native"
 )
 
 // ConfigOnboardingChoice represents the user's choice in the config onboarding alert.

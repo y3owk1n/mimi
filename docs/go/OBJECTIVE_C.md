@@ -174,6 +174,18 @@ dispatch_async(dispatch_get_main_queue(), ^{
 });
 ```
 
+## Logging
+
+Native code logs through the daemon's logger with `MimiLog` from `mimi_log.h`, never with `NSLog`. Its lines appear under the `native` name, at the same levels as the Go side, so the level rules in [CODING_STANDARDS.md](../CODING_STANDARDS.md#log-levels) apply. The message is fixed text, and values go in the fields dictionary:
+
+```objc
+MimiLog(MimiLogLevelDebug, @"AX write failed", @{@"attribute" : @"AXSize", @"ax_error" : @(err)});
+```
+
+When a failure returns to Go, Go reports it. The native line then logs at debug and carries the detail Go never sees, such as the AX error code. On a path that runs on every refresh, log once inside a `dispatch_once`. Without the daemon, as in a CLI action run directly, only warnings reach stderr.
+
+A package outside `internal/native` that calls `MimiLog` must import `native` to link, as `internal/systray` and `internal/permissions` do.
+
 ## See also
 
 - [CONVENTIONS.md](./CONVENTIONS.md)

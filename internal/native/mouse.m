@@ -1,7 +1,6 @@
 #import "mouse.h"
 
 #include "_cgo_export.h"
-#import "mimi_log.h"
 #import "workspace.h"
 
 #include <CoreGraphics/CoreGraphics.h>
@@ -33,10 +32,8 @@ static void mimiMouseMonitorStartOnRunLoop(void) {
 	gMouseTap = CGEventTapCreate(
 	    kCGSessionEventTap, kCGHeadInsertEventTap, kCGEventTapOptionListenOnly, CGEventMaskBit(kCGEventMouseMoved),
 	    mimiMouseMoved, NULL);
-	if (!gMouseTap) {
-		MIMI_LOG("CGEventTapCreate for mouse moves failed");
+	if (!gMouseTap)
 		return;
-	}
 
 	gMouseSource = CFMachPortCreateRunLoopSource(NULL, gMouseTap, 0);
 	CFRunLoopAddSource(CFRunLoopGetCurrent(), gMouseSource, kCFRunLoopCommonModes);

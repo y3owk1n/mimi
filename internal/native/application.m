@@ -451,7 +451,10 @@ int MimiRaiseWindowNumber(int pid, uint32_t number) {
 			usleep(kMimiRaiseRetryDelay);
 		}
 
-		MIMI_LOG("window %u of pid %d is not in its application's Accessibility window list", (unsigned)number, pid);
+		MimiLog(
+		    MimiLogLevelDebug, @"window not in its application's Accessibility window list",
+		    @{@"window" : @(number),
+			  @"pid" : @(pid)});
 		return 0;
 	}
 }
@@ -484,7 +487,7 @@ int MimiReopenApplication(int pid) {
 		if (dispatch_semaphore_wait(sem, dispatch_time(DISPATCH_TIME_NOW, kMimiReopenTimeout)) == 0 && reopened)
 			return 1;
 
-		MIMI_LOG("reopen of pid %d did not complete, activating instead", pid);
+		MimiLog(MimiLogLevelDebug, @"reopen did not complete, activating instead", @{@"pid" : @(pid)});
 		return [app activateWithOptions:0] ? 1 : 0;
 	}
 }

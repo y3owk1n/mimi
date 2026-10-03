@@ -31,8 +31,10 @@ MIMI_FORCE_DOCK_SWIPE_AUGMENTATION=1 mimi action space next
 ```
 
 mimi reads the variable once per process, so restart a running daemon for a
-change to take effect. Failures to build the payload are logged with a
-`Mimi: dock swipe augmentation failed` prefix.
+change to take effect. A failure to build the payload logs under the `native`
+name. An unexpected event format, which means a macOS update changed the
+encoding, logs a warning. The other causes log at debug, so set
+`log_level = "debug"` to see them.
 
 ## `mimi action` runs but seems to ignore the running daemon
 

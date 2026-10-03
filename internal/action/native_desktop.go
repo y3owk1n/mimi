@@ -334,9 +334,16 @@ func (d *nativeDesktop) StepWindowFrame(windowID WindowID, frame geometry.Rect) 
 }
 
 // FinishSteps takes the window server's list once an application's windows
-// have landed.
-func (d *nativeDesktop) FinishSteps(StepReport) {
+// have landed, and logs what the steps cost.
+func (d *nativeDesktop) FinishSteps(report StepReport) {
 	d.relist()
+	native.LogAnimationSteps(
+		report.Windows,
+		report.Frames,
+		report.Failed,
+		report.Elapsed,
+		report.Slowest,
+	)
 }
 
 // SetEnhancedUI turns an application's enhanced accessibility interface on

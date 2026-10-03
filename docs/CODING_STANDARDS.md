@@ -87,7 +87,7 @@ mimi/
 
 mimi uses `*zap.SugaredLogger` from `go.uber.org/zap`. A constructor that accepts a logger must tolerate `nil` by falling back to `zap.NewNop()`.
 
-The daemon names each subsystem's logger where it wires it (`logger.Named("tiling")`), and every console line starts with that name. A message does not repeat it, so write `logger.Debugw("showing", ...)` and not `"dropzone: showing"`.
+The daemon names each subsystem's logger where it wires it (`logger.Named("tiling")`), and every console line starts with that name. A message does not repeat it, so write `logger.Debugw("showing", ...)` and not `"dropzone: showing"`. Objective-C code logs through the same logger, as [go/OBJECTIVE_C.md](go/OBJECTIVE_C.md#logging) describes.
 
 ### Log levels
 
