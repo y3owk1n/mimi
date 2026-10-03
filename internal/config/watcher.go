@@ -34,7 +34,11 @@ func NewWatcher(path string, onChange func(), logger *zap.SugaredLogger) *Watche
 		logger = zap.NewNop().Sugar()
 	}
 
-	return &Watcher{path: paths.ExpandHome(path), onChange: onChange, logger: logger}
+	return &Watcher{
+		path:     filepath.Clean(paths.ExpandHome(path)),
+		onChange: onChange,
+		logger:   logger,
+	}
 }
 
 // Run starts the config file watcher loop. It blocks until the context is canceled.
@@ -46,12 +50,13 @@ func (w *Watcher) Run(ctx context.Context) error {
 
 	defer func() { _ = fileWatcher.Close() }()
 
-	err = fileWatcher.Add(w.path)
+	// Run watches the directory rather than the file. A watch on the file
+	// ends when an editor deletes the file and writes a new one, and then
+	// no later edit is seen. The loop below skips events for other files
+	// in the directory.
+	err = fileWatcher.Add(filepath.Dir(w.path))
 	if err != nil {
-		err2 := fileWatcher.Add(filepath.Dir(w.path))
-		if err2 != nil {
-			return err
-		}
+		return err
 	}
 
 	// Use a single resettable timer for debouncing instead of spawning a
@@ -70,12 +75,16 @@ func (w *Watcher) Run(ctx context.Context) error {
 		select {
 		case <-ctx.Done():
 			return nil
-		case ev, ok := <-fileWatcher.Events:
+		case event, ok := <-fileWatcher.Events:
 			if !ok {
 				return nil
 			}
 
-			if ev.Has(fsnotify.Write) || ev.Has(fsnotify.Create) {
+			if filepath.Clean(event.Name) != w.path {
+				continue
+			}
+
+			if event.Has(fsnotify.Write) || event.Has(fsnotify.Create) {
 				if debounce != nil {
 					// Reset extends the window; if it has already
 					// fired or stopped, create a fresh timer.
