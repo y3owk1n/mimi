@@ -108,8 +108,20 @@ static CGPoint mimiDisplayCenter(uint32_t did) {
 
 /// Return the display ID that currently contains the cursor.
 static uint32_t mimiCursorDisplayID(void) {
-	CGPoint cursor;
-	SLSGetCurrentCursorLocation(SLSMainConnectionID(), &cursor);
+	CGPoint cursor = CGPointZero;
+	CGError cursorErr = SLSGetCurrentCursorLocation(SLSMainConnectionID(), &cursor);
+	if (cursorErr != kCGErrorSuccess) {
+		// When SkyLight fails, the point holds nothing useful, so read the
+		// cursor from Core Graphics, which uses the same global coordinates.
+		MimiLog(MimiLogLevelDebug, @"cursor location unavailable from SkyLight", @{@"cg_error" : @(cursorErr)});
+
+		CGEventRef event = CGEventCreate(NULL);
+		if (!event)
+			return CGMainDisplayID();
+
+		cursor = CGEventGetLocation(event);
+		CFRelease(event);
+	}
 
 	uint32_t matchingDisplays[16];
 	uint32_t matchingCount = 0;
