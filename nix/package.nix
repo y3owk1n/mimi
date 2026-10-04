@@ -23,11 +23,11 @@ if useZip then
       {
         "aarch64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-arm64.zip";
-          sha256 = "sha256-U9bioxxtquIyhaQ17kKYC3Eq4QrFTjHPTRhbcxB1cqM=";
+          sha256 = "sha256-rWuohzOPNOZiYAx45Na2QHnuhUAROfld8RzVnb8rzl8=";
         };
         "x86_64-darwin" = {
           url = "https://github.com/y3owk1n/mimi/releases/download/v${version}/mimi-darwin-amd64.zip";
-          sha256 = "sha256-K5/CWkfLuozfpymZbHbLRuUgHpWafPJPX56Jmn3Fg1Y=";
+          sha256 = "sha256-Wx3iOT3W3Fq3zPDwTy02ip4OfBhrc7lomCwmeWVlbbA=";
         };
       }
       .${stdenv.hostPlatform.system} or (throw "Unsupported system: ${stdenv.hostPlatform.system}");
