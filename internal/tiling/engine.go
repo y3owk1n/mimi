@@ -1759,12 +1759,14 @@ const confirmRefusal = 500 * time.Millisecond
 // runs after the pass has returned rather than holding it, and it keeps
 // what it read only while the apply it was started for is the latest.
 //
-// A window seen larger than asked is read once more after confirmRefusal
-// before a minimum is learned from it, and nothing is learned while the
-// user holds a mouse button, since the size then is the user's. After an
-// animated apply, an application can drop the last steps of the animation,
-// so a window still larger after the second read gets its frame written
-// once more without animation, and is read a third time.
+// The engine reads a window seen larger than asked once more after
+// confirmRefusal before it learns a minimum from it. It does the same for a
+// window seen smaller than its minimum before it forgets that minimum, since
+// an application still resizing on its own reports sizes on the way. It
+// learns and forgets nothing while the user holds a mouse button, since the
+// size then is the user's. After an animated apply, an application can drop the last steps
+// of the animation, so a window still larger after the second read gets its
+// frame written once more without animation, and is read a third time.
 func (e *Engine) rememberLater(appliedAt time.Time) {
 	e.background.Go(func() {
 		// An animated apply returns as the windows set off, so the read
@@ -1790,10 +1792,11 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 		e.rememberFrames(windows, false)
 		suspect := e.refusedLocked(windows)
+		shrunk := e.shrunkLocked(windows)
 		animated := e.animation != nil
 		e.mu.Unlock()
 
-		if len(suspect) == 0 {
+		if len(suspect) == 0 && !shrunk {
 			return
 		}
 
@@ -1812,10 +1815,12 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 			suspect = e.refusedLocked(windows)
 			e.mu.Unlock()
 
-			if !current || len(suspect) == 0 {
+			if !current {
 				return
 			}
+		}
 
+		if animated && len(suspect) > 0 {
 			err := e.desktop.Apply(suspect, nil)
 			if err != nil {
 				e.logger.Debugw(
@@ -1862,6 +1867,29 @@ func (e *Engine) refusedLocked(windows action.WindowsInfo) []action.WindowFrame 
 	}
 
 	return suspect
+}
+
+// shrunkLocked reports whether a window the engine placed is smaller on an
+// axis than the minimum the engine learned for it. That window may no longer
+// have the minimum. The caller holds the lock.
+func (e *Engine) shrunkLocked(windows action.WindowsInfo) bool {
+	for _, win := range windows.Windows {
+		minSize, ok := e.minSizes[win.Number]
+		if !ok {
+			continue
+		}
+
+		if _, asked := e.requested[win.Number]; !asked {
+			continue
+		}
+
+		if win.Frame.Width < minSize.Width-samePoint ||
+			win.Frame.Height < minSize.Height-samePoint {
+			return true
+		}
+	}
+
+	return false
 }
 
 // rememberFrames keeps where the windows the engine placed are in windows,

@@ -3,6 +3,7 @@ package tiling
 
 import (
 	"context"
+	"fmt"
 	"maps"
 	"os"
 	"path/filepath"
@@ -27,6 +28,12 @@ type clampingDesktop struct {
 	// resizing does. previous holds those frames.
 	lateReads int
 	previous  map[uint32]action.Frame
+	// passingReads is how many reads after the next apply report window 2
+	// at passing instead, the way an application still resizing on its own
+	// shows a size on the way. Apply arms it from passingAfterApply.
+	passingReads      int
+	passingAfterApply int
+	passing           action.Frame
 }
 
 func (d *clampingDesktop) Windows() (action.WindowsInfo, error) {
@@ -37,6 +44,12 @@ func (d *clampingDesktop) Windows() (action.WindowsInfo, error) {
 	if d.lateReads > 0 && d.previous != nil {
 		d.lateReads--
 		frames = d.previous
+	}
+
+	if d.passingReads > 0 {
+		d.passingReads--
+		frames = maps.Clone(frames)
+		frames[2] = d.passing
 	}
 
 	return action.WindowsInfo{Focused: 0, Windows: []action.WindowEntry{
@@ -73,6 +86,7 @@ func (d *clampingDesktop) Apply(frames []action.WindowFrame, _ *action.Animation
 	defer d.mu.Unlock()
 
 	d.applies = append(d.applies, frames)
+	d.passingReads, d.passingAfterApply = d.passingAfterApply, 0
 
 	d.previous = map[uint32]action.Frame{}
 	maps.Copy(d.previous, d.frames)
@@ -107,6 +121,23 @@ func (d *clampingDesktop) widthAsked(pass int, number uint32) float64 {
 	}
 
 	return -1
+}
+
+// waitForApplies waits until the engine has applied the desktop want times,
+// then a little longer so a pass that should not come has the chance to.
+func (d *clampingDesktop) waitForApplies(t *testing.T, want int, why string) {
+	t.Helper()
+
+	deadline := time.Now().Add(3 * time.Second)
+	for d.count() < want && time.Now().Before(deadline) {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	time.Sleep(200 * time.Millisecond)
+
+	if got := d.count(); got != want {
+		t.Fatalf("%s: applied %d times, want %d", why, got, want)
+	}
 }
 
 // TestEngine_Run_LearnsAMinimumSizeAndReplaysOnce pins the contract: a
@@ -147,24 +178,9 @@ func TestEngine_Run_LearnsAMinimumSizeAndReplaysOnce(t *testing.T) {
 		close(done)
 	}()
 
-	waitFor := func(want int, why string) {
-		t.Helper()
-
-		deadline := time.Now().Add(3 * time.Second)
-		for desktop.count() < want && time.Now().Before(deadline) {
-			time.Sleep(10 * time.Millisecond)
-		}
-
-		time.Sleep(200 * time.Millisecond)
-
-		if got := desktop.count(); got != want {
-			t.Fatalf("%s: applied %d times, want %d", why, got, want)
-		}
-	}
-
 	// Startup asks for two halves, the window refuses, and the engine
 	// replays with the minimum known. Then nothing more.
-	waitFor(2, "startup and the pass that learned the minimum")
+	desktop.waitForApplies(t, 2, "startup and the pass that learned the minimum")
 
 	if got := desktop.widthAsked(0, 2); got != 500 {
 		t.Fatalf("first pass asked width %v for window 2, want 500", got)
@@ -204,7 +220,7 @@ func TestEngine_Run_LearnsAMinimumSizeAndReplaysOnce(t *testing.T) {
 
 	sub <- events.Event{Kind: events.WindowFocus, PID: 10}
 
-	waitFor(3, "a pass after the minimum dropped")
+	desktop.waitForApplies(t, 3, "a pass after the minimum dropped")
 
 	if got := desktop.widthAsked(2, 2); got != 600 {
 		t.Fatalf("third pass asked width %v for window 2, want the remembered 600", got)
@@ -214,59 +230,197 @@ func TestEngine_Run_LearnsAMinimumSizeAndReplaysOnce(t *testing.T) {
 	<-done
 }
 
-func TestEngine_learnMinSize(t *testing.T) {
+// TestEngine_Run_ForgetsAMinimumTheWindowNoLongerHas pins that a window which
+// later takes a frame smaller than the one it refused loses its minimum, so
+// the engine stops handing it to the layout. That holds on a pass where no
+// other window refuses anything.
+func TestEngine_Run_ForgetsAMinimumTheWindowNoLongerHas(t *testing.T) {
 	t.Parallel()
 
-	engine := New(&clampingDesktop{}, nil, nil)
-
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{Width: 500, Height: 500},
-		action.Frame{Width: 600, Height: 500},
-	); !grew {
-		t.Fatal("landing wider than asked did not report a new minimum")
+	desktop := &clampingDesktop{
+		frames: map[uint32]action.Frame{
+			1: {Width: 500, Height: 500},
+			2: {X: 500, Width: 500, Height: 500},
+		},
+		minWidth: 600,
 	}
+	engine := New(desktop, nil, nil)
+	engine.resizeGrace = 50 * time.Millisecond
+	engine.Update(config.TilingConfig{
+		Enabled:     true,
+		DebounceMS:  10,
+		TimeoutSecs: 5,
+		// The layout asks for two halves whatever the windows report, so a
+		// later pass asks below the minimum the second window refused at first.
+		Layout: `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 500, height: 1000}}, ` +
+			`{number: 2, frame: {x: 500, y: 0, width: 500, height: 1000}}], state: null}'`,
+	}, "/bin/sh")
 
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{Width: 500, Height: 500},
-		action.Frame{Width: 600, Height: 500},
-	); grew {
-		t.Fatal("landing at the known minimum again reported it as new")
-	}
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
 
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{Width: 600, Height: 500},
-		action.Frame{Width: 600, Height: 500},
-	); grew {
-		t.Fatal("taking the minimum as asked reported it as new")
-	}
+	sub := make(events.Subscriber, 8)
+	done := make(chan struct{})
 
-	if got := engine.minSizes[1]; got != (action.MinSize{Width: 600}) {
+	go func() {
+		engine.Run(ctx, sub)
+		close(done)
+	}()
+
+	desktop.waitForApplies(t, 2, "startup and the pass that learned the minimum")
+
+	if got := minSizeOfSecond(t, engine); got == nil || got.Width != 600 {
 		t.Fatalf("minSize = %+v, want width 600", got)
 	}
 
-	// Smaller than the minimum and taken: the minimum was wrong, forget it.
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{Width: 400, Height: 500},
-		action.Frame{Width: 400, Height: 500},
-	); grew {
-		t.Fatal("taking a smaller size reported a new minimum")
+	desktop.mu.Lock()
+	desktop.minWidth = 300
+	desktop.mu.Unlock()
+
+	sub <- events.Event{Kind: events.WindowFocus, PID: 10}
+
+	desktop.waitForApplies(t, 3, "a pass after the minimum dropped")
+
+	// The engine forgets only after its confirming read, a while after the
+	// apply.
+	got := minSizeOfSecond(t, engine)
+	for deadline := time.Now().Add(3 * time.Second); got != nil && time.Now().Before(deadline); {
+		time.Sleep(20 * time.Millisecond)
+
+		got = minSizeOfSecond(t, engine)
 	}
 
-	if _, ok := engine.minSizes[1]; ok {
-		t.Fatalf("minSize = %+v after the window took less, want none", engine.minSizes[1])
+	if got != nil {
+		t.Fatalf("minSize = %+v after the window took less, want none", got)
 	}
+
+	cancel()
+	<-done
+}
+
+// TestEngine_Run_KeepsAMinimumThroughASizeOnTheWay pins that the engine reads
+// again before it forgets a minimum. Terminal, while it changes its font,
+// reports a size far below its minimum for a moment after an apply.
+// Forgetting the minimum from that read would cost a refusal on the next pass
+// to learn it back.
+func TestEngine_Run_KeepsAMinimumThroughASizeOnTheWay(t *testing.T) {
+	t.Parallel()
+
+	desktop := &clampingDesktop{
+		frames: map[uint32]action.Frame{
+			1: {Width: 500, Height: 500},
+			2: {X: 500, Width: 500, Height: 500},
+		},
+		minWidth: 600,
+	}
+	engine := New(desktop, nil, nil)
+	engine.resizeGrace = 50 * time.Millisecond
+	engine.Update(config.TilingConfig{
+		Enabled:     true,
+		DebounceMS:  10,
+		TimeoutSecs: 5,
+		Layout: `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 500, height: 1000}}, ` +
+			`{number: 2, frame: {x: 500, y: 0, width: 500, height: 1000}}], state: null}'`,
+	}, "/bin/sh")
+
+	sub := make(events.Subscriber, 8)
+
+	go engine.Run(t.Context(), sub)
+
+	desktop.waitForApplies(t, 2, "startup and the pass that learned the minimum")
+
+	desktop.mu.Lock()
+	desktop.passingAfterApply = 1
+	desktop.passing = action.Frame{X: 500, Width: 200, Height: 200}
+	desktop.mu.Unlock()
+
+	sub <- events.Event{Kind: events.WindowFocus, PID: 10}
+
+	desktop.waitForApplies(t, 3, "a pass that reads a size on the way")
+	time.Sleep(confirmRefusal + 500*time.Millisecond)
+
+	if got := minSizeOfSecond(t, engine); got == nil || got.Width != 600 {
+		t.Fatalf("minSize = %+v after a size on the way, want width 600 kept", got)
+	}
+
+	if got := desktop.count(); got != 3 {
+		t.Fatalf("applied %d times, want 3: nothing was learned again", got)
+	}
+}
+
+// TestEngine_Run_DoesNotLearnFromAFrameTheWindowServerClamped pins that a
+// window landing larger than asked has not always refused anything. A window
+// as large as its display took a frame that never applied, since no minimum
+// is that big. The window server clamps a window asked for a frame past the
+// display's edge, since it keeps part of every window on screen. The engine
+// learns no minimum from either and runs no extra pass.
+func TestEngine_Run_DoesNotLearnFromAFrameTheWindowServerClamped(t *testing.T) {
+	t.Parallel()
+
+	tests := []struct {
+		name     string
+		minWidth float64
+		secondX  int
+	}{
+		{name: "a window as large as its display", minWidth: 1000, secondX: 500},
+		{name: "a frame asked past the display's edge", minWidth: 600, secondX: 600},
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := &clampingDesktop{
+				frames: map[uint32]action.Frame{
+					1: {Width: 500, Height: 500},
+					2: {X: 500, Width: 500, Height: 500},
+				},
+				minWidth: testCase.minWidth,
+			}
+			engine := New(desktop, nil, nil)
+			engine.resizeGrace = 50 * time.Millisecond
+			engine.Update(config.TilingConfig{
+				Enabled:     true,
+				DebounceMS:  10,
+				TimeoutSecs: 5,
+				Layout: `jq -c '{frames: [{number: 1, frame: {x: 0, y: 0, width: 500, height: 1000}}, ` +
+					fmt.Sprintf(
+						`{number: 2, frame: {x: %d, y: 0, width: 500, height: 1000}}], state: null}'`,
+						testCase.secondX,
+					),
+			}, "/bin/sh")
+
+			sub := make(events.Subscriber, 8)
+
+			go engine.Run(t.Context(), sub)
+
+			// Long enough for the read-back, the confirming read, and the
+			// pass a wrongly learned minimum would have asked for.
+			desktop.waitForApplies(t, 1, "startup alone")
+			time.Sleep(confirmRefusal + 500*time.Millisecond)
+
+			if got := desktop.count(); got != 1 {
+				t.Fatalf("applied %d times, want 1: a clamped frame is not a refusal", got)
+			}
+
+			if got := minSizeOfSecond(t, engine); got != nil {
+				t.Fatalf("minSize = %+v, want none", got)
+			}
+		})
+	}
+}
+
+// minSizeOfSecond is the minimum the engine would hand the layout for the
+// clamping desktop's second window, or nil for none.
+func minSizeOfSecond(t *testing.T, engine *Engine) *action.MinSize {
+	t.Helper()
+
+	inputs, _, err := engine.Preview(t.Context(), Event{Kind: EventPreview})
+	if err != nil {
+		t.Fatalf("Preview() error = %v", err)
+	}
+
+	return inputs[0].Windows[1].MinSize
 }
 
 // TestEngine_Reset_ForgetsMinimums pins that a reset drops learned
@@ -554,65 +708,6 @@ func TestEngine_Run_DoesNotLearnFromAWindowStillResizing(t *testing.T) {
 
 	if len(engine.minSizes) != 0 || len(engine.appMinSizes) != 0 {
 		t.Fatalf("learned %v / %v, want nothing", engine.minSizes, engine.appMinSizes)
-	}
-}
-
-// TestEngine_learnMinSize_IgnoresAWindowAsLargeAsItsDisplay pins that a
-// window landed at its display's size did not refuse anything: no minimum
-// is that big, and the frame written never applied.
-func TestEngine_learnMinSize_IgnoresAWindowAsLargeAsItsDisplay(t *testing.T) {
-	t.Parallel()
-
-	engine := New(&clampingDesktop{}, nil, nil)
-	engine.visible[1] = action.Frame{Width: 1920, Height: 1050}
-
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{Width: 500, Height: 500},
-		action.Frame{Width: 1920, Height: 1050},
-	); grew {
-		t.Fatal("a window as large as its display reported a minimum")
-	}
-
-	if _, ok := engine.minSizes[1]; ok {
-		t.Fatalf("minSize = %+v, want none", engine.minSizes[1])
-	}
-}
-
-// TestEngine_learnMinSize_IgnoresAFrameAskedOffTheDisplay pins that a
-// window asked for a frame past the display's edge learns nothing from
-// where it lands. The window server keeps part of every window on screen,
-// and the size it settles on is the clamp's, not the application's.
-func TestEngine_learnMinSize_IgnoresAFrameAskedOffTheDisplay(t *testing.T) {
-	t.Parallel()
-
-	engine := New(&clampingDesktop{}, nil, nil)
-	engine.visible[1] = action.Frame{Y: 30, Width: 1920, Height: 1050}
-
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{X: -948, Y: 38, Width: 948, Height: 1034},
-		action.Frame{X: -955, Y: 38, Width: 959, Height: 1034},
-	); grew {
-		t.Fatal("a window asked for a frame off the display reported a minimum")
-	}
-
-	if _, ok := engine.minSizes[1]; ok {
-		t.Fatalf("minSize = %+v, want none", engine.minSizes[1])
-	}
-
-	if grew := engine.learnMinSize(
-		1,
-		"app",
-		1,
-		action.Frame{X: 8, Y: 38, Width: 948, Height: 1034},
-		action.Frame{X: 8, Y: 38, Width: 959, Height: 1034},
-	); !grew {
-		t.Fatal("a window asked for a frame on the display did not report its minimum")
 	}
 }
 

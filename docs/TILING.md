@@ -748,6 +748,9 @@ then work down this list.
    so a layout that reads it can make room at once. `bsp.py` and `strip.py`
    do, through `min_sizes` and `fit` in `rules.py`. A layout that ignores it
    leaves the window over its neighbour, as before, and no extra pass runs.
+   mimi drops the `minSize` of a window that later takes a smaller frame,
+   since an application's minimum can shrink with its content, as a
+   terminal's does when its font gets smaller.
    When the minimums on a display add up to more than it has, no layout can
    satisfy them. `strip.py` lets the strip grow and scrolls. `bsp.py`
    overlaps the two sides of the split toward its middle, so every window
