@@ -1,8 +1,9 @@
-package ipc //nolint:testpackage // pins the unexported request encoding
+package ipc //nolint:testpackage // pins the unexported request and response encoding
 
 import (
 	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"os"
 	"path/filepath"
@@ -12,6 +13,7 @@ import (
 	"time"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
 // payloadCase is one command the wire has to carry unchanged, under the name
@@ -278,6 +280,81 @@ func TestRequest_EncodesTheGoldenBytes(t *testing.T) {
 			got := strings.TrimSuffix(buf.String(), "\n")
 			if got != testCase.want {
 				t.Errorf("wire bytes changed — this is a protocol change:\n got: %s\nwant: %s",
+					got, testCase.want)
+			}
+		})
+	}
+}
+
+// TestResponse_EncodesTheGoldenBytes pins the bytes of the daemon's answer,
+// which a round trip cannot check either. The CLI reads a daemon's failure by
+// its code. It tells the user to restart a daemon on another protocol version
+// only when the answer carries PROTOCOL_MISMATCH. The daemon sends that answer
+// only when it and the CLI are different builds, so a code whose string
+// changed would go unrecognized exactly when it is needed. The CLI also prints
+// these strings in every error it reports. Changing any of them is a protocol
+// change.
+func TestResponse_EncodesTheGoldenBytes(t *testing.T) {
+	t.Parallel()
+
+	type responseCase struct {
+		name string
+		resp Response
+		want string
+	}
+
+	codes := map[derrors.Code]string{
+		derrors.CodeAccessibilityDenied: "ACCESSIBILITY_DENIED",
+		derrors.CodeAccessibilityFailed: "ACCESSIBILITY_FAILED",
+		derrors.CodeInvalidConfig:       "INVALID_CONFIG",
+		derrors.CodeInvalidInput:        "INVALID_INPUT",
+		derrors.CodeActionFailed:        "ACTION_FAILED",
+		derrors.CodeContextCanceled:     "CONTEXT_CANCELED",
+		derrors.CodeTimeout:             "TIMEOUT",
+		derrors.CodeInternal:            "INTERNAL",
+		derrors.CodeLoggingFailed:       "LOGGING_FAILED",
+		derrors.CodeConfigIOFailed:      "CONFIG_IO_FAILED",
+		derrors.CodeSerializationFailed: "SERIALIZATION_FAILED",
+		derrors.CodeBridgeFailed:        "BRIDGE_FAILED",
+		derrors.CodeDaemonUnavailable:   "DAEMON_UNAVAILABLE",
+		derrors.CodeIPCFailed:           "IPC_FAILED",
+		derrors.CodeProtocolMismatch:    "PROTOCOL_MISMATCH",
+		derrors.CodeServiceFailed:       "SERVICE_FAILED",
+		derrors.CodeNotSupported:        "NOT_SUPPORTED",
+	}
+
+	tests := make([]responseCase, 0, 2+len(codes))
+	tests = append(tests,
+		responseCase{name: "success", resp: responseFromError(nil), want: `{"ok":true}`},
+		responseCase{
+			name: "success with data",
+			resp: Response{OK: true, Data: json.RawMessage(`{"focused":1}`)},
+			want: `{"ok":true,"data":{"focused":1}}`,
+		},
+	)
+
+	for code, wire := range codes {
+		tests = append(tests, responseCase{
+			name: wire,
+			resp: responseFromError(derrors.New(code, "no")),
+			want: `{"ok":false,"code":"` + wire + `","message":"no"}`,
+		})
+	}
+
+	for _, testCase := range tests {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			var buf bytes.Buffer
+
+			err := writeResponse(&buf, testCase.resp)
+			if err != nil {
+				t.Fatalf("writeResponse() error = %v", err)
+			}
+
+			got := strings.TrimSuffix(buf.String(), "\n")
+			if got != testCase.want {
+				t.Errorf("wire bytes changed, which is a protocol change:\n got: %s\nwant: %s",
 					got, testCase.want)
 			}
 		})
