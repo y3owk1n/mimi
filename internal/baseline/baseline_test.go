@@ -124,7 +124,7 @@ func TestRecording_LookupsFindRecordedCases(t *testing.T) {
 	}
 }
 
-func TestEncode_RoundTripsThroughJSON(t *testing.T) {
+func TestEncode_EndsTheFileWithANewline(t *testing.T) {
 	recording, err := baseline.Load()
 	if err != nil {
 		t.Fatalf("Load() error = %v", err)

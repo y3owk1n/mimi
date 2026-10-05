@@ -39,7 +39,7 @@ type HookKind struct {
 	Group HookGroup
 	// Entries returns a pointer to this kind's entries inside a HooksConfig,
 	// so both decoding (write) and every enumeration (read) can fold over the
-	// same table rather than restating the twelve field names.
+	// same table rather than restating the field names.
 	Entries func(*HooksConfig) *[]HookEntry
 }
 

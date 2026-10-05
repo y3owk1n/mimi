@@ -65,18 +65,19 @@ func audited(command string, response interruptResponse, why string) auditEntry 
 // anyone thinks about it — and the failure mode it inherits, an interrupt that
 // no longer reaches the work, is invisible from the command's own code.
 //
-// What the audit found: six commands honor the context, one runs its own
-// signal handler, and sixteen ignore it. Fourteen of those sixteen are local
-// file work, one-shot syscalls or desktop reads, over before an interrupt could
-// be typed. The two that are not are in the action family — `action space` on the direct path
-// pumps the run loop for a stretch proportional to the spaces it crosses, and
-// any action on the daemon path waits for a reply that ipc.TryExecute reads
-// with no deadline, so a daemon that accepts the connection and then goes quiet
-// hangs it indefinitely. Neither is a wait a Go context could shorten from
-// here: the first is inside Objective-C, and the second wants a read deadline
-// in internal/ipc rather than a cancellation in the CLI. Both are why the
-// second stage exists, and neither is made worse by this change — before it,
-// one Ctrl-C ended them; after it, two do.
+// What the audit found: most commands ignore the context, and nearly all of
+// those are local file work, one-shot syscalls or desktop reads, over before an
+// interrupt could be typed. Two of them are not, and both are in the action
+// family.
+// `action space` on the direct path pumps the run loop for a stretch
+// proportional to the spaces it crosses, and any action on the daemon path
+// waits for a reply that ipc.TryExecute reads with no deadline, so a daemon
+// that accepts the connection and then goes quiet hangs it indefinitely.
+// Neither is a wait a Go context could shorten from here: the first is inside
+// Objective-C, and the second wants a read deadline in internal/ipc rather than
+// a cancellation in the CLI. Both are why the second stage exists, and this
+// change makes neither worse. Before it, one Ctrl-C ended them, and after it,
+// two do.
 //
 //nolint:gochecknoglobals // the audit is one fact about the tree, read by one test
 var interruptAudit = []auditEntry{
@@ -157,7 +158,7 @@ var interruptAudit = []auditEntry{
 		"one NSScreen read, two preference reads, and one line of output; nothing blocks"),
 	audited("tiling", interruptRunsOn,
 		"as action: the body only reports the missing subcommand and returns"),
-	audited("tiling preview", interruptRunsOn,
+	audited("tiling preview", interruptStopsTheWork,
 		"as query windows for the reads, then the layout program runs under its "+
 			"own timeout; the context is handed to it, so a canceled preview "+
 			"kills the program, and nothing is applied either way"),

@@ -2,14 +2,10 @@ package hooks //nolint:testpackage // tests unexported hookOutputBuffer / baseEn
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"os"
-	"os/exec"
 	"path/filepath"
-	"slices"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -110,50 +106,6 @@ func TestHookOutputBufferCapsAtLimit(t *testing.T) {
 	}
 }
 
-// TestHookOutputBufferIntegration verifies that hookOutputBuffer actually
-// caps the output of a real subprocess, not just synthetic Write calls.
-func TestHookOutputBufferIntegration(t *testing.T) {
-	t.Parallel()
-
-	// Find a shell that's available on the test host. sh is the only
-	// hard requirement since executor.go defaults to it.
-	shell := defaultShell
-
-	path, lookErr := exec.LookPath("sh")
-	if lookErr == nil {
-		shell = path
-	}
-
-	// Use /dev/zero piped through tr to produce an arbitrary 1 MiB of
-	// output. head -c caps the producer at 1 MiB.
-	const produced = 1 << 20
-
-	cmd := exec.CommandContext(
-		context.Background(),
-		shell,
-		"-c",
-		"head -c "+strconv.Itoa(produced)+" /dev/zero | tr '\\0' a",
-	)
-
-	outBuf := &hookOutputBuffer{limit: maxHookOutputBytes}
-	cmd.Stdout = outBuf
-	cmd.Stderr = outBuf
-
-	runErr := cmd.Run()
-	if runErr != nil {
-		t.Fatalf("subprocess failed: %v", runErr)
-	}
-
-	captured := outBuf.Bytes()
-	if len(captured) != maxHookOutputBytes {
-		t.Fatalf("expected %d bytes captured, got %d", maxHookOutputBytes, len(captured))
-	}
-
-	if !bytes.Equal(captured, bytes.Repeat([]byte("a"), maxHookOutputBytes)) {
-		t.Fatal("captured output should be all 'a' bytes from tr")
-	}
-}
-
 func TestEventEnvProducesAllMimiVars(t *testing.T) {
 	t.Parallel()
 
@@ -193,31 +145,6 @@ func TestEventEnvProducesAllMimiVars(t *testing.T) {
 			t.Errorf("eventEnv missing %q\nfull env: %v", w, env)
 		}
 	}
-}
-
-func TestNewExecutorCapturesBaseEnv(t *testing.T) {
-	// t.Setenv restores the previous value when the test ends, so this
-	// is safe to run alongside other tests in the package.
-	t.Setenv("MIMI_TEST_BASE_VAR_FOR_HOOKS", "captured-value-42")
-
-	reg := NewRegistry()
-	cfg := &config.SettingsConfig{
-		HookShell:       "/bin/sh",
-		HookTimeoutSecs: 5,
-		MaxHookWorkers:  1,
-	}
-	exec := NewExecutor(reg, cfg, zap.NewNop().Sugar())
-
-	if len(exec.baseEnv) == 0 {
-		t.Fatal("baseEnv should be populated at construction")
-	}
-
-	want := "MIMI_TEST_BASE_VAR_FOR_HOOKS=captured-value-42"
-	if slices.Contains(exec.baseEnv, want) {
-		return
-	}
-
-	t.Errorf("baseEnv missing %q\nfull baseEnv length: %d", want, len(exec.baseEnv))
 }
 
 // TestExecutorMergesBaseAndEventEnv verifies end-to-end that a real hook

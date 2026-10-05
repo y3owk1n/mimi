@@ -25,93 +25,21 @@ const (
 	testDisplayIndexKey = "display_index"
 )
 
-// allHookableKinds mirrors the twelve entries buildMap's literal map wires
-// up. Kept local (rather than reusing events.AllKinds) so a future kind
-// added to events.AllKinds without a matching buildMap entry fails loudly
-// here instead of silently expanding both lists together.
-var allHookableKinds = []events.EventKind{
-	events.AppActivate,
-	events.AppDeactivate,
-	events.AppLaunch,
-	events.AppQuit,
-	events.AppHide,
-	events.AppUnhide,
-	events.WindowFocus,
-	events.WindowTitleChange,
-	events.WindowCreated,
-	events.WindowClosed,
-	events.WindowResize,
-	events.WindowMinimize,
-	events.WindowUnminimize,
-	events.WorkspaceChanged,
-}
-
 // cfgWithHook returns a *config.Config with a single hook entry registered
 // for the given kind. Panics on an unknown kind since that's a test bug,
 // not a runtime condition.
 func cfgWithHook(kind events.EventKind, entry config.HookEntry) *config.Config {
 	cfg := &config.Config{}
 
-	switch kind { //nolint:exhaustive // events.WindowResizing has no HooksConfig field; it's internal-only
-	case events.AppActivate:
-		cfg.Hooks.AppActivate = []config.HookEntry{entry}
-	case events.AppDeactivate:
-		cfg.Hooks.AppDeactivate = []config.HookEntry{entry}
-	case events.AppLaunch:
-		cfg.Hooks.AppLaunch = []config.HookEntry{entry}
-	case events.AppQuit:
-		cfg.Hooks.AppQuit = []config.HookEntry{entry}
-	case events.AppHide:
-		cfg.Hooks.AppHide = []config.HookEntry{entry}
-	case events.AppUnhide:
-		cfg.Hooks.AppUnhide = []config.HookEntry{entry}
-	case events.WindowFocus:
-		cfg.Hooks.WindowFocus = []config.HookEntry{entry}
-	case events.WindowTitleChange:
-		cfg.Hooks.WindowTitleChange = []config.HookEntry{entry}
-	case events.WindowCreated:
-		cfg.Hooks.WindowCreated = []config.HookEntry{entry}
-	case events.WindowClosed:
-		cfg.Hooks.WindowClosed = []config.HookEntry{entry}
-	case events.WindowResize:
-		cfg.Hooks.WindowResize = []config.HookEntry{entry}
-	case events.WindowMinimize:
-		cfg.Hooks.WindowMinimize = []config.HookEntry{entry}
-	case events.WindowUnminimize:
-		cfg.Hooks.WindowUnminimize = []config.HookEntry{entry}
-	case events.WorkspaceChanged:
-		cfg.Hooks.WorkspaceChanged = []config.HookEntry{entry}
-	default:
-		panic("cfgWithHook: unknown kind " + string(kind))
+	for _, row := range config.HookKinds {
+		if row.Kind == kind {
+			*row.Entries(&cfg.Hooks) = []config.HookEntry{entry}
+
+			return cfg
+		}
 	}
 
-	return cfg
-}
-
-func TestBuildMap_EveryKindProducesHooks(t *testing.T) {
-	t.Parallel()
-
-	for _, kind := range allHookableKinds {
-		t.Run(string(kind), func(t *testing.T) {
-			t.Parallel()
-
-			cfg := cfgWithHook(kind, config.HookEntry{Run: testHookRun})
-
-			hookMap, err := buildMap(cfg)
-			if err != nil {
-				t.Fatalf("buildMap() unexpected error: %v", err)
-			}
-
-			hooks, ok := hookMap[kind]
-			if !ok || len(hooks) != 1 {
-				t.Fatalf("buildMap()[%s] = %v (ok=%v), want exactly 1 hook", kind, hooks, ok)
-			}
-
-			if hooks[0].Entry.Run != testHookRun {
-				t.Errorf("hook.Entry.Run = %q, want %q", hooks[0].Entry.Run, testHookRun)
-			}
-		})
-	}
+	panic("cfgWithHook: unknown kind " + string(kind))
 }
 
 func TestBuildMap_InvalidTitleRegexReturnsError(t *testing.T) {

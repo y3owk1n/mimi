@@ -71,9 +71,6 @@ func enabledWith(layout string) config.TilingConfig {
 const (
 	layoutShell = "/bin/sh"
 	nullState   = "null"
-	// passThrough is a layout that prints its input back, enough for a
-	// test of which programs exist.
-	passThrough = "cat"
 )
 
 func stateName(t *testing.T, state json.RawMessage) string {
@@ -161,42 +158,6 @@ func TestEngine_Pass_KeepsStatePerProgram(t *testing.T) {
 
 	if got := engine.State(); len(got.Spaces) != 2 {
 		t.Fatalf("State() after switching = %+v, want the old program's two entries kept", got)
-	}
-}
-
-func TestEngine_Update_KeepsOneResidentPerProgram(t *testing.T) {
-	t.Parallel()
-
-	engine := New(twoDisplayDesktop{}, nil, nil)
-	cfg := enabledWith(passThrough)
-	cfg.LayoutMode = config.LayoutModeResident
-	cfg.Layouts = []config.LayoutTarget{
-		{Display: 2, Layout: "tee"},
-		{Space: 9, Layout: passThrough},
-	}
-	engine.Update(cfg, layoutShell)
-
-	if len(engine.residents) != 2 {
-		t.Fatalf("residents = %d, want 2, one per distinct command", len(engine.residents))
-	}
-
-	first := engine.residents["tee"]
-
-	cfg.Layouts = cfg.Layouts[:1]
-	engine.Update(cfg, layoutShell)
-
-	if len(engine.residents) != 2 || engine.residents["tee"] != first {
-		t.Fatalf(
-			"residents = %v, want the same two, untouched by a reload that kept them",
-			engine.residents,
-		)
-	}
-
-	cfg.Layouts = nil
-	engine.Update(cfg, layoutShell)
-
-	if _, still := engine.residents["tee"]; still || len(engine.residents) != 1 {
-		t.Fatalf("residents = %v, want only the default after its entry went", engine.residents)
 	}
 }
 

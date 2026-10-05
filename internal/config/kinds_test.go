@@ -4,12 +4,8 @@ package config //nolint:testpackage // asserts HookKinds against unexported deco
 // matching row compiles fine and then silently never fires -- the same failure
 // mode that once left half of a user's hooks uncounted. These tests are the
 // check the compiler cannot give: they pin the table against the two
-// independent enumerations of the same twelve kinds, HooksConfig's fields and
+// independent enumerations of the same kinds, HooksConfig's fields and
 // events.AllKinds.
-//
-// internal/hooks and internal/observe deliberately keep their own local kind
-// lists in tests for the same reason; folding those onto HookKinds would leave
-// the table checking itself.
 
 import (
 	"reflect"
@@ -36,19 +32,23 @@ func TestHookKinds_CoversEveryHooksConfigField(t *testing.T) {
 		)
 	}
 
-	// Every row must point at a distinct field, so a copy-pasted row that
-	// forgot to change its accessor fails here rather than shadowing a kind.
+	// Every row's accessor must reach the field its TOML key names. A
+	// copy-pasted row that forgot to change its accessor fails here, and so do
+	// two rows with swapped accessors, rather than firing one kind's hooks for
+	// another. TestHookKinds_RowOrderMatchesHooksConfigFieldOrder pins the
+	// TOML key to the same field index.
 	var cfg HooksConfig
 
-	seen := make(map[*[]HookEntry]events.EventKind, len(HookKinds))
+	fields := reflect.ValueOf(&cfg).Elem()
 
-	for _, kind := range HookKinds {
-		ptr := kind.Entries(&cfg)
-		if other, dup := seen[ptr]; dup {
-			t.Errorf("%q and %q resolve to the same HooksConfig field", kind.Kind, other)
+	for idx, kind := range HookKinds {
+		want, ok := reflect.TypeAssert[*[]HookEntry](fields.Field(idx).Addr())
+		if !ok || kind.Entries(&cfg) != want {
+			t.Errorf(
+				"HookKinds[%d] (%q) does not resolve to HooksConfig field %d (%s)",
+				idx, kind.Kind, idx, hooksType.Field(idx).Name,
+			)
 		}
-
-		seen[ptr] = kind.Kind
 	}
 }
 

@@ -1189,6 +1189,75 @@ func TestEngine_Update_KeepsAResidentLayoutUnlessItChanges(t *testing.T) {
 	pass(1)
 }
 
+// TestEngine_Update_KeepsOneResidentPerProgram pins that each distinct layout
+// program gets a resident of its own, that a reload keeping a program keeps
+// its resident, and that the engine stops a program the config no longer
+// names, so naming it again starts it afresh.
+func TestEngine_Update_KeepsOneResidentPerProgram(t *testing.T) {
+	t.Parallel()
+
+	desktop := newDesktop()
+	desktop.windows.Windows = append(desktop.windows.Windows, action.WindowEntry{
+		Number: 2, PID: 11, App: "B", Frame: action.Frame{X: 1200, Width: 500, Height: 500},
+	})
+	desktop.displays = append(desktop.displays, action.DisplayEntry{
+		Index:   2,
+		ID:      8,
+		Frame:   action.Frame{X: 1000, Width: 1000, Height: 1000},
+		Visible: action.Frame{X: 1000, Width: 1000, Height: 1000},
+	})
+
+	engine := tiling.New(desktop, nil, nil)
+	defer engine.Close()
+
+	otherLayout := "true; " + countingLayout
+	cfg := enabled(countingLayout)
+	cfg.LayoutMode = config.LayoutModeResident
+	cfg.Layouts = []config.LayoutTarget{{Display: 2, Layout: otherLayout}}
+	engine.Update(cfg, shell)
+
+	states := func() (int, int) {
+		t.Helper()
+
+		_, outs, err := engine.Preview(context.Background(), tiling.Event{Kind: created})
+		if err != nil {
+			t.Fatalf("Preview() error = %v, want nil", err)
+		}
+
+		if len(outs) != 2 {
+			t.Fatalf("Preview() = %d outputs, want one per display", len(outs))
+		}
+
+		return stateOf(t, outs[0]), stateOf(t, outs[1])
+	}
+
+	pass := func(wantFirst, wantSecond int) {
+		t.Helper()
+
+		if first, second := states(); first != wantFirst || second != wantSecond {
+			t.Fatalf("states = %d, %d, want %d, %d", first, second, wantFirst, wantSecond)
+		}
+	}
+
+	pass(1, 1)
+
+	engine.Update(cfg, shell)
+	pass(2, 2)
+
+	// With its entry gone, both displays run the one program left, so its
+	// count advances twice, in whichever order the displays ran.
+	cfg.Layouts = nil
+	engine.Update(cfg, shell)
+
+	if first, second := states(); first+second != 7 || min(first, second) != 3 {
+		t.Fatalf("states = %d, %d, want 3 and 4 from the one program", first, second)
+	}
+
+	cfg.Layouts = []config.LayoutTarget{{Display: 2, Layout: otherLayout}}
+	engine.Update(cfg, shell)
+	pass(5, 1)
+}
+
 // TestEngine_Pass_RunsTheCommandsTheLayoutAsksForAfterApplying pins the
 // after key: each line runs through the shell once the frames are applied,
 // and a pass that returns only commands still runs them.

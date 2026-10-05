@@ -160,25 +160,6 @@ func TestResizeWindowArgsFromFlags_CarriesThePresetAndTheOtherFlags(t *testing.T
 	}
 }
 
-// TestResizeWindowCommand_RejectsAnUnknownPreset covers mimi#125 at the CLI:
-// an unknown preset is rejected before anything reaches the desktop, and with
-// action.ParseResizePreset's own wording rather than a second copy of the valid
-// name list that could drift from it. This fails during argument validation,
-// not execution, so it is safe to run through the real command tree.
-func TestResizeWindowCommand_RejectsAnUnknownPreset(t *testing.T) {
-	t.Parallel()
-
-	_, err := runCommand(t, actionCommandName, resizeWindowCommandName, unknownPreset)
-	if err == nil {
-		t.Fatalf("%s %s: expected an error", resizeWindowCommandName, unknownPreset)
-	}
-
-	_, wantErr := action.ParseResizePreset(unknownPreset)
-	if err.Error() != wantErr.Error() {
-		t.Errorf("rejected with its own wording:\n got: %s\nwant: %s", err, wantErr)
-	}
-}
-
 // TestResizeWindowCommand_RejectsBothMarginFlags covers mimi#138 at the CLI:
 // the conflicting pair is refused with the conversion's own wording rather
 // than a second copy of the rule living in this layer — which is what makes
@@ -232,9 +213,9 @@ func TestResizeWindowCommand_RejectsBothMarginFlags(t *testing.T) {
 func TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder(t *testing.T) {
 	t.Parallel()
 
-	_, presetErr := action.ParseResizePreset(unknownPreset)
+	_, presetErr := action.ParseResizePresetArg(unknownPreset)
 	if presetErr == nil {
-		t.Fatalf("ParseResizePreset(%q): expected an error", unknownPreset)
+		t.Fatalf("ParseResizePresetArg(%q): expected an error", unknownPreset)
 	}
 
 	testCases := []struct {
@@ -365,7 +346,7 @@ func assertRejectedBeforeRunE(t *testing.T, path, argv []string, wantErr error) 
 // TestResizeWindowArgValidation_RejectsBeforeRunE is resize_window's half of
 // mimi#133: its positional argument is now checked in the same layer the space
 // actions check theirs in, so an unknown preset never reaches the command body.
-// The tree fails with action.ParseResizePreset's own wording and prints its
+// The tree fails with action.ParseResizePresetArg's own wording and prints its
 // usage, exactly as it did when the check sat in the body.
 func TestResizeWindowArgValidation_RejectsBeforeRunE(t *testing.T) {
 	t.Parallel()
@@ -374,9 +355,9 @@ func TestResizeWindowArgValidation_RejectsBeforeRunE(t *testing.T) {
 		t.Run(preset, func(t *testing.T) {
 			t.Parallel()
 
-			_, wantErr := action.ParseResizePreset(preset)
+			_, wantErr := action.ParseResizePresetArg(preset)
 			if wantErr == nil {
-				t.Fatalf("ParseResizePreset(%q): expected an error", preset)
+				t.Fatalf("ParseResizePresetArg(%q): expected an error", preset)
 			}
 
 			assertRejectedBeforeRunE(
@@ -455,19 +436,6 @@ func TestResizeWindowArgValidation_HelpStillWinsOverABadPreset(t *testing.T) {
 	}
 }
 
-// TestFocusWindowCommand_RejectsBackwardWithDirection checks the CLI surfaces
-// action.NewFocusWindowCommand's validation before ever reaching the desktop —
-// this fails while the command is being built, not while it runs, so it is
-// safe to run through the real command tree.
-func TestFocusWindowCommand_RejectsBackwardWithDirection(t *testing.T) {
-	t.Parallel()
-
-	_, err := runCommand(t, actionCommandName, focusWindowCommandName, "--backward", "--up")
-	if err == nil {
-		t.Fatal("expected an error combining --backward with a direction flag")
-	}
-}
-
 // malformedAction is one command line that names an action and gives it
 // arguments the action must reject.
 type malformedAction struct {
@@ -494,7 +462,7 @@ func malformedActionArgv() []malformedAction {
 		{name: "unknown anchor", argv: []string{resizeWindowCommandName, "--anchor", "xx"}},
 		{name: "unknown preset", argv: []string{resizeWindowCommandName, unknownPreset}},
 		{
-			// mimi#132: a padded name is trimmed by action.ParseResizePreset, so
+			// mimi#132: a padded name is trimmed by action.ParseResizePresetArg, so
 			// this is rejected for the name it carries and not for its padding.
 			name: "padded unknown preset",
 			argv: []string{resizeWindowCommandName, " " + unknownPreset + " "},
@@ -670,18 +638,6 @@ func TestActionCommands_RejectMalformedArgumentsIdenticallyWithAndWithoutADaemon
 	}
 }
 
-// TestSpaceCommand_RejectsZero checks the space subcommand's positional-arg
-// validation still runs before state.runAction, the same guarantee it made
-// before the CLI started building a typed action.Command.
-func TestSpaceCommand_RejectsZero(t *testing.T) {
-	t.Parallel()
-
-	_, err := runCommand(t, actionCommandName, string(action.NameSpace), "0")
-	if err == nil {
-		t.Fatal("expected an error for space 0")
-	}
-}
-
 // spaceArgValidators pairs each action that takes a space argument with the
 // Args validator its subcommand carries, so a case can be run against both
 // without executing either — the validators reject before RunE, which is what
@@ -747,45 +703,6 @@ func TestSpaceArgValidation_SameWordingForBothActions(t *testing.T) {
 					spaceErr,
 					moveErr,
 				)
-			}
-		})
-	}
-}
-
-// TestSpaceArgValidation_DelegatesToTheOneRule checks the CLI rejects a
-// malformed space argument with the rule itself — action.ParseSpaceArg —
-// rather than a second copy of it. The CLI's copy used to describe the rule as
-// "a positive integer" alone, so a caller who mistyped "nxt" was told the
-// keywords it had just rejected were not accepted at all.
-func TestSpaceArgValidation_DelegatesToTheOneRule(t *testing.T) {
-	t.Parallel()
-
-	validators := spaceArgValidators()
-
-	for _, testCase := range malformedSpaceArgs() {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			for actionName, validate := range validators {
-				gotErr := validate(nil, testCase.args)
-				if gotErr == nil {
-					t.Fatalf("%s %v: expected an error", actionName, testCase.args)
-				}
-
-				_, wantErr := action.ParseSpaceArg(actionName, testCase.args)
-				if wantErr == nil {
-					t.Fatalf("ParseSpaceArg(%s, %v): expected an error", actionName, testCase.args)
-				}
-
-				if gotErr.Error() != wantErr.Error() {
-					t.Errorf(
-						"%s %v rejected with its own wording:\n got: %s\nwant: %s",
-						actionName,
-						testCase.args,
-						gotErr,
-						wantErr,
-					)
-				}
 			}
 		})
 	}

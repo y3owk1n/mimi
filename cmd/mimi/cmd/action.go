@@ -438,7 +438,7 @@ Examples:
 			// The preset name is forwarded exactly as it was given. This used
 			// to trim it, which is why a padded name named a preset here and
 			// was rejected on every other path (mimi#132); the trim now lives
-			// in action.ParseResizePreset, which every path runs.
+			// in action.ParseResizePresetArg, which every path runs.
 			resizeCmd, err := action.NewResizeWindowCommand(
 				resizeWindowArgsFromFlags(cobraCmd, presetArg(args)),
 			)

@@ -248,28 +248,37 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 	return ((current - 1 + parsed.Direction + count) % count) + 1, nil
 }
 
-// ParseResizePreset maps the name resize_window's positional argument carries onto
-// the preset it names, and is the one place a name that is not one of them is
-// rejected. Every path that takes a preset goes through it — the CLI's own
-// argument check and the conversion from a command's arguments, which the
-// daemon runs again on a command it decoded — so an unknown name is rejected
-// in the same words wherever it arrives from.
+// ParseResizePresetArg parses resize_window's one positional argument into the
+// preset it names, and is the one place a name that is not one of them is
+// rejected. Every path that takes a preset goes through it: the CLI's Args
+// layer, which stops the argument before the command body runs, and
+// ResizeRequestFromArgs, which checks it again for a command the daemon decoded
+// with nothing having looked at it. It therefore rejects an unknown name in the
+// same words wherever the name arrives from.
+//
+// The empty string is the argument nobody gave. resize_window's positional
+// argument is optional, and a command that names no preset asks for none, so
+// the zero preset comes back with no error. Anything else is a name, whitespace
+// included.
 //
 // Surrounding whitespace is not part of the name and is trimmed here, the way
 // ParseSpaceArg trims a space argument, so " left-half " names the same preset
-// wherever it arrives from — a shell that padded it, a hook that built the
+// wherever it arrives from: a shell that padded it, a hook that built the
 // argument, or a command the daemon decoded off the socket. The CLI used to
 // trim instead, which is what made a padded name work on the direct path and
-// be rejected on every other one (mimi#132); this is now the only place it
+// be rejected on every other one (mimi#132). This is now the only place it
 // happens.
 //
-// The rejection lists the fifteen valid names, read from the geometry's own table
-// rather than restated here, since mistyping one is the likely way to get
-// here, and quotes the name as it was given rather than as it was trimmed, so
-// padding the user did type is visible in it. A name that is empty, or is
-// nothing but whitespace, is not a preset either: a command that names no
-// preset never asks for one.
-func ParseResizePreset(name string) (geometry.Preset, error) {
+// The rejection lists the fifteen valid names, read from the geometry's own
+// table rather than restated here, since mistyping one is the likely way to get
+// here. It quotes the name as it was given rather than as it was trimmed, so
+// padding the user did type shows in it. A name that is nothing but whitespace
+// is not a preset either.
+func ParseResizePresetArg(name string) (geometry.Preset, error) {
+	if name == "" {
+		return geometry.Preset{}, nil
+	}
+
 	preset, ok := geometry.ParsePreset(strings.TrimSpace(name))
 	if !ok {
 		return geometry.Preset{}, derrors.Newf(
@@ -281,27 +290,6 @@ func ParseResizePreset(name string) (geometry.Preset, error) {
 	}
 
 	return preset, nil
-}
-
-// ParseResizePresetArg parses resize_window's one positional argument into the
-// preset it names, and is the only implementation of that argument's rule.
-//
-// The empty string is the argument nobody gave — resize_window's positional
-// argument is optional, and a command that names no preset asks for none, so
-// the zero preset comes back with no error. Anything else is a name,
-// whitespace included, and what it names is ParseResizePreset's decision
-// alone.
-//
-// Both layers that reject a bad preset call this rather than restating it: the
-// CLI's Args layer, which stops the argument before the command body runs, and
-// ResizeRequestFromArgs, which checks it again for a command that arrived over
-// the daemon path with nothing having looked at it.
-func ParseResizePresetArg(name string) (geometry.Preset, error) {
-	if name == "" {
-		return geometry.Preset{}, nil
-	}
-
-	return ParseResizePreset(name)
 }
 
 // dimensionOf folds one axis's two size flags into the dimension they

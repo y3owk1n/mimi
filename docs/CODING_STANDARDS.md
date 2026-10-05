@@ -127,9 +127,7 @@ return derrors.New(derrors.CodeInternal, "something went wrong")
 return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "reading config")
 ```
 
-Available error codes: `CodeAccessibilityDenied`, `CodeAccessibilityFailed`, `CodeInvalidConfig`, `CodeInvalidInput`, `CodeActionFailed`, `CodeContextCanceled`, `CodeTimeout`, `CodeInternal`, `CodeLoggingFailed`, `CodeConfigIOFailed`, `CodeSerializationFailed`, `CodeBridgeFailed`, `CodeDaemonUnavailable`, `CodeIPCFailed`, `CodeProtocolMismatch`, `CodeServiceFailed`, `CodeNotSupported`.
-
-`internal/errors/coding_standards_test.go` checks this list against the constants in `errors.go`, so update both together.
+The available error codes are the `Code*` constants in `internal/errors/errors.go`.
 
 ---
 

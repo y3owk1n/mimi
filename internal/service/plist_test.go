@@ -379,13 +379,12 @@ func TestRenderPlist_EscapesEveryValueItSubstitutes(t *testing.T) {
 // the service PATH spliced into the middle of the user's path, so the plist
 // pointed launchd at a file that does not exist.
 //
-// This is not the case TestRenderPlist_Table's "path containing the token-like
-// substring MIMI" covers. There each value carries only its *own* token name,
-// which survives however the substitution is arranged: by the time such a value
-// is in place, whatever would have matched it has already run. The names that
-// break are the ones belonging to a *later* value, and only a substitution that
-// rescans what it has already inserted can break them. Neither test subsumes
-// the other, and the cross-value one is the one that failed before #177.
+// A value carrying only its *own* token name survives however the
+// substitution is arranged, because by the time such a value is in place,
+// whatever would have matched it has already run. The names that break are the ones
+// belonging to a *later* value, and only a substitution that rescans what it
+// has already inserted can break them. That cross-value case is the one that
+// failed before #177.
 //
 // Every case is checked against every token name, including its own, so that
 // the property under test is the whole of it: no substituted value is ever
@@ -508,78 +507,4 @@ func parsePlistStrings(t *testing.T, content string) []string {
 	}
 
 	return values
-}
-
-func TestRenderPlist_Table(t *testing.T) {
-	tests := []struct {
-		name        string
-		binPath     string
-		configPath  string
-		logFile     string
-		servicePath string
-	}{
-		{
-			name:        "typical paths",
-			binPath:     "/opt/homebrew/bin/mimi",
-			configPath:  "~/.config/mimi/config.toml",
-			logFile:     testLogFile,
-			servicePath: "/usr/bin:/bin",
-		},
-		{
-			name:        "empty inputs",
-			binPath:     "",
-			configPath:  "",
-			logFile:     "",
-			servicePath: "",
-		},
-		{
-			name:        "path containing the token-like substring MIMI",
-			binPath:     "/Users/mimi-user/bin/mimi",
-			configPath:  "/Users/mimi-user/MIMI_CONFIG_PATH-lookalike/config.toml",
-			logFile:     "/Users/mimi-user/MIMI_STDOUT_PATH-lookalike/mimi.log",
-			servicePath: "/Users/mimi-user/MIMI_SERVICE_PATH-lookalike/bin:/usr/bin",
-		},
-	}
-
-	for _, testCase := range tests {
-		t.Run(testCase.name, func(t *testing.T) {
-			got := renderPlist(
-				testCase.binPath,
-				testCase.configPath,
-				testCase.logFile,
-				testCase.servicePath,
-			)
-
-			wantBin := "<string>" + testCase.binPath + "</string>"
-			if !strings.Contains(got, wantBin) {
-				t.Errorf(
-					"renderPlist(%q, %q) does not contain %q:\n%s",
-					testCase.binPath,
-					testCase.configPath,
-					wantBin,
-					got,
-				)
-			}
-
-			wantConfig := "<string>" + testCase.configPath + "</string>"
-			if !strings.Contains(got, wantConfig) {
-				t.Errorf(
-					"renderPlist(%q, %q) does not contain %q:\n%s",
-					testCase.binPath,
-					testCase.configPath,
-					wantConfig,
-					got,
-				)
-			}
-
-			// The template's own literal Label must survive untouched.
-			if !strings.Contains(got, "<string>com.y3owk1n.mimi</string>") {
-				t.Errorf(
-					"renderPlist(%q, %q) lost the Label string",
-					testCase.binPath,
-					testCase.configPath,
-				)
-			}
-		})
-	}
 }

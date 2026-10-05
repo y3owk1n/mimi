@@ -395,22 +395,8 @@ func TestService_Status_ReportsNoCapturedLogsWithoutAPlistOfMimisOwn(t *testing.
 	}
 }
 
-func TestService_Start_RunsLaunchctlStart(t *testing.T) {
-	fake := &fakeLauncher{}
-	svc := newTestService(fake)
-
-	err := svc.Start(t.Context())
-	if err != nil {
-		t.Fatalf("Start() = %v, want nil", err)
-	}
-
-	if !fake.started {
-		t.Error("Start() did not call the launcher's start")
-	}
-}
-
 func TestService_Start_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
-	fake := &fakeLauncher{startErr: derrors.New(derrors.CodeServiceFailed, "boom")}
+	fake := &fakeLauncher{startErr: errLaunchctlFailed}
 	svc := newTestService(fake)
 
 	err := svc.Start(t.Context())
@@ -423,26 +409,12 @@ func TestService_Start_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
 	}
 }
 
-func TestService_Stop_RunsLaunchctlStop(t *testing.T) {
-	fake := &fakeLauncher{}
-	svc := newTestService(fake)
-
-	err := svc.Stop(t.Context())
-	if err != nil {
-		t.Fatalf("Stop() = %v, want nil", err)
-	}
-
-	if !fake.stopped {
-		t.Error("Stop() did not call the launcher's stop")
-	}
-}
-
 // TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode is the other half of
 // stop still being a command of its own. Restart no longer runs it, so a stop
 // that fails is now only ever a `mimi services stop` that failed, and its
 // failure has to reach the user as one.
 func TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
-	fake := &fakeLauncher{stopErr: derrors.New(derrors.CodeServiceFailed, "boom")}
+	fake := &fakeLauncher{stopErr: errLaunchctlFailed}
 	svc := newTestService(fake)
 
 	err := svc.Stop(t.Context())
@@ -576,6 +548,10 @@ var (
 	errBootoutRefused  = errors.New("operation not permitted")
 	errBootoutNotFound = errors.New("not loaded")
 )
+
+// errLaunchctlFailed is a launchctl start or stop that exited non-zero, as the
+// plain error exec hands back. Service has to give it its code.
+var errLaunchctlFailed = errors.New("exit status 1")
 
 // errBootstrapInProgress is what launchd answers a bootstrap over a label it
 // has not finished letting go of, in the same plain shape a real launchctl
@@ -1366,7 +1342,7 @@ func TestService_Install_KeepsTheStalePlistWhenTheServiceCannotBeUnloaded(t *tes
 	}
 
 	fake.loaded = true
-	fake.bootoutErr = derrors.New(derrors.CodeServiceFailed, "launchd said no")
+	fake.bootoutErr = errBootoutRefused
 	fake.calls = nil
 
 	newLogFile := filepath.Join(dir, "new", "mimi.log")

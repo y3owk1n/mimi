@@ -198,13 +198,13 @@ func TestResizePreset(t *testing.T) {
 			t.Run(name+"/"+label, func(t *testing.T) {
 				t.Parallel()
 
-				got, err := action.ParseResizePreset(given)
+				got, err := action.ParseResizePresetArg(given)
 				if err != nil {
-					t.Fatalf("ParseResizePreset(%q) error = %v", given, err)
+					t.Fatalf("ParseResizePresetArg(%q) error = %v", given, err)
 				}
 
 				if got != presetFor(t, name) {
-					t.Fatalf("ParseResizePreset(%q) = %q, want %q", given, got, name)
+					t.Fatalf("ParseResizePresetArg(%q) = %q, want %q", given, got, name)
 				}
 			})
 		}
@@ -213,9 +213,9 @@ func TestResizePreset(t *testing.T) {
 	t.Run("whitespace only", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := action.ParseResizePreset(whitespaceOnlyArg)
+		_, err := action.ParseResizePresetArg(whitespaceOnlyArg)
 		if err == nil {
-			t.Fatalf("ParseResizePreset(%q) expected error", whitespaceOnlyArg)
+			t.Fatalf("ParseResizePresetArg(%q) expected error", whitespaceOnlyArg)
 		}
 
 		if !derrors.IsCode(err, derrors.CodeInvalidInput) {
@@ -232,9 +232,9 @@ func TestResizePreset(t *testing.T) {
 	t.Run("unknown", func(t *testing.T) {
 		t.Parallel()
 
-		_, err := action.ParseResizePreset(unknownPreset)
+		_, err := action.ParseResizePresetArg(unknownPreset)
 		if err == nil {
-			t.Fatalf("ParseResizePreset(%q) expected error", unknownPreset)
+			t.Fatalf("ParseResizePresetArg(%q) expected error", unknownPreset)
 		}
 
 		if !derrors.IsCode(err, derrors.CodeInvalidInput) {
@@ -248,9 +248,6 @@ func TestResizePreset(t *testing.T) {
 // TestParseResizePresetArg covers the one thing resize_window's positional
 // argument adds to the preset rule: it is optional, so the empty string is the
 // argument nobody gave and names no preset without that being an error.
-// Everything else is ParseResizePreset's decision, which is why an unknown name
-// still reads in its words — the CLI's Args layer and ResizeRequestFromArgs
-// both reject through here (mimi#133).
 func TestParseResizePresetArg(t *testing.T) {
 	t.Parallel()
 
@@ -264,29 +261,6 @@ func TestParseResizePresetArg(t *testing.T) {
 
 		if (got != geometry.Preset{}) {
 			t.Fatalf(`ParseResizePresetArg("") = %v, want the zero preset`, got)
-		}
-	})
-
-	t.Run("a name is the preset rule's decision", func(t *testing.T) {
-		t.Parallel()
-
-		for _, name := range append(everyPreset(), unknownPreset, whitespaceOnlyArg) {
-			got, gotErr := action.ParseResizePresetArg(name)
-			want, wantErr := action.ParseResizePreset(name)
-
-			switch {
-			case (gotErr == nil) != (wantErr == nil):
-				t.Errorf("ParseResizePresetArg(%q) error = %v, want %v", name, gotErr, wantErr)
-			case gotErr != nil && gotErr.Error() != wantErr.Error():
-				t.Errorf(
-					"ParseResizePresetArg(%q) rejected in other words:\n got: %s\nwant: %s",
-					name,
-					gotErr,
-					wantErr,
-				)
-			case gotErr == nil && got != want:
-				t.Errorf("ParseResizePresetArg(%q) = %v, want %v", name, got, want)
-			}
 		}
 	})
 }

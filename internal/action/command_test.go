@@ -632,6 +632,10 @@ func TestExecuteCommand_ReachesEveryAction(t *testing.T) {
 		if err != nil {
 			t.Fatalf("ExecuteCommand(resize_window) error = %v, want nil", err)
 		}
+
+		if got := desktop.windows[0].frame; got.W != 800 || got.H != 600 {
+			t.Fatalf("window frame = %+v, want 800x600", got)
+		}
 	})
 }
 

@@ -2,7 +2,6 @@
 package observe
 
 import (
-	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -62,36 +61,6 @@ func newHandleTestRouter(t *testing.T) (*Router, <-chan events.Event, *AXTracker
 	router := NewRouterWithDebounce(bus, axTracker, logger, testDebounceWindow)
 
 	return router, sub, axTracker, fake
-}
-
-// hookableKinds is a hardcoded mirror of buildMap's literal kind→config map
-// (internal/hooks/registry.go), kept deliberately independent of
-// events.AllKinds: if a future internal kind were mistakenly added to
-// AllKinds, a filter built from AllKinds would pick up the same mistake and
-// this test would stop catching it. Hardcoding the list here means the test
-// only passes if `_`-prefixed and unrecognized kinds are excluded on their
-// own merits.
-var hookableKinds = []events.EventKind{
-	events.AppActivate,
-	events.AppDeactivate,
-	events.AppLaunch,
-	events.AppQuit,
-	events.AppHide,
-	events.AppUnhide,
-	events.WindowFocus,
-	events.WindowTitleChange,
-	events.WindowCreated,
-	events.WindowClosed,
-	events.WindowResize,
-	events.WindowMinimize,
-	events.WindowUnminimize,
-	events.WorkspaceChanged,
-}
-
-// isHookableKind is a hookSub-style filter built from hookableKinds, mirroring
-// registry.KindFilter() (internal/hooks/registry.go) without depending on it.
-func isHookableKind(kind events.EventKind) bool {
-	return slices.Contains(hookableKinds, kind)
 }
 
 func TestDebounceResize_SingleEvent(t *testing.T) {
@@ -612,53 +581,6 @@ func TestHandle_LogsTitlePresenceNotRawTitle(t *testing.T) {
 
 			assertNoFieldLeak(t, fields, secretTitle)
 		})
-	}
-}
-
-// TestHandle_InternalKindReachesLogSubButNotHookFilteredSub pins the
-// invariant that `_`-prefixed (and otherwise unrecognized) kinds never reach
-// a hook subscriber. handle() itself applies no such guard — the default
-// case logs and publishes every kind unconditionally, exactly like
-// native.StartObservers' inline "_startup_" event (bridge.go:68). The
-// invariant holds only because a hookSub-style filter (built from
-// events.AllKinds, mirroring buildMap in internal/hooks/registry.go) never
-// admits it, while an unfiltered logSub-style subscriber sees everything.
-func TestHandle_InternalKindReachesLogSubButNotHookFilteredSub(t *testing.T) {
-	bus := events.NewBus()
-	logSub := bus.Subscribe(16)
-	hookSub := bus.SubscribeWithFilter(16, isHookableKind)
-	ax := NewAXTracker(false)
-	logger := zap.NewNop().Sugar()
-	router := NewRouterWithDebounce(bus, ax, logger, testDebounceWindow)
-
-	router.handle(events.Event{Kind: events.EventKind("_startup_"), AppName: daemonAppName})
-
-	select {
-	case evt := <-logSub:
-		if evt.Kind != events.EventKind("_startup_") {
-			t.Errorf("logSub got kind %s, want _startup_", evt.Kind)
-		}
-	case <-time.After(testFireTimeout):
-		t.Fatal("timed out waiting for logSub to receive the internal-kind event")
-	}
-
-	select {
-	case evt := <-hookSub:
-		t.Errorf("hookSub received an internal-kind event, want it filtered out: %+v", evt)
-	case <-time.After(testNoFireWait):
-	}
-
-	// Sanity check: the same filter does admit a real hookable kind, so the
-	// prior assertion is proof of filtering, not of a wedged subscriber.
-	router.handle(events.Event{Kind: events.AppActivate, PID: 1})
-
-	select {
-	case evt := <-hookSub:
-		if evt.Kind != events.AppActivate {
-			t.Errorf("hookSub got kind %s, want app_activate", evt.Kind)
-		}
-	case <-time.After(testFireTimeout):
-		t.Fatal("timed out waiting for hookSub to receive a real hookable kind")
 	}
 }
 

@@ -1,7 +1,6 @@
 package ipc //nolint:testpackage // pins the unexported request encoding
 
 import (
-	"bufio"
 	"bytes"
 	"context"
 	"net"
@@ -137,47 +136,13 @@ func everyPayloadSet() []payloadCase {
 	}
 }
 
-// TestRequest_RoundTripsEveryAction is the first of the two checks that pin
-// the wire: an encoding that cannot decode its own output is caught here.
-//
-// It covers every action twice — once carrying nothing but the action's name,
-// once carrying a non-zero value in every field of that action's payload — so
-// a field that encodes but does not decode fails rather than passing silently
-// at its zero value.
-func TestRequest_RoundTripsEveryAction(t *testing.T) {
-	t.Parallel()
-
-	for _, testCase := range everyPayloadSet() {
-		t.Run(testCase.name, func(t *testing.T) {
-			t.Parallel()
-
-			var buf bytes.Buffer
-
-			req := Request{Version: ProtocolVersion, Command: testCase.cmd}
-
-			err := writeRequest(&buf, req)
-			if err != nil {
-				t.Fatalf("writeRequest(%+v) error = %v", req, err)
-			}
-
-			got, err := readRequest(bufio.NewReader(&buf))
-			if err != nil {
-				t.Fatalf("readRequest() error = %v", err)
-			}
-
-			if !reflect.DeepEqual(got, req) {
-				t.Errorf("round trip = %+v, want %+v", got, req)
-			}
-		})
-	}
-}
-
-// TestRequest_EncodesTheGoldenBytes is the second check, and the one the round
-// trip cannot make: a renamed field round-trips perfectly against itself and
-// still breaks every daemon that has not restarted. The bytes below are what a
-// running daemon of this protocol version reads, so changing them is a
-// protocol change — bump ProtocolVersion with it, and a daemon still running
-// the old build will reject this build's requests rather than misread them.
+// TestRequest_EncodesTheGoldenBytes pins what a round trip cannot. A renamed
+// field round-trips perfectly against itself and still breaks every daemon
+// that has not restarted. TestServer_RunsTheCommandTheClientBuiltUnchanged
+// owns the round trip. The bytes below are what a running daemon of this
+// protocol version reads, so changing them is a protocol change. Bump
+// ProtocolVersion with it, and a daemon still running the old build will
+// reject this build's requests rather than misread them.
 //
 // One command per action, each built the way the CLI builds it. Within a
 // payload that is encoded at all, every field is, whether or not it carries a

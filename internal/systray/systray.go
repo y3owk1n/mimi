@@ -34,8 +34,6 @@ type MenuItem struct {
 	mu        sync.RWMutex
 	title     string
 	disabled  bool
-	checked   bool
-	hidden    bool
 }
 
 // Title returns the menu item title.
@@ -52,22 +50,6 @@ func (m *MenuItem) Disabled() bool {
 	defer m.mu.RUnlock()
 
 	return m.disabled
-}
-
-// Checked returns whether the menu item is checked.
-func (m *MenuItem) Checked() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return m.checked
-}
-
-// Hidden returns whether the menu item is hidden.
-func (m *MenuItem) Hidden() bool {
-	m.mu.RLock()
-	defer m.mu.RUnlock()
-
-	return m.hidden
 }
 
 // Run starts the system tray loop. It must be called from the main thread.
@@ -212,33 +194,21 @@ func (m *MenuItem) Disable() {
 
 // Check checks the menu item.
 func (m *MenuItem) Check() {
-	m.mu.Lock()
-	m.checked = true
-	m.mu.Unlock()
 	C.MimiSetItemChecked(C.int(m.id), C.short(1))
 }
 
 // Uncheck unchecks the menu item.
 func (m *MenuItem) Uncheck() {
-	m.mu.Lock()
-	m.checked = false
-	m.mu.Unlock()
 	C.MimiSetItemChecked(C.int(m.id), C.short(0))
 }
 
 // Hide hides the menu item.
 func (m *MenuItem) Hide() {
-	m.mu.Lock()
-	m.hidden = true
-	m.mu.Unlock()
 	C.MimiHideMenuItem(C.int(m.id))
 }
 
 // Show shows the menu item.
 func (m *MenuItem) Show() {
-	m.mu.Lock()
-	m.hidden = false
-	m.mu.Unlock()
 	C.MimiShowMenuItem(C.int(m.id))
 }
 
@@ -278,15 +248,4 @@ func registerMenuItem(item *MenuItem) int {
 	menuItems[id] = item
 
 	return id
-}
-
-// ResetForTesting resets all global state. Only use in tests.
-func ResetForTesting() {
-	menuItemsLock.Lock()
-	defer menuItemsLock.Unlock()
-
-	menuItems = make(map[int]*MenuItem)
-	nextID = 1
-	onReady = nil
-	onExit = nil
 }

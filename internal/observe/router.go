@@ -74,13 +74,6 @@ type axRetry struct {
 	attempt int
 }
 
-// NewRouter creates an event router for the hook daemon with the default
-// resize debounce window (250ms). A nil logger is tolerated; the fallback to
-// zap.NewNop() lives in NewRouterWithDebounce, which this delegates to.
-func NewRouter(bus *events.Bus, tracker *AXTracker, logger *zap.SugaredLogger) *Router {
-	return NewRouterWithDebounce(bus, tracker, logger, defaultResizeDebounceDuration)
-}
-
 // NewRouterWithDebounce creates an event router with a caller-specified
 // resize debounce window. A zero duration is replaced with the default.
 func NewRouterWithDebounce(
