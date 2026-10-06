@@ -31,12 +31,20 @@
 // pointer in both callbacks). Set membership survives even when
 // the element's attributes no longer do.
 @property CFMutableSetRef knownRealWindows;
+// The window the last window_focus was dispatched for, retained. A focus
+// change within an application posts both kAXFocusedWindowChangedNotification
+// and kAXMainWindowChangedNotification for one window, and this lets the
+// second of the pair through only when it names another window.
+@property AXUIElementRef lastFocused;
 @end
 @implementation AXEntry
 
 - (void)dealloc {
 	if (_knownRealWindows) {
 		CFRelease(_knownRealWindows);
+	}
+	if (_lastFocused) {
+		CFRelease(_lastFocused);
 	}
 }
 
@@ -166,6 +174,19 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, hasCenter, centerX, centerY);
 }
 
+// axDispatchFocus dispatches window_focus for element unless the last one
+// dispatched for this application named the same window.
+static void axDispatchFocus(AXEntry *entry, pid_t pid, AXUIElementRef element) {
+	if (entry.lastFocused) {
+		if (CFEqual(entry.lastFocused, element)) {
+			return;
+		}
+		CFRelease(entry.lastFocused);
+	}
+	entry.lastFocused = (AXUIElementRef)CFRetain(element);
+	dispatchAXEvent(MIMI_KIND_WINDOW_FOCUS, pid, element);
+}
+
 static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {
 	@autoreleasepool {
 		pid_t pid = (pid_t)(intptr_t)refcon;
@@ -266,7 +287,35 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// Delivered on the app element directly when the app's
 			// focused window attribute changes. Not subject to
 			// descendant fan-out for unrelated sub-views.
-			dispatchAXEvent(MIMI_KIND_WINDOW_FOCUS, pid, element);
+			AXEntry *entry = gEntries[@(pid)];
+			if (!entry) {
+				return;
+			}
+			axDispatchFocus(entry, pid, element);
+
+			return;
+		}
+
+		if (CFEqual(notification, kAXMainWindowChangedNotification)) {
+			// Switching native tabs in the frontmost application, or
+			// closing the tab in front, posts only this notification.
+			// Each tab is a window of its own, and the focused window
+			// attribute does not report the change. An ordinary focus
+			// change also posts it, right after the focused window
+			// notification, and axDispatchFocus drops that repeat.
+			AXEntry *entry = axRealWindowEntry(pid, element);
+			if (!entry) {
+				return;
+			}
+			// The seed leaves out a tab that was hidden when the
+			// observer attached, since the application lists only the
+			// tab in front, and bringing that tab to the front posts no
+			// creation. Recording it here lets closing it fire
+			// window_closed.
+			if (entry.knownRealWindows) {
+				CFSetAddValue(entry.knownRealWindows, element);
+			}
+			axDispatchFocus(entry, pid, element);
 
 			return;
 		}
@@ -391,7 +440,7 @@ static bool axInstallBlock(int pid) {
 	CFStringRef notifications[] = {
 	    kAXWindowCreatedNotification,      kAXUIElementDestroyedNotification,   kAXFocusedWindowChangedNotification,
 	    kAXTitleChangedNotification,       kAXWindowResizedNotification,        kAXMovedNotification,
-	    kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
+	    kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification, kAXMainWindowChangedNotification,
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {

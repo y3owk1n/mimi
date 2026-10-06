@@ -61,6 +61,7 @@ full-screen space. Every input in one pass carries the same `event` and
 | `state` | any JSON | always | What you printed as `state` on the last pass for this display and space, or `null` when there is none. |
 | `unmanaged` | array of integer | when non-empty | Window numbers on this display you named in `unmanaged` on an earlier pass and have not claimed back since. |
 | `stacks` | array of stack | when non-empty | The stacks you named on the last pass for this display that mimi kept. See [Stack](#stack). |
+| `replaced` | array of replacement | when non-empty | Windows that took the place of one the last pass had here. See [Replacement](#replacement). |
 
 ### Event
 
@@ -156,6 +157,23 @@ than it landed. The learned minimums are kept across restarts and shown by
 | --- | --- | --- |
 | `windows` | array of integer | The members, by number. |
 | `active` | integer | The member the layout means to be seen. |
+
+### Replacement
+
+| Field | Type | Meaning |
+| --- | --- | --- |
+| `window` | integer | The window now in `windows`. |
+| `was` | integer | The window the last pass had in its place, gone from `windows` now. |
+
+A replacement is a window new to this pass that belongs to the same
+application and space as a window gone since the last pass, and sits at that
+window's frame. Native tabs produce this. Each tab is a window of its own, and
+the group shows one tab at a time in one frame. Bringing another tab to the
+front, opening one, or closing the one in front puts another window number in
+that frame. Rename `was` to `window` wherever your state keeps it, and the
+group keeps its place. A layout that ignores the field sees one window close
+and another open. mimi renames `was` to `window` in `unmanaged` and `stacks`
+itself.
 
 ## Output
 

@@ -64,7 +64,7 @@ A layout program: reads the tiling input on stdin, prints the output on
 stdout. Copy, edit, own. Standard library only.
 """
 
-from rules import area, clamp, command, fit, gap, maximised, min_sizes, modifiers, serve, shown, unmanaged_of, write_output
+from rules import area, clamp, command, fit, gap, maximised, min_sizes, modifiers, replaced, serve, shown, unmanaged_of, write_output
 
 PRESETS = [1 / 3, 1 / 2, 2 / 3]
 DEFAULT = 1 / 2
@@ -107,6 +107,18 @@ def rank(number, by_number):
     if window is None or window.get("bundleId") not in PRIORITY:
         return None
     return PRIORITY.index(window["bundleId"])
+
+
+def rename(state, renames):
+    """Put each window that took another's place, such as a native tab
+    brought to the front, where that one was: in its column, among the floats,
+    and in the placements a resize is read against."""
+    for column in state.get("columns") or []:
+        column["windows"] = [renames.get(n, n) for n in column["windows"]]
+    if "floating" in state:
+        state["floating"] = [renames.get(n, n) for n in state["floating"]]
+    if "placed" in state:
+        state["placed"] = {str(renames.get(int(k), int(k))): f for k, f in state["placed"].items()}
 
 
 def sync(columns, windows, focused):
@@ -269,6 +281,7 @@ def main(inp):
 
     MINS = min_sizes(inp)
     state = inp.get("state") or {}
+    rename(state, replaced(inp))
     columns = state.get("columns") or []
     offset = float(state.get("offset") or 0)
     GAP = gap(inp)

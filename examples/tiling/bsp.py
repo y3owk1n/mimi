@@ -48,7 +48,7 @@ Usage: bsp.py     (the gap is tiling.gap, else the macOS tiled-window margin)
 import sys
 
 from rules import clamp as clamp_to, fit, min_sizes, modifiers, shown, unmanaged_of
-from rules import area, command, gap, maximised, serve, write_output
+from rules import area, command, gap, maximised, replaced, serve, write_output
 
 # The gap, set from the input once it is read. The tree functions below read
 # it as a global.
@@ -112,6 +112,20 @@ def leaves(node):
     if "win" in node:
         return [node]
     return leaves(node["a"]) + leaves(node["b"])
+
+
+def rename(state, renames):
+    """Put each window that took another's place, such as a native tab
+    brought to the front, where that one was: in its leaf, among the floats,
+    and in the placements a resize is read against."""
+    for leaf in leaves(state.get("tree")):
+        leaf["win"] = renames.get(leaf["win"], leaf["win"])
+        if "order" in leaf:
+            leaf["order"] = [renames.get(n, n) for n in leaf["order"]]
+    if "floating" in state:
+        state["floating"] = [renames.get(n, n) for n in state["floating"]]
+    if "placed" in state:
+        state["placed"] = {str(renames.get(int(k), int(k))): f for k, f in state["placed"].items()}
 
 
 def remove(node, number):
@@ -330,6 +344,7 @@ def main(inp):
     GAP = gap(inp)
     MINS = min_sizes(inp)
     state = inp.get("state") or {}
+    rename(state, replaced(inp))
     box = area(inp, GAP, state)
     tree = state.get("tree")
     event = inp["event"]

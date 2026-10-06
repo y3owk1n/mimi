@@ -107,10 +107,11 @@ type Engine struct {
 	// told what to draw after. nil draws nothing and reserves nothing,
 	// which is the CLI's engine and any build with the mark switched off.
 	stacker Stacker
-	// seen is every window number the last pass read, nil before the
+	// seen is every window the last pass read, by number, nil before the
 	// first, so a window_created pass can tell whether the window it was
-	// raised for has reached the window server's on-screen list yet.
-	seen map[uint32]bool
+	// raised for has reached the window server's on-screen list yet, and a
+	// window that took another's place can be told from a new one.
+	seen map[uint32]seenWindow
 	// titles is every window's title as the last full read had it, by
 	// number, for a preview that would rather not ask the applications.
 	titles map[uint32]string
@@ -1299,15 +1300,141 @@ func (e *Engine) settledInputsLocked(ctx context.Context, event Event) ([]Input,
 		}
 	}
 
-	e.seen = map[uint32]bool{}
+	e.carryReplacedLocked(inputs)
+
+	e.seen = map[uint32]seenWindow{}
 
 	for _, input := range inputs {
 		for _, win := range input.Windows {
-			e.seen[win.Number] = true
+			e.seen[win.Number] = seenWindow{
+				pid:     win.PID,
+				display: input.Display.ID,
+				spaceID: input.spaceID,
+				frame:   win.Frame,
+			}
 		}
 	}
 
 	return inputs, nil
+}
+
+// seenWindow is a window as the last pass read it: whose it was, the display
+// and space it was on, and its frame.
+type seenWindow struct {
+	pid     int
+	display uint32
+	spaceID uint64
+	frame   action.Frame
+}
+
+// carryReplacedLocked names, in each input's Replaced, the windows that took
+// the place of one the last pass had on that display and space. Such a window
+// is new to this pass, belongs to the same application as the window that
+// went, and sits at its frame. A native tab coming to the front looks like
+// this, since each tab is a window of its own and the group shows one at a
+// time in one frame. It also moves what the engine holds for the window that
+// went to the one that came, so its stack and whether the layout manages it
+// carry over. The caller holds the lock.
+func (e *Engine) carryReplacedLocked(inputs []Input) {
+	if e.seen == nil {
+		return
+	}
+
+	present := map[uint32]bool{}
+
+	for _, input := range inputs {
+		for _, win := range input.Windows {
+			present[win.Number] = true
+		}
+	}
+
+	for index := range inputs {
+		input := &inputs[index]
+
+		if input.spaceID == 0 {
+			continue
+		}
+
+		// A space switch shows other windows in the same places, so a
+		// window is only ever replaced on the space it was read on.
+		var gone []uint32
+
+		for number, was := range e.seen {
+			if !present[number] && was.display == input.Display.ID && was.spaceID == input.spaceID {
+				gone = append(gone, number)
+			}
+		}
+
+		if len(gone) == 0 {
+			continue
+		}
+
+		slices.Sort(gone)
+
+		for _, win := range input.Windows {
+			if _, old := e.seen[win.Number]; old {
+				continue
+			}
+
+			match := slices.IndexFunc(gone, func(was uint32) bool {
+				return e.seen[was].pid == win.PID && sameFrame(e.lastFrame(was), win.Frame)
+			})
+			if match < 0 {
+				continue
+			}
+
+			was := gone[match]
+			gone = slices.Delete(gone, match, match+1)
+
+			input.Replaced = append(input.Replaced, Replacement{Window: win.Number, Was: was})
+			e.renameLocked(was, win.Number)
+			e.logger.Debugw("window replaced", "window", win.Number, "was", was)
+		}
+
+		if len(input.Replaced) > 0 {
+			e.handBackLocked(input)
+		}
+	}
+}
+
+// lastFrame is where a window the last pass read was last known to be. That is
+// where the engine put it, read back, or else where the pass found it.
+func (e *Engine) lastFrame(number uint32) action.Frame {
+	if frame, ok := e.applied[number]; ok {
+		return frame
+	}
+
+	return e.seen[number].frame
+}
+
+// renameLocked moves what the engine holds for window was to window now. The
+// caller holds the lock.
+func (e *Engine) renameLocked(was, now uint32) {
+	if e.unmanaged[was] {
+		delete(e.unmanaged, was)
+		e.unmanaged[now] = true
+	}
+
+	if frame, ok := e.applied[was]; ok {
+		delete(e.applied, was)
+		e.applied[now] = frame
+	}
+
+	for _, stacks := range e.stacks {
+		for index := range stacks {
+			stack := &stacks[index].Stack
+			if stack.Active == was {
+				stack.Active = now
+			}
+
+			// Clone first, because whatever draws the stacks may still
+			// hold the old slice.
+			if member := slices.Index(stack.Windows, was); member >= 0 {
+				stack.Windows = slices.Clone(stack.Windows)
+				stack.Windows[member] = now
+			}
+		}
+	}
 }
 
 // newWindowOf reports whether inputs hold a window of pid the last pass
@@ -1315,7 +1442,7 @@ func (e *Engine) settledInputsLocked(ctx context.Context, event Event) ([]Input,
 func (e *Engine) newWindowOf(inputs []Input, pid int) bool {
 	for _, input := range inputs {
 		for _, win := range input.Windows {
-			if win.PID == pid && !e.seen[win.Number] {
+			if _, old := e.seen[win.Number]; win.PID == pid && !old {
 				return true
 			}
 		}
@@ -1534,15 +1661,7 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 			continue
 		}
 
-		for _, win := range input.Windows {
-			if e.unmanaged[win.Number] {
-				input.Unmanaged = append(input.Unmanaged, win.Number)
-			}
-		}
-
-		for _, stack := range e.stacks[display.ID] {
-			input.Stacks = append(input.Stacks, stack.Stack)
-		}
+		e.handBackLocked(&input)
 
 		if key, named := e.stateKey(input); named {
 			input.State = e.states[key]
@@ -1556,6 +1675,24 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 	}
 
 	return inputs
+}
+
+// handBackLocked fills the input's Unmanaged and Stacks from what the layout
+// last said for its display. The caller holds the lock.
+func (e *Engine) handBackLocked(input *Input) {
+	input.Unmanaged = nil
+
+	for _, win := range input.Windows {
+		if e.unmanaged[win.Number] {
+			input.Unmanaged = append(input.Unmanaged, win.Number)
+		}
+	}
+
+	input.Stacks = nil
+
+	for _, stack := range e.stacks[input.Display.ID] {
+		input.Stacks = append(input.Stacks, stack.Stack)
+	}
 }
 
 // displayOf is the id of the display a window's frame belongs to, as the
