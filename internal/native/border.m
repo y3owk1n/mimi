@@ -52,6 +52,10 @@ enum {
 // Control or App Expose is up.
 static const int kMimiDockOverlayLevel = 20;
 
+// The level of a window that floats over the application's others, such as
+// a browser's picture in picture video.
+static const int kMimiFloatingLevel = 3;
+
 // SLSSpaceGetType's answer for a full-screen application's space, the same
 // "type" MimiDisplaySpaceIsFullScreen reads. Asking one space is cheap
 // enough for a sync at every step of a drag.
@@ -761,9 +765,11 @@ static void mimiFollowBordered(void) {
 
 // Bring the borders up to date, on the main thread. With refocus, the
 // focused window is found again. It is the front process's window nearest
-// the front, among the windows the borders are drawn for. Accessibility's
-// focused window is not asked. Safari keeps reporting the window that was
-// focused before when the focus moved without a click.
+// the front, among the windows the borders are drawn for. A floating window
+// stays in front of the process's other windows whether it has the focus or
+// not, so it counts only when the process has no other window.
+// Accessibility's focused window is not asked. Safari keeps reporting the
+// window that was focused before when the focus moved without a click.
 static void mimiSyncOnMain(BOOL refocus) {
 	if (!gEnabled)
 		return;
@@ -789,15 +795,23 @@ static void mimiSyncOnMain(BOOL refocus) {
 	if (refocus) {
 		pid_t frontPid = MimiFrontmostPid();
 		uint32_t focused = 0;
+		uint32_t floating = 0;
 		NSSet<NSNumber *> *real = [NSSet setWithArray:numbers];
 		NSArray *onScreen =
 		    CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
 		for (NSDictionary *info in onScreen) {
-			if ([info[(id)kCGWindowOwnerPID] intValue] == frontPid && [real containsObject:info[(id)kCGWindowNumber]]) {
-				focused = [info[(id)kCGWindowNumber] unsignedIntValue];
+			if ([info[(id)kCGWindowOwnerPID] intValue] != frontPid || ![real containsObject:info[(id)kCGWindowNumber]])
+				continue;
+			uint32_t number = [info[(id)kCGWindowNumber] unsignedIntValue];
+			if ([info[(id)kCGWindowLayer] intValue] != kMimiFloatingLevel) {
+				focused = number;
 				break;
 			}
+			if (!floating)
+				floating = number;
 		}
+		if (!focused)
+			focused = floating;
 		if (focused != gFocused) {
 			gFocused = focused;
 			raised = focused;
