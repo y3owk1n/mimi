@@ -139,6 +139,13 @@ func (e *Element) PID() (int, error) {
 	return pid, nil
 }
 
+// IsRealWindow reports whether the window is a top-level window the user
+// sees as standalone. A browser extension's popup is not, though
+// Accessibility calls it a window.
+func (e *Element) IsRealWindow() bool {
+	return e.ref != nil && C.MimiWindowIsReal(e.ref) != 0 //nolint:nlreturn // cgo call expansion
+}
+
 // Number returns the window server's number for the window, which is stable
 // for the window's lifetime and the same however the window was reached, or 0
 // when it has none.
@@ -432,8 +439,8 @@ func WindowList(onScreenOnly bool) []ListedWindow {
 }
 
 // ApplicationWindow is one of an application's windows as Accessibility
-// lists it: the element, its window server number, and whether its role is
-// a window rather than a sheet, a popover or the like.
+// lists it: the element, its window server number, and whether it is a real
+// top-level window rather than a sheet or a popup.
 type ApplicationWindow struct {
 	Element  *Element
 	Number   uint32
@@ -444,16 +451,16 @@ type ApplicationWindow struct {
 // trip into it, so a caller asks only when it must.
 func ApplicationWindowElements(pid int) []ApplicationWindow {
 	var (
-		count   C.int
-		numbers *C.uint
-		roles   *C.int
+		count       C.int
+		numbers     *C.uint
+		realWindows *C.int
 	)
 
 	elements := C.MimiCopyApplicationWindowElements(
 		C.int(pid),
 		&count,
 		&numbers,
-		&roles, //nolint:nlreturn
+		&realWindows, //nolint:nlreturn
 	)
 	if elements == nil {
 		return nil
@@ -462,7 +469,7 @@ func ApplicationWindowElements(pid int) []ApplicationWindow {
 	total := int(count)
 	refs := unsafe.Slice((*unsafe.Pointer)(unsafe.Pointer(elements)), total)
 	ids := unsafe.Slice(numbers, total)
-	isWindow := unsafe.Slice(roles, total)
+	isWindow := unsafe.Slice(realWindows, total)
 	windows := make([]ApplicationWindow, total)
 
 	for index := range windows {
@@ -475,7 +482,7 @@ func ApplicationWindowElements(pid int) []ApplicationWindow {
 
 	C.free(unsafe.Pointer(elements))
 	C.free(unsafe.Pointer(numbers))
-	C.free(unsafe.Pointer(roles))
+	C.free(unsafe.Pointer(realWindows))
 
 	return windows
 }

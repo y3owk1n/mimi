@@ -2,6 +2,7 @@
 
 #include "_cgo_export.h"
 #import "eventkinds.h"
+#import "mimi.h"
 #import "mimi_log.h"
 #import "workspace.h"
 
@@ -52,64 +53,13 @@
 
 static NSMutableDictionary<NSNumber *, AXEntry *> *gEntries;
 
-static bool axElementHasWindowRole(AXUIElementRef element) {
-	CFTypeRef roleRef = NULL;
-	bool isWindow = false;
-	if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, &roleRef) == kAXErrorSuccess && roleRef) {
-		if (CFGetTypeID(roleRef) == CFStringGetTypeID() &&
-		    CFStringCompare((CFStringRef)roleRef, CFSTR("AXWindow"), 0) == kCFCompareEqualTo) {
-			isWindow = true;
-		}
-		CFRelease(roleRef);
-	}
-
-	return isWindow;
-}
-
-// axElementIsRealWindow reports whether the element is a "true" top-level
-// window the user perceives as standalone: AXWindow role, the app element
-// as its AX parent, and a close button. Transient AXWindow-role elements
-// fail at least one check — Safari's tab-hover preview popup (subrole
-// AXUnknown) has the app as parent but no close button; tabs have a tab
-// group as parent; URL bar autocomplete has no close button. On
-// unreadable parent or close button we drop conservatively: a real
-// top-level window has both, so the unreadable cases are rare in
-// practice and not worth risking a false positive. Only valid while the
-// element is alive — at destroy time its attributes are unreadable (see
-// knownRealWindows).
-static bool axElementIsRealWindow(AXUIElementRef element, AXUIElementRef appElement) {
-	if (!axElementHasWindowRole(element)) {
-		return false;
-	}
-
-	CFTypeRef parentRef = NULL;
-	AXError parentErr = AXUIElementCopyAttributeValue(element, kAXParentAttribute, &parentRef);
-	if (parentErr != kAXErrorSuccess || !parentRef) {
-		return false;
-	}
-	bool parentIsApp = CFEqual(parentRef, appElement);
-	CFRelease(parentRef);
-	if (!parentIsApp) {
-		return false;
-	}
-
-	CFTypeRef closeButtonRef = NULL;
-	AXError closeErr = AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute, &closeButtonRef);
-	bool hasCloseButton = (closeErr == kAXErrorSuccess && closeButtonRef != NULL);
-	if (closeButtonRef) {
-		CFRelease(closeButtonRef);
-	}
-
-	return hasCloseButton;
-}
-
 // axRealWindowEntry returns the pid's AXEntry when the element passes the
 // full real-window check, and nil otherwise (untracked pid, or a transient
 // AXWindow-role element). Shared guard for the create, title-change, and
 // resize paths.
 static AXEntry *axRealWindowEntry(pid_t pid, AXUIElementRef element) {
 	AXEntry *entry = gEntries[@(pid)];
-	if (!entry || !axElementIsRealWindow(element, entry.appElement)) {
+	if (!entry || !MimiAXIsRealWindow(element, entry.appElement)) {
 		return nil;
 	}
 
@@ -204,7 +154,7 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// even though you perceive them as sub-windows of a
 			// larger Safari window.
 			//
-			// axElementIsRealWindow layers the signals that tell
+			// MimiAXIsRealWindow layers the signals that tell
 			// them apart (role, parent is the app element, has a
 			// close button).
 			//
@@ -402,7 +352,7 @@ static void axSeedKnownRealWindows(AXEntry *entry) {
 	CFIndex count = CFArrayGetCount(windows);
 	for (CFIndex i = 0; i < count; i++) {
 		AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
-		if (window && axElementIsRealWindow(window, entry.appElement)) {
+		if (window && MimiAXIsRealWindow(window, entry.appElement)) {
 			CFSetAddValue(entry.knownRealWindows, window);
 		}
 	}
