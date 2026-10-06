@@ -82,17 +82,34 @@ func handedBackAfterSwap(t *testing.T, front action.WindowEntry, space int) hand
 func TestEngine_Pass_NamesAWindowThatTookAnothersPlace(t *testing.T) {
 	t.Parallel()
 
-	got := handedBackAfterSwap(t, action.WindowEntry{
-		Number: 3, PID: 10, App: "A", Frame: action.Frame{Width: 500, Height: 500},
-	}, 0)
-
-	want := []tiling.Replacement{{Window: 3, Was: 1}}
-	if len(got.Replaced) != 1 || got.Replaced[0] != want[0] {
-		t.Fatalf("replaced = %+v, want %+v", got.Replaced, want)
+	tests := []struct {
+		name  string
+		frame action.Frame
+	}{
+		{name: "at the same frame", frame: action.Frame{Width: 500, Height: 500}},
+		{
+			name:  "a few points off, as Terminal's new tab opens",
+			frame: action.Frame{Y: 3, Width: 500, Height: 511},
+		},
 	}
 
-	if len(got.Unmanaged) != 1 || got.Unmanaged[0] != 3 {
-		t.Fatalf("unmanaged = %v, want [3]", got.Unmanaged)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			t.Parallel()
+
+			got := handedBackAfterSwap(t, action.WindowEntry{
+				Number: 3, PID: 10, App: "A", Frame: test.frame,
+			}, 0)
+
+			want := []tiling.Replacement{{Window: 3, Was: 1}}
+			if len(got.Replaced) != 1 || got.Replaced[0] != want[0] {
+				t.Fatalf("replaced = %+v, want %+v", got.Replaced, want)
+			}
+
+			if len(got.Unmanaged) != 1 || got.Unmanaged[0] != 3 {
+				t.Fatalf("unmanaged = %v, want [3]", got.Unmanaged)
+			}
+		})
 	}
 }
 

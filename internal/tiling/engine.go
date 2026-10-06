@@ -211,6 +211,13 @@ const defaultResizeGrace = time.Second
 // placement: macOS stores frames in whole points, and rounds.
 const samePoint = 1.0
 
+// tabSlack is how far a window may sit from the frame of the window it
+// replaces, on any edge, and still count as taking its place. A native tab
+// takes about 200 ms to settle into the group's frame after it opens.
+// Terminal sizes its windows in whole text lines, and when its tab bar
+// appears it gives the new tab a height up to 11 points off.
+const tabSlack = 32.0
+
 // Update applies the [tiling] section and the shell it runs under. It is
 // what the daemon calls at startup and on every reload.
 //
@@ -1330,11 +1337,11 @@ type seenWindow struct {
 // carryReplacedLocked names, in each input's Replaced, the windows that took
 // the place of one the last pass had on that display and space. Such a window
 // is new to this pass, belongs to the same application as the window that
-// went, and sits at its frame. A native tab coming to the front looks like
-// this, since each tab is a window of its own and the group shows one at a
-// time in one frame. It also moves what the engine holds for the window that
-// went to the one that came, so its stack and whether the layout manages it
-// carry over. The caller holds the lock.
+// went, and sits at its frame, within tabSlack. A native tab coming to the
+// front looks like this, since each tab is a window of its own and the group
+// shows one at a time in one frame. It also moves what the engine holds for
+// the window that went to the one that came, so its stack and whether the
+// layout manages it carry over. The caller holds the lock.
 func (e *Engine) carryReplacedLocked(inputs []Input) {
 	if e.seen == nil {
 		return
@@ -1377,7 +1384,8 @@ func (e *Engine) carryReplacedLocked(inputs []Input) {
 			}
 
 			match := slices.IndexFunc(gone, func(was uint32) bool {
-				return e.seen[was].pid == win.PID && sameFrame(e.lastFrame(was), win.Frame)
+				return e.seen[was].pid == win.PID &&
+					nearFrame(e.lastFrame(was), win.Frame, tabSlack)
 			})
 			if match < 0 {
 				continue
@@ -2274,10 +2282,15 @@ func (e *Engine) readDesktop() (action.WindowsInfo, []action.DisplayEntry, map[u
 }
 
 func sameFrame(first, second action.Frame) bool {
-	return math.Abs(first.X-second.X) <= samePoint &&
-		math.Abs(first.Y-second.Y) <= samePoint &&
-		math.Abs(first.Width-second.Width) <= samePoint &&
-		math.Abs(first.Height-second.Height) <= samePoint
+	return nearFrame(first, second, samePoint)
+}
+
+// nearFrame reports whether two frames differ by at most slack on every edge.
+func nearFrame(first, second action.Frame, slack float64) bool {
+	return math.Abs(first.X-second.X) <= slack &&
+		math.Abs(first.Y-second.Y) <= slack &&
+		math.Abs(first.Width-second.Width) <= slack &&
+		math.Abs(first.Height-second.Height) <= slack
 }
 
 // run puts fn through the serializer when there is one.
