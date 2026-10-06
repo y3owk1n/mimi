@@ -188,7 +188,13 @@ func (r *Router) handle(evt events.Event) {
 	case events.AppActivate, events.AppLaunch:
 		if evt.PID > 0 && r.ax.Enabled() {
 			if ok := r.ax.Install(evt.PID); ok {
-				r.cancelRetry(evt.PID)
+				// The application refused an earlier attempt, so it may
+				// have opened windows the observer missed. Canceling the
+				// retry also cancels the AXAttached it would have
+				// published, so publish it here.
+				if r.cancelRetry(evt.PID) {
+					r.announceAttached(evt, 0)
+				}
 			} else {
 				r.logger.Debugw("AX observer install failed, retrying",
 					"pid", evt.PID, "app", evt.AppName)
@@ -388,12 +394,20 @@ func (r *Router) retryInstall(pid int, retry *axRetry) {
 		return
 	}
 
+	r.announceAttached(retry.evt, retry.attempt+1)
+}
+
+// announceAttached publishes AXAttached for the application evt names, once
+// an install succeeds after the application refused an earlier one. attempt
+// is the number of the retry that succeeded, or 0 for an activation or
+// launch.
+func (r *Router) announceAttached(evt events.Event, attempt int) {
 	attached := events.Event{
 		ID:       uuid.NewString(),
 		Kind:     events.AXAttached,
-		AppName:  retry.evt.AppName,
-		BundleID: retry.evt.BundleID,
-		PID:      pid,
+		AppName:  evt.AppName,
+		BundleID: evt.BundleID,
+		PID:      evt.PID,
 		At:       time.Now(),
 	}
 	r.logger.Debugw("event",
@@ -401,20 +415,24 @@ func (r *Router) retryInstall(pid int, retry *axRetry) {
 		"app", attached.AppName,
 		"bundle", attached.BundleID,
 		"pid", attached.PID,
-		"attempt", retry.attempt+1,
+		"attempt", attempt,
 	)
 	r.bus.Publish(attached)
 }
 
-// cancelRetry drops any pending attempt for pid.
-func (r *Router) cancelRetry(pid int) {
+// cancelRetry drops any pending attempt for pid, and reports whether there
+// was one.
+func (r *Router) cancelRetry(pid int) bool {
 	r.mu.Lock()
 	defer r.mu.Unlock()
 
-	if retry, pending := r.retries[pid]; pending {
+	retry, pending := r.retries[pid]
+	if pending {
 		retry.timer.Stop()
 		delete(r.retries, pid)
 	}
+
+	return pending
 }
 
 // settledKind is the hookable kind a raw stream debounces into.
