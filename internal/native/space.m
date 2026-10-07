@@ -357,7 +357,6 @@ int MimiDisplaySpaceIsFullScreen(uint32_t did) {
 // gesture. These constants are not part of the public SDK and require
 // suppressing -Wdeprecated-declarations around the implementation.
 static const int kMimiCGSEventTypeField = 55;              // kCGSEventTypeField
-static const int kMimiCGSEventGesture = 29;                // kCGSEventGesture
 static const int kMimiCGSEventDockControl = 30;            // kCGSEventDockControl
 static const int kMimiCGEventGestureHIDType = 110;         // kCGEventGestureHIDType
 static const int kMimiIOHIDEventTypeDockSwipe = 23;        // kIOHIDEventTypeDockSwipe
@@ -485,8 +484,8 @@ static CGEventRef mimiCreateAugmentedDockSwipeEvent(int phase, double rawSign) {
 }
 
 /// Post one whole synthetic swipe as the began/changed/ended phase sequence a
-/// real trackpad produces. On macOS 27, every DockControl event also needs its
-/// companion gesture event or the Dock drops the entire swipe.
+/// real trackpad produces. macOS 27 rejects the abbreviated began/ended pair
+/// the legacy path gets away with.
 /// @return true if every phase was posted
 static bool mimiPostAugmentedDockSwipe(double sign) {
 	static const int phases[] = {kMimiCGSGesturePhaseBegan, kMimiCGSGesturePhaseChanged, kMimiCGSGesturePhaseEnded};
@@ -498,18 +497,8 @@ static bool mimiPostAugmentedDockSwipe(double sign) {
 			return false;
 		}
 
-		CGEventRef companion = CGEventCreate(NULL);
-		if (!companion) {
-			CFRelease(event);
-
-			return false;
-		}
-
-		CGEventSetIntegerValueField(companion, kMimiCGSEventTypeField, kMimiCGSEventGesture);
 		CGEventPost(kCGSessionEventTap, event);
 		CFRelease(event);
-		CGEventPost(kCGSessionEventTap, companion);
-		CFRelease(companion);
 	}
 
 	return true;
