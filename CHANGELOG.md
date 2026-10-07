@@ -1,5 +1,18 @@
 # Changelog
 
+## [0.20.3](https://github.com/y3owk1n/mimi/compare/v0.20.2...v0.20.3) (2026-10-07)
+
+
+### Bug Fixes
+
+* **border:** keep the focused border off a floating picture in picture window ([#359](https://github.com/y3owk1n/mimi/issues/359)) ([a70d6e1](https://github.com/y3owk1n/mimi/commit/a70d6e1f7ea5ab5b5d827bb10459b521be439701))
+* **observe:** tile the first window of an app that was slow to accept the observer ([#356](https://github.com/y3owk1n/mimi/issues/356)) ([72bea91](https://github.com/y3owk1n/mimi/commit/72bea915c29b64dd4ba041c55408e3c9cf094e6e))
+* **space:** switch spaces on macOS 27 when natural scrolling is off ([#354](https://github.com/y3owk1n/mimi/issues/354)) ([367fe06](https://github.com/y3owk1n/mimi/commit/367fe06042165db901faa02d1b2439232ba3c509))
+* **tiling:** forget a window's minimum size once it takes a smaller frame ([#351](https://github.com/y3owk1n/mimi/issues/351)) ([4bf00ef](https://github.com/y3owk1n/mimi/commit/4bf00efc32e58095c3b5746bafb544a24e656696))
+* **tiling:** keep a native tab group in place when its tabs switch ([#355](https://github.com/y3owk1n/mimi/issues/355)) ([c0672c6](https://github.com/y3owk1n/mimi/commit/c0672c6a33d7ba3c3f304aad972c05f4e9289536))
+* **tiling:** leave browser extension popups untiled ([#358](https://github.com/y3owk1n/mimi/issues/358)) ([c024b84](https://github.com/y3owk1n/mimi/commit/c024b840eb3e861e1932eaae365b1ede15ec3533))
+* **tiling:** recognize a new native tab while its frame is still settling ([#357](https://github.com/y3owk1n/mimi/issues/357)) ([5d51a7f](https://github.com/y3owk1n/mimi/commit/5d51a7f04093cead2bb589ea227adbb0f99ea612))
+
 ## [0.20.2](https://github.com/y3owk1n/mimi/compare/v0.20.1...v0.20.2) (2026-10-03)
 
 
