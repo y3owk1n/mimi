@@ -2,6 +2,7 @@
 
 #include "_cgo_export.h"
 #import "eventkinds.h"
+#import "mimi.h"
 #import "mimi_log.h"
 #import "workspace.h"
 
@@ -31,6 +32,11 @@
 // pointer in both callbacks). Set membership survives even when
 // the element's attributes no longer do.
 @property CFMutableSetRef knownRealWindows;
+// The window the last window_focus was dispatched for, retained. A focus
+// change within an application posts both kAXFocusedWindowChangedNotification
+// and kAXMainWindowChangedNotification for one window, and this lets the
+// second of the pair through only when it names another window.
+@property AXUIElementRef lastFocused;
 @end
 @implementation AXEntry
 
@@ -38,62 +44,14 @@
 	if (_knownRealWindows) {
 		CFRelease(_knownRealWindows);
 	}
+	if (_lastFocused) {
+		CFRelease(_lastFocused);
+	}
 }
 
 @end
 
 static NSMutableDictionary<NSNumber *, AXEntry *> *gEntries;
-
-static bool axElementHasWindowRole(AXUIElementRef element) {
-	CFTypeRef roleRef = NULL;
-	bool isWindow = false;
-	if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, &roleRef) == kAXErrorSuccess && roleRef) {
-		if (CFGetTypeID(roleRef) == CFStringGetTypeID() &&
-		    CFStringCompare((CFStringRef)roleRef, CFSTR("AXWindow"), 0) == kCFCompareEqualTo) {
-			isWindow = true;
-		}
-		CFRelease(roleRef);
-	}
-
-	return isWindow;
-}
-
-// axElementIsRealWindow reports whether the element is a "true" top-level
-// window the user perceives as standalone: AXWindow role, the app element
-// as its AX parent, and a close button. Transient AXWindow-role elements
-// fail at least one check — Safari's tab-hover preview popup (subrole
-// AXUnknown) has the app as parent but no close button; tabs have a tab
-// group as parent; URL bar autocomplete has no close button. On
-// unreadable parent or close button we drop conservatively: a real
-// top-level window has both, so the unreadable cases are rare in
-// practice and not worth risking a false positive. Only valid while the
-// element is alive — at destroy time its attributes are unreadable (see
-// knownRealWindows).
-static bool axElementIsRealWindow(AXUIElementRef element, AXUIElementRef appElement) {
-	if (!axElementHasWindowRole(element)) {
-		return false;
-	}
-
-	CFTypeRef parentRef = NULL;
-	AXError parentErr = AXUIElementCopyAttributeValue(element, kAXParentAttribute, &parentRef);
-	if (parentErr != kAXErrorSuccess || !parentRef) {
-		return false;
-	}
-	bool parentIsApp = CFEqual(parentRef, appElement);
-	CFRelease(parentRef);
-	if (!parentIsApp) {
-		return false;
-	}
-
-	CFTypeRef closeButtonRef = NULL;
-	AXError closeErr = AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute, &closeButtonRef);
-	bool hasCloseButton = (closeErr == kAXErrorSuccess && closeButtonRef != NULL);
-	if (closeButtonRef) {
-		CFRelease(closeButtonRef);
-	}
-
-	return hasCloseButton;
-}
 
 // axRealWindowEntry returns the pid's AXEntry when the element passes the
 // full real-window check, and nil otherwise (untracked pid, or a transient
@@ -101,7 +59,7 @@ static bool axElementIsRealWindow(AXUIElementRef element, AXUIElementRef appElem
 // resize paths.
 static AXEntry *axRealWindowEntry(pid_t pid, AXUIElementRef element) {
 	AXEntry *entry = gEntries[@(pid)];
-	if (!entry || !axElementIsRealWindow(element, entry.appElement)) {
+	if (!entry || !MimiAXIsRealWindow(element, entry.appElement)) {
 		return nil;
 	}
 
@@ -166,6 +124,19 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, hasCenter, centerX, centerY);
 }
 
+// axDispatchFocus dispatches window_focus for element unless the last one
+// dispatched for this application named the same window.
+static void axDispatchFocus(AXEntry *entry, pid_t pid, AXUIElementRef element) {
+	if (entry.lastFocused) {
+		if (CFEqual(entry.lastFocused, element)) {
+			return;
+		}
+		CFRelease(entry.lastFocused);
+	}
+	entry.lastFocused = (AXUIElementRef)CFRetain(element);
+	dispatchAXEvent(MIMI_KIND_WINDOW_FOCUS, pid, element);
+}
+
 static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringRef notification, void *refcon) {
 	@autoreleasepool {
 		pid_t pid = (pid_t)(intptr_t)refcon;
@@ -183,7 +154,7 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// even though you perceive them as sub-windows of a
 			// larger Safari window.
 			//
-			// axElementIsRealWindow layers the signals that tell
+			// MimiAXIsRealWindow layers the signals that tell
 			// them apart (role, parent is the app element, has a
 			// close button).
 			//
@@ -266,7 +237,35 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// Delivered on the app element directly when the app's
 			// focused window attribute changes. Not subject to
 			// descendant fan-out for unrelated sub-views.
-			dispatchAXEvent(MIMI_KIND_WINDOW_FOCUS, pid, element);
+			AXEntry *entry = gEntries[@(pid)];
+			if (!entry) {
+				return;
+			}
+			axDispatchFocus(entry, pid, element);
+
+			return;
+		}
+
+		if (CFEqual(notification, kAXMainWindowChangedNotification)) {
+			// Switching native tabs in the frontmost application, or
+			// closing the tab in front, posts only this notification.
+			// Each tab is a window of its own, and the focused window
+			// attribute does not report the change. An ordinary focus
+			// change also posts it, right after the focused window
+			// notification, and axDispatchFocus drops that repeat.
+			AXEntry *entry = axRealWindowEntry(pid, element);
+			if (!entry) {
+				return;
+			}
+			// The seed leaves out a tab that was hidden when the
+			// observer attached, since the application lists only the
+			// tab in front, and bringing that tab to the front posts no
+			// creation. Recording it here lets closing it fire
+			// window_closed.
+			if (entry.knownRealWindows) {
+				CFSetAddValue(entry.knownRealWindows, element);
+			}
+			axDispatchFocus(entry, pid, element);
 
 			return;
 		}
@@ -353,7 +352,7 @@ static void axSeedKnownRealWindows(AXEntry *entry) {
 	CFIndex count = CFArrayGetCount(windows);
 	for (CFIndex i = 0; i < count; i++) {
 		AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
-		if (window && axElementIsRealWindow(window, entry.appElement)) {
+		if (window && MimiAXIsRealWindow(window, entry.appElement)) {
 			CFSetAddValue(entry.knownRealWindows, window);
 		}
 	}
@@ -391,7 +390,7 @@ static bool axInstallBlock(int pid) {
 	CFStringRef notifications[] = {
 	    kAXWindowCreatedNotification,      kAXUIElementDestroyedNotification,   kAXFocusedWindowChangedNotification,
 	    kAXTitleChangedNotification,       kAXWindowResizedNotification,        kAXMovedNotification,
-	    kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification,
+	    kAXWindowMiniaturizedNotification, kAXWindowDeminiaturizedNotification, kAXMainWindowChangedNotification,
 	};
 	size_t notifCount = sizeof(notifications) / sizeof(notifications[0]);
 	for (size_t i = 0; i < notifCount; i++) {

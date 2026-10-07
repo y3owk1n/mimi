@@ -207,6 +207,7 @@ failure in a row. The shipped layouts handle both modes through `serve()` in
 | `state` | What you printed last time for this display and space, or `null`. |
 | `unmanaged` | The windows on this display you last said you were not managing, by number. Absent when there are none. mimi hands the set back so that a layout that keeps its floats outside `state`, or one restarted mid-session, can pick it up again. |
 | `stacks` | The stacks you last named on this display, handed back for the same reason. Absent when there are none. |
+| `replaced` | The windows that took another's place since the last run, as `[{"window": n, "was": n}]`. Absent when there are none. A native tab is a window of its own, so bringing another tab to the front, opening one, or closing the one in front puts a new window number where the old one was. Rename `was` to `window` in your state and the tab group keeps its place. `replaced(inp)` in `rules.py` returns the pairs as a dict, and the shipped layouts apply it. |
 
 `displays` and `windows` hold the same entries that `mimi query displays` and
 `mimi query windows` print, so you can get real data with one command.
@@ -323,6 +324,9 @@ The shipped layouts import these from `rules.py`:
   returns the display's visible frame inset by the gap and by `PADDING`.
 - **`command(inp, "name")`** returns the args when the event is that command,
   else `None`.
+- **`replaced(inp)`** returns `{was: window}` for the windows that took
+  another's place, such as a native tab brought to the front. Rename them in
+  your state before reading it.
 - **`maximised(inp, state, frames, area)`** applies the temporary maximise.
   Call it last, on the frames the layout computed.
 - **`write_output(frames, state, focus=None, unmanaged=None, stacks=None)`**

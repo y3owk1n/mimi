@@ -195,6 +195,16 @@ def unmanaged_of(inp, state=None):
     return sorted(inp.get("unmanaged", []))
 
 
+def replaced(inp):
+    """{was: window} for every window that took another's place since the
+    last run. A native tab is a window of its own, so bringing another tab
+    to the front, opening one, or closing the one in front shows a new
+    window number where the old one was. Rename `was` to `window` wherever
+    the state keeps it, and the tab group keeps its place. A layout that
+    skips this sees one window close and another open."""
+    return {r["was"]: r["window"] for r in inp.get("replaced", [])}
+
+
 def write_output(frames, state, focus=None, unmanaged=None, stacks=None, target=None):
     """Print the layout output: frames in whole points, the state to get
     back next time, the window to focus once the frames are applied, when
@@ -252,6 +262,7 @@ def maximised(inp, state, frames, area):
         inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None
     )
     current = state.get("maximised")
+    current = replaced(inp).get(current, current)
 
     if command(inp, "togglemax") is not None and focused in numbers:
         current = None if current == focused else focused

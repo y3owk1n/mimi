@@ -70,3 +70,54 @@ int MimiAreElementsEqual(void *element1, void *element2) {
 
 	return CFEqual((AXUIElementRef)element1, (AXUIElementRef)element2) ? 1 : 0;
 }
+
+static bool axElementHasWindowRole(AXUIElementRef element) {
+	CFTypeRef roleRef = NULL;
+	bool isWindow = false;
+	if (AXUIElementCopyAttributeValue(element, kAXRoleAttribute, &roleRef) == kAXErrorSuccess && roleRef) {
+		if (CFGetTypeID(roleRef) == CFStringGetTypeID() &&
+		    CFStringCompare((CFStringRef)roleRef, CFSTR("AXWindow"), 0) == kCFCompareEqualTo) {
+			isWindow = true;
+		}
+		CFRelease(roleRef);
+	}
+
+	return isWindow;
+}
+
+// MimiAXIsRealWindow reports whether the element is a top-level window the
+// user sees as standalone. It needs the AXWindow role, the app element as
+// its AX parent, and a close button. Transient AXWindow-role elements fail
+// at least one check. Safari's tab-hover preview (subrole AXUnknown) and
+// Chromium's extension popup have the app as parent but no close button.
+// Tabs have a tab group as parent. URL bar autocomplete has no close button.
+// An unreadable parent or close button fails the check, because a real
+// top-level window has both and a false positive costs more than a rare
+// miss. The answer holds only while the element is alive, since its
+// attributes are unreadable at destroy time (see knownRealWindows in
+// axobserver.m).
+bool MimiAXIsRealWindow(AXUIElementRef element, AXUIElementRef appElement) {
+	if (!axElementHasWindowRole(element)) {
+		return false;
+	}
+
+	CFTypeRef parentRef = NULL;
+	AXError parentErr = AXUIElementCopyAttributeValue(element, kAXParentAttribute, &parentRef);
+	if (parentErr != kAXErrorSuccess || !parentRef) {
+		return false;
+	}
+	bool parentIsApp = CFEqual(parentRef, appElement);
+	CFRelease(parentRef);
+	if (!parentIsApp) {
+		return false;
+	}
+
+	CFTypeRef closeButtonRef = NULL;
+	AXError closeErr = AXUIElementCopyAttributeValue(element, kAXCloseButtonAttribute, &closeButtonRef);
+	bool hasCloseButton = (closeErr == kAXErrorSuccess && closeButtonRef != NULL);
+	if (closeButtonRef) {
+		CFRelease(closeButtonRef);
+	}
+
+	return hasCloseButton;
+}

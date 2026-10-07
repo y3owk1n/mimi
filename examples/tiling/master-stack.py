@@ -24,7 +24,7 @@ Usage: master-stack.py [ratio]     (the gap is tiling.gap, else the macOS tiled-
 
 import sys
 
-from rules import area, clamp, command, gap, maximised, serve, unmanaged_of, write_output
+from rules import area, clamp, command, gap, maximised, replaced, serve, unmanaged_of, write_output
 
 RATIO = float(sys.argv[1]) if len(sys.argv) > 1 else 0.6
 
@@ -46,6 +46,7 @@ def main(inp):
     # The master: "swap" makes the focused window the master; otherwise the
     # remembered one while it is still here, else the focused, else the first.
     master = state.get("master")
+    master = replaced(inp).get(master, master)
     if command(inp, "swap") is not None and focused is not None:
         master = focused
     elif master not in numbers:

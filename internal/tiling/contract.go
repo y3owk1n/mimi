@@ -70,6 +70,13 @@ type Input struct {
 	// other than state, can pick it up again instead of disagreeing with
 	// the engine about which windows are its own.
 	Unmanaged []uint32 `json:"unmanaged,omitempty"`
+	// Replaced is the windows on this display that took the place of one
+	// the last pass had here. A native tab is a window of its own, so
+	// bringing another tab to the front, opening one, or closing the one in
+	// front swaps the window number at the tab group's frame. A layout that
+	// renames Was to Window in its state keeps the group where it was. A
+	// layout that does not sees a window close and another open.
+	Replaced []Replacement `json:"replaced,omitempty"`
 
 	// spaceID is which space Space names, as the window server identifies
 	// it, and it is what the engine files this input's state under. It is
@@ -78,6 +85,13 @@ type Input struct {
 	// user reorders their spaces in Mission Control. It is 0 when the space
 	// could not be resolved, and the engine then keeps no state at all.
 	spaceID uint64
+}
+
+// Replacement is a window that took another's place. Window is now where Was
+// was on the last pass, from the same application, on the same space.
+type Replacement struct {
+	Window uint32 `json:"window"`
+	Was    uint32 `json:"was"`
 }
 
 // Output is what the layout prints back: the frames to apply, in the shape

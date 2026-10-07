@@ -10,6 +10,7 @@ void *MimiGetFocusedApplication(void);
 void MimiReleaseElement(void *element);
 void MimiRetainElement(void *element);
 int MimiAreElementsEqual(void *element1, void *element2);
+bool MimiAXIsRealWindow(AXUIElementRef element, AXUIElementRef appElement);
 
 #pragma mark - Window Functions
 
@@ -22,6 +23,8 @@ int MimiFrontmostPid(void);
 int MimiActivateWindow(void *window);
 /// Return the process identifier of the application owning the window, or 0.
 int MimiGetWindowPID(void *window);
+/// Whether the window is a real top-level window, by MimiAXIsRealWindow.
+int MimiWindowIsReal(void *window);
 /// Return the window server's number for the window, or 0 when it has none.
 uint32_t MimiGetWindowNumber(void *window);
 /// Copy the window's title as a UTF-8 string the caller frees, or NULL when
@@ -113,8 +116,9 @@ int MimiSetWindowPosition(void *window, double x, double y);
 double *MimiCopyWindowList(int onScreenOnly, int *count, char ***names);
 
 /// An application's windows as Accessibility lists them, each with its
-/// window server number and whether its role is a window, for the ones that
-/// have a number. The caller releases each element and frees the arrays.
+/// window server number and whether it is a real top-level window, for the
+/// ones that have a number. The caller releases each element and frees the
+/// arrays.
 void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **numbers, int **windows);
 
 #pragma mark - Tiling Margins

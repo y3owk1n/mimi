@@ -57,8 +57,8 @@ type windowEntry struct {
 	id      WindowID
 	element *native.Element
 	pid     int
-	// isWindow is whether Accessibility calls it a window, rather than a
-	// sheet, a popover or the like, which never changes.
+	// isWindow is whether it is a real top-level window rather than a sheet
+	// or a popup. It never changes.
 	isWindow bool
 }
 
@@ -211,7 +211,12 @@ func (d *nativeDesktop) FrontmostWindow() (Window, error) {
 
 	d.lastID++
 	d.windows[d.lastID] = element
-	d.entries[number] = &windowEntry{id: d.lastID, element: element, pid: pid, isWindow: true}
+	d.entries[number] = &windowEntry{
+		id:       d.lastID,
+		element:  element,
+		pid:      pid,
+		isWindow: element.IsRealWindow(),
+	}
 
 	return Window{ID: d.lastID, PID: pid, Number: number}, nil
 }

@@ -24,7 +24,7 @@ raising anything. `mimi query windows` reports each window's `order`, which
 is how this layout knows which member is really on top.
 """
 
-from rules import area, command, gap, maximised, serve, shown, unmanaged_of, write_output
+from rules import area, command, gap, maximised, replaced, serve, shown, unmanaged_of, write_output
 
 
 def columns_of(state, numbers):
@@ -70,6 +70,11 @@ def find(columns, number):
 def main(inp):
     GAP = gap(inp)
     state = inp.get("state") or {}
+    # A window that took another's place, such as a native tab brought to the
+    # front, goes where that one was.
+    renames = replaced(inp)
+    state["columns"] = [[renames.get(n, n) for n in column] for column in state.get("columns", [])]
+    state["seen"] = [renames.get(n, n) for n in state.get("seen", [])]
     box = area(inp, GAP, state)
     numbers = [w["number"] for w in inp["windows"]]
     focused = inp["windows"][inp["focused"]]["number"] if inp["focused"] >= 0 else None

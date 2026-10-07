@@ -484,6 +484,22 @@ int MimiGetWindowPID(void *window) {
 	return (int)pid;
 }
 
+int MimiWindowIsReal(void *window) {
+	pid_t pid = 0;
+	if (!window || AXUIElementGetPid((AXUIElementRef)window, &pid) != kAXErrorSuccess) {
+		return 0;
+	}
+
+	AXUIElementRef appElement = AXUIElementCreateApplication(pid);
+	if (!appElement) {
+		return 0;
+	}
+	bool real = MimiAXIsRealWindow((AXUIElementRef)window, appElement);
+	CFRelease(appElement);
+
+	return real ? 1 : 0;
+}
+
 double *MimiGetWindowFrame(void *window) {
 	if (!window)
 		return NULL;
@@ -610,19 +626,20 @@ void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **num
 		}
 		CFTypeRef value = NULL;
 		AXError error = AXUIElementCopyAttributeValue(appElement, kAXWindowsAttribute, &value);
-		CFRelease(appElement);
 		if (error != kAXErrorSuccess || !value) {
+			CFRelease(appElement);
 			return NULL;
 		}
 		if (CFGetTypeID(value) != CFArrayGetTypeID()) {
 			CFRelease(value);
+			CFRelease(appElement);
 			return NULL;
 		}
 		CFArrayRef list = (CFArrayRef)value;
 		CFIndex total = CFArrayGetCount(list);
 		void **elements = calloc((size_t)total + 1, sizeof(void *));
 		unsigned int *ids = calloc((size_t)total + 1, sizeof(unsigned int));
-		int *roles = calloc((size_t)total + 1, sizeof(int));
+		int *realWindows = calloc((size_t)total + 1, sizeof(int));
 		int kept = 0;
 		for (CFIndex i = 0; i < total; i++) {
 			AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(list, i);
@@ -633,22 +650,16 @@ void **MimiCopyApplicationWindowElements(int pid, int *count, unsigned int **num
 			if (_AXUIElementGetWindow(window, &number) != kAXErrorSuccess || number == 0) {
 				continue;
 			}
-			CFTypeRef role = NULL;
-			int isWindow = 0;
-			if (AXUIElementCopyAttributeValue(window, kAXRoleAttribute, &role) == kAXErrorSuccess && role) {
-				isWindow = CFGetTypeID(role) == CFStringGetTypeID() &&
-				           CFStringCompare((CFStringRef)role, CFSTR("AXWindow"), 0) == kCFCompareEqualTo;
-				CFRelease(role);
-			}
 			elements[kept] = (void *)CFRetain(window);
 			ids[kept] = number;
-			roles[kept] = isWindow;
+			realWindows[kept] = MimiAXIsRealWindow(window, appElement) ? 1 : 0;
 			kept++;
 		}
 		CFRelease(value);
+		CFRelease(appElement);
 		*count = kept;
 		*numbers = ids;
-		*windows = roles;
+		*windows = realWindows;
 		return elements;
 	}
 }

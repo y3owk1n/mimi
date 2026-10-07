@@ -116,6 +116,29 @@ func TestHandle_AppLaunch_RetriesARefusedInstallAndAnnouncesIt(t *testing.T) {
 	}
 }
 
+// TestHandle_AppLaunch_AnnouncesAnInstallThatAnActivationRefused pins the
+// order a launch arrives in. The activation comes first, while the
+// application still refuses, and the launch a moment later gets through. The
+// launch cancels the retry, so it has to announce the attach itself.
+// Otherwise the tiling engine never lays out the window the application
+// opened in between.
+func TestHandle_AppLaunch_AnnouncesAnInstallThatAnActivationRefused(t *testing.T) {
+	router, sub, _ := newRetryTestRouter(t, 1)
+	router.retryDelays = []time.Duration{time.Hour}
+
+	router.handle(events.Event{Kind: events.AppActivate, PID: 79, AppName: testAppName})
+	router.handle(events.Event{Kind: events.AppLaunch, PID: 79, AppName: testAppName})
+
+	attached, ok := drain(sub, testFireTimeout)
+	if !ok {
+		t.Fatalf("no %s after the launch got through", events.AXAttached)
+	}
+
+	if attached.PID != 79 {
+		t.Fatalf("attached pid = %d, want 79", attached.PID)
+	}
+}
+
 func TestHandle_AppQuit_CancelsAPendingRetry(t *testing.T) {
 	router, sub, fake := newRetryTestRouter(t, 100)
 
