@@ -48,10 +48,6 @@ enum {
 	kMimiWindowServerRemoved = 1326,
 };
 
-// The level of the window the Dock lays over each display while Mission
-// Control or App Expose is up.
-static const int kMimiDockOverlayLevel = 20;
-
 // The level of a window that floats over the application's others, such as
 // a browser's picture in picture video.
 static const int kMimiFloatingLevel = 3;
@@ -200,28 +196,6 @@ static void mimiOrderBeside(MimiBorder *border, uint32_t number) {
 	}
 	SLSTransactionCommit(transaction, 1);
 	CFRelease(transaction);
-}
-
-// Whether Mission Control or App Expose is up: the Dock then has a window
-// over a whole display. They lay the windows out without their borders, so
-// the borders come down for them.
-static BOOL mimiMissionControlUp(void) {
-	NSArray *list = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
-	for (NSDictionary *info in list) {
-		if ([info[(id)kCGWindowLayer] intValue] != kMimiDockOverlayLevel)
-			continue;
-		if (![info[(id)kCGWindowOwnerName] isEqualToString:@"Dock"])
-			continue;
-		CGRect bounds;
-		if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds))
-			continue;
-		CGDirectDisplayID display;
-		uint32_t count = 0;
-		if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count &&
-		    CGRectEqualToRect(bounds, CGDisplayBounds(display)))
-			return YES;
-	}
-	return NO;
 }
 
 // Move every edge of border by offset, in one transaction.
@@ -668,9 +642,10 @@ static void mimiReorder(uint32_t number) {
 static void mimiSyncOnMain(BOOL refocus);
 
 // Take the borders down while Mission Control is up and bring them back
-// after. The Dock's windows come and go in a burst, which runs one check.
-// The Dock takes its overlay down after the burst, so while the borders are
-// down the check runs again a little later.
+// after. Mission Control's windows come and go in a burst, which runs one
+// check. WindowManager keeps its window over each display up through the
+// closing animation, so while the borders are down the check runs again
+// every 200 ms.
 static atomic_int gCheckQueued;
 static const int64_t kMimiMissionControlRecheck = 200 * NSEC_PER_MSEC;
 
@@ -681,7 +656,7 @@ static void mimiCheckMissionControl(void) {
 		atomic_store(&gCheckQueued, 0);
 		if (!gEnabled)
 			return;
-		BOOL up = mimiMissionControlUp();
+		BOOL up = MimiIsMissionControlActive();
 		if (gHidden && !up) {
 			mimiSyncOnMain(NO);
 			return;
@@ -773,7 +748,7 @@ static void mimiFollowBordered(void) {
 static void mimiSyncOnMain(BOOL refocus) {
 	if (!gEnabled)
 		return;
-	if (gHidden && mimiMissionControlUp())
+	if (gHidden && MimiIsMissionControlActive())
 		return;
 	BOOL reshow = gHidden;
 	gHidden = NO;

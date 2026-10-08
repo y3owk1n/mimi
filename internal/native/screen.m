@@ -7,64 +7,32 @@
 
 #import <Cocoa/Cocoa.h>
 
-static bool detectMissionControlActive(void) {
+// The level of the window WindowManager lays over each display while Mission
+// Control or App Expose is up. The Dock's own window over the display stays
+// on the screen whenever the Dock is shown, so it cannot tell whether
+// Mission Control is open.
+static const int kMimiExposeShieldLevel = 19;
+
+bool MimiIsMissionControlActive(void) {
 	@autoreleasepool {
-		CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionAll, kCGNullWindowID);
-		if (!windowList) {
-			return false;
+		NSArray *list = CFBridgingRelease(CGWindowListCopyWindowInfo(kCGWindowListOptionOnScreenOnly, kCGNullWindowID));
+		for (NSDictionary *info in list) {
+			if ([info[(id)kCGWindowLayer] intValue] != kMimiExposeShieldLevel)
+				continue;
+			if (![info[(id)kCGWindowOwnerName] isEqualToString:@"WindowManager"])
+				continue;
+			CGRect bounds;
+			if (!CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &bounds))
+				continue;
+			CGDirectDisplayID display;
+			uint32_t count = 0;
+			if (CGGetDisplaysWithRect(bounds, 1, &display, &count) == kCGErrorSuccess && count &&
+			    CGRectEqualToRect(bounds, CGDisplayBounds(display)))
+				return true;
 		}
-
-		CFIndex count = CFArrayGetCount(windowList);
-		int dockHighLayerWindows = 0;
-		int dockOverlayWindows = 0;
-
-		for (CFIndex i = 0; i < count; i++) {
-			CFDictionaryRef windowInfo = (CFDictionaryRef)CFArrayGetValueAtIndex(windowList, i);
-			if (!windowInfo)
-				continue;
-
-			CFStringRef ownerName = (CFStringRef)CFDictionaryGetValue(windowInfo, kCGWindowOwnerName);
-			if (!ownerName)
-				continue;
-
-			if (CFStringCompare(ownerName, CFSTR("Mission Control"), 0) == kCFCompareEqualTo) {
-				CFRelease(windowList);
-				return YES;
-			}
-
-			if (CFStringCompare(ownerName, CFSTR("Dock"), 0) != kCFCompareEqualTo)
-				continue;
-
-			CFNumberRef windowLayer = (CFNumberRef)CFDictionaryGetValue(windowInfo, kCGWindowLayer);
-			if (!windowLayer)
-				continue;
-
-			int layer = 0;
-			CFNumberGetValue(windowLayer, kCFNumberIntType, &layer);
-
-			if (layer >= 18 && layer <= 20) {
-				dockHighLayerWindows++;
-				if (dockHighLayerWindows >= 2) {
-					CFRelease(windowList);
-					return YES;
-				}
-			}
-
-			if (layer >= 14 && layer <= 25) {
-				dockOverlayWindows++;
-				if (dockOverlayWindows >= 3) {
-					CFRelease(windowList);
-					return YES;
-				}
-			}
-		}
-
-		CFRelease(windowList);
-		return NO;
+		return false;
 	}
 }
-
-bool MimiIsMissionControlActive(void) { return detectMissionControlActive(); }
 
 double *MimiGetScreenFrameForPoint(double x, double y) {
 	@autoreleasepool {
