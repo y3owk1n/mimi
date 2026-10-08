@@ -620,7 +620,7 @@ func TiledWindowMarginSize() float64 {
 	return float64(C.MimiTiledWindowMarginSize())
 }
 
-// MissionControlActive reports whether Mission Control is currently open.
+// MissionControlActive reports whether Mission Control or App Expose is open.
 func MissionControlActive() bool {
 	return bool(C.MimiIsMissionControlActive())
 }

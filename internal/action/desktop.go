@@ -184,8 +184,8 @@ type Desktop interface {
 	// application with no window opens one and comes to the front.
 	ReopenApplication(pid int) error
 
-	// MissionControlActive reports whether Mission Control is open, which is
-	// the state the space actions refuse to run in.
+	// MissionControlActive reports whether Mission Control or App Expose is
+	// open, which is the state the space actions refuse to run in.
 	MissionControlActive() bool
 
 	// SpaceCount is how many Mission Control spaces exist, or 0 when they

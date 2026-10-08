@@ -13,7 +13,7 @@ no-op. Then:
 1. Rebuild after pulling changes, if you run a source build.
 2. Grant Accessibility to the exact binary you run (`bin/mimi` or `Mimi.app`).
 3. Check the space index. Spaces are 1-based in Mission Control order (`mimi action space 1` is the first space).
-4. Close Mission Control. Both actions refuse to run while Mission Control is open.
+4. Close Mission Control or App Expose. Both actions refuse to run while either is open.
 
 ### Space switching on macOS 27 and later
 

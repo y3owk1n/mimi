@@ -473,7 +473,7 @@ func rectOf(frame native.Frame) geometry.Rect {
 	return geometry.Rect{X: frame.X, Y: frame.Y, W: frame.W, H: frame.H}
 }
 
-// MissionControlActive reports whether Mission Control is open.
+// MissionControlActive reports whether Mission Control or App Expose is open.
 func (d *nativeDesktop) MissionControlActive() bool {
 	return native.MissionControlActive()
 }

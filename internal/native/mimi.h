@@ -91,6 +91,7 @@ int MimiReopenApplication(int pid);
 /// Doubles per display in MimiCopyScreenFrames' result.
 #define MIMI_SCREEN_DOUBLES 9
 
+/// Whether Mission Control or App Expose is up on any display.
 bool MimiIsMissionControlActive(void);
 double *MimiGetScreenFrameForPoint(double x, double y);
 double *MimiGetScreenVisibleFrameForPoint(double x, double y);
