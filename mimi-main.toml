@@ -1,0 +1,68 @@
+# The manifest `oku add github:y3owk1n/mimi#mimi-main` reads, which builds the
+# newest commit of main. It installs the same program as oku.pkg.toml, so a
+# user installs one of the two.
+[package]
+name = "mimi"
+description = "Window and space utility for macOS, built from the main branch"
+homepage = "https://github.com/y3owk1n/mimi"
+license = "MIT"
+
+# The version is <date>-<commit>, such as 2026.10.09-a73243f, and {{tag}} is
+# the branch.
+[version]
+from = "git-branch"
+repo = "https://github.com/y3owk1n/mimi"
+branch = "main"
+
+# A branch always builds, so it needs the Xcode command line tools.
+[host]
+xcode-clt = { path = "/Library/Developer/CommandLineTools/usr/bin/clang", install = "xcode-select --install", when = { os = "darwin" } }
+
+# This is the build of oku.pkg.toml, except that it stamps the date-commit
+# version, since on a branch {{tag}} is only the branch's name. Change both
+# together.
+[build]
+needs = ["git"]
+deps = [{ ref = "./.oku/go.toml", version = "~1.26" }]
+source = { git = "https://github.com/y3owk1n/mimi", tag = "{{tag}}" }
+when = { os = "darwin" }
+
+[[build.step]]
+vendor = "go"
+
+[[build.step]]
+run = """
+set -eu
+c=github.com/y3owk1n/mimi/cmd/mimi/cmd
+go build -mod=vendor -trimpath -ldflags="-s -w -X $c.Version={{version}} -X $c.GitCommit=$(git rev-parse --short HEAD) -X $c.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o mimi ./cmd/mimi
+mkdir -p man
+go run -mod=vendor ./cmd/genman man
+"""
+shell = "sh"
+env = { CGO_ENABLED = "1", GOFLAGS = "-buildvcs=false", MACOSX_DEPLOYMENT_TARGET = "14.0" }
+
+# This step assembles the bundle as publish-artifacts.yml does and signs it ad
+# hoc. The plist versions take numbers and dots only, so they drop the
+# -<commit> suffix.
+[[build.step]]
+run = """
+set -eu
+v={{version}}
+app=Mimi.app
+mkdir -p $app/Contents/MacOS $app/Contents/Resources
+cp mimi $app/Contents/MacOS/mimi
+cp resources/Mimi.entitlements $app/Contents/Resources/
+sed -e "s/BUNDLE_VERSION/${v%%-*}/g" -e "s/SHORT_VERSION/${v%%-*}/g" -e "s/BUILD_ID/$v/g" resources/Info.plist.template > $app/Contents/Info.plist
+codesign --force --deep --sign - --entitlements resources/Mimi.entitlements --options runtime $app
+"""
+shell = "sh"
+
+[[build.step]]
+install = { bin = ["Mimi.app/Contents/MacOS/mimi"], app = ["Mimi.app"], man = ["man/*.1"], completions = { generate = "./mimi completion {{shell}}", name = "mimi" } }
+
+# The service replaces `mimi services install`, so a user runs one of them.
+[[service]]
+name = "mimi"
+command = "bin/mimi"
+args = ["start"]
+restart = "always"

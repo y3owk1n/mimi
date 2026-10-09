@@ -9,7 +9,8 @@ This guide covers the ways to install Mimi on macOS.
 - [Requirements](#requirements)
 - [Method 1: Homebrew (recommended)](#method-1-homebrew-recommended)
 - [Method 2: Nix flake](#method-2-nix-flake)
-- [Method 3: From source](#method-3-from-source)
+- [Method 3: oku](#method-3-oku)
+- [Method 4: From source](#method-4-from-source)
 - [Post-installation](#post-installation)
 - [Shell completions](#shell-completions)
 - [Troubleshooting](#troubleshooting)
@@ -405,7 +406,50 @@ same `mimi tiling cmd ...` commands as on any other install. See the
 
 ---
 
-## Method 3: From source
+## Method 3: oku
+
+[oku](https://github.com/y3owk1n/oku) installs Mimi from the repo's
+`oku.pkg.toml`. It takes the release zip for your Mac, checks it against the
+release's `.sha256` file, and adds man pages and shell completions. It installs
+stable releases only.
+
+```bash
+oku add -g github:y3owk1n/mimi --service   # with the login service
+oku add -g github:y3owk1n/mimi             # without it
+```
+
+`-g` adds it to your global list. Inside a project directory oku installs
+only the program and skips `Mimi.app` and the service. To add it by hand, put
+it in your global `oku.toml`:
+
+```toml
+[packages]
+mimi = { ref = "github:y3owk1n/mimi", service = true }
+```
+
+- **App bundle.** oku copies `Mimi.app` to `~/Applications`, and `mimi` on your
+  `PATH` runs that copy, so the CLI and the daemon share its Accessibility
+  permission. macOS may ask for it again after an update.
+- **Login service.** `--service` registers `mimi start` with launchd under the
+  label `dev.oku.mimi`, and `oku service` controls it. Its output goes to
+  `~/.local/share/oku/logs/mimi.log`. It replaces
+  [`mimi services install`](#2-start-mimi-optional), so use one of the two, not
+  both. `mimi services` does not see oku's service.
+- **From source.** `oku add -g github:y3owk1n/mimi --from-source` builds the
+  release tag with a Go that oku installs. It writes `from_source = true` to
+  your list, so every update builds too. The build needs the Xcode Command
+  Line Tools.
+- **Latest main.** `oku add -g github:y3owk1n/mimi#mimi-main` builds the
+  newest commit of `main` instead of a release, and needs the same tools. Its
+  version is the date and commit, such as `2026.10.09-a73243f`.
+  `oku update mimi` takes the newest commit. It installs the same `mimi`, so
+  remove the release package first. Add `--service` to keep Mimi starting at
+  login.
+- **Updating.** Run `oku update mimi`.
+
+---
+
+## Method 4: From source
 
 ### Requirements
 
@@ -460,11 +504,12 @@ If Accessibility is not granted yet, `mimi start` shows an "Accessibility Permis
 > regular file (a symlink, for example).
 >
 > It cannot see an installation registered under any other label. The
-> nix-darwin and home-manager modules above register agents under their own
-> labels. If you installed Mimi that way, check before you run it.
-> `launchctl list | grep -i mimi` lists every agent launchd holds whose label
-> contains "mimi", and both module labels do. If one is already there, keep it
-> and skip `services install`, so that you do not end up with two daemons.
+> nix-darwin and home-manager modules above and oku's `--service` register
+> agents under their own labels. If you installed Mimi that way, check before
+> you run it. `launchctl list | grep -i mimi` lists every agent launchd holds
+> whose label contains "mimi", and all three labels do. If one is already
+> there, keep it and skip `services install`, so that you do not end up with
+> two daemons.
 
 ### 3. Verify (optional)
 
@@ -593,3 +638,11 @@ If you set `settings.log_file`, also remove that file and its `.out.log` and `.e
 ### Nix
 
 Remove the module from your configuration and rebuild.
+
+### oku
+
+```bash
+oku remove -g mimi
+```
+
+This also stops the service and deletes `Mimi.app` from `~/Applications`.

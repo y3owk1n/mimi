@@ -1,0 +1,81 @@
+# The manifest `oku add github:y3owk1n/mimi` reads, see docs/INSTALLATION.md.
+# Check a change with `oku manifest lint` and `oku manifest test`.
+[package]
+name = "mimi"
+description = "Window and space utility for macOS, with shell hooks on app, window and space events"
+homepage = "https://github.com/y3owk1n/mimi"
+license = "MIT"
+
+[version]
+from = "github-releases"
+repo = "y3owk1n/mimi"
+strip_prefix = "v"
+
+# The command is the bundle's program, which oku runs from the copy of Mimi.app
+# in ~/Applications, so the CLI and the daemon share the app's Accessibility
+# permission. The manifest leaves out the zip's bin/mimi, since it would be a
+# second program with the same name.
+[[artifact]]
+match = { os = "darwin", arch = "arm64" }
+url = "https://github.com/y3owk1n/mimi/releases/download/{{tag}}/mimi-darwin-arm64.zip"
+sha256_url = "https://github.com/y3owk1n/mimi/releases/download/{{tag}}/mimi-darwin-arm64.zip.sha256"
+bin = ["Mimi.app/Contents/MacOS/mimi"]
+app = ["Mimi.app"]
+man = ["share/man/man1/*.1"]
+completions = { generate = "mimi completion {{shell}}" }
+
+[[artifact]]
+match = { os = "darwin", arch = "amd64" }
+url = "https://github.com/y3owk1n/mimi/releases/download/{{tag}}/mimi-darwin-amd64.zip"
+sha256_url = "https://github.com/y3owk1n/mimi/releases/download/{{tag}}/mimi-darwin-amd64.zip.sha256"
+bin = ["Mimi.app/Contents/MacOS/mimi"]
+app = ["Mimi.app"]
+man = ["share/man/man1/*.1"]
+completions = { generate = "mimi completion {{shell}}" }
+
+# The same build as publish-artifacts.yml: cgo on, the tag, commit and date in
+# the cmd package, and the deployment target of the #cgo flags. go comes from
+# the repo's own manifest, which oku reads at the same commit. mimi-main.toml
+# repeats this build, so change both.
+[build]
+needs = ["git"]
+deps = [{ ref = "./.oku/go.toml", version = "~1.26" }]
+source = { git = "https://github.com/y3owk1n/mimi", tag = "{{tag}}" }
+when = { os = "darwin" }
+
+[[build.step]]
+vendor = "go"
+
+[[build.step]]
+run = """
+set -eu
+c=github.com/y3owk1n/mimi/cmd/mimi/cmd
+go build -mod=vendor -trimpath -ldflags="-s -w -X $c.Version={{tag}} -X $c.GitCommit=$(git rev-parse --short HEAD) -X $c.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o mimi ./cmd/mimi
+mkdir -p man
+go run -mod=vendor ./cmd/genman man
+"""
+shell = "sh"
+env = { CGO_ENABLED = "1", GOFLAGS = "-buildvcs=false", MACOSX_DEPLOYMENT_TARGET = "14.0" }
+
+# Assembles the bundle as publish-artifacts.yml does and signs it ad hoc.
+[[build.step]]
+run = """
+set -eu
+app=Mimi.app
+mkdir -p $app/Contents/MacOS $app/Contents/Resources
+cp mimi $app/Contents/MacOS/mimi
+cp resources/Mimi.entitlements $app/Contents/Resources/
+sed -e 's/BUNDLE_VERSION/{{version}}/g' -e 's/SHORT_VERSION/{{version}}/g' -e 's/BUILD_ID/{{tag}}/g' resources/Info.plist.template > $app/Contents/Info.plist
+codesign --force --deep --sign - --entitlements resources/Mimi.entitlements --options runtime $app
+"""
+shell = "sh"
+
+[[build.step]]
+install = { bin = ["Mimi.app/Contents/MacOS/mimi"], app = ["Mimi.app"], man = ["man/*.1"], completions = { generate = "./mimi completion {{shell}}", name = "mimi" } }
+
+# The service replaces `mimi services install`, so a user runs one of them.
+[[service]]
+name = "mimi"
+command = "bin/mimi"
+args = ["start"]
+restart = "always"
