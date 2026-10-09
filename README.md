@@ -67,6 +67,17 @@ services.mimi.config = ''
 </details>
 
 <details>
+<summary>oku</summary>
+
+```bash
+oku add -g github:y3owk1n/mimi --service
+```
+
+`--service` starts the daemon at login. `--from-source` builds the release tag, and `github:y3owk1n/mimi#mimi-main` builds the newest commit of `main`. Details are in the [Installation Guide](docs/INSTALLATION.md#method-3-oku).
+
+</details>
+
+<details>
 <summary>Prebuilt binaries</summary>
 
 Download from [GitHub Releases](https://github.com/y3owk1n/mimi/releases/latest):
@@ -266,7 +277,7 @@ Space switching sends a synthetic dock swipe through `CGEvent`. Window-to-space 
 
 | Using mimi                                       |                                                      |
 | :----------------------------------------------- | :--------------------------------------------------- |
-| [Installation](docs/INSTALLATION.md)             | Homebrew, Nix, source, permissions, completions      |
+| [Installation](docs/INSTALLATION.md)             | Homebrew, Nix, oku, source, permissions, completions |
 | [CLI Reference](docs/CLI.md)                     | Every command, flag and preset                       |
 | [Configuration Reference](docs/CONFIGURATION.md) | Settings, hooks, environment variables, borders      |
 | [Tiling Guide](docs/TILING.md)                   | From first run to writing a layout from scratch      |
