@@ -83,7 +83,7 @@ type Facts struct {
 	// PID is the pid file's contents. PIDFound reports whether there was one.
 	PID      int
 	PIDFound bool
-	// Alive reports whether a process with PID answers a signal.
+	// Alive reports whether the process with PID is a running mimi.
 	Alive         bool
 	SocketPresent bool
 

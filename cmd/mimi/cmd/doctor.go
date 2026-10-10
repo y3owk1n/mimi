@@ -3,12 +3,12 @@ package cmd
 import (
 	"os"
 	"path/filepath"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/daemon"
 	"github.com/y3owk1n/mimi/internal/doctor"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/native"
@@ -59,15 +59,10 @@ func gatherFacts(cmd *cobra.Command, state *cliState) doctor.Facts {
 	pidPath, socketPath := state.runtimePaths()
 	facts.PIDPath, facts.SocketPath = paths.ExpandHome(pidPath), paths.ExpandHome(socketPath)
 
-	pid, err := readPID(pidPath)
-	if err == nil {
-		facts.PID, facts.PIDFound = pid, true
+	facts.PID, facts.Alive = daemon.RunningPID(pidPath)
+	facts.PIDFound = facts.PID != 0
 
-		proc, findErr := os.FindProcess(pid)
-		facts.Alive = findErr == nil && proc.Signal(syscall.Signal(0)) == nil
-	}
-
-	_, err = os.Stat(facts.SocketPath)
+	_, err := os.Stat(facts.SocketPath)
 	facts.SocketPresent = err == nil
 
 	facts.CLIVersion = Version

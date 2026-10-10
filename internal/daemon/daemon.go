@@ -14,6 +14,7 @@ import (
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+	"golang.org/x/sys/unix"
 
 	"github.com/y3owk1n/mimi/internal/action"
 	"github.com/y3owk1n/mimi/internal/border"
@@ -50,6 +51,12 @@ func Run(cfg *config.Config, logger *zap.SugaredLogger, configPath string, versi
 		quitCh    <-chan struct{}
 		component *systray.Component
 	)
+
+	// Check before anything takes the socket or the menu bar. A second daemon
+	// would take over the first one's socket and run every hook twice.
+	if pid, running := RunningPID(cfg.Settings.PIDFile); running && pid != os.Getpid() {
+		return derrors.Newf(derrors.CodeActionFailed, "mimi is already running (pid %d)", pid)
+	}
 
 	runDone := make(chan error, 1)
 
@@ -679,6 +686,42 @@ func writePID(path string) error {
 
 func removePID(path string) {
 	_ = os.Remove(paths.ExpandHome(path))
+}
+
+// RunningPID reads the pid from the PID file at path and reports whether that
+// process is a running mimi. After a crash the file names a process that has
+// exited, or another program that has taken the pid since, and neither
+// counts. The pid is 0 when there is no file to read.
+func RunningPID(path string) (int, bool) {
+	data, err := os.ReadFile(paths.ExpandHome(path))
+	if err != nil {
+		return 0, false
+	}
+
+	pid, err := strconv.Atoi(strings.TrimSpace(string(data)))
+	if err != nil || pid <= 0 {
+		return 0, false
+	}
+
+	name, alive := processName(pid)
+	if !alive {
+		return pid, false
+	}
+
+	own, found := processName(os.Getpid())
+
+	return pid, found && name == own
+}
+
+// processName is the short command name the kernel keeps for pid, false
+// when no process has that pid.
+func processName(pid int) (string, bool) {
+	info, err := unix.SysctlKinfoProc("kern.proc.pid", pid)
+	if err != nil || int(info.Proc.P_pid) != pid {
+		return "", false
+	}
+
+	return unix.ByteSliceToString(info.Proc.P_comm[:]), true
 }
 
 // hasWindowEvents reports whether anything in cfg needs the AX window

@@ -2,14 +2,12 @@ package cmd
 
 import (
 	"os"
-	"strconv"
-	"strings"
 	"syscall"
 
 	"github.com/spf13/cobra"
 
+	"github.com/y3owk1n/mimi/internal/daemon"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
-	"github.com/y3owk1n/mimi/internal/paths"
 )
 
 func newStopCmd(state *cliState) *cobra.Command {
@@ -19,11 +17,10 @@ func newStopCmd(state *cliState) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pidPath, _ := state.runtimePaths()
 
-			pid, err := readPID(pidPath)
-			if err != nil {
-				cmd.Println("mimi: not running (no PID file)")
+			pid, running := daemon.RunningPID(pidPath)
+			if !running {
+				cmd.Println(notRunning(pid))
 
-				//nolint:nilerr // no PID file means the daemon is not running, which is not a failure.
 				return nil
 			}
 
@@ -44,13 +41,12 @@ func newStopCmd(state *cliState) *cobra.Command {
 	}
 }
 
-func readPID(path string) (int, error) {
-	path = paths.ExpandHome(path)
-
-	data, err := os.ReadFile(path)
-	if err != nil {
-		return 0, err
+// notRunning says why no daemon is running, from the pid daemon.RunningPID
+// read. A pid of 0 means there was no PID file, and any other pid is stale.
+func notRunning(pid int) string {
+	if pid == 0 {
+		return "mimi: not running (no PID file)"
 	}
 
-	return strconv.Atoi(strings.TrimSpace(string(data)))
+	return "mimi: not running (stale PID file)"
 }

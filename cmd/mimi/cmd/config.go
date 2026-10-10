@@ -10,6 +10,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/daemon"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
 
@@ -70,9 +71,9 @@ func newConfigReloadCmd(state *cliState) *cobra.Command {
 				return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading config")
 			}
 
-			pid, err := readPID(cfg.Settings.PIDFile)
-			if err != nil {
-				return derrors.Wrapf(err, derrors.CodeInternal, "reading pid file")
+			pid, running := daemon.RunningPID(cfg.Settings.PIDFile)
+			if !running {
+				return derrors.New(derrors.CodeDaemonUnavailable, notRunning(pid))
 			}
 
 			proc, err := os.FindProcess(pid)
