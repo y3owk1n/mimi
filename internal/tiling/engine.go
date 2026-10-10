@@ -110,11 +110,14 @@ type Engine struct {
 	// told what to draw after. nil draws nothing and reserves nothing,
 	// which is the CLI's engine and any build with the mark switched off.
 	stacker Stacker
-	// seen is every window the last pass read, by number, nil before the
-	// first, so a window_created pass can tell whether the window it was
-	// raised for has reached the window server's on-screen list yet, and a
-	// window that took another's place can be told from a new one.
+	// seen is every window the last pass laid out, by number, nil before the
+	// first, so the engine can tell a window that took another's place from a
+	// new one.
 	seen map[uint32]seenWindow
+	// listed is the number of every window the last pass read, windows the
+	// rules keep out included, nil before the first. A window_created pass
+	// waits until the window it was raised for joins this list.
+	listed map[uint32]bool
 	// titles is every window's title as the last full read had it, by
 	// number, for a preview that would rather not ask the applications.
 	titles map[uint32]string
@@ -1279,30 +1282,38 @@ const (
 )
 
 // settledInputsLocked is inputsLocked, re-read for a window_created event
-// until the application the event names shows a window the last pass did
-// not, or newWindowWait is up. The caller holds the lock.
+// until the window server lists a new window of the application the event
+// names, or newWindowWait is up. A new window is one the last pass did not
+// list. The caller holds the lock.
 func (e *Engine) settledInputsLocked(ctx context.Context, event Event) ([]Input, error) {
-	inputs, err := e.inputsLocked(event)
+	read, err := e.readInputsLocked(false)
 	if err != nil {
 		return nil, err
 	}
 
-	if event.Kind == string(events.WindowCreated) && event.PID != 0 && e.seen != nil {
+	if event.Kind == string(events.WindowCreated) && event.PID != 0 && e.listed != nil {
 		deadline := time.Now().Add(newWindowWait)
 
-		for !e.newWindowOf(inputs, event.PID) && time.Now().Before(deadline) {
+		for !e.newWindowOf(read.listed, event.PID) && time.Now().Before(deadline) {
 			select {
 			case <-ctx.Done():
 				return nil, ctx.Err()
 			case <-time.After(newWindowPoll):
 			}
 
-			inputs, err = e.inputsLocked(event)
+			read, err = e.readInputsLocked(false)
 			if err != nil {
 				return nil, err
 			}
 		}
 	}
+
+	e.listed = make(map[uint32]bool, len(read.listed))
+	for _, win := range read.listed {
+		e.listed[win.Number] = true
+	}
+
+	inputs := e.buildInputsLocked(event, read)
 
 	e.carryReplacedLocked(inputs)
 
@@ -1442,14 +1453,12 @@ func (e *Engine) renameLocked(was, now uint32) {
 	}
 }
 
-// newWindowOf reports whether inputs hold a window of pid the last pass
-// did not see.
-func (e *Engine) newWindowOf(inputs []Input, pid int) bool {
-	for _, input := range inputs {
-		for _, win := range input.Windows {
-			if _, old := e.seen[win.Number]; win.PID == pid && !old {
-				return true
-			}
+// newWindowOf reports whether windows hold a window of pid the last pass did
+// not list.
+func (e *Engine) newWindowOf(windows []action.WindowEntry, pid int) bool {
+	for _, win := range windows {
+		if win.PID == pid && !e.listed[win.Number] {
+			return true
 		}
 	}
 
@@ -1471,10 +1480,13 @@ type desktopRead struct {
 	// spaceIDs is which space is in front on each display, as the window
 	// server identifies it, where spaces is only where that space sits in
 	// Mission Control. The state a pass keeps is filed under this.
-	spaceIDs     map[uint32]uint64
-	fullScreen   map[uint32]bool
-	margins      action.MarginsInfo
-	windows      action.WindowsInfo
+	spaceIDs   map[uint32]uint64
+	fullScreen map[uint32]bool
+	margins    action.MarginsInfo
+	windows    action.WindowsInfo
+	// listed is every window the window server listed, windows the rules
+	// keep out included.
+	listed       []action.WindowEntry
 	focusKeptOut bool
 }
 
@@ -1529,6 +1541,7 @@ func (e *Engine) readInputsLocked(quick bool) (desktopRead, error) {
 		return desktopRead{}, err
 	}
 
+	read.listed = read.windows.Windows
 	read.windows, read.focusKeptOut = e.managedLocked(read.windows)
 
 	if !quick || !canReuse {

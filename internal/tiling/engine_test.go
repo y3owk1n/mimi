@@ -1629,3 +1629,47 @@ func TestEngine_Pass_KillingABeforeLineEndsWhatItStarted(t *testing.T) {
 		t.Fatal("the killed before line's child ran on and marked the file")
 	}
 }
+
+// TestEngine_Pass_DoesNotWaitForAWindowARuleKeepsOut pins that a
+// window_created pass stops waiting once the window server lists the new
+// window, even when a rule keeps that window out of the layout. Waiting for
+// it among the managed windows spent the whole wait on every one.
+func TestEngine_Pass_DoesNotWaitForAWindowARuleKeepsOut(t *testing.T) {
+	t.Parallel()
+
+	manage := false
+	desktop := newDesktop()
+	cfg := enabled(`jq -c '{frames: [.windows[] | {number, frame}], state: null}'`)
+	cfg.Rules = []config.TilingRule{{App: "B", Manage: &manage}}
+
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(cfg, shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventStartup})
+	if err != nil {
+		t.Fatalf("startup Pass() error = %v", err)
+	}
+
+	desktop.mu.Lock()
+	desktop.windows.Windows = append(desktop.windows.Windows, action.WindowEntry{
+		Number: 2,
+		PID:    20,
+		App:    "B",
+		Frame:  action.Frame{X: 500, Width: 400, Height: 400},
+	})
+	desktop.mu.Unlock()
+
+	start := time.Now()
+
+	err = engine.Pass(
+		context.Background(),
+		tiling.Event{Kind: string(events.WindowCreated), PID: 20},
+	)
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
+		t.Fatalf("Pass() took %s, want it not to wait for a window the rules keep out", elapsed)
+	}
+}
