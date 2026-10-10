@@ -216,3 +216,31 @@ func TestTruncateCapturedLogs_ReportsAStreamItCouldNotEmpty(t *testing.T) {
 
 	assertSize(t, stderr, 0)
 }
+
+// TestTruncateCapturedLogs_LeavesTheTargetOfALinkAlone pins that a captured
+// stream that is a symbolic link is reported and never followed. The streams
+// default to /tmp, where another user could plant a link to someone's file.
+func TestTruncateCapturedLogs_LeavesTheTargetOfALinkAlone(t *testing.T) {
+	dir := t.TempDir()
+	target := seedCapturedLog(t, dir, "someone-elses-file")
+	link := filepath.Join(dir, "mimi.out.log")
+
+	err := os.Symlink(target, link)
+	if err != nil {
+		t.Fatalf("creating the link: %v", err)
+	}
+
+	t.Setenv(envCapturedStdout, link)
+	t.Setenv(envCapturedStderr, "")
+
+	truncated, err := daemon.TruncateCapturedLogs()
+	if err == nil || truncated != 0 {
+		t.Fatalf(
+			"TruncateCapturedLogs() = %d, %v; want the link reported and nothing emptied",
+			truncated,
+			err,
+		)
+	}
+
+	assertSize(t, target, int64(len("output from the previous run\n")))
+}
