@@ -3,6 +3,7 @@ package daemon
 import (
 	"errors"
 	"os"
+	"syscall"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 )
@@ -53,6 +54,10 @@ const (
 // simply a stream nobody has written to. Anything else is reported, and never
 // stops the other stream from being emptied — a console log that goes on
 // growing is worth saying out loud and not worth refusing to start over.
+//
+// It never follows a symbolic link. The paths default to /tmp, where another
+// user could put a link to one of yours, and emptying through it would empty
+// your file.
 func TruncateCapturedLogs() (int, error) {
 	var (
 		truncated int
@@ -65,7 +70,7 @@ func TruncateCapturedLogs() (int, error) {
 			continue
 		}
 
-		err := os.Truncate(path, 0)
+		err := truncateFile(path)
 
 		switch {
 		case err == nil:
@@ -87,4 +92,17 @@ func TruncateCapturedLogs() (int, error) {
 	}
 
 	return truncated, nil
+}
+
+// truncateFile empties the file at path, refusing a symbolic link. It opens
+// and empties the same file, so nothing can swap in a link between the two.
+func truncateFile(path string) error {
+	file, err := os.OpenFile(path, os.O_WRONLY|syscall.O_NOFOLLOW, 0)
+	if err != nil {
+		return err
+	}
+
+	defer func() { _ = file.Close() }()
+
+	return file.Truncate(0)
 }
