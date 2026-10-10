@@ -43,6 +43,7 @@ them, with `mimi stop && mimi start`, or `mimi services restart` for the
 installed service:
 
 - `settings.log_file`
+- `settings.event_log_file`
 - `settings.log_level`
 - `settings.log_format`
 - `settings.max_hook_workers`
@@ -78,6 +79,7 @@ outcome (`Reloaded 14:32`, `Reloaded 14:32 — restart required`,
 ```toml
 [settings]
 log_file = "~/.local/share/mimi/mimi.log"   # optional; omit for console-only. restart-only
+event_log_file = "~/.local/share/mimi/mimi.events.jsonl" # optional; off unless set. restart-only
 log_level = "info"                           # debug | info | warn | error. restart-only
 log_format = "text"                          # text | json, console output only. restart-only
 hook_timeout_secs = 10
@@ -139,6 +141,11 @@ service_path = "/Users/me/.local/bin:/run/current-system/sw/bin:/opt/homebrew/bi
 `"hook matched"` or `"hook skipped"` line per hook on that kind. These lines
 carry only counts, IDs, kinds, PIDs, booleans, and the hook's `index` within
 its kind. mimi never logs window titles or `run` commands.
+
+`event_log_file` is off unless you set it. When set, mimi writes every event
+to that file as one line of JSON, the same document a hook gets on stdin,
+window titles included. It rotates the file with the same limits as
+`log_file`.
 
 One exception: at `debug`, the `"hook ok"` line includes the hook's captured
 stdout and stderr as `output` (trimmed, capped at 64 KiB). A hook that fails or
@@ -662,7 +669,7 @@ window's frame could not be read. `mimi_DISPLAYS_COUNT` and
   change to your shell environment after the daemon started does not reach
   a hook until the daemon restarts.
 - stdin is the event as one line of JSON, then end of file. It is the same
-  document the `.events.jsonl` file beside `settings.log_file` holds. A hook
+  document `settings.event_log_file` records, when you set it. A hook
   that wants the whole event reads it with `jq` instead of assembling it
   from the variables:
 

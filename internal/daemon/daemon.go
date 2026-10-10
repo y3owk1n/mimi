@@ -181,7 +181,7 @@ func runCore(
 	go pipeline.borders.Run(ctx, pipeline.borderSub)
 	go pipeline.follow.Run(ctx, native.MouseMoves())
 	go pipeline.placer.Run(ctx, pipeline.placeSub)
-	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.LogFile, logger)
+	go logging.WriteEventLog(ctx, pipeline.logSub, cfg.Settings.EventLogFile, logger)
 
 	defer pipeline.zone.Close()
 
@@ -405,11 +405,12 @@ func setupEventPipeline(
 	placer.Update(placementRulesFor(cfg, accessibilityGranted))
 	placeSub := bus.SubscribeNamed("placer", borderSubBufSize, placer.KindFilter())
 
-	// The event log is opt-in via [settings].log_file; when present, write
-	// every event so the user can replay what happened. When disabled, the
+	// The event log is opt-in via [settings].event_log_file. When it is set,
+	// the daemon writes every event so the user can replay what happened.
+	// When it is unset, the
 	// always-false filter prevents the bus from sending into a channel
 	// nobody reads, eliminating a source of silent drops.
-	logPath := cfg.Settings.LogFile
+	logPath := cfg.Settings.EventLogFile
 
 	var logSub events.Subscriber
 

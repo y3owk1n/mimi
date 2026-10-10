@@ -27,6 +27,11 @@
 # Log file path (supports ~/ expansion). Empty or omitted = console-only.
 # log_file = "~/.local/share/mimi/mimi.log"
 
+# Event log path (supports ~/ expansion). Off unless set. When set, mimi
+# writes every event to it as one line of JSON, window titles included, and
+# rotates it like log_file.
+# event_log_file = "~/.local/share/mimi/mimi.events.jsonl"
+
 log_level = "info"
 # Console log format: "text" (human-readable) or "json". The log file above is
 # always JSON, whatever this is set to.
