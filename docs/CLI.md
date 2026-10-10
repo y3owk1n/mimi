@@ -170,6 +170,14 @@ come in front within a second. When the destination is on another display, mimi 
 that display's center, and the pointer stays there. The same applies to
 `move_window_to_space --follow`.
 
+With `--same-display`, `next` and `prev` cycle among the spaces of the
+display the active space is on, and wrap on that display. A space number with
+`--same-display` is an error.
+
+```bash
+mimi action space next --same-display
+```
+
 ### `mimi action move_window_to_space <number|next|prev>`
 
 Move the frontmost window to a space by 1-based index, or cycle with
@@ -178,6 +186,7 @@ wrapping. This uses private SkyLight APIs and does not require disabling SIP.
 | Flag           | Description                                                      |
 | -------------- | ---------------------------------------------------------------- |
 | `--follow`     | Switch to the destination space once the window is there         |
+| `--same-display` | With `next` or `prev`, cycle among the spaces of the active space's display only |
 | `--number <n>` | Move the window with that window-server number instead of the frontmost |
 
 With `--follow`, the switch uses the same dock-swipe gesture as `space`, and

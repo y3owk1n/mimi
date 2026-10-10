@@ -53,6 +53,9 @@ const (
 type SpaceArg struct {
 	Index     int `json:"index"`
 	Direction int `json:"direction"` // +1 for next, -1 for prev; 0 means absolute index
+	// SameDisplay keeps next and prev among the spaces of the display the
+	// active space is on. It takes no absolute index.
+	SameDisplay bool `json:"sameDisplay,omitempty"`
 }
 
 // DisplayArg is the parsed form of the one argument move_window_to_display
@@ -181,7 +184,23 @@ func indexArgOf(name Name, raw string) (indexArg, error) {
 //
 // name is the action the argument was given to, and appears in the rejection.
 func validateSpaceArg(name Name, arg SpaceArg) error {
+	if arg.SameDisplay && arg.Direction == 0 {
+		return derrors.Newf(
+			derrors.CodeInvalidInput,
+			"%s: --same-display takes next or prev, not a space number",
+			name,
+		)
+	}
+
 	return validateIndexArg(name, spaceNoun, indexArg{index: arg.Index, direction: arg.Direction})
+}
+
+// SameDisplayOnly returns arg confined to the spaces of the active space's
+// display. It rejects an absolute index with the error every path gives.
+func (arg SpaceArg) SameDisplayOnly(name Name) (SpaceArg, error) {
+	arg.SameDisplay = true
+
+	return arg, validateSpaceArg(name, arg)
 }
 
 // validateDisplayArg is validateSpaceArg for the display argument.
@@ -240,12 +259,50 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 		return 0, err
 	}
 
+	if parsed.SameDisplay {
+		return e.stepOnDisplay(current, parsed.Direction)
+	}
+
 	count := e.desktop.SpaceCount()
 	if count == 0 {
 		return 0, derrors.New(derrors.CodeActionFailed, "no Mission Control spaces found")
 	}
 
 	return ((current - 1 + parsed.Direction + count) % count) + 1, nil
+}
+
+// stepOnDisplay steps direction from current among the spaces on current's
+// display, and wraps on that display. It returns a 1-based index over every
+// space.
+func (e *Executor) stepOnDisplay(current, direction int) (int, error) {
+	spaces, err := e.desktop.Spaces()
+	if err != nil {
+		return 0, derrors.Wrapf(err, derrors.CodeActionFailed, "failed to list spaces")
+	}
+
+	if current < 1 || current > len(spaces) {
+		return 0, derrors.Newf(derrors.CodeActionFailed, "active space %d is not listed", current)
+	}
+
+	display := spaces[current-1].DisplayID
+	onDisplay := make([]int, 0, len(spaces))
+	position := 0
+
+	for index, space := range spaces {
+		if space.DisplayID != display {
+			continue
+		}
+
+		if index+1 == current {
+			position = len(onDisplay)
+		}
+
+		onDisplay = append(onDisplay, index+1)
+	}
+
+	count := len(onDisplay)
+
+	return onDisplay[(position+direction+count)%count], nil
 }
 
 // ParseResizePresetArg parses resize_window's one positional argument into the

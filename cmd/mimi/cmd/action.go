@@ -240,7 +240,7 @@ func windowArgsFromFlags(cobraCmd *cobra.Command) action.WindowArgs {
 }
 
 func buildSpaceCommand(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "space <number|next|prev>",
 		Short: "Focus a Mission Control space by index or cycle next/prev",
 		Long: `Focus a Mission Control space by its 1-based index, or cycle to the next or
@@ -252,7 +252,8 @@ primary display), index 2 the second, and so on.
 
 The "next" and "prev" keywords cycle through spaces with wrapping — "next"
 on the last space wraps to space 1, and "prev" on space 1 wraps to the
-last space.
+last space. With --same-display, they cycle among the spaces of the display
+the active space is on, and wrap on that display.
 
 macOS does not provide a public API to activate a space, so mimi
 synthesizes a high-velocity horizontal dock swipe gesture to fast-forward
@@ -263,7 +264,9 @@ center first so the gesture is attributed to the correct screen.
 Examples:
   mimi action space 1        Focus the first Mission Control space
   mimi action space next     Cycle to the next space (with wrap)
-  mimi action space prev     Cycle to the previous space (with wrap)`,
+  mimi action space prev     Cycle to the previous space (with wrap)
+  mimi action space next --same-display
+                             Cycle to the next space on this display`,
 		Args: validateSpaceArg(action.NameSpace),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {
 			spaceCmd, err := action.NewSpaceCommand(args)
@@ -271,9 +274,39 @@ Examples:
 				return err
 			}
 
+			spaceCmd.Space, err = sameDisplayFromFlags(cobraCmd, action.NameSpace, spaceCmd.Space)
+			if err != nil {
+				return err
+			}
+
 			return state.runAction(cobraCmd, spaceCmd)
 		},
 	}
+
+	addSameDisplayFlag(cmd)
+
+	return cmd
+}
+
+// addSameDisplayFlag gives a space action the --same-display flag.
+func addSameDisplayFlag(cmd *cobra.Command) {
+	cmd.Flags().
+		Bool("same-display", false, "Cycle next or prev among the spaces of this display only")
+}
+
+// sameDisplayFromFlags is arg confined to the active space's display when
+// --same-display is set.
+func sameDisplayFromFlags(
+	cobraCmd *cobra.Command,
+	name action.Name,
+	arg action.SpaceArg,
+) (action.SpaceArg, error) {
+	sameDisplay, _ := cobraCmd.Flags().GetBool("same-display")
+	if !sameDisplay {
+		return arg, nil
+	}
+
+	return arg.SameDisplayOnly(name)
 }
 
 func buildMoveWindowToSpaceCommand(state *cliState) *cobra.Command {
@@ -290,7 +323,8 @@ displays. Index 1 is the first space, index 2 the second, and so on.
 
 The "next" and "prev" keywords cycle through spaces with wrapping — "next"
 on the last space wraps to space 1, and "prev" on space 1 wraps to the
-last space.
+last space. With --same-display, they cycle among the spaces of the display
+the active space is on, and wrap on that display.
 
 This command uses private APIs (SkyLight) to move the window instantly
 without scripting additions or disabling SIP on macOS.
@@ -317,6 +351,15 @@ Examples:
 
 			moveCmd.Window = windowArgsFromFlags(cobraCmd)
 
+			moveCmd.MoveWindowToSpace.Space, err = sameDisplayFromFlags(
+				cobraCmd,
+				action.NameMoveWindowToSpace,
+				moveCmd.MoveWindowToSpace.Space,
+			)
+			if err != nil {
+				return err
+			}
+
 			return state.runAction(cobraCmd, moveCmd)
 		},
 	}
@@ -324,6 +367,7 @@ Examples:
 	cmd.Flags().
 		BoolVar(&follow, "follow", false, "Switch to the destination space after moving the window")
 	addNumberFlag(cmd)
+	addSameDisplayFlag(cmd)
 
 	return cmd
 }

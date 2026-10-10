@@ -501,6 +501,14 @@ func malformedActionArgv() []malformedAction {
 			name: "move_window_to_space nonsense",
 			argv: []string{string(action.NameMoveWindowToSpace), "nxt"},
 		},
+		{
+			name: "space number on the same display",
+			argv: []string{string(action.NameSpace), "2", "--same-display"},
+		},
+		{
+			name: "move_window_to_space number on the same display",
+			argv: []string{string(action.NameMoveWindowToSpace), "2", "--same-display"},
+		},
 	}
 }
 
