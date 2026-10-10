@@ -740,14 +740,20 @@ then work down this list.
 5. **Read the daemon log.** With `log_level = "debug"` every pass logs
    `pass applied` with the event kind, display count, and frame count, or
    `pass applied nothing` when the layout returned no frames, focus, or
-   commands. A failing pass logs `pass failed` with the reason. A slow layout
+   commands. Each says how long the pass took to read the desktop and to run
+   your layout, as `read_ms` and `layout_ms`. `pass applied` adds `apply_ms`
+   for writing the frames and `total_ms` for the whole pass. A failing pass logs `pass failed` with the reason. A slow layout
    fails with `layout timed out`. Raise `timeout_secs`. The `enabled` and
    `disabled` lines at info say when tiling turned on or off.
 6. **Is the window one mimi tiles?** `mimi query windows` lists the windows a
    layout can be given: windows of regular, unhidden applications on the
    current space. Sheets, popovers, and minimized windows are not there. The
    pass skips a display showing a full-screen space even though its window is
-   listed. If a window is listed but not tiled, check `rules.py`.
+   listed. If a window is listed but not tiled, the debug line
+   `windows left out` names it by number under the reason: `rule` for a
+   `[[tiling.rules]]` entry that keeps it out, `full_screen`, `menu_bar` for a
+   window covering the menu bar, `other_space`, or `no_layout` for a display
+   with no layout on its space.
 7. **A window that will not take its frame.** Some applications enforce a
    minimum size or snap to a grid, and land a little off the requested frame.
    The next input shows where windows actually are, which is why the shipped
