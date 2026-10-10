@@ -636,6 +636,15 @@ A daemon left running across an upgrade is another build than the CLI
 asking, and the daemon line says so instead. Restart it so both run the same
 build.
 
+`--json` prints the same facts as one line of JSON. `daemon` is what the
+daemon reports about itself, absent when none answered, and `daemonError`
+says why a daemon on the socket could not be asked.
+
+```
+$ mimi status --json | jq -c '{running, socketAvailable, version: .daemon.version}'
+{"running":true,"socketAvailable":true,"version":"v0.20.0"}
+```
+
 ### `mimi doctor`
 
 Run the checks [Troubleshooting](TROUBLESHOOTING.md) walks through, one line
@@ -672,6 +681,15 @@ with an error, times out, prints something other than the output contract,
 or prints nothing. A layout named for one display or space in
 `[[tiling.layouts]]` gets a line of its own. A `warn` is something
 worth knowing that stops nothing. The command exits 1 when any check fails.
+
+`--json` prints the checks as one line of JSON instead, for a script to read.
+Each has a `name`, a `status` of `ok`, `warn`, `fail` or `skip`, a `detail`,
+and a `fix` when there is one. The exit code is the same.
+
+```
+$ mimi doctor --json | jq -c '.[0]'
+{"name":"config","status":"ok","detail":"/Users/me/.config/mimi/config.toml"}
+```
 
 ---
 

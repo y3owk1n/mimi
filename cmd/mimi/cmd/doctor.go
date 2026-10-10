@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"time"
@@ -19,7 +20,7 @@ import (
 )
 
 func newDoctorCmd(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "doctor",
 		Short: "Check the install for what stops mimi working",
 		Long: `Run the checks docs/TROUBLESHOOTING.md walks through, one line each:
@@ -36,11 +37,22 @@ catches a layout that cannot be run, exits with an error, times out, prints
 something that is not the output contract, or prints nothing.
 
 A failed check prints what to do about it. The command exits 1 when any
-check fails, so a script can gate on it.`,
+check fails, so a script can gate on it. --json prints the checks as one line
+of JSON instead, each with its name, a status of ok, warn, fail or skip, its
+detail, and its fix.`,
 		Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			checks := doctor.Assess(gatherFacts(cmd, state))
-			cmd.Print(doctor.Format(checks))
+
+			asJSON, _ := cmd.Flags().GetBool("json")
+			if asJSON {
+				err := json.NewEncoder(cmd.OutOrStdout()).Encode(checks)
+				if err != nil {
+					return derrors.Wrapf(err, derrors.CodeSerializationFailed, "encoding checks")
+				}
+			} else {
+				cmd.Print(doctor.Format(checks))
+			}
 
 			if doctor.Failed(checks) {
 				return derrors.New(derrors.CodeActionFailed, "some checks failed")
@@ -49,6 +61,10 @@ check fails, so a script can gate on it.`,
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("json", false, "Print the checks as JSON")
+
+	return cmd
 }
 
 // gatherFacts reads everything doctor.Assess judges.

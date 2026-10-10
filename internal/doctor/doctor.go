@@ -27,6 +27,11 @@ const (
 	Skip
 )
 
+// MarshalText is the status as the report prints it, in lower case.
+func (s Status) MarshalText() ([]byte, error) {
+	return []byte(strings.ToLower(s.String())), nil
+}
+
 func (s Status) String() string {
 	switch s {
 	case Pass:
@@ -45,10 +50,10 @@ func (s Status) String() string {
 // Check is one line of the report: what was checked, how it came out, what
 // was found, and for anything but a pass, what to do about it.
 type Check struct {
-	Name   string
-	Status Status
-	Detail string
-	Fix    string
+	Name   string `json:"name"`
+	Status Status `json:"status"`
+	Detail string `json:"detail"`
+	Fix    string `json:"fix,omitempty"`
 }
 
 // The names of the checks, as the report prints them.

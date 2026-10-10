@@ -1,6 +1,7 @@
 package cmd
 
 import (
+	"encoding/json"
 	"fmt"
 	"os"
 	"strings"
@@ -15,11 +16,21 @@ import (
 )
 
 func newStatusCmd(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "status",
 		Short: "Show daemon and permission status",
+		Long: `Show whether the daemon is running, whether this CLI holds Accessibility,
+and whether the IPC socket is there. When a daemon answers, the command also
+shows which build it is, what its config turns on, whether it holds
+Accessibility, and how its last reload went. --json prints the same as one
+line of JSON.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pidPath, socketPath := state.runtimePaths()
+
+			asJSON, _ := cmd.Flags().GetBool("json")
+			if asJSON {
+				return printStatusJSON(cmd, pidPath, socketPath)
+			}
 
 			pid, running := daemon.RunningPID(pidPath)
 			if running {
@@ -49,6 +60,57 @@ func newStatusCmd(state *cliState) *cobra.Command {
 			return nil
 		},
 	}
+
+	cmd.Flags().Bool("json", false, "Print the status as JSON")
+
+	return cmd
+}
+
+// statusReport is mimi status as JSON.
+type statusReport struct {
+	Running bool `json:"running"`
+	// PID is the pid the PID file names, running or not, 0 without one.
+	PID             int    `json:"pid,omitempty"`
+	Accessibility   bool   `json:"accessibility"`
+	Socket          string `json:"socket"`
+	SocketAvailable bool   `json:"socketAvailable"`
+	// Daemon is what the daemon says about itself, when one answered.
+	Daemon *daemon.Status `json:"daemon,omitempty"`
+	// DaemonError is why a daemon on the socket could not be asked.
+	DaemonError string `json:"daemonError,omitempty"`
+}
+
+// printStatusJSON prints what mimi status reports as one line of JSON.
+func printStatusJSON(cmd *cobra.Command, pidPath, socketPath string) error {
+	report := statusReport{
+		Accessibility: permissions.Check().Accessibility,
+		Socket:        paths.ExpandHome(socketPath),
+	}
+
+	report.PID, report.Running = daemon.RunningPID(pidPath)
+
+	_, statErr := os.Stat(report.Socket)
+	report.SocketAvailable = statErr == nil
+
+	status, err := probeDaemon(socketPath)
+
+	switch {
+	case err == nil:
+		report.Daemon = &status
+	case derrors.IsCode(err, derrors.CodeDaemonUnavailable):
+	case derrors.IsCode(err, derrors.CodeProtocolMismatch),
+		derrors.IsCode(err, derrors.CodeInvalidInput):
+		report.DaemonError = "another build than this CLI (" + Version + "), restart it"
+	default:
+		report.DaemonError = derrors.Message(err)
+	}
+
+	err = json.NewEncoder(cmd.OutOrStdout()).Encode(report)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeSerializationFailed, "encoding status")
+	}
+
+	return nil
 }
 
 // printProbe adds what the daemon says about itself, when one answers: its
