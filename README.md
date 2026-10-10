@@ -10,9 +10,9 @@ A macOS command line tool that switches native Spaces and moves, resizes and foc
 
 |  macOS 14+   | SIP                | Status                    |
 | :----------: | :----------------: | :-----------------------: |
-| Supported    | Leave it enabled   | Early development         |
+| Supported    | Leave it enabled   | Beta                      |
 
-<sub>Config keys, CLI flags and behaviour may still change between releases. See the [CHANGELOG](CHANGELOG.md).</sub>
+<sub>Config keys, CLI flags and behaviour are settled. If a release breaks an existing config or script, its [CHANGELOG](CHANGELOG.md) entry links to a pull request that says what breaks and how to migrate.</sub>
 
 [Install](#install) · [What mimi does](#what-mimi-does) · [Configuration](#configuration) · [Compare](#how-mimi-compares) · [Docs](#documentation)
 
