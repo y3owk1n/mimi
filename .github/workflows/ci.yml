@@ -8,6 +8,14 @@ on:
             - "CHANGELOG.md"
             - ".release-please-manifest.json"
             - "release-please-config.json"
+    # Check main again after every merge. Two PRs that each passed against
+    # an older main can merge into a combination that does not build.
+    push:
+        branches: ["main"]
+        paths-ignore:
+            - "CHANGELOG.md"
+            - ".release-please-manifest.json"
+            - "release-please-config.json"
 name: CI
 permissions:
     contents: read
@@ -25,10 +33,10 @@ jobs:
                       check: formatting
         runs-on: ${{ matrix.os }}
         steps:
+            # No ref, so a pull request checks out its merge into the base
+            # branch and a push checks out the pushed commit. A PR branch can
+            # pass on its own while its merge fails.
             - uses: actions/checkout@v7
-              with:
-                  repository: ${{ github.event.pull_request.head.repo.full_name }}
-                  ref: ${{ github.head_ref }}
 
             # oku installs go, golangci-lint, just and clang-format at the
             # versions oku.lock pins. The action installs the oku release of its
