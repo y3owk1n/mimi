@@ -58,13 +58,12 @@ jobs:
         steps:
             - uses: actions/checkout@v7
 
-            - uses: actions/setup-go@v7
-              with:
-                  go-version: "1.26.4"
-
-            - uses: extractions/setup-just@v4
-              with:
-                  just-version: "1.54.0"
+            # Install the toolchain CI builds and tests with, at the versions
+            # oku.lock pins, so a release builds with the same go CI ran.
+            - name: Setup the toolchain
+              uses: y3owk1n/oku@v0.15.0
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
 
             - name: Build mimi darwin arm64 artifact
               run: just release-ci-darwin arm64 ${{ inputs.version_override }}
@@ -144,13 +143,12 @@ jobs:
         steps:
             - uses: actions/checkout@v7
 
-            - uses: actions/setup-go@v7
-              with:
-                  go-version: "1.26.4"
-
-            - uses: extractions/setup-just@v4
-              with:
-                  just-version: "1.54.0"
+            # Install the toolchain CI builds and tests with, at the versions
+            # oku.lock pins, so a release builds with the same go CI ran.
+            - name: Setup the toolchain
+              uses: y3owk1n/oku@v0.15.0
+              env:
+                  GITHUB_TOKEN: ${{ github.token }}
 
             - name: Build mimi darwin amd64 artifact
               run: just release-ci-darwin amd64 ${{ inputs.version_override }}

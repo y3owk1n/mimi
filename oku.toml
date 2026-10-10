@@ -1,8 +1,8 @@
 # The development toolchain. `oku sync` installs it, `oku allow` lets the shell
-# hook put it on PATH inside this repo. CI installs the same tools from
-# oku.lock with the oku action.
+# hook put it on PATH inside this repo. CI and the release builds install the
+# same tools from oku.lock with the oku action.
 [lock]
-platforms = ["darwin-arm64", "linux-arm64-glibc"]
+platforms = ["darwin-arm64", "darwin-amd64", "linux-arm64-glibc"]
 
 # go: packages build with this go, on the same go line as the go package below.
 [runtimes]
