@@ -211,6 +211,7 @@ func runCore(
 				configPath,
 				started,
 				accessibilityGranted,
+				permissions.Check().Accessibility,
 				cfgReloader.Current,
 			)
 		},

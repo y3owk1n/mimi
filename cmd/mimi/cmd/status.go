@@ -29,9 +29,11 @@ func newStatusCmd(state *cliState) *cobra.Command {
 
 			perm := permissions.Check()
 			if perm.Accessibility {
-				cmd.Println("accessibility: granted")
+				cmd.Println("accessibility (this CLI): granted")
 			} else {
-				cmd.Println("accessibility: not granted (required for window hooks and actions)")
+				cmd.Println(
+					"accessibility (this CLI): not granted (required for actions run without the daemon)",
+				)
 			}
 
 			_, statErr := os.Stat(paths.ExpandHome(socketPath))
@@ -89,6 +91,16 @@ func printProbe(cmd *cobra.Command, socketPath string) {
 		onOff(status.Features.Borders),
 		onOff(status.Features.Systray),
 	)
+
+	if status.Accessibility != nil {
+		if *status.Accessibility {
+			cmd.Println("accessibility (daemon): granted")
+		} else {
+			cmd.Println(
+				"accessibility (daemon): not granted (required for hooks, tiling and borders)",
+			)
+		}
+	}
 }
 
 func onOff(enabled bool) string {

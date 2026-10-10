@@ -55,6 +55,7 @@ type Check struct {
 const (
 	checkConfig        = "config"
 	checkAccessibility = "accessibility"
+	checkDaemonAccess  = "daemon accessibility"
 	checkDaemon        = "daemon"
 	checkSocket        = "socket"
 	checkDaemonBuild   = "daemon build"
@@ -64,6 +65,9 @@ const (
 	checkSpaceSwitch   = "space switch"
 	checkLayout        = "layout"
 )
+
+// minNameWidth is the least width of the column of check names.
+const minNameWidth = 14
 
 // noConfig is what a check that needs the config says when it did not load.
 const noConfig = "no config"
@@ -92,7 +96,10 @@ type Facts struct {
 	// daemon refused the request as another build, or did not know it.
 	CLIVersion    string
 	DaemonVersion string
-	ProbeErr      error
+	// DaemonAccessibility is whether the daemon holds Accessibility, nil when
+	// no daemon answered or one too old to say.
+	DaemonAccessibility *bool
+	ProbeErr            error
 
 	Service service.Status
 	// ForeignAgent is the launchd job running the daemon when it is not
@@ -125,6 +132,7 @@ func Assess(facts Facts) []Check {
 		configCheck(facts),
 		accessibilityCheck(facts),
 		daemonCheck(facts),
+		daemonAccessibilityCheck(facts),
 		socketCheck(facts),
 		daemonBuildCheck(facts),
 		serviceCheck(facts),
@@ -168,6 +176,32 @@ func accessibilityCheck(facts Facts) Check {
 		Status: Fail,
 		Detail: "not granted",
 		Fix:    "System Settings > Privacy & Security > Accessibility, enable the mimi binary you run, then restart it",
+	}
+}
+
+// daemonAccessibilityCheck judges the daemon's own grant, which is what hooks,
+// tiling and borders run under. macOS grants Accessibility per binary, so a
+// terminal that has it says nothing about the daemon, and an upgrade that
+// replaces the daemon's binary can leave the daemon without the grant.
+func daemonAccessibilityCheck(facts Facts) Check {
+	switch {
+	case facts.DaemonAccessibility == nil && facts.DaemonVersion != "":
+		return Check{
+			Name:   checkDaemonAccess,
+			Status: Skip,
+			Detail: "this daemon build does not report it",
+		}
+	case facts.DaemonAccessibility == nil:
+		return Check{Name: checkDaemonAccess, Status: Skip, Detail: "no daemon to ask"}
+	case *facts.DaemonAccessibility:
+		return Check{Name: checkDaemonAccess, Detail: "granted"}
+	default:
+		return Check{
+			Name:   checkDaemonAccess,
+			Status: Fail,
+			Detail: "not granted, so hooks, tiling and borders do nothing",
+			Fix:    "System Settings > Privacy & Security > Accessibility, remove the mimi binary the daemon runs and add it again, then restart the daemon",
+		}
 	}
 }
 
@@ -469,8 +503,13 @@ func onPath(name string, dirs []string) bool {
 func Format(checks []Check) string {
 	var out strings.Builder
 
+	width := minNameWidth
 	for _, check := range checks {
-		fmt.Fprintf(&out, "%-5s %-14s %s\n", check.Status, check.Name, check.Detail)
+		width = max(width, len(check.Name))
+	}
+
+	for _, check := range checks {
+		fmt.Fprintf(&out, "%-5s %-*s %s\n", check.Status, width, check.Name, check.Detail)
 
 		if check.Fix != "" {
 			fmt.Fprintf(&out, "      fix: %s\n", check.Fix)

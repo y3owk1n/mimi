@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"path/filepath"
+	"regexp"
 	"strings"
 	"testing"
 )
@@ -33,10 +34,10 @@ func TestDoctor_WarnsAboutAHookCommandOffTheServicePath(t *testing.T) {
 
 	out, _ := runCommand(t, "doctor")
 
-	if !strings.Contains(
-		out,
-		"warn  hook commands  not on the service PATH: definitely-not-installed",
-	) {
+	warning := regexp.MustCompile(
+		`warn\s+hook commands\s+not on the service PATH: definitely-not-installed`,
+	)
+	if !warning.MatchString(out) {
 		t.Fatalf("no hook command warning in:\n%s", out)
 	}
 }

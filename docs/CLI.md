@@ -587,19 +587,24 @@ process other than a running mimi, it prints that mimi is not running and exits
 
 ### `mimi status`
 
-Show whether the daemon is running, whether Accessibility permission is
-granted, and whether the IPC socket is available. When a daemon answers, two
+Show whether the daemon is running, whether this CLI holds Accessibility
+permission, and whether the IPC socket is available. When a daemon answers,
 more lines say which build it is, how long it has run, which config it runs,
-and what that config turns on:
+what that config turns on, and whether the daemon itself holds Accessibility:
 
 ```
 $ mimi status
 mimi: running (pid 4774)
-accessibility: granted
+accessibility (this CLI): granted
 ipc: socket available at /Users/me/.local/share/mimi/mimi.sock
 daemon: v0.20.0, up 2h3m0s, config /Users/me/.config/mimi/config.toml
 features: 3 hook(s), tiling on, borders on, systray off
+accessibility (daemon): granted
 ```
+
+The two Accessibility lines can differ. macOS grants the permission per
+binary, and a CLI run from a terminal asks on the terminal's behalf. Hooks,
+tiling and borders run in the daemon, so they need the daemon's grant.
 
 A daemon left running across an upgrade is another build than the CLI
 asking, and the daemon line says so instead. Restart it so both run the same
@@ -612,20 +617,22 @@ each, and print the fix under any that fails:
 
 ```
 $ mimi doctor
-ok    config         /Users/me/.config/mimi/config.toml
-ok    accessibility  granted
-FAIL  daemon         stale PID file at /Users/me/.local/share/mimi/mimi.pid (pid 4242 is gone)
+ok    config               /Users/me/.config/mimi/config.toml
+ok    accessibility        granted
+FAIL  daemon               stale PID file at /Users/me/.local/share/mimi/mimi.pid (pid 4242 is gone)
       fix: mimi start overwrites it
-skip  socket         no daemon to reach
-ok    service        loaded and running (pid 4310)
-warn  hook commands  not on the service PATH: sketchybar
+skip  daemon accessibility no daemon to ask
+skip  socket               no daemon to reach
+ok    service              loaded and running (pid 4310)
+warn  hook commands        not on the service PATH: sketchybar
       fix: set settings.service_path and run mimi services install, or call the command by absolute path
-ok    log file       /Users/me/.local/share/mimi/mimi.log
-ok    layout         python3 ~/.config/mimi/layouts/bsp.py: 2 frames for 2 windows
-ok    space switch   macOS 27 encoding
+ok    log file             /Users/me/.local/share/mimi/mimi.log
+ok    layout               python3 ~/.config/mimi/layouts/bsp.py: 2 frames for 2 windows
+ok    space switch         macOS 27 encoding
 ```
 
-The checks are the config parsing, Accessibility, the daemon and its socket,
+The checks are the config parsing, the CLI's Accessibility, the daemon, the
+daemon's own Accessibility, its socket,
 whether the daemon is the same build as the CLI asking, the launchd service, which names the agent running the daemon when it is not
 mimi's own (the Nix modules install their own), whether every hook command resolves on the `PATH` the
 service runs hooks with, whether mimi can write the log file, whether every

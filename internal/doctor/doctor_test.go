@@ -30,16 +30,17 @@ func statusOf(t *testing.T, checks []doctor.Check, name string) doctor.Check {
 
 func healthy() doctor.Facts {
 	return doctor.Facts{
-		Config:        &config.Config{},
-		Accessibility: true,
-		PIDPath:       "/tmp/mimi.pid",
-		SocketPath:    "/tmp/mimi.sock",
-		PID:           42,
-		PIDFound:      true,
-		Alive:         true,
-		SocketPresent: true,
-		CLIVersion:    "v1.2.3",
-		DaemonVersion: "v1.2.3",
+		Config:              &config.Config{},
+		Accessibility:       true,
+		PIDPath:             "/tmp/mimi.pid",
+		SocketPath:          "/tmp/mimi.sock",
+		PID:                 42,
+		PIDFound:            true,
+		Alive:               true,
+		SocketPresent:       true,
+		CLIVersion:          "v1.2.3",
+		DaemonVersion:       "v1.2.3",
+		DaemonAccessibility: new(true),
 		Service: service.Status{
 			State: service.LoadStateLoaded,
 			PID:   service.OptionalInt{Value: 42, Known: true},
@@ -163,6 +164,24 @@ func TestAssess_CallsAStoppedServiceStopped(t *testing.T) {
 	check := statusOf(t, doctor.Assess(facts), "service")
 	if check.Status != doctor.Skip || check.Detail != "stopped" {
 		t.Fatalf("got %+v", check)
+	}
+}
+
+// TestAssess_FailsADaemonWithoutAccessibility pins that doctor judges the
+// daemon's own grant. A terminal that holds Accessibility says nothing about
+// the daemon, which macOS grants separately, and an upgrade can leave it
+// without.
+func TestAssess_FailsADaemonWithoutAccessibility(t *testing.T) {
+	facts := healthy()
+	facts.DaemonAccessibility = new(false)
+
+	check := statusOf(t, doctor.Assess(facts), "daemon accessibility")
+	if check.Status != doctor.Fail || check.Fix == "" {
+		t.Fatalf("got %+v", check)
+	}
+
+	if statusOf(t, doctor.Assess(facts), "accessibility").Status != doctor.Pass {
+		t.Fatal("the CLI's own grant failed with the daemon's")
 	}
 }
 
