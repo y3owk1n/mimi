@@ -36,7 +36,7 @@ set -eu
 c=github.com/y3owk1n/mimi/cmd/mimi/cmd
 go build -mod=vendor -trimpath -ldflags="-s -w -X $c.Version={{version}} -X $c.GitCommit=$(git rev-parse --short HEAD) -X $c.BuildDate=$(date -u +%Y-%m-%dT%H:%M:%SZ)" -o mimi ./cmd/mimi
 mkdir -p man
-go run -mod=vendor ./cmd/genman man
+go run -mod=vendor -ldflags="-X $c.Version={{version}}" ./cmd/genman man
 """
 shell = "sh"
 env = { CGO_ENABLED = "1", GOFLAGS = "-buildvcs=false", MACOSX_DEPLOYMENT_TARGET = "14.0" }
