@@ -12,6 +12,7 @@ import (
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
 	"github.com/y3owk1n/mimi/internal/hooks"
+	"github.com/y3owk1n/mimi/internal/native"
 	"github.com/y3owk1n/mimi/internal/observe"
 )
 
@@ -370,5 +371,43 @@ func TestReloader_Apply_InvalidHookRegexLeavesPreviousStateUntouched(t *testing.
 			got,
 			wantEnabledBefore,
 		)
+	}
+}
+
+// TestReloader_Listen_TurnsEveryObserverOnWhileAStreamListens pins that an
+// event stream sees every kind of event while it is connected, whatever the
+// config asks for, and that the observers go back to what the config asks
+// for once the last stream hangs up.
+func TestReloader_Listen_TurnsEveryObserverOnWhileAStreamListens(t *testing.T) {
+	t.Parallel()
+
+	cfgReloader, _ := newTestReloader(t, &config.Config{})
+
+	var switched []native.ObserverConfig
+
+	cfgReloader.updateObservers = func(observers native.ObserverConfig) {
+		switched = append(switched, observers)
+	}
+
+	every := native.ObserverConfig{
+		AppLifecycle: true,
+		Workspace:    true,
+		SystemState:  true,
+		Appearance:   true,
+	}
+
+	releaseFirst := cfgReloader.Listen()
+	releaseSecond := cfgReloader.Listen()
+
+	releaseFirst()
+
+	if last := switched[len(switched)-1]; last != every {
+		t.Fatalf("with one stream still listening, observers = %+v, want every one", last)
+	}
+
+	releaseSecond()
+
+	if last := switched[len(switched)-1]; last != (native.ObserverConfig{}) {
+		t.Fatalf("with no stream listening, observers = %+v, want none", last)
 	}
 }

@@ -728,8 +728,11 @@ $ mimi hooks tail --kind app_activate --kind workspace_changed
 ```
 
 `--kind` keeps only those kinds, as a `[hooks]` key or the event name, and
-may repeat. Without it every hookable kind streams. The daemon's internal
-events never appear. A client that falls more than 64 events behind loses
+may repeat. Without it every hookable kind streams. While the command runs,
+the daemon watches for every kind of event, including kinds no hook or
+feature in the config asks for. When it exits, the daemon goes back to
+watching only what the config asks for. Window events still need the daemon's Accessibility grant. The
+daemon's internal events never appear. A client that falls more than 64 events behind loses
 the rest until it catches up. Needs a running daemon, and fails at once
 without one.
 

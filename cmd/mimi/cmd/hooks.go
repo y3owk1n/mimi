@@ -59,7 +59,9 @@ it carries, with no hook and no log level change.
   {"id":"...","kind":"app_activate","appName":"Safari","bundleId":"com.apple.Safari","pid":501,"at":"..."}
 
 --kind keeps only those kinds, as a [hooks] key or the event name, and may
-repeat. Needs a running daemon.`,
+repeat. While it runs, the daemon watches for every kind of event, including
+kinds no hook or feature in the config asks for. Window events still need the
+daemon's Accessibility grant. Needs a running daemon.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			names, _ := cobraCmd.Flags().GetStringArray(tailKindFlag)
