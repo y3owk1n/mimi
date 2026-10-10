@@ -79,6 +79,12 @@ func TestTilingCommands_ReachTheDaemonAsATilingAction(t *testing.T) {
 // it ran, and its stderr is what the user sees. The engine runs a layout
 // only for a display with a window on it, so a desktop with none, a CI
 // runner's, has nothing to run and the test cannot tell; it skips there.
+//
+// The integration tier opens and closes windows on the same desktop while
+// this runs, so a window seen before the relayout can be gone during it.
+// The layout creates a file when it runs. No error and no file means the
+// relayout found nothing to lay out, and the test skips. No error with the
+// file there means the layout ran and its failure was lost, which fails.
 func TestTilingCommands_RunALocalEngineWithoutADaemon(t *testing.T) {
 	t.Parallel()
 
@@ -91,10 +97,21 @@ func TestTilingCommands_RunALocalEngineWithoutADaemon(t *testing.T) {
 		)
 	}
 
+	ranFile := filepath.Join(t.TempDir(), "ran")
 	socketPath := filepath.Join(shortSocketDir(t), "none.sock")
-	configPath := tilingConfigWith(t, socketPath, "echo ran-locally >&2; exit 3")
+	configPath := tilingConfigWith(
+		t,
+		socketPath,
+		`touch "`+ranFile+`"; echo ran-locally >&2; exit 3`,
+	)
 
 	_, err := runCommand(t, "--config", configPath, "tiling", "relayout")
+
+	_, ranErr := os.Stat(ranFile)
+	if err == nil && ranErr != nil {
+		t.Skip("the window closed before the relayout, so there was nothing to lay out")
+	}
+
 	if err == nil || !strings.Contains(err.Error(), "ran-locally") {
 		t.Fatalf("tiling relayout without a daemon = %v, want the local layout's failure", err)
 	}
