@@ -15,25 +15,26 @@ extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
 @property AXObserverRef observer;
 @property AXUIElementRef appElement;
 @property pid_t pid;
-// Set of AXUIElementRef for elements that have passed the strict
-// create filter (AXWindow role, parent == app element, has close
-// button). At destroy time, the element's attributes are unreadable
-// (kAXErrorAPIDisabled / kAXErrorInvalidUIElement — the element
-// has been torn down), so we can't filter on role, parent, or
-// close button at destroy time. Instead, the create handler
-// populates this set with the AXUIElementRef of every element it
-// has confirmed to be a real top-level window, and the destroy
-// handler looks the destroyed element up in this set. A set hit
-// means "we saw this element get created as a real window"; a miss
-// means "we never saw this element, or it was a tab/transient
-// overlay and was correctly rejected on the create path".
+// Every AXUIElementRef that has passed the strict create filter
+// (AXWindow role, parent == app element, has close button), mapped to
+// the window's number as a CFNumber, read while the window was open.
+// At destroy time, the element's attributes are unreadable
+// (kAXErrorAPIDisabled / kAXErrorInvalidUIElement, since the element
+// has been torn down), so we can't filter on role, parent, or close button
+// at destroy time. Instead, the create handler records every element it
+// has confirmed to be a real top-level window here, and the destroy
+// handler looks the destroyed element up. A hit means "we saw this
+// element get created as a real window"; a miss means "we never saw this
+// element, or it was a tab/transient overlay and was correctly rejected
+// on the create path".
 //
 // CFHash/CFEqual on AXUIElementRef is pointer identity on the
 // underlying accessibility object, which is stable across the
 // create → destroy lifecycle (the OS hands us the same opaque
-// pointer in both callbacks). Set membership survives even when
-// the element's attributes no longer do.
-@property CFMutableSetRef knownRealWindows;
+// pointer in both callbacks). An entry survives even when the
+// element's attributes no longer do. So does its number, which
+// window_closed reports because the closed window no longer has one.
+@property CFMutableDictionaryRef knownRealWindows;
 // The window the last window_focus was dispatched for, retained. A focus
 // change within an application posts both kAXFocusedWindowChangedNotification
 // and kAXMainWindowChangedNotification for one window, and this lets the
@@ -96,7 +97,33 @@ static BOOL axWindowCenter(AXUIElementRef element, double *x, double *y) {
 	return read;
 }
 
-static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
+// axWindowNumber is the window server's number for element, the one the
+// actions and queries take. It is 0 when the element no longer reports
+// one, as after the window has closed.
+static CGWindowID axWindowNumber(AXUIElementRef element) {
+	CGWindowID number = 0;
+	if (_AXUIElementGetWindow(element, &number) != kAXErrorSuccess) {
+		return 0;
+	}
+	return number;
+}
+
+// axRememberWindow records element in knownRealWindows with its number. A
+// window already recorded keeps the number it had when this read finds none.
+static void axRememberWindow(AXEntry *entry, AXUIElementRef element) {
+	if (!entry.knownRealWindows) {
+		return;
+	}
+	int64_t number = axWindowNumber(element);
+	if (number == 0 && CFDictionaryContainsKey(entry.knownRealWindows, element)) {
+		return;
+	}
+	CFNumberRef value = CFNumberCreate(NULL, kCFNumberSInt64Type, &number);
+	CFDictionarySetValue(entry.knownRealWindows, element, value);
+	CFRelease(value);
+}
+
+static void dispatchAXEventNumbered(int kind, pid_t pid, AXUIElementRef element, CGWindowID number) {
 	CFTypeRef titleRef = NULL;
 	AXUIElementCopyAttributeValue(element, kAXTitleAttribute, &titleRef);
 	const char *title = "";
@@ -119,13 +146,6 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	// windows of one app that happen to share a title no longer collide.
 	unsigned long long windowID = (unsigned long long)(uintptr_t)element;
 
-	// The window server's number for the window, which the actions and
-	// queries name it by. 0 when the element no longer reports one.
-	CGWindowID number = 0;
-	if (_AXUIElementGetWindow(element, &number) != kAXErrorSuccess) {
-		number = 0;
-	}
-
 	double centerX = 0;
 	double centerY = 0;
 	int hasCenter = axWindowCenter(element, &centerX, &centerY) ? 1 : 0;
@@ -133,6 +153,31 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	goAXEvent(
 	    kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, number, hasCenter, centerX,
 	    centerY);
+}
+
+// axRememberedNumber is the number knownRealWindows holds for element, or 0.
+static CGWindowID axRememberedNumber(pid_t pid, AXUIElementRef element) {
+	AXEntry *entry = gEntries[@(pid)];
+	if (!entry || !entry.knownRealWindows) {
+		return 0;
+	}
+	CFNumberRef remembered = CFDictionaryGetValue(entry.knownRealWindows, element);
+	int64_t number = 0;
+	if (remembered) {
+		CFNumberGetValue(remembered, kCFNumberSInt64Type, &number);
+	}
+	return (CGWindowID)number;
+}
+
+// dispatchAXEvent reports element with its number. A closing window may no
+// longer report one, and then the event carries the number remembered
+// while it was open.
+static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
+	CGWindowID number = axWindowNumber(element);
+	if (number == 0) {
+		number = axRememberedNumber(pid, element);
+	}
+	dispatchAXEventNumbered(kind, pid, element, number);
 }
 
 // axDispatchFocus dispatches window_focus for element unless the last one
@@ -183,9 +228,7 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// This is a real top-level window. Record it so the
 			// destroy handler can fire window_closed for it (at
 			// destroy time, the element's own attributes are gone).
-			if (entry.knownRealWindows) {
-				CFSetAddValue(entry.knownRealWindows, element);
-			}
+			axRememberWindow(entry, element);
 			dispatchAXEvent(MIMI_KIND_WINDOW_CREATED, pid, element);
 
 			return;
@@ -212,11 +255,10 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			//
 			// Instead, the create handler records every element
 			// it confirms to be a real top-level window in
-			// entry.knownRealWindows (a CFMutableSetRef of
-			// AXUIElementRef). At destroy time we look the
-			// destroyed element up in that set. A hit means
-			// "we saw this element get created as a real
-			// window"; a miss means "we never saw this
+			// entry.knownRealWindows, keyed by AXUIElementRef.
+			// At destroy time we look the destroyed element up
+			// there. A hit means "we saw this element get
+			// created as a real window"; a miss means "we never saw this
 			// element, or it was a tab/transient overlay and
 			// was correctly rejected on the create path".
 			//
@@ -231,15 +273,18 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 				return;
 			}
 
-			if (!CFSetContainsValue(entry.knownRealWindows, element)) {
+			if (!CFDictionaryContainsKey(entry.knownRealWindows, element)) {
 				// Never confirmed as a real window on the create
 				// path (or already removed by an earlier destroy).
 				// Drop.
 				return;
 			}
 
-			CFSetRemoveValue(entry.knownRealWindows, element);
-			dispatchAXEvent(MIMI_KIND_WINDOW_CLOSED, pid, element);
+			// The closed window no longer reports its number, so
+			// window_closed carries the one read while it was open.
+			CGWindowID number = axRememberedNumber(pid, element);
+			CFDictionaryRemoveValue(entry.knownRealWindows, element);
+			dispatchAXEventNumbered(MIMI_KIND_WINDOW_CLOSED, pid, element, number);
 
 			return;
 		}
@@ -273,9 +318,7 @@ static void axCallback(AXObserverRef observer, AXUIElementRef element, CFStringR
 			// tab in front, and bringing that tab to the front posts no
 			// creation. Recording it here lets closing it fire
 			// window_closed.
-			if (entry.knownRealWindows) {
-				CFSetAddValue(entry.knownRealWindows, element);
-			}
+			axRememberWindow(entry, element);
 			axDispatchFocus(entry, pid, element);
 
 			return;
@@ -364,7 +407,7 @@ static void axSeedKnownRealWindows(AXEntry *entry) {
 	for (CFIndex i = 0; i < count; i++) {
 		AXUIElementRef window = (AXUIElementRef)CFArrayGetValueAtIndex(windows, i);
 		if (window && MimiAXIsRealWindow(window, entry.appElement)) {
-			CFSetAddValue(entry.knownRealWindows, window);
+			axRememberWindow(entry, window);
 		}
 	}
 
@@ -428,7 +471,8 @@ static bool axInstallBlock(int pid) {
 	entry.observer = observer;
 	entry.appElement = appElement;
 	entry.pid = pid;
-	entry.knownRealWindows = CFSetCreateMutable(NULL, 0, &kCFTypeSetCallBacks);
+	entry.knownRealWindows =
+	    CFDictionaryCreateMutable(NULL, 0, &kCFTypeDictionaryKeyCallBacks, &kCFTypeDictionaryValueCallBacks);
 	axSeedKnownRealWindows(entry);
 	gEntries[key] = entry;
 

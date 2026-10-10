@@ -630,7 +630,7 @@ Every hook receives:
 | `mimi_BUNDLE_ID` | Bundle identifier |
 | `mimi_PID` | Process ID |
 | `mimi_WINDOW_TITLE` | Window title (window events only) |
-| `mimi_WINDOW_NUMBER` | The window's number, as `mimi query windows` reports it and `mimi action focus_window --number` takes it (window events only) |
+| `mimi_WINDOW_NUMBER` | The window's number, as `mimi query windows` reports it and `mimi action focus_window --number` takes it (window events only). `on_window_closed` carries the number the window had while it was open |
 | `mimi_TIMESTAMP` | RFC3339 timestamp |
 | `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
 | `mimi_INFO` | JSON workspace info (workspace events only) |
