@@ -164,6 +164,8 @@ internal/
   observe/          Hook daemon event routing
   events/           Event kinds and the event bus
   hooks/            Hook registry and executor
+  shellexec/        Hook and layout command lines, killed with all they started
+                    on timeout
   tiling/           The engine that runs the user's layout program on events
   border/           The engine that keeps a border under every window on events
   dropzone/         Drop preview while dragging a tiled window

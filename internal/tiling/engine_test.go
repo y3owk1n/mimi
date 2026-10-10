@@ -414,6 +414,18 @@ func TestEngine_Pass_LayoutFailures(t *testing.T) {
 			},
 			want: "layout timed out",
 		},
+		{
+			// The shell forks sleep rather than becoming it, so the timeout has
+			// to end the child too.
+			name:   "timeout with a child",
+			layout: `sleep 5; true`,
+			cfg: func(c config.TilingConfig) config.TilingConfig {
+				c.TimeoutSecs = 1
+
+				return c
+			},
+			want: "layout timed out",
+		},
 	}
 
 	for _, testCase := range cases {
@@ -429,9 +441,15 @@ func TestEngine_Pass_LayoutFailures(t *testing.T) {
 			engine := tiling.New(desktop, nil, nil)
 			engine.Update(cfg, shell)
 
+			start := time.Now()
+
 			err := engine.Pass(context.Background(), tiling.Event{Kind: created})
 			if err == nil || !strings.Contains(err.Error(), testCase.want) {
 				t.Fatalf("Pass() error = %v, want one containing %q", err, testCase.want)
+			}
+
+			if elapsed := time.Since(start); elapsed >= 3*time.Second {
+				t.Fatalf("Pass() returned after %s, want the layout killed after 1s", elapsed)
 			}
 
 			if len(desktop.applied) != 0 {
@@ -1576,5 +1594,38 @@ func TestEngine_KindFilter_AnswersDuringAPass(t *testing.T) {
 	err := <-passDone
 	if err != nil {
 		t.Fatalf("Pass() error = %v", err)
+	}
+}
+
+// TestEngine_Pass_KillingABeforeLineEndsWhatItStarted pins that the command
+// timeout ends the processes a before line started, not only its shell. A kill
+// that reaches only the parent shell leaves the subshell running, and the
+// subshell then marks the file.
+func TestEngine_Pass_KillingABeforeLineEndsWhatItStarted(t *testing.T) {
+	t.Parallel()
+
+	mark := filepath.Join(t.TempDir(), "ran")
+	desktop := newDesktop()
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(
+		commandTimeout(
+			enabled(
+				`jq -c '{frames: [], state: null, before: ["(sleep 2; touch `+mark+`); true"]}'`,
+			),
+			1,
+		),
+		shell,
+	)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	time.Sleep(2500 * time.Millisecond)
+
+	_, statErr := os.Stat(mark)
+	if statErr == nil {
+		t.Fatal("the killed before line's child ran on and marked the file")
 	}
 }

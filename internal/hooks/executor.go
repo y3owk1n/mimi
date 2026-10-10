@@ -7,7 +7,6 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"os/exec"
 	"regexp"
 	"strings"
 	"sync"
@@ -17,6 +16,7 @@ import (
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
+	"github.com/y3owk1n/mimi/internal/shellexec"
 )
 
 // maxHookOutputBytes caps the combined stdout+stderr capture for a single
@@ -261,7 +261,7 @@ func (ex *Executor) execute(parent context.Context, hook Hook, evt events.Event)
 	defer cancel()
 
 	runCmd := replaceEventVars(hook.Entry.Run, evt)
-	cmd := exec.CommandContext(ctx, shell, "-c", runCmd)
+	cmd := shellexec.Command(ctx, shell, runCmd)
 	cmd.Stdin = bytes.NewReader(eventJSON(evt))
 
 	eventVars := eventEnv(evt)
@@ -273,13 +273,13 @@ func (ex *Executor) execute(parent context.Context, hook Hook, evt events.Event)
 	outBuf := &hookOutputBuffer{limit: maxHookOutputBytes}
 	cmd.Stdout = outBuf
 	cmd.Stderr = outBuf
-	err := cmd.Run()
+	err := shellexec.Run(cmd)
 
 	return Result{
 		Output:   outBuf.Bytes(),
 		Elapsed:  time.Since(start),
 		Timeout:  timeout,
-		TimedOut: errors.Is(ctx.Err(), context.DeadlineExceeded),
+		TimedOut: err != nil && errors.Is(ctx.Err(), context.DeadlineExceeded),
 		Err:      err,
 	}
 }

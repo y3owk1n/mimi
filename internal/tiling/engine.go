@@ -8,7 +8,6 @@ import (
 	"io/fs"
 	"math"
 	"os"
-	"os/exec"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -22,6 +21,7 @@ import (
 	"github.com/y3owk1n/mimi/internal/config"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/events"
+	"github.com/y3owk1n/mimi/internal/shellexec"
 )
 
 // Desktop is what the engine needs from the machine: the three reads and the
@@ -939,7 +939,7 @@ func runLine(ctx context.Context, shell, line string, timeout time.Duration) err
 
 	// Only the line's own deadline counts as a timeout. A pass that ends
 	// while the line runs did not make the line slow.
-	err := exec.CommandContext(ctx, shell, "-c", line).Run()
+	err := shellexec.Run(shellexec.Command(ctx, shell, line))
 	if err != nil && parent.Err() == nil && errors.Is(ctx.Err(), context.DeadlineExceeded) {
 		return derrors.Wrapf(err, derrors.CodeTimeout, "killed after %s", timeout)
 	}

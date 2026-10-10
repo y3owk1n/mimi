@@ -707,3 +707,88 @@ func runHook(t *testing.T, run string, evt events.Event) {
 
 	NewExecutor(reg, cfg, zap.NewNop().Sugar()).Handle(evt)
 }
+
+// TestRun_HookTimeoutEndsWhatTheHookStarted pins that a hook's timeout ends
+// the processes it started as well as its shell. The shell forks sleep
+// rather than becoming it, and the child would otherwise hold the hook's
+// output open until it finished on its own.
+func TestRun_HookTimeoutEndsWhatTheHookStarted(t *testing.T) {
+	t.Parallel()
+
+	core, logs := observer.New(zapcore.DebugLevel)
+	exec := newAppActivateExecutor(t, config.HookEntry{Run: "sleep 5; true", TimeoutSecs: 1}, core)
+
+	start := time.Now()
+
+	exec.Handle(events.Event{Kind: events.AppActivate, ID: "child-timeout-test"})
+
+	if elapsed := time.Since(start); elapsed >= 3*time.Second {
+		t.Fatalf("hook returned after %s, want it killed after 1s", elapsed)
+	}
+
+	if got := logs.FilterMessage("hook timed out").Len(); got != 1 {
+		t.Fatalf("got %d \"hook timed out\" entries, want 1", got)
+	}
+}
+
+// TestRun_HookLeavesWhatItStartsInTheBackground pins that a hook which starts
+// something in the background and exits returns at once, counts as a
+// success, and leaves what it started running.
+func TestRun_HookLeavesWhatItStartsInTheBackground(t *testing.T) {
+	t.Parallel()
+
+	done := filepath.Join(t.TempDir(), "done")
+	core, logs := observer.New(zapcore.DebugLevel)
+	exec := newAppActivateExecutor(
+		t,
+		config.HookEntry{Run: "(sleep 2; touch " + done + ") &"},
+		core,
+	)
+
+	start := time.Now()
+
+	exec.Handle(events.Event{Kind: events.AppActivate, ID: "background-test"})
+
+	if elapsed := time.Since(start); elapsed >= 2*time.Second {
+		t.Fatalf("hook returned after %s, want it back before its background work ends", elapsed)
+	}
+
+	if got := logs.FilterMessage("hook ok").Len(); got != 1 {
+		t.Fatalf("got %d \"hook ok\" entries, want 1", got)
+	}
+
+	deadline := time.Now().Add(5 * time.Second)
+	for time.Now().Before(deadline) {
+		_, statErr := os.Stat(done)
+		if statErr == nil {
+			return
+		}
+
+		time.Sleep(50 * time.Millisecond)
+	}
+
+	t.Fatal("the hook's background work never finished; it was killed")
+}
+
+// newAppActivateExecutor is an executor with entry as its one app activate
+// hook, logging to core.
+func newAppActivateExecutor(t *testing.T, entry config.HookEntry, core zapcore.Core) *Executor {
+	t.Helper()
+
+	reg := NewRegistry()
+
+	loadErr := reg.Reload(&config.Config{
+		Hooks: config.HooksConfig{AppActivate: []config.HookEntry{entry}},
+	})
+	if loadErr != nil {
+		t.Fatalf("registry reload: %v", loadErr)
+	}
+
+	cfg := &config.SettingsConfig{
+		HookShell:       defaultShell,
+		HookTimeoutSecs: 30,
+		MaxHookWorkers:  1,
+	}
+
+	return NewExecutor(reg, cfg, zap.New(core).Sugar())
+}

@@ -28,6 +28,7 @@ internal/
   observe/             Hook daemon event routing
   events/              Event kinds and bus
   hooks/               Hook registry and executor
+  shellexec/           Shell command lines with a timeout
   tiling/              Layout program engine
   border/              Window borders
   dropzone/            Drop preview while dragging
