@@ -179,7 +179,11 @@ else
 
       SRC_PLIST=${finalAttrs.src}/resources/Info.plist.template
 
-      sed "s|VERSION|${finalAttrs.version}|g" $SRC_PLIST > $out/Applications/Mimi.app/Contents/Info.plist
+      sed \
+        -e "s|BUNDLE_VERSION|${version}|g" \
+        -e "s|SHORT_VERSION|${version}|g" \
+        -e "s|BUILD_ID|${finalAttrs.version}|g" \
+        $SRC_PLIST > $out/Applications/Mimi.app/Contents/Info.plist
 
       echo "✅ Mimi.app bundle created at $out/Applications/Mimi.app"
     '';

@@ -2,6 +2,8 @@
 # Version information (can be overridden)
 
 VERSION := `git describe --tags --always --dirty 2>/dev/null || echo "dev"`
+# The nearest release tag without its v, for the bundle version numbers.
+SHORT_VERSION := `git describe --tags --abbrev=0 2>/dev/null | sed 's/^v//' | grep . || echo "0.0.0"`
 GIT_COMMIT := `git rev-parse --short HEAD 2>/dev/null || echo "unknown"`
 BUILD_DATE := `date -u +"%Y-%m-%dT%H:%M:%SZ"`
 
@@ -53,7 +55,11 @@ bundle: release
     # cp resources/icon.icns build/Mimi.app/Contents/Resources/icon.icns
     cp resources/Mimi.entitlements build/Mimi.app/Contents/Resources/Mimi.entitlements
 
-    sed "s/VERSION/{{ VERSION }}/g" resources/Info.plist.template > build/Mimi.app/Contents/Info.plist
+    sed \
+        -e "s/BUNDLE_VERSION/{{ SHORT_VERSION }}/g" \
+        -e "s/SHORT_VERSION/{{ SHORT_VERSION }}/g" \
+        -e "s/BUILD_ID/{{ VERSION }}/g" \
+        resources/Info.plist.template > build/Mimi.app/Contents/Info.plist
 
     codesign --force --deep --sign - --entitlements resources/Mimi.entitlements --options runtime build/Mimi.app
 
