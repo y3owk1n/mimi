@@ -2,10 +2,10 @@
 and which display to fill. Copy, edit, own.
 
 Every layout here reads a JSON document per line on stdin and prints one
-per line on stdout, once or for as long as stdin stays open. See README.md
-for the shapes. mimi runs a layout once per display,
-with that display's windows and a state of that display's own, so a layout
-only ever thinks about one display. [[tiling.rules]] in config.toml says
+per line on stdout, once or for as long as stdin stays open. See
+docs/TILING.md and docs/LAYOUT_CONTRACT.md for the shapes. mimi runs a
+layout once per display, with that display's windows and a state of that
+display's own, so a layout only ever thinks about one display. [[tiling.rules]] in config.toml says
 which windows never tile. A rule there keeps a window out of every layout,
 so this file has no float list.
 """

@@ -149,9 +149,9 @@ Actions and queries work without the daemon. Everything else needs it.
 
 ```bash
 # Spaces
-mimi action space <n|next|prev>
-mimi action move_window_to_space <n|next|prev> [--follow]
-mimi action move_window_to_display <n|next|prev>
+mimi action space <n|next|prev> [--same-display]
+mimi action move_window_to_space <n|next|prev> [--follow] [--same-display] [--number <id>]
+mimi action move_window_to_display <n|next|prev> [--number <id>]
 
 # Focus
 mimi action focus_window [--backward | --same-app | --left | --right | --up | --down | --number <id>]
@@ -159,7 +159,7 @@ mimi action focus_app Safari                  # switches to the app's space firs
 mimi action focus_display next                # the window in front on the next display
 
 # Size and place
-mimi action resize_window <preset> [--cycle]  # halves, quadrants, thirds, two thirds, center, fill
+mimi action resize_window <preset> [--cycle] [--number <id>]  # halves, quadrants, thirds, two thirds, center, fill
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor br
 mimi action resize_window --dx -50 --dw 100   # move and grow from where it is
@@ -194,7 +194,7 @@ alt - h         : mimi action focus_window --left
 alt - l         : mimi action focus_window --right
 ```
 
-**Hooks.** Filter a hook by app name or bundle ID glob, window title regex, or space number. A leading `!` negates a filter. mimi passes event details as environment variables, and a crafted window title cannot run as code.
+**Hooks.** Filter a hook by app name or bundle ID glob, window title regex, space number, or display number. A leading `!` negates a filter. mimi passes event details as environment variables, and a crafted window title cannot run as code.
 
 ```toml
 [hooks]
@@ -275,7 +275,7 @@ daemon -> app, window and space observers -> event bus -> your hooks
                                                        -> menu bar
 ```
 
-Space switching sends a synthetic dock swipe through `CGEvent`. Window-to-space moves use private SkyLight calls. Everything else is public Accessibility. The private paths are timing-sensitive and can break on a macOS update. [Architecture](docs/ARCHITECTURE.md)
+Space switching sends a synthetic dock swipe through `CGEvent`. Window-to-space moves, `focus_app`, `focus_display`, `move_window_to_display`, `focus_window --number` across spaces, and borders use private SkyLight calls. Resizing, moving and focusing within a space use public Accessibility. The private paths are timing-sensitive and can break on a macOS update. [Architecture](docs/ARCHITECTURE.md)
 
 ---
 

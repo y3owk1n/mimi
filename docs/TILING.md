@@ -66,12 +66,15 @@ The shipped layouts are all Python with the standard library only:
 
 | Layout | Shape | Commands it answers |
 | --- | --- | --- |
-| `monocle.py` | Every window fills the display. Move between them with focus. No state, no commands. Names them all as one stack, so `[tiling.stackbar]` shows how many there are. The one to copy when starting your own. | none |
+| `monocle.py` | Every window fills the display. Move between them with focus. No state or commands of its own. Names them all as one stack, so `[tiling.stackbar]` shows how many there are. The one to copy when starting your own. | none |
 | `columns.py` | Equal-width columns. | `togglemax` |
 | `master-stack.py [ratio]` | One master on the left, the rest stacked on the right. Remembers the master and the ratio. | `swap`, `ratio <delta>`, `togglemax` |
 | `bsp.py` | Dwindle BSP, as Hyprland tiles by default. A new window splits the focused one, and closing a window hands its area back. | `swap <dir>`, `focus <dir>`, `togglesplit`, `ratio <delta>`, `togglefloat`, `togglemax`, `stack <dir>`, `unstack`, `next`, `prev` |
 | `stacked.py` | Equal columns, where a column holds one window or several in one place with only the focused one seen, as yabai stacks and niri tabs. | `stack`, `unstack`, `next`, `prev`, `focus <left\|right>`, `togglemax` |
 | `strip.py` | Scrollable strip, as niri tiles. Columns sit on a strip wider than the display, focus scrolls it, and neighbours peek in at the edges. | `focus <dir>`, `move <dir>`, `consume`, `expel`, `width [fraction\|prev\|+d\|-d]`, `center`, `scroll <dir> [fraction]`, `togglefloat`, `togglemax`, `togglestack` |
+
+Every shipped layout also answers `padding`, see
+[Keeping an edge clear](#keeping-an-edge-clear).
 
 None of them takes a gap argument. mimi supplies the gap. It is `tiling.gap`
 when the config sets it, otherwise the macOS tiled-window margin that
@@ -104,10 +107,9 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   quit. A space change, which entering or leaving full screen also fires.
   The daemon's Accessibility observer reaching an application it could not
   see at launch. The daemon starting with tiling on, and a reload that
-  switches it on or names another layout. With `relayout_on_drag = true`, a
-  window you moved or resized, and a display plugged in, unplugged, or
-  rearranged, which runs a `relayout` pass. A burst of events settles into
-  one run.
+  switches it on or names another layout. A display plugged in, unplugged,
+  or rearranged, as `display_changed`. With `relayout_on_drag = true`, a
+  window you moved or resized. A burst of events settles into one run.
 - **New windows.** A run for a new window waits up to half a second for the
   window server to list it, because Accessibility reports the window a little
   before it is on screen.
@@ -121,7 +123,9 @@ window event ---> daemon settles the burst (debounce_ms, default 100)
   without writing a file. mimi files each state under the space's window
   server identifier rather than its place in Mission Control. Adding or
   removing a space therefore never hands a layout the state it built for
-  another space.
+  another space. State is also kept per layout, so a space switched to
+  another layout starts it from `null` and gets the old state back when
+  switched back.
 - **Its own writes.** A frame write by mimi does not run a pass. With
   `relayout_on_drag`, mimi tells your drag from its own write by reading back
   where every window actually landed.
@@ -193,7 +197,7 @@ failure in a row. The shipped layouts handle both modes through `serve()` in
 | Field | Meaning |
 | --- | --- |
 | `version` | Moves only when a field is renamed, removed, or changes meaning. Adding a field does not move it. |
-| `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `window_minimize`, `window_unminimize`, `app_activate`, `app_hide`, `app_unhide`, `app_quit`, `workspace_changed`), `_ax_attached`, `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
+| `event.kind` | Why you were run. A hook name (`window_created`, `window_closed`, `window_focus`, `window_minimize`, `window_unminimize`, `app_activate`, `app_hide`, `app_unhide`, `app_quit`, `workspace_changed`, `display_changed`), `_ax_attached`, `startup`, `reload`, `preview`, `relayout`, `command`, `window_move`, or `window_resize`. |
 | `event.app`, `event.bundleId`, `event.pid` | The application behind a hook event, when there is one. Absent otherwise. |
 | `event.name`, `event.args` | For a `command`: what the user typed after `mimi tiling cmd`. `args` is absent when the user typed none. |
 | `event.windows` | For a `window_move` or `window_resize`: the numbers of the windows the user dragged. |
@@ -329,9 +333,9 @@ The shipped layouts import these from `rules.py`:
   your state before reading it.
 - **`maximised(inp, state, frames, area)`** applies the temporary maximise.
   Call it last, on the frames the layout computed.
-- **`write_output(frames, state, focus=None, unmanaged=None, stacks=None)`**
-  takes frames as `(number, frame)` pairs, rounds them to whole points, and
-  prints the output.
+- **`write_output(frames, state, focus=None, unmanaged=None, stacks=None, target=None)`**
+  takes frames as `(number, frame)` pairs and `target` as `(number, action)`,
+  rounds frames to whole points, and prints the output.
 
 **Remember something** by printing it in `state` and reading it back from
 `inp["state"]`. `master-stack.py` keeps its master and ratio there.
@@ -525,11 +529,11 @@ the mouse button, however long you pause mid-drag.
 
 `event.modifiers` names the modifier keys held during the drag, as `shift`,
 `control`, `option` and `command`, so a drag with a key held can mean
-something else. In the shipped layouts an Option-drag floats the window where
+something else. In `bsp.py` and `strip.py` an Option-drag floats the window where
 you dropped it, an Option-drag of a floating window tiles it again where you
 dropped it, and a Shift-drag stacks it onto the window or column it was
 dropped on instead of swapping or joining. `modifiers(inp)` in `rules.py` is
-the set of keys held. The shipped layouts read an Option-drag the same way
+the set of keys held. Both read an Option-drag the same way
 whether mimi reports it as a move or a resize, since a window pulled out of
 a row changes size on the way. A plain drag of a floating window runs no
 layout. A

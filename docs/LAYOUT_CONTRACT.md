@@ -44,9 +44,9 @@ frame from a failed pass is applied.
 
 ## Input
 
-One input per display that has a window on it and is not showing a
-full-screen space. Every input in one pass carries the same `event` and
-`displays`.
+One input per display that has a window on it, is not showing a
+full-screen space, and has a layout for its space. Every input in one pass
+carries the same `event` and `displays`.
 
 | Field | Type | Present | Meaning |
 | --- | --- | --- | --- |
@@ -57,8 +57,9 @@ full-screen space. Every input in one pass carries the same `event` and
 | `gap` | number | always | Points to leave between windows and at the display's edges: `tiling.gap` when set, else the macOS tiled-window margin when that is on, else `0`. |
 | `displays` | array of display | always | Every connected display, in `move_window_to_display` order. |
 | `focused` | integer | always | Index into `windows` of the window with keyboard focus, or `-1` when no window on this display has it. |
+| `focusKeptOut` | boolean | when true | `true` when the window with keyboard focus is one a `[[tiling.rules]]` entry with `manage = false` keeps from every layout, so `focused` is `-1` although a window has focus. Set on every input of the pass. A layout that hands focus out after a close should leave it alone then. |
 | `windows` | array of window | always | The windows on this display, in `focus_window` order. Never empty, since a display with no window gets no input. |
-| `state` | any JSON | always | What you printed as `state` on the last pass for this display and space, or `null` when there is none. |
+| `state` | any JSON | always | What you printed as `state` on the last pass for this display, space and layout, or `null` when there is none. |
 | `unmanaged` | array of integer | when non-empty | Window numbers on this display you named in `unmanaged` on an earlier pass and have not claimed back since. |
 | `stacks` | array of stack | when non-empty | The stacks you named on the last pass for this display that mimi kept. See [Stack](#stack). |
 | `replaced` | array of replacement | when non-empty | Windows that took the place of one the last pass had here. See [Replacement](#replacement). |
@@ -141,15 +142,17 @@ The same object `mimi query windows` prints, plus `minSize`.
 | `order` | integer | always | Its place in the stacking order among the desktop's windows, `0` for the one in front. Numbers compare but need not start at 0 or run without gaps. |
 | `space` | integer | always | The 1-based index of the space it is on, `0` for a window assigned to every space. |
 | `display` | integer | always | The `index` of the display holding its centre, which in an input is always `display.index`. |
-| `minSize` | object | when learned | The smallest size the window has accepted. `width` and `height` in points, `0` on an axis the window took as asked. Give the window at least this. |
+| `minSize` | object | when learned | The size the window kept the last time mimi asked it for less. Before the window has refused anything, the largest size any window of its application has kept. `width` and `height` in points, `0` on an axis taken as asked. Give the window at least this. |
 
 `windows` is ordered by position, the order `focus_window` cycles. `order`
 answers which window is on top, which is a different question.
 
 `minSize` is learned, not asked for. macOS gives no way to read an
-application's minimum, so mimi remembers a window that was written smaller
-than it landed. The learned minimums are kept across restarts and shown by
-`mimi tiling state`.
+application's minimum, so mimi remembers a window that landed larger than it
+was written. The largest minimum per application is kept across restarts in
+`minsizes.json` beside the socket file. A window's own minimum lasts until
+the daemon stops. `mimi tiling state` shows both, as `minSizes` and
+`appMinSizes`.
 
 ### Stack
 
@@ -182,7 +185,7 @@ Every field is optional. An empty object, or nothing at all, changes nothing.
 | Field | Type | mimi does |
 | --- | --- | --- |
 | `frames` | array of placement | Applies every one in a single write, after `before` and `focus`. A window not named keeps its place this pass and stays managed. |
-| `state` | any JSON | Keeps it for the next pass on this display and space. Omit the key to keep the previous state. Print `null` to clear it. mimi keeps at most 64 display-and-space states and drops the one written longest ago past that. |
+| `state` | any JSON | Keeps it for the next pass on this display, space and layout. Omit the key to keep the previous state. Print `null` to clear it. mimi keeps at most 64 states and drops the one written longest ago past that. |
 | `focus` | integer | Gives that window keyboard focus before the frames move. A window that cannot be focused logs at debug and the frames still apply. |
 | `unmanaged` | array of integer | Stops watching those windows: a drag of one raises no pass and shows no drop zone, unless a modifier key is held, and they are handed back in the input's `unmanaged`. mimi reclassifies only the windows this input listed, so a run for one display never speaks for another's. A window stays unmanaged until a later run for the same display leaves it out. |
 | `stacks` | array of stack | Keeps them for the stack bar and hands them back in the input. mimi drops a stack that names fewer than two windows, or a window with no frame in this output, and the frames still apply. |

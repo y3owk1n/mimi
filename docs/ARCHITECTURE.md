@@ -51,19 +51,21 @@ fake assumes.
 
 | Action | API |
 | ------ | --- |
-| `focus_window` | Accessibility (`AXUIElement`) |
+| `focus_window` | Accessibility (`AXUIElement`). With `--number` for a window on another space, SkyLight to find its space and the `space` gesture first, as `focus_app` does |
 | `focus_app` | `NSRunningApplication` to find the app, private SkyLight for its real windows and their spaces (`SLSCopyWindowsWithOptionsAndTags`, `SLSCopySpacesForWindows`), the `space` gesture, then Accessibility to raise. An app with no window is reopened through `NSWorkspace` |
 | `space` | Synthetic dock-swipe gesture via `CGEvent` |
 | `move_window_to_space` | Private SkyLight: `SLSBridgedMoveWindowsToManagedSpaceOperation` run through `SLSPerformAsynchronousBridgedWindowManagementOperation`, falling back to `SLSMoveWindowsToManagedSpace`. With `--follow`, the `space` gesture and an Accessibility raise |
 | `move_window_to_display` | Accessibility (`AXUIElement`), `NSScreen` for the display list, `SLSSetActiveMenuBarDisplayIdentifier` to activate the target display |
+| `focus_display` | `SLSSetActiveMenuBarDisplayIdentifier` to activate the display, then Accessibility to focus the window in front on it |
 | `resize_window` | Accessibility (`AXUIElement`), `NSScreen` for the visible frame |
 | `apply_frames` | Accessibility (`AXUIElement`), one frame write per window named by window number |
+| `close_window`, `minimize_window`, `unminimize_window`, `fullscreen_window` | Accessibility (`AXUIElement`), on the frontmost window or the one named by window number |
 
 After posting a gesture or a move, the native code pumps the run loop briefly so the event completes before the process exits.
 
 When the daemon is running, `mimi action` first tries the Unix socket at `settings.socket_file`. The request is one line of JSON carrying `ipc.ProtocolVersion` and the typed command. The daemon runs the action on a worker goroutine locked to one OS thread and returns the result. If the socket is unavailable, the CLI falls back to direct execution. A daemon from a different build rejects a request whose version does not match its own. The CLI then prints a warning that names the mismatch and the fix, and runs the action on the direct path.
 
-Each action builds its command through a constructor in `internal/action` (`NewFocusWindowCommand`, `NewFocusAppCommand`, `NewSpaceCommand`, `NewMoveWindowToSpaceCommand`, `NewMoveWindowToDisplayCommand`, `NewResizeWindowCommand`, `NewApplyFramesCommand`), and the constructor validates the arguments. A malformed argument is rejected before either path is chosen. No socket is opened, and the message is the same whether or not a daemon is listening.
+Each action builds its command through a constructor in `internal/action` (`NewFocusWindowCommand`, `NewFocusAppCommand`, `NewSpaceCommand`, `NewMoveWindowToSpaceCommand`, `NewFocusDisplayCommand`, `NewMoveWindowToDisplayCommand`, `NewResizeWindowCommand`, `NewApplyFramesCommand`, `NewWindowCommand`), and the constructor validates the arguments. A malformed argument is rejected before either path is chosen. No socket is opened, and the message is the same whether or not a daemon is listening.
 
 ### Queries
 
@@ -130,15 +132,15 @@ NSWorkspace + AX observers (workspace.m, axobserver.m)
 
 ### Event bus
 
-A pub-sub bus that fans each event out to subscribers without blocking. A full subscriber buffer drops the event and increments a drop counter. Subscribers are the hook executor, the tiling engine, the border engine, the window placer, each `mimi events` client, and the event log writer when `settings.event_log_file` is set. Each subscriber can pass a kind filter so the bus skips events it does not want.
+A pub-sub bus that fans each event out to subscribers without blocking. A full subscriber buffer drops the event and increments a drop counter. Subscribers are the hook executor, the tiling engine, the border engine, the window placer, each `mimi hooks tail` client, and the event log writer when `settings.event_log_file` is set. Each subscriber can pass a kind filter so the bus skips events it does not want.
 
 ### Hook executor
 
-The executor matches events against configured hooks, applies the `app`, `bundle_id` and `title` filters, and runs shell commands with `mimi_*` environment variables and the event as JSON on stdin. Before it runs a command, it rewrites each `$mimi_*` reference so the shell expands it from the environment, inside single quotes too. No event value enters the command text, so a window title cannot run as code.
+The executor matches events against configured hooks, applies the `app`, `bundle_id`, `title`, `space` and `display` filters, and runs shell commands with `mimi_*` environment variables and the event as JSON on stdin. Before it runs a command, it rewrites each `$mimi_*` reference so the shell expands it from the environment, inside single quotes too. No event value enters the command text, so a window title cannot run as code.
 
 ### Border
 
-`internal/border` keeps a border under every window on the spaces in front, in one colour for the focused window and another for the rest. The native side draws each border as an `NSWindow` ordered below its window, and follows drags through SkyLight window-server notifications (`SLSRegisterConnectionNotifyProc`, `SLSRequestNotificationsForWindows`).
+`internal/border` keeps a border under every window on the spaces in front, in one colour for the focused window and another for the rest. The native side draws each border as a window the window server makes through SkyLight (`SLSNewWindow`), not an AppKit window. It orders each border below its window and follows drags through SkyLight window-server notifications (`SLSRegisterConnectionNotifyProc`, `SLSRequestNotificationsForWindows`).
 
 ### Config reload
 
@@ -153,8 +155,10 @@ cmd/mimi/           CLI entry point and commands
 cmd/genman/         Man page generator (just genman)
 internal/
   action/           Action dispatch (focus_window, focus_app, space,
-                    move_window_to_space, move_window_to_display,
-                    resize_window, apply_frames, tiling), the queries, the
+                    move_window_to_space, focus_display,
+                    move_window_to_display, resize_window, apply_frames,
+                    close_window, minimize_window, unminimize_window,
+                    fullscreen_window, tiling), the queries, the
                     Desktop seam and its native adapter
   geometry/         Pure window geometry: rects, resize presets, nearest window
   native/           Objective-C + CGO: AX window wrappers, Mission Control
@@ -191,12 +195,12 @@ internal/
 Accessibility is required for:
 
 - All `mimi action` commands
-- `mimi query window` and `mimi query windows`
+- `mimi query window`, `mimi query windows` and `mimi query minimized`
 - `mimi tiling preview`, `relayout` and `cmd`
 - Tiling, borders, the drop zone and stack bars in the daemon
 - Window hooks (`on_window_*`)
 
-App lifecycle hooks (`on_app_*`), workspace hooks (`on_workspace_changed`), `mimi query space`, `mimi query displays` and `mimi query margins` do not require Accessibility.
+App lifecycle hooks (`on_app_*`), workspace hooks (`on_workspace_changed`), `mimi query space`, `mimi query spaces`, `mimi query displays` and `mimi query margins` do not require Accessibility.
 
 ---
 

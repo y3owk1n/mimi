@@ -40,7 +40,7 @@ mimi makes no outbound network connections and sends no telemetry.
 
 ### CGO and Objective-C
 
-Native code lives in `internal/native/`, `internal/systray/`, and `internal/permissions/`. Space and window-to-space features use undocumented SkyLight private APIs. Report memory-safety issues in this layer promptly.
+Native code lives in `internal/native/`, `internal/systray/`, and `internal/permissions/`. Space switching, window-to-space moves, `focus_app`, `focus_display`, `move_window_to_display`, and borders use undocumented SkyLight private APIs. Report memory-safety issues in this layer promptly.
 
 ### Hook execution
 
@@ -48,4 +48,4 @@ Hooks run shell commands with the daemon's user privileges. Do not put untrusted
 
 ### Private APIs
 
-`mimi action space` and `mimi action move_window_to_space` use reverse-engineered private macOS APIs. They may break on OS updates, and Apple has not reviewed them for security.
+`mimi action space`, `move_window_to_space`, `focus_app`, `focus_display`, `move_window_to_display`, `focus_window --number` for a window on another space, and the daemon's borders use reverse-engineered private macOS APIs. They may break on OS updates, and Apple has not reviewed them for security.

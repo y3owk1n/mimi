@@ -13,8 +13,8 @@ change between releases.
 
 ## What every install has
 
-Check these before anything remote. Homebrew, Nix, and a source build all
-ship them.
+Check these before anything remote. Homebrew, Nix, and oku also ship the
+man pages. A source build has them only after `just genman`, in `build/man`.
 
 - `mimi --help`, then `mimi <command> --help`. The help text lists the
   flags and accepted values of the installed version.
@@ -30,9 +30,14 @@ version:
 
 ```bash
 tag=$(mimi --version | sed -n '1s/^Mimi version //p')
-case $tag in v*) ;; *) tag=main ;; esac
+case $tag in v*-*) tag=main ;; v*) ;; *) tag=main ;; esac
 curl -fsSL "https://raw.githubusercontent.com/y3owk1n/mimi/$tag/docs/CLI.md"
 ```
+
+A release build prints its tag, such as `v0.21.0`. Any other build maps to
+`main`. A build from a checkout prints `v0.20.3-47-g1a2b3c4`, maybe with
+`-dirty`, and the Nix source package and oku's main channel print a name
+with a commit hash.
 
 The docs are `CLI.md` for every command and flag, `CONFIGURATION.md` for
 every key and hook, `TILING.md` for layouts, `LAYOUT_CONTRACT.md` for every
