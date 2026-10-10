@@ -29,13 +29,13 @@ validator.
 
 Mirror `bug_report.yml`'s fields as markdown sections, all of them:
 
-- **Mimi version** — real output of `mimi version`, never guessed.
+- **Mimi version** — real output of `mimi --version`, never guessed.
 - **macOS version** — real output of `sw_vers`, quoted as e.g. `macOS 15.3.1`.
   Version matters more here than in most repos: the private APIs shift between
   releases.
 - **What happened / What did you expect** — observed vs expected, concrete.
 - **Steps to reproduce** — numbered, minimal, starting from a known state
-  (`mimi daemon start`, or the exact `mimi action …` invocation).
+  (`mimi start`, or the exact `mimi action …` invocation).
 - **Config (relevant sections)** — only the TOML sections involved, fenced as
   `toml`. Strip anything personal: hook commands run arbitrary shell, so
   scrub paths, hostnames, and command bodies that aren't load-bearing.
@@ -75,5 +75,4 @@ prefix, no trailing period.
 The forms apply `bug` / `enhancement` automatically; `gh` does not, so pass it
 yourself. `gh label list` is the authority on what else exists — today that's
 `documentation`, `question`, `duplicate`, `invalid`, `good first issue`,
-`help wanted`, plus the triage-state labels in `docs/agents/triage-labels.md`.
-Don't invent new ones while filing.
+`help wanted`. Don't invent new ones while filing.

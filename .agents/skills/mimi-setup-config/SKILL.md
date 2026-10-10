@@ -17,18 +17,20 @@ The user rarely has a checkout. A Homebrew install ships the app and man
 pages only. Resolve the docs in this order:
 
 1. A checkout in the working directory: `docs/CONFIGURATION.md` exists.
-2. Man pages, installed by every method: `man mimi-config`,
+2. Man pages, installed by Homebrew, Nix, and oku: `man mimi-config`,
    `man mimi-config-validate`, `man mimi-services-install`.
 3. The docs at the installed version, fetched from GitHub:
 
    ```bash
    tag=$(mimi --version | sed -n '1s/^Mimi version //p')
-   case $tag in v*) ;; *) tag=main ;; esac
+   case $tag in v*-*) tag=main ;; v*) ;; *) tag=main ;; esac
    curl -fsSL "https://raw.githubusercontent.com/y3owk1n/mimi/$tag/docs/CONFIGURATION.md"
    ```
 
-   A release build prints its tag. A dev build prints `main-<sha>` or a
-   `-dirty` suffix, which the `case` line maps to `main`.
+   A release build prints its tag, such as `v0.21.0`. Any other build maps
+   to `main`. A build from a checkout prints `v0.20.3-47-g1a2b3c4`, maybe with
+   `-dirty`, and the Nix source package and oku's main channel print a name
+   with a commit hash.
 
 The file `mimi config init` writes is fully commented and names every key,
 so after step 2 below, the user's own file is the quickest reference.
@@ -37,7 +39,7 @@ so after step 2 below, the user's own file is the quickest reference.
 
 1. **Check the install.** `mimi status` reports whether the daemon runs,
    whether the CLI and the daemon each hold Accessibility, and whether the
-   socket is up. Window hooks, borders, and tiling need the daemon's grant. Without it, they stay
+   socket is up. Window hooks, borders, tiling, and focus follows mouse need the daemon's grant. Without it, they stay
    off and the daemon logs a warning rather than failing. Send the user to
    System Settings, Privacy & Security, Accessibility if it reads denied.
 
@@ -48,7 +50,7 @@ so after step 2 below, the user's own file is the quickest reference.
    existing file, it replaces the user's config with the default.
 
 3. **Ask what they want, then edit only those sections.** The sections are
-   `[settings]`, `[systray]`, `[tiling]`, `[border]`, and `[hooks]`. Leave
+   `[settings]`, `[systray]`, `[tiling]`, `[border]`, `[mouse]`, and `[hooks]`. Leave
    the rest at defaults. A tiling request goes to the `mimi-setup-layout` skill.
 
 4. **Validate.** `mimi config validate` must pass before anything else.
@@ -60,7 +62,7 @@ so after step 2 below, the user's own file is the quickest reference.
 5. **Apply it the way the changed keys need.** Read the Reloading section
    of the reference and sort the keys the user changed:
 
-   - Reloadable: `[hooks]`, `[tiling]`, `[border]`, and the hook timeout,
+   - Reloadable: `[hooks]`, `[tiling]`, `[border]`, `[mouse]`, and the hook timeout,
      hook shell, and resize debounce under `[settings]`. Saving the file
      is enough when the daemon runs. `mimi config reload` does the same on demand.
    - Restart-only: logging, worker count, pid and socket paths, and

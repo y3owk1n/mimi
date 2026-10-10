@@ -160,7 +160,7 @@ warning. At `info` and above no hook output reaches the log.
 ```toml
 [systray]
 enabled = true                 # restart-only
-show_workspace_number = true   # show active space number in menu bar. restart-only
+show_workspace_number = false  # show active space number in menu bar. restart-only
 ```
 
 ---
@@ -213,8 +213,8 @@ easing = "ease-out"   # linear, ease-in, ease-out or ease-in-out
 enabled = false            # while you drag a window, show where the layout would put it
 color = "#30e2e2e3"        # the zone's fill, #rrggbb or #aarrggbb
 outline_color = "#e2e2e3"  # its outline
-outline_width = 2          # points, up to 32
-radius = 12                # corner radius in points
+outline_width = 2          # points, up to 32. 0 draws no outline
+radius = 12                # corner radius in points. 0 is square
 target_color = "#30f5a623"         # the mark over the window a drop acts on
 target_outline_color = "#f5a623"   # its outline
 ```
@@ -233,8 +233,9 @@ tiling is enabled.
 
 The daemon runs the layout after `debounce_ms` of quiet following any of these
 events: a window is created, closed, focused, minimized or unminimized, an
-application activates, hides, unhides or quits, or the space changes. It runs
-the layout once per display that has a window on it.
+application activates, hides, unhides or quits, the space changes, or a
+display is plugged in, unplugged or rearranged. It runs the layout once per
+display that has a window on it.
 
 Moves and resizes run a pass only with `relayout_on_drag = true`, because the
 engine's own writes are moves too. The engine remembers where it placed each
@@ -378,8 +379,8 @@ far_color = "#30636366"
 | --- | --- | --- |
 | `enabled` | `false` | Draw the stacks a layout names |
 | `step` | `10` | How much of each window behind shows above the one in front, in points, up to 40 |
-| `taper` | `6` | How much narrower each window behind is drawn, on either side, in points, up to 40 |
-| `radius` | `-1` | The corner radius the cards follow, or `-1` to follow each window's own |
+| `taper` | `6` | How much narrower each window behind is drawn, on either side, in points, up to 40. `0` draws every card as wide as the window |
+| `radius` | `-1` | The corner radius of the cards, in points. `-1` uses 10, and `0` is square. Cards behind a window with a mimi border follow the border's corners instead |
 | `color` | `#b0636366` | The card nearest the window in front |
 | `far_color` | `#30636366` | The furthest card, so a deep stack fades away |
 
@@ -659,8 +660,8 @@ extra variables below are set only on the hooks named.
 | `on_appearance_changed` | empty | empty | `mimi_APPEARANCE` |
 | `on_screen_locked`, `on_screen_unlocked` | empty | empty | none |
 
-`mimi_SPACE_INDEX` and `mimi_SPACE_COUNT` are absent, not empty, when mimi
-could not enumerate Mission Control. `mimi_DISPLAY_INDEX` is absent when the
+`mimi_INFO`, `mimi_SPACE_INDEX` and `mimi_SPACE_COUNT` are absent, not
+empty, when mimi could not read them. `mimi_DISPLAY_INDEX` is absent when the
 window's frame could not be read. `mimi_DISPLAYS_COUNT` and
 `mimi_DISPLAYS` are absent when the displays could not be read.
 
@@ -709,6 +710,7 @@ shell reads the value from the environment as one word. A crafted window
 title therefore cannot run as code.
 
 ```toml
+[hooks]
 # All three print the title as is:
 on_window_title_change = [
   { run = "notify-send $mimi_WINDOW_TITLE" },

@@ -25,7 +25,7 @@ Resolve in this order and stop at the first hit:
 
    ```bash
    tag=$(mimi --version | sed -n '1s/^Mimi version //p')
-   case $tag in v*) ;; *) tag=main ;; esac
+   case $tag in v*-*) tag=main ;; v*) ;; *) tag=main ;; esac
    dest=~/.config/mimi/tiling
    mkdir -p "$dest"
    for f in rules.py monocle.py columns.py master-stack.py bsp.py stacked.py strip.py README.md; do
@@ -95,8 +95,10 @@ from.
    ```
 
    When the layout exits non-zero, preview prints `layout failed` and the
-   layout's stderr. Empty `frames` with windows open means `[[tiling.rules]]` kept every
-   window out. `mimi tiling preview --input` prints what the layout would
+   layout's stderr. `[]` with windows open means no display got an input.
+   Either `[[tiling.rules]]` kept every window out, the space is full screen,
+   or no layout covers it. An entry with empty `frames` means the layout ran and
+   placed nothing. `mimi tiling preview --input` prints what the layout would
    receive, as an array with one entry per display. Feed one entry to the
    layout by hand to see its full output:
 
@@ -119,18 +121,17 @@ handle runs a pass that changes nothing, so check it against the layout
 file. Without a daemon, `mimi tiling cmd` runs the layout with a null state,
 enough to try a command but it forgets the result. `mimi tiling state` shows
 what the daemon holds per space, and `mimi tiling reset` starts the layout
-over when its state is wrong.
+over when its state is wrong. A reset also forgets every minimum window size
+the daemon has learned, which it learns again as windows refuse smaller
+frames.
 
 ## Changing an existing setup
 
 **Switching layouts.** Change `layout` in `[tiling]` and save. The daemon
-runs the new layout on the next pass without a restart. It hands the new
-layout the state the old one left for each space. The shipped layouts
-ignore state they did not write, so nothing else is needed between them. A
-custom layout may not, so run `mimi tiling reset --all` after switching to
-one, and `mimi tiling relayout` to lay the desktop out now. A reset also
-forgets every minimum window size the daemon has learned, which it learns
-again as windows refuse smaller frames.
+runs the new layout on the next pass without a restart. mimi keeps state
+per layout, so the new layout starts each space from a null state, and
+switching back finds the old layout's state again. Nothing needs resetting
+between layouts. Run `mimi tiling relayout` to lay the desktop out now.
 
 **Changing options.** Gap, animation, drop zone, stackbar, drag behaviour,
 and layout mode are keys under `[tiling]`, all reloadable on save. Edit

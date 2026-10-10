@@ -22,7 +22,9 @@
 #                       (window events only)
 #   mimi_TIMESTAMP    — RFC3339 timestamp
 # Workspace hooks also receive mimi_WINDOWS_COUNT, mimi_INFO, mimi_SPACE_INDEX
-# and mimi_SPACE_COUNT. See docs/CONFIGURATION.md.
+# and mimi_SPACE_COUNT. Window and workspace hooks receive mimi_DISPLAY_INDEX.
+# on_display_changed receives mimi_DISPLAYS_COUNT and mimi_DISPLAYS, and
+# on_appearance_changed receives mimi_APPEARANCE. See docs/CONFIGURATION.md.
 # =============================================================================
 
 [settings]
@@ -43,8 +45,9 @@ hook_shell = "/bin/sh"
 max_hook_workers = 4
 pid_file = "~/.local/share/mimi/mimi.pid"
 socket_file = "~/.local/share/mimi/mimi.sock"
-# Resize debounce window in milliseconds. The on_window_resize hook fires
-# after this much quiet time following the last AX window-resized event.
+# Resize debounce window in milliseconds. The on_window_resize and
+# on_window_move hooks fire after this much quiet time following the last
+# AX resized or moved event.
 # Lower = more responsive, higher = fewer spurious fires during drag.
 resize_debounce_ms = 250
 
@@ -67,8 +70,9 @@ show_workspace_number = true
 # Tiling
 # =============================================================================
 # mimi ships no layout. With enabled = true the daemon runs the program named
-# by layout whenever a window opens, closes, gains focus or is minimized, an
-# application activates, hides or quits, a space comes to the front, or (with
+# by layout whenever a window opens, closes, gains focus, is minimized or
+# restored, an application activates, hides, unhides or quits, a space comes
+# to the front, a display is plugged in, unplugged or rearranged, or (with
 # relayout_on_drag) a window is dragged. The program gets every window on one
 # display as JSON on stdin and prints the frames to apply on stdout; the daemon
 # keeps whatever state it returns, per display and space. Guide: docs/TILING.md. Layouts to copy: examples/tiling/ (on Nix,
@@ -87,6 +91,8 @@ layout_mode = "oneshot"
 debounce_ms = 100
 # Kill the layout past this.
 timeout_secs = 5
+# Kill a before or after line the layout returned past this.
+command_timeout_secs = 1
 # A window you move or resize runs the layout too: drag an edge to resize a
 # split, drop a window on another to swap, in the shipped layouts.
 relayout_on_drag = false
@@ -239,10 +245,12 @@ focus_follows_mouse = false
 #   bundle_id    — only fire when bundle ID matches (glob)
 #   title        — only fire when window title matches (regex)
 #   space        — only fire on this 1-based space number (workspace hooks only)
+#   display      — only fire on this display, as move_window_to_display counts
+#                  them (window and workspace hooks only)
 #   timeout_secs — override global hook_timeout_secs for this entry
 #   async        — run in background without blocking (default: false)
 #
-# Prefix app, bundle_id, title or space with "!" to match everything else.
+# Prefix app, bundle_id, title, space or display with "!" to match everything else.
 # =============================================================================
 
 [hooks]

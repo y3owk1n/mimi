@@ -123,8 +123,9 @@ var interruptAudit = []auditEntry{
 	audited("config init", interruptRunsOn,
 		"writes one local file"),
 	audited("config reload", interruptRunsOn,
-		"reads the config and the PID file and sends one SIGHUP; "+
-			"nothing here waits for the daemon to finish reloading"),
+		"reads the config and the PID file, sends one SIGHUP, then polls "+
+			"the daemon for its report for up to five seconds under its own "+
+			"deadline, not the context"),
 	audited("config validate", interruptRunsOn,
 		"reads and parses one local file and reports on it"),
 	audited("hooks", interruptRunsOn,
@@ -197,8 +198,9 @@ var interruptAudit = []auditEntry{
 			"and the second ends the process"),
 	audited("doctor", interruptStopsTheWork,
 		"the service status runs its launchctl calls under the context and "+
-			"prints the unknown state when canceled. Every other check is a "+
-			"file read or a quick system call that runs on"),
+			"prints the unknown state when canceled, and each layout check "+
+			"runs its layout under the context. Every other check is a file "+
+			"read or a quick system call that runs on"),
 	audited("status", interruptRunsOn,
 		"reads the PID file, asks the Accessibility API whether mimi is "+
 			"trusted, stats the socket, and asks the daemon for its status "+

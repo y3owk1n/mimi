@@ -55,8 +55,9 @@ the first one does depends on the command:
 | `mimi services status`       | Stops asking `launchctl` and prints the unknown state. Exits 0.                 |
 | `mimi start`                 | Shuts the daemon down gracefully.                                               |
 | `mimi action *`              | Does not reach the action, which finishes. Press Ctrl-C again to end the process. |
-| `mimi config *`              | Does not reach the command, which finishes. Each is local file work, plus one signal for `reload`. |
-| `mimi status`, `mimi doctor`, `mimi stop` | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
+| `mimi config *`              | Does not reach the command, which finishes. Each is local file work. `reload` also sends one signal, then waits up to five seconds for the daemon's report. |
+| `mimi doctor`                | Stops the `launchctl` calls, so the service check prints the unknown state, and ends any layout check still running. The other checks run on. |
+| `mimi status`, `mimi stop`   | Does not reach the command, which finishes. Each is a few file reads and quick system calls. |
 | `mimi hooks list`            | Does not reach the command, which finishes. It reads one file. |
 | `mimi hooks fire`            | Kills the hook that is running and starts no more. It reports what ran. |
 | `mimi hooks tail`            | Closes the connection to the daemon and exits. This is how the command ends. |
@@ -196,8 +197,9 @@ mimi raises the moved window again once the switch lands. If the move lands
 but the switch or raise fails, the error says so and the window stays on its
 new space.
 
-With `--number`, the window has to be on the active space, as for every
-action that takes it.
+With `--number`, the window has to be on the active space, as for
+`resize_window` and `move_window_to_display`. `focus_window --number` is the
+exception. It switches to the window's space first.
 
 ### `mimi action move_window_to_display <number|next|prev>`
 
@@ -658,6 +660,7 @@ FAIL  daemon               stale PID file at /Users/me/.local/share/mimi/mimi.pi
       fix: mimi start overwrites it
 skip  daemon accessibility no daemon to ask
 skip  socket               no daemon to reach
+skip  daemon build         no daemon to ask
 ok    service              loaded and running (pid 4310)
 warn  hook commands        not on the service PATH: sketchybar
       fix: set settings.service_path and run mimi services install, or call the command by absolute path
@@ -919,7 +922,8 @@ reason. The daemon keeps the config it had. The second line lists settings
 the reload changed that need a restart, and another line lists those that
 need `mimi services install`. When the CLI cannot reach the daemon over its
 socket, the daemon still gets the signal, and the command prints
-`Configuration reload requested`.
+`Configuration reload requested`. When the daemon reports nothing within
+five seconds, the command fails and says to read the daemon's log.
 
 ---
 
