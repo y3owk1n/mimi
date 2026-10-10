@@ -201,6 +201,10 @@ func TestEngine_DropPreview_ReusesTheTitlesOfTheLastPass(t *testing.T) {
 
 	engine.Wait()
 
+	// The pass's own read-back lists with given titles too. Only the
+	// preview's listings count here.
+	desktop.withTitles = 0
+
 	desktop.mu.Lock()
 	desktop.windows.Windows[0].Frame = action.Frame{X: 400, Y: 300, Width: 100, Height: 100}
 	desktop.mu.Unlock()

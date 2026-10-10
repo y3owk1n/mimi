@@ -1923,6 +1923,10 @@ const confirmRefusal = 500 * time.Millisecond
 // of the animation, so a window still larger after the second read gets its
 // frame written once more without animation, and is read a third time.
 func (e *Engine) rememberLater(appliedAt time.Time) {
+	// The pass replaces the titles map rather than writing to it, so the map
+	// taken here does not change while the reads below use it.
+	titles := e.titles
+
 	e.background.Go(func() {
 		// An animated apply returns as the windows set off, so the read
 		// waits for them to land.
@@ -1930,7 +1934,7 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 			time.Sleep(settle)
 		}
 
-		windows, err := e.readWindows()
+		windows, err := e.readWindows(titles)
 		if err != nil {
 			e.logger.Debugw("frames not read back, windows unreadable", "err", err)
 
@@ -1957,7 +1961,7 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 		time.Sleep(confirmRefusal)
 
-		windows, err = e.readWindows()
+		windows, err = e.readWindows(titles)
 		if err != nil {
 			e.logger.Debugw("frames not read back, windows unreadable", "err", err)
 
@@ -1989,7 +1993,7 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 
 			time.Sleep(confirmRefusal)
 
-			windows, err = e.readWindows()
+			windows, err = e.readWindows(titles)
 			if err != nil {
 				return
 			}
@@ -2247,18 +2251,30 @@ func inFullScreenTransition(
 	return false
 }
 
-func (e *Engine) readWindows() (action.WindowsInfo, error) {
+func (e *Engine) readWindows(titles map[uint32]string) (action.WindowsInfo, error) {
 	var windows action.WindowsInfo
 
 	err := e.run(func() error {
 		var err error
 
-		windows, err = e.desktop.Windows()
+		windows, err = e.windowsWithTitles(titles)
 
 		return err
 	})
 
 	return windows, err
+}
+
+// windowsWithTitles reads the windows, taking the titles in known as they
+// are when the desktop can. A read that only compares frames would otherwise
+// ask every application for its window titles again, which costs one round
+// trip per window without Screen Recording.
+func (e *Engine) windowsWithTitles(known map[uint32]string) (action.WindowsInfo, error) {
+	if titled, ok := e.desktop.(titledWindower); ok {
+		return titled.WindowsWithTitles(known)
+	}
+
+	return e.desktop.Windows()
 }
 
 // readDesktop reads the windows, the displays, and which displays show a
@@ -2273,7 +2289,7 @@ func (e *Engine) readDesktop() (action.WindowsInfo, []action.DisplayEntry, map[u
 	err := e.run(func() error {
 		var err error
 
-		windows, err = e.desktop.Windows()
+		windows, err = e.windowsWithTitles(e.titles)
 		if err != nil {
 			return err
 		}
