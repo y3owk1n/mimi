@@ -133,7 +133,7 @@ fmt-check:
 # Generate man pages
 genman OUTPUT_DIR="build/man":
     @echo "Generating man pages..."
-    go run ./cmd/genman {{ OUTPUT_DIR }}
+    go run -ldflags="-X github.com/y3owk1n/mimi/cmd/mimi/cmd.Version={{ VERSION }}" ./cmd/genman {{ OUTPUT_DIR }}
     @echo "✓ Man pages generated in {{ OUTPUT_DIR }}/"
 
 # Clean build artifacts

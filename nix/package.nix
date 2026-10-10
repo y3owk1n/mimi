@@ -154,7 +154,7 @@ else
     postInstall = ''
       # generate man pages
       mkdir -p $out/share/man/man1
-      go run ./cmd/genman $out/share/man/man1
+      go run -ldflags="-X github.com/y3owk1n/mimi/cmd/mimi/cmd.Version=${finalAttrs.version}" ./cmd/genman $out/share/man/man1
 
       # the tiling layouts, to copy or to run from the store
       mkdir -p $out/share/mimi/examples
