@@ -30,6 +30,7 @@ extern int SLSMainConnectionID(void);
 extern CFArrayRef SLSCopyManagedDisplaySpaces(int cid);
 extern CFStringRef SLSCopyManagedDisplayForSpace(int cid, uint64_t sid);
 extern uint64_t SLSManagedDisplayGetCurrentSpace(int cid, CFStringRef uuid);
+extern int SLSGetSpaceManagementMode(int cid);
 extern CGError SLSSetActiveMenuBarDisplayIdentifier(int cid, CFStringRef uuid, CFStringRef repeat_uuid);
 extern CGError SLSGetCurrentCursorLocation(int cid, CGPoint *point);
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
@@ -308,6 +309,9 @@ uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID
 
 uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
 
+// Space management mode 1 is "Displays have separate Spaces" on.
+int MimiSpacesSpanDisplays(void) { return SLSGetSpaceManagementMode(SLSMainConnectionID()) != 1; }
+
 /// Whether the space in front on a display is a full-screen application
 /// space, which holds one window or a split-view pair that macOS itself lays out.
 int MimiDisplaySpaceIsFullScreen(uint32_t did) {
@@ -379,54 +383,41 @@ static const double kMimiDockSwipeAugmentedZoomDeltaY = 3.0;  // empirically req
 static const double kMimiDockSwipeAugmentedPositionX = 0.1;   // empirically required
 static const double kMimiDockSwipeVelocity = 9999.0;          // high enough to skip the animation
 
-/// Return the 1-based local index of a space within its display's space
-/// ordering. Returns 0 if the space is not found on the given display.
-static int mimiLocalSpaceIndex(uint64_t sid, uint32_t did) {
-	CFStringRef uuid = mimiDisplayUUID(did);
-	if (!uuid) {
-		return 0;
-	}
-
+/// Return the 1-based index of a space among its display's spaces, or 0 when
+/// no display holds it. display receives that display's position in the
+/// managed display list. The lookup matches the space by id, not the display
+/// by UUID, because with "Displays have separate Spaces" off the list names its
+/// one display "Main".
+static int mimiLocalSpaceIndex(uint64_t sid, CFIndex *display) {
 	CFArrayRef displaySpaces = SLSCopyManagedDisplaySpaces(SLSMainConnectionID());
 	if (!displaySpaces) {
-		CFRelease(uuid);
 		return 0;
 	}
 
 	int localIndex = 0;
 	CFIndex displayCount = CFArrayGetCount(displaySpaces);
-	for (CFIndex i = 0; i < displayCount; i++) {
+	for (CFIndex i = 0; i < displayCount && localIndex == 0; i++) {
 		CFDictionaryRef displayRef = (CFDictionaryRef)CFArrayGetValueAtIndex(displaySpaces, i);
-		CFStringRef displayUUID = (CFStringRef)CFDictionaryGetValue(displayRef, CFSTR("Display Identifier"));
-		if (!displayUUID || CFStringCompare(displayUUID, uuid, 0) != kCFCompareEqualTo) {
-			continue;
-		}
-
 		CFArrayRef spacesRef = (CFArrayRef)CFDictionaryGetValue(displayRef, CFSTR("Spaces"));
 		if (!spacesRef) {
-			break;
+			continue;
 		}
 
 		CFIndex spacesCount = CFArrayGetCount(spacesRef);
 		for (CFIndex j = 0; j < spacesCount; j++) {
-			localIndex++;
 			CFDictionaryRef spaceRef = (CFDictionaryRef)CFArrayGetValueAtIndex(spacesRef, j);
 			CFNumberRef sidRef = (CFNumberRef)CFDictionaryGetValue(spaceRef, CFSTR("id64"));
-			if (sidRef) {
-				uint64_t curSid = 0;
-				CFNumberGetValue(sidRef, CFNumberGetType(sidRef), &curSid);
-				if (curSid == sid) {
-					CFRelease(displaySpaces);
-					CFRelease(uuid);
-					return localIndex;
-				}
+			uint64_t curSid = 0;
+			if (sidRef && CFNumberGetValue(sidRef, kCFNumberSInt64Type, &curSid) && curSid == sid) {
+				localIndex = (int)j + 1;
+				*display = i;
+				break;
 			}
 		}
 	}
 
 	CFRelease(displaySpaces);
-	CFRelease(uuid);
-	return 0;
+	return localIndex;
 }
 
 /// Return the sign macOS 27 reads from its raw HID dock-swipe payload. The
@@ -534,22 +525,20 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 	// indices. Swipe gestures navigate spaces on the active display only, so
 	// the global Mission Control index distance is wrong when crossing displays.
 	uint64_t fromSid = mimiDisplaySpaceID(new_did);
-	int fromIdx = mimiLocalSpaceIndex(fromSid, new_did);
-	int toIdx = mimiLocalSpaceIndex(new_sid, new_did);
+	CFIndex fromDisplay = -1;
+	CFIndex toDisplay = -1;
+	int fromIdx = mimiLocalSpaceIndex(fromSid, &fromDisplay);
+	int toIdx = mimiLocalSpaceIndex(new_sid, &toDisplay);
 
-	if (fromIdx == 0 || toIdx == 0) {
-		// Could not resolve local indices (e.g. transient state).
-		// Best-effort fallback: ensure the right display is active so the OS
-		// picks the closest matching space on that display.
+	// Without both spaces on one display there is no swipe count to post.
+	if (fromIdx == 0 || toIdx == 0 || fromDisplay != toDisplay) {
 		MimiLog(
-		    MimiLogLevelDebug, @"space gesture fallback, local index unresolved",
+		    MimiLogLevelDebug, @"space gesture, local index unresolved",
 		    @{@"display" : @(new_did),
 			  @"from_index" : @(fromIdx),
 			  @"to_index" : @(toIdx)});
-		mimiSetActiveMenuBarDisplay(new_did);
-		mimiPumpRunLoop(kMimiSpaceGestureProcessingDelay);
 
-		return 1;
+		return kMimiSpaceGestureUnresolved;
 	}
 
 	int count = abs(toIdx - fromIdx);

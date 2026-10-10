@@ -158,7 +158,16 @@ uint64_t MimiActiveSpaceID(void);
 /// The space ID in front on the given display, or 0.
 uint64_t MimiDisplayActiveSpaceID(uint32_t did);
 int MimiDisplaySpaceIsFullScreen(uint32_t did);
+/// What MimiFocusSpaceUsingGesture returns when it cannot find the space in
+/// front and the target among one display's spaces. It posts no swipe then.
+#define kMimiSpaceGestureUnresolved (-1)
+/// Post the swipes that bring space new_sid in front on display new_did.
+/// Returns 1 once posted, 0 when it could not create an event, or
+/// kMimiSpaceGestureUnresolved.
 int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid);
+/// 1 when "Displays have separate Spaces" is off, so every display shares one
+/// set of spaces.
+int MimiSpacesSpanDisplays(void);
 int MimiMoveWindowToSpace(void *windowElement, uint64_t spaceID);
 /// Move a window to a space by its window server number. Returns 1 on
 /// success.

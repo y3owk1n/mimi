@@ -35,8 +35,11 @@ func FocusSpace(index int) error {
 		)
 	}
 
-	if C.MimiFocusSpaceUsingGesture(C.uint32_t(did), C.uint64_t(sid)) == 0 {
+	switch C.MimiFocusSpaceUsingGesture(C.uint32_t(did), C.uint64_t(sid)) {
+	case 0:
 		return derrors.New(derrors.CodeActionFailed, "failed to focus Mission Control space")
+	case C.kMimiSpaceGestureUnresolved:
+		return unresolvedSpaceError(index)
 	}
 
 	// The gesture reports that it was posted, not that the Dock took it.
@@ -53,6 +56,23 @@ func FocusSpace(index int) error {
 	}
 
 	return nil
+}
+
+// unresolvedSpaceError reports a switch that posted no swipe, because mimi
+// could not find the space in front and the target among one display's
+// spaces.
+func unresolvedSpaceError(index int) error {
+	hint := ""
+	if C.MimiSpacesSpanDisplays() != 0 {
+		hint = ", and Displays have separate Spaces is off in System Settings, Desktop & Dock"
+	}
+
+	return derrors.Newf(
+		derrors.CodeActionFailed,
+		"could not count the swipes from the space in front to space %d%s",
+		index,
+		hint,
+	)
 }
 
 // CursorDisplayID is the display the pointer is on, 0 when none.

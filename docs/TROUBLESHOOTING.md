@@ -8,7 +8,10 @@ and prints the fix under any that fails.
 mimi reads the space in front back after the swipe. When the destination
 has not come in front within a second the action fails with `space N did
 not come in front`, so a swipe macOS dropped is an error and not a silent
-no-op. Then:
+no-op. When mimi cannot find the space in front and the destination among
+one display's spaces, it posts no swipe and fails with `could not count the
+swipes`. The message also says when Displays have separate Spaces is off.
+Then:
 
 1. Rebuild after pulling changes, if you run a source build.
 2. Grant Accessibility to the exact binary you run (`bin/mimi` or `Mimi.app`).
