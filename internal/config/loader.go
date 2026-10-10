@@ -590,7 +590,7 @@ func unknownKeys(meta toml.MetaData, hooks rawHooksConfig, unknownHookKeys []str
 	}
 
 	for kind, value := range hooks {
-		items, isList := value.([]any)
+		items, isList := rawHookItems(value)
 		if !isList || slices.Contains(unknownHookKeys, kind) {
 			continue
 		}
