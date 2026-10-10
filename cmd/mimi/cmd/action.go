@@ -16,10 +16,11 @@ func newActionCmd(state *cliState) *cobra.Command {
 		Long: `Perform immediate window and space utility actions.
 
 Available subcommands:
-  Window control:   focus_window, resize_window, apply_frames
+  Window control:   focus_window, resize_window, apply_frames, close_window,
+                    minimize_window, unminimize_window, fullscreen_window
   Application:      focus_app
   Space control:    space, move_window_to_space
-  Display control:  move_window_to_display
+  Display control:  focus_display, move_window_to_display
 
 Examples:
   mimi action focus_window
