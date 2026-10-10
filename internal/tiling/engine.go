@@ -13,6 +13,7 @@ import (
 	"slices"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -50,8 +51,10 @@ type Engine struct {
 	serialize Serializer
 	logger    *zap.SugaredLogger
 
-	mu      sync.Mutex
-	enabled bool
+	mu sync.Mutex
+	// enabled and onDrag are atomic so the bus filter reads them without
+	// waiting for a pass to release mu.
+	enabled atomic.Bool
 	// gap is tiling.gap when set; nil follows the macOS margin.
 	gap *int
 	// rules is tiling.rules compiled: which windows the layout never sees.
@@ -117,7 +120,7 @@ type Engine struct {
 	titles map[uint32]string
 
 	// onDrag is whether a window the user moved or resized runs a pass.
-	onDrag bool
+	onDrag atomic.Bool
 	// displays names the displays the last pass read, so the windows macOS
 	// moves when one is plugged in or unplugged are not taken for a drag.
 	displays string
@@ -229,9 +232,9 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	wasEnabled, hadLayouts, hadConfig := e.enabled, layoutSignature(e.layouts), e.configured
+	wasEnabled, hadLayouts, hadConfig := e.enabled.Load(), layoutSignature(e.layouts), e.configured
 
-	e.enabled = cfg.Enabled
+	e.enabled.Store(cfg.Enabled)
 	e.layouts = cfg
 	e.gap = cfg.Gap
 
@@ -255,7 +258,7 @@ func (e *Engine) Update(cfg config.TilingConfig, shell string) {
 	e.configured = true
 	e.shell = shell
 	e.commandTimeout = time.Duration(cfg.CommandTimeoutSecs) * time.Second
-	e.onDrag = cfg.RelayoutOnDrag
+	e.onDrag.Store(cfg.RelayoutOnDrag)
 	e.settle = time.Duration(cfg.DebounceMS) * time.Millisecond
 
 	// A resident layout survives a reload that leaves it as it was: what it
@@ -431,10 +434,7 @@ func (e *Engine) SetStacks(stacker Stacker) {
 
 // Enabled reports whether a pass would run anything.
 func (e *Engine) Enabled() bool {
-	e.mu.Lock()
-	defer e.mu.Unlock()
-
-	return e.enabled
+	return e.enabled.Load()
 }
 
 // wakingKinds are the events a pass runs for. Resizes are deliberately not
@@ -465,15 +465,12 @@ var wakingKinds = map[events.EventKind]bool{
 // the engine is enabled, so a disabled engine costs the bus no sends.
 func (e *Engine) KindFilter() events.KindFilter {
 	return func(kind events.EventKind) bool {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
-		if !e.enabled {
+		if !e.enabled.Load() {
 			return false
 		}
 
 		if kind == events.WindowResize || kind == events.WindowMove {
-			return e.onDrag
+			return e.onDrag.Load()
 		}
 
 		return wakingKinds[kind]
@@ -622,7 +619,7 @@ func (e *Engine) Command(ctx context.Context, event Event) error {
 	delete(e.pending, key)
 	e.pendingMu.Unlock()
 
-	if !e.enabled {
+	if !e.enabled.Load() {
 		return derrors.New(
 			derrors.CodeActionFailed,
 			"tiling is disabled (set tiling.enabled = true, and grant Accessibility)",
@@ -747,7 +744,7 @@ func (e *Engine) reduceAll(ctx context.Context, inputs []Input) ([]Output, error
 
 // passLocked is Pass under the lock.
 func (e *Engine) passLocked(ctx context.Context, event Event) error {
-	if !e.enabled {
+	if !e.enabled.Load() {
 		return nil
 	}
 
@@ -1793,7 +1790,7 @@ func (e *Engine) userDragged() (string, []uint32) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if !e.onDrag || len(e.applied) == 0 {
+	if !e.onDrag.Load() || len(e.applied) == 0 {
 		return "", nil
 	}
 

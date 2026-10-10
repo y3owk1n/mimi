@@ -4,6 +4,7 @@ import (
 	"context"
 	"reflect"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"go.uber.org/zap"
@@ -157,8 +158,9 @@ type Engine struct {
 	// seen is every window number the engine has looked at, so a window
 	// is placed once, on creation, and never again.
 	seen map[uint32]bool
-	// active reports whether any rule places anything.
-	active bool
+	// active reports whether any rule places anything. It is atomic so the bus
+	// filter reads it without waiting for a window read to release mu.
+	active atomic.Bool
 	// wake asks Run for a sweep of every open window, on startup and on a
 	// reload that changed the placing rules.
 	wake chan struct{}
@@ -195,13 +197,13 @@ func (e *Engine) Update(rules []config.TilingRule) {
 	changed := !reflect.DeepEqual(e.written, rules)
 	e.rules = compiled
 	e.written = rules
-	e.active = config.AnyPlaces(rules)
+	e.active.Store(config.AnyPlaces(rules))
 
 	for _, number := range e.desktop.Windows() {
 		e.seen[number] = true
 	}
 
-	if e.active && changed {
+	if e.active.Load() && changed {
 		select {
 		case e.wake <- struct{}{}:
 		default:
@@ -216,10 +218,7 @@ func (e *Engine) Update(rules []config.TilingRule) {
 // anything.
 func (e *Engine) KindFilter() events.KindFilter {
 	return func(kind events.EventKind) bool {
-		e.mu.Lock()
-		defer e.mu.Unlock()
-
-		return e.active && (kind == events.WindowCreated || kind == events.AXAttached)
+		return e.active.Load() && (kind == events.WindowCreated || kind == events.AXAttached)
 	}
 }
 
