@@ -287,7 +287,7 @@ func (e *Executor) windowsNamed(numbers []uint32) ([]Window, error) {
 // wait on each other, so a layout takes as long as its slowest application
 // rather than the sum. Writes to one application stay in payload order, on
 // one goroutine, since an application may apply concurrent requests out of
-// order.
+// order. It skips a window the desktop already has at its frame.
 // The failures come back in payload order, and the dropped windows are the
 // ones whose frame did not land.
 func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string, []uint32) {
@@ -308,6 +308,10 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 		if !ok {
 			messages[index] = fmt.Sprintf("window %d is not on the active space", entry.Number)
 
+			continue
+		}
+
+		if e.inPlace(win.ID, entry.Frame) {
 			continue
 		}
 
@@ -335,6 +339,19 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 	writers.Wait()
 
 	return collectFailures(frames, messages, errs)
+}
+
+// inPlace reports whether the desktop already has window id at frame. A layout
+// that moves one window returns the rest where they are, and writing those
+// costs a round trip into each application to change nothing.
+func (e *Executor) inPlace(id WindowID, frame Frame) bool {
+	current, err := e.desktop.WindowFrame(id)
+	if err != nil {
+		return false
+	}
+
+	return sameLength(current.X, frame.X) && sameLength(current.Y, frame.Y) &&
+		sameLength(current.W, frame.Width) && sameLength(current.H, frame.Height)
 }
 
 // collectFailures turns the per-frame messages and errors of a write into
