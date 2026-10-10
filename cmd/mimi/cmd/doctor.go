@@ -70,6 +70,7 @@ func gatherFacts(cmd *cobra.Command, state *cliState) doctor.Facts {
 	if facts.Alive && facts.SocketPresent {
 		status, err := probeDaemon(socketPath)
 		facts.DaemonVersion, facts.ProbeErr = status.Version, err
+		facts.DaemonAccessibility = status.Accessibility
 	}
 
 	facts.Accessibility = permissions.Check().Accessibility

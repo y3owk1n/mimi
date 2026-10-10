@@ -16,6 +16,11 @@ type Status struct {
 	UptimeSecs int      `json:"uptimeSecs"`
 	ConfigPath string   `json:"configPath"`
 	Features   Features `json:"features"`
+	// Accessibility is whether the daemon holds the permission now. It is
+	// the daemon's own, not the CLI's. macOS grants it per binary, and a CLI
+	// run from a terminal asks on the terminal's behalf. A daemon too old to
+	// report it leaves it nil.
+	Accessibility *bool `json:"accessibility,omitempty"`
 }
 
 // Features is what the running config turns on, as far as the permission
@@ -28,11 +33,13 @@ type Features struct {
 }
 
 // statusAnswer is the status request's answer, read from the config the
-// last reload applied.
+// last reload applied. startedWith is whether the daemon held Accessibility
+// when it started, which decided what it turned on, and holdsNow is whether
+// it holds it now.
 func statusAnswer(
 	version, configPath string,
 	started time.Time,
-	accessibility bool,
+	startedWith, holdsNow bool,
 	current func() *config.Config,
 ) (json.RawMessage, error) {
 	cfg := current()
@@ -43,9 +50,10 @@ func statusAnswer(
 		ConfigPath: configPath,
 		Features: Features{
 			Hooks:   cfg.Hooks.Count(),
-			Tiling:  cfg.Tiling.Enabled && accessibility,
-			Borders: cfg.Border.Enabled && accessibility,
+			Tiling:  cfg.Tiling.Enabled && startedWith,
+			Borders: cfg.Border.Enabled && startedWith,
 			Systray: cfg.Systray.Enabled,
 		},
+		Accessibility: &holdsNow,
 	})
 }

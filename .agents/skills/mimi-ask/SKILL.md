@@ -20,7 +20,7 @@ ship them.
   flags and accepted values of the installed version.
 - `man mimi`, and one page per subcommand such as `man mimi-action-resize_window`
   and `man mimi-tiling-cmd`. `apropos mimi` lists them.
-- `mimi status` for whether the daemon runs and Accessibility is granted.
+- `mimi status` for whether the daemon runs and whether it holds Accessibility.
 - `mimi config dump` for the config in force, defaults filled in.
 - `mimi query space`, `window`, `windows`, `displays`, and `margins` for
   the current spaces, windows, and displays as JSON.

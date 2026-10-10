@@ -20,6 +20,7 @@ func TestStatusAnswer_ReportsTheBuildAndTheConfigInEffect(t *testing.T) {
 		"/x/config.toml",
 		time.Now().Add(-90*time.Second),
 		false,
+		true,
 		func() *config.Config { return cfg },
 	)
 	if err != nil {
@@ -35,6 +36,10 @@ func TestStatusAnswer_ReportsTheBuildAndTheConfigInEffect(t *testing.T) {
 
 	if status.Version != "v9.9.9" || status.ConfigPath != "/x/config.toml" {
 		t.Fatalf("got %+v", status)
+	}
+
+	if status.Accessibility == nil || !*status.Accessibility {
+		t.Fatalf("accessibility %v, want the grant the daemon holds now", status.Accessibility)
 	}
 
 	if status.UptimeSecs < 90 {

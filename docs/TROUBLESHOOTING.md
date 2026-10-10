@@ -84,7 +84,7 @@ read `socketFile`.
 
 ## Window hooks not firing
 
-1. Run `mimi status` to confirm the daemon is running and Accessibility is granted.
+1. Run `mimi status` to confirm the daemon is running and its `accessibility (daemon)` line says granted.
 2. Run `mimi config validate` to confirm the config parses and the hooks are defined.
 3. Run `mimi hooks tail` and do the thing. If no line appears, the daemon
    never saw the event, and the hook is not the problem.

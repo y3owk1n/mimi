@@ -36,8 +36,8 @@ so after step 2 below, the user's own file is the quickest reference.
 ## Steps
 
 1. **Check the install.** `mimi status` reports whether the daemon runs,
-   whether Accessibility is granted, and whether the socket is up. Window
-   hooks, borders, and tiling all need Accessibility. Without it, they stay
+   whether the CLI and the daemon each hold Accessibility, and whether the
+   socket is up. Window hooks, borders, and tiling need the daemon's grant. Without it, they stay
    off and the daemon logs a warning rather than failing. Send the user to
    System Settings, Privacy & Security, Accessibility if it reads denied.
 
