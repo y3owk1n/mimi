@@ -251,6 +251,10 @@ func serviceCheck(facts Facts) Check {
 
 	if status.State == service.LoadStateNotLoaded {
 		detail := "not installed"
+		if status.Installed {
+			detail = "stopped"
+		}
+
 		if facts.ForeignAgent != "" {
 			detail += ", the daemon runs under launchd agent " + facts.ForeignAgent
 		}

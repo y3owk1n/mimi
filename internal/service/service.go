@@ -94,6 +94,9 @@ type Status struct {
 	// ever has, when it was killed by a signal rather than exiting, and
 	// whenever launchd's description could not be read.
 	LastExitStatus OptionalInt
+	// Installed reports whether a plist is at mimi's plist path. It tells a
+	// stopped service, installed but not loaded, apart from one never installed.
+	Installed bool
 	// CapturedStdout and CapturedStderr are the console streams the installed
 	// plist captures, as that plist names them. Both are zero when there is no
 	// plist of mimi's to read them from — nothing installed, or a plist another
@@ -313,21 +316,83 @@ func (s *Service) Uninstall(ctx context.Context) error {
 	return nil
 }
 
-// Start starts the already-installed service.
+// Start undoes [Service.Stop]. It lets launchd load the service again, at
+// login too, and brings it up now. A stopped service is not loaded, so it
+// loads the installed plist, whose RunAtLoad starts mimi. It starts a loaded
+// one in place.
 func (s *Service) Start(ctx context.Context) error {
-	err := s.launcher.start(ctx, Label)
+	state, err := s.loadState(ctx)
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeServiceFailed, "starting service")
+		return err
+	}
+
+	if state == LoadStateNotLoaded && !plistInstalled() {
+		return derrors.New(
+			derrors.CodeServiceFailed,
+			"there is no installed service to start; run `mimi services install` first",
+		)
+	}
+
+	domain, err := guiDomain()
+	if err != nil {
+		return err
+	}
+
+	err = s.launcher.enable(ctx, targetIn(domain))
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "enabling service")
+	}
+
+	if state == LoadStateLoaded {
+		err = s.launcher.start(ctx, Label)
+		if err != nil {
+			return derrors.Wrapf(err, derrors.CodeServiceFailed, "starting service")
+		}
+
+		return nil
+	}
+
+	err = s.launcher.bootstrap(ctx, domain, plistPath())
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "loading service")
 	}
 
 	return nil
 }
 
-// Stop stops the running service.
+// Stop stops the service until [Service.Start], across logins too.
+//
+// The plist keeps mimi alive, so a plain launchctl stop, or a signal, has
+// launchd start it again within a second. Disabling the job is what keeps
+// launchd from loading it at the next login, and unloading it is what stops
+// it now. The plist stays, so start and install can bring the service back.
 func (s *Service) Stop(ctx context.Context) error {
-	err := s.launcher.stop(ctx, Label)
+	state, err := s.loadState(ctx)
 	if err != nil {
-		return derrors.Wrapf(err, derrors.CodeServiceFailed, "stopping service")
+		return err
+	}
+
+	if state == LoadStateNotLoaded && !plistInstalled() {
+		return derrors.New(derrors.CodeServiceFailed, "there is no installed service to stop")
+	}
+
+	target, err := serviceTarget()
+	if err != nil {
+		return err
+	}
+
+	err = s.launcher.disable(ctx, target)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "disabling service")
+	}
+
+	if state == LoadStateNotLoaded {
+		return nil
+	}
+
+	err = s.launcher.bootout(ctx, target)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeServiceFailed, "unloading service")
 	}
 
 	return nil
@@ -349,11 +414,9 @@ func (s *Service) Stop(ctx context.Context) error {
 // anything about restarting. [LoadStateUnknown] is not that answer — a
 // launchctl that could not run has said nothing about whether a service is
 // installed, and it is returned as itself rather than turned into advice to
-// install over a service that may be running perfectly well.
-//
-// Start and Stop are left as they are. Each is a command of its own, and a
-// launchctl start on an unloaded job is a different thing from a restart of
-// one.
+// install over a service that may be running perfectly well. A service that is
+// installed but not loaded is one that [Service.Stop] stopped, and start
+// brings it back.
 func (s *Service) Restart(ctx context.Context) error {
 	state, err := s.loadState(ctx)
 	if err != nil {
@@ -361,6 +424,13 @@ func (s *Service) Restart(ctx context.Context) error {
 	}
 
 	if state == LoadStateNotLoaded {
+		if plistInstalled() {
+			return derrors.New(
+				derrors.CodeServiceFailed,
+				"the service is stopped; run `mimi services start` to start it",
+			)
+		}
+
 		return derrors.New(
 			derrors.CodeServiceFailed,
 			"there is no loaded service to restart; run `mimi services install` first",
@@ -402,7 +472,7 @@ func (s *Service) Status(ctx context.Context) Status {
 	// of what a caller can do about it.
 	state, _ := s.loadState(ctx)
 
-	status := Status{State: state}
+	status := Status{State: state, Installed: plistInstalled()}
 	status.CapturedStdout, status.CapturedStderr = installedCapturedLogs()
 
 	if status.State != LoadStateLoaded {
@@ -518,6 +588,16 @@ func (s *Service) apply(
 	err = writePlist(path, content)
 	if err != nil {
 		return 0, err
+	}
+
+	// launchd refuses to load a job that [Service.Stop] disabled.
+	err = s.launcher.enable(ctx, targetIn(domain))
+	if err != nil {
+		return 0, derrors.Wrapf(
+			err,
+			derrors.CodeServiceFailed,
+			"enabling service; the new plist is already in place, so running install again retries the load",
+		)
 	}
 
 	err = s.launcher.bootstrap(ctx, domain, path)
@@ -740,6 +820,13 @@ func writePlist(path, content string) error {
 	}
 
 	return nil
+}
+
+// plistInstalled reports whether anything is at mimi's plist path.
+func plistInstalled() bool {
+	_, err := os.Lstat(plistPath())
+
+	return err == nil
 }
 
 // plistPath is where mimi's own plist lives, expanded. Install and Uninstall

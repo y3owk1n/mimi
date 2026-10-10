@@ -153,6 +153,19 @@ func TestAssess_NamesTheAgentRunningADaemonThatIsNotMimisService(t *testing.T) {
 	}
 }
 
+// TestAssess_CallsAStoppedServiceStopped pins that a service mimi services
+// stop unloaded, with its plist still installed, is not reported as missing.
+func TestAssess_CallsAStoppedServiceStopped(t *testing.T) {
+	facts := healthy()
+	facts.Alive = false
+	facts.Service = service.Status{State: service.LoadStateNotLoaded, Installed: true}
+
+	check := statusOf(t, doctor.Assess(facts), "service")
+	if check.Status != doctor.Skip || check.Detail != "stopped" {
+		t.Fatalf("got %+v", check)
+	}
+}
+
 func TestMissingHookCommands_ResolvesAgainstTheServicePath(t *testing.T) {
 	bin := t.TempDir()
 

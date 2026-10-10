@@ -21,7 +21,7 @@ const testConfigPath = "/Users/test/.config/mimi/config.toml"
 // wantReloadCalls is the launchctl sequence that replaces the plist of a
 // loaded service: booted out first, because launchd re-reads a plist only when
 // the job is loaded again, and it cannot while the old one is loaded.
-const wantReloadCalls = "bootout,bootstrap"
+const wantReloadCalls = "bootout,enable,bootstrap"
 
 // wantUnloadOnlyCalls is the launchctl sequence of an install that unloaded
 // the old service and then stopped, whatever stopped it: nothing was written,
@@ -78,8 +78,8 @@ type fakeLauncher struct {
 	booted       bool
 	startErr     error
 	started      bool
-	stopErr      error
-	stopped      bool
+	enableErr    error
+	disableErr   error
 
 	// printOutput and printErr stand in for `launchctl print`, whose stdout —
 	// unlike every other call here — is the point of making it.
@@ -161,11 +161,16 @@ func (f *fakeLauncher) start(_ context.Context, _ string) error {
 	return f.startErr
 }
 
-func (f *fakeLauncher) stop(_ context.Context, _ string) error {
-	f.stopped = true
-	f.calls = append(f.calls, "stop")
+func (f *fakeLauncher) enable(_ context.Context, _ string) error {
+	f.calls = append(f.calls, "enable")
 
-	return f.stopErr
+	return f.enableErr
+}
+
+func (f *fakeLauncher) disable(_ context.Context, _ string) error {
+	f.calls = append(f.calls, "disable")
+
+	return f.disableErr
 }
 
 func (f *fakeLauncher) kickstart(_ context.Context, target string) error {
@@ -395,35 +400,148 @@ func TestService_Status_ReportsNoCapturedLogsWithoutAPlistOfMimisOwn(t *testing.
 	}
 }
 
-func TestService_Start_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
-	fake := &fakeLauncher{startErr: errLaunchctlFailed}
-	svc := newTestService(fake)
+// installPlistIn puts a plist at mimi's plist path under a fresh HOME, the
+// state a service is in once install has run, loaded or not.
+func installPlistIn(t *testing.T) {
+	t.Helper()
 
-	err := svc.Start(t.Context())
-	if err == nil {
-		t.Fatal("Start() = nil, want an error")
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+
+	path := filepath.Join(home, "Library", "LaunchAgents", Label+".plist")
+
+	err := os.MkdirAll(filepath.Dir(path), dirPerm)
+	if err != nil {
+		t.Fatalf("creating LaunchAgents: %v", err)
 	}
 
-	if derrors.GetCode(err) != derrors.CodeServiceFailed {
-		t.Errorf("Start() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	err = os.WriteFile(path, []byte("<plist/>"), filePerm)
+	if err != nil {
+		t.Fatalf("writing plist: %v", err)
 	}
 }
 
-// TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode is the other half of
-// stop still being a command of its own. Restart no longer runs it, so a stop
-// that fails is now only ever a `mimi services stop` that failed, and its
-// failure has to reach the user as one.
-func TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
-	fake := &fakeLauncher{stopErr: errLaunchctlFailed}
+// TestService_Stop_DisablesAndUnloadsALoadedService pins the two calls a
+// lasting stop needs. The plist keeps mimi alive, so only unloading the job stops it, and
+// only disabling it keeps launchd from loading it again at the next login.
+func TestService_Stop_DisablesAndUnloadsALoadedService(t *testing.T) {
+	fake := &fakeLauncher{loaded: true}
 	svc := newTestService(fake)
 
 	err := svc.Stop(t.Context())
-	if err == nil {
-		t.Fatal("Stop() = nil, want an error")
+	if err != nil {
+		t.Fatalf("Stop() = %v", err)
 	}
 
-	if derrors.GetCode(err) != derrors.CodeServiceFailed {
-		t.Errorf("Stop() code = %v, want %v", derrors.GetCode(err), derrors.CodeServiceFailed)
+	if got := strings.Join(fake.calls, ","); got != "disable,bootout" {
+		t.Errorf("Stop() calls = %v, want [disable bootout]", fake.calls)
+	}
+}
+
+// TestService_Stop_KeepsAStoppedServiceDisabled pins that stopping a service
+// that is installed but not loaded succeeds and still disables it, so it stays
+// down at the next login.
+func TestService_Stop_KeepsAStoppedServiceDisabled(t *testing.T) {
+	installPlistIn(t)
+
+	fake := &fakeLauncher{loaded: false}
+	svc := newTestService(fake)
+
+	err := svc.Stop(t.Context())
+	if err != nil {
+		t.Fatalf("Stop() = %v", err)
+	}
+
+	if got := strings.Join(fake.calls, ","); got != "disable" {
+		t.Errorf("Stop() calls = %v, want [disable]", fake.calls)
+	}
+}
+
+// TestService_StartAndStop_RefuseWithNothingInstalled pins that neither
+// command touches launchd on a machine with no service of mimi's.
+func TestService_StartAndStop_RefuseWithNothingInstalled(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
+	for name, run := range map[string]func(*Service) error{
+		"start": func(svc *Service) error { return svc.Start(t.Context()) },
+		"stop":  func(svc *Service) error { return svc.Stop(t.Context()) },
+	} {
+		fake := &fakeLauncher{loaded: false}
+
+		err := run(newTestService(fake))
+		if err == nil || !strings.Contains(err.Error(), "no installed service") {
+			t.Errorf("%s() = %v, want it to say no service is installed", name, err)
+		}
+
+		if len(fake.calls) != 0 {
+			t.Errorf("%s() made %v, want nothing run", name, fake.calls)
+		}
+	}
+}
+
+// TestService_Start_LoadsAStoppedService pins that start undoes a stop. It
+// enables the job and loads the installed plist, which starts mimi.
+func TestService_Start_LoadsAStoppedService(t *testing.T) {
+	installPlistIn(t)
+
+	fake := &fakeLauncher{loaded: false}
+	svc := newTestService(fake)
+
+	err := svc.Start(t.Context())
+	if err != nil {
+		t.Fatalf("Start() = %v", err)
+	}
+
+	if got := strings.Join(fake.calls, ","); got != "enable,bootstrap" {
+		t.Errorf("Start() calls = %v, want [enable bootstrap]", fake.calls)
+	}
+}
+
+func TestService_Start_StartsALoadedService(t *testing.T) {
+	fake := &fakeLauncher{loaded: true}
+	svc := newTestService(fake)
+
+	err := svc.Start(t.Context())
+	if err != nil {
+		t.Fatalf("Start() = %v", err)
+	}
+
+	if got := strings.Join(fake.calls, ","); got != "enable,start" {
+		t.Errorf("Start() calls = %v, want [enable start]", fake.calls)
+	}
+}
+
+func TestService_StartAndStop_WrapLauncherErrorsWithADerrorsCode(t *testing.T) {
+	startErr := newTestService(
+		&fakeLauncher{loaded: true, startErr: errLaunchctlFailed},
+	).Start(t.Context())
+	stopErr := newTestService(
+		&fakeLauncher{loaded: true, disableErr: errLaunchctlFailed},
+	).Stop(t.Context())
+
+	for name, err := range map[string]error{"start": startErr, "stop": stopErr} {
+		if derrors.GetCode(err) != derrors.CodeServiceFailed {
+			t.Errorf("%s() = %v, want code %v", name, err, derrors.CodeServiceFailed)
+		}
+	}
+}
+
+// TestService_Restart_PointsAStoppedServiceAtStart pins the advice for a
+// service that is installed but stopped, which is to run start rather than
+// install.
+func TestService_Restart_PointsAStoppedServiceAtStart(t *testing.T) {
+	installPlistIn(t)
+
+	fake := &fakeLauncher{loaded: false}
+	svc := newTestService(fake)
+
+	err := svc.Restart(t.Context())
+	if err == nil || !strings.Contains(err.Error(), "mimi services start") {
+		t.Fatalf("Restart() = %v, want it to point at `mimi services start`", err)
+	}
+
+	if len(fake.calls) != 0 {
+		t.Errorf("Restart() made %v, want nothing run against a stopped service", fake.calls)
 	}
 }
 
@@ -433,6 +551,8 @@ func TestService_Stop_WrapsTheLauncherErrorWithADerrorsCode(t *testing.T) {
 // service" — the symptom, over a machine where the actual answer is that no
 // service was ever installed.
 func TestService_Restart_ReportsThatNothingIsInstalled(t *testing.T) {
+	t.Setenv("HOME", t.TempDir())
+
 	fake := &fakeLauncher{loaded: false}
 	svc := newTestService(fake)
 
@@ -878,7 +998,7 @@ func TestService_Install_ReplacesAStalePlistAndReloadsTheService(t *testing.T) {
 	// Booted out first: bootstrapping over a loaded job is what makes
 	// launchd re-read the plist, and it cannot while the old one is loaded.
 	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
-		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+		t.Errorf("second Install() calls = %v, want [bootout enable bootstrap]", fake.calls)
 	}
 
 	content, err := os.ReadFile(filepath.Join(dir, "Library", "LaunchAgents", Label+".plist"))
@@ -940,7 +1060,7 @@ func TestService_Install_ReplacesAStalePlistAfterServicePathChanges(t *testing.T
 	}
 
 	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
-		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+		t.Errorf("second Install() calls = %v, want [bootout enable bootstrap]", fake.calls)
 	}
 
 	content, err := os.ReadFile(filepath.Join(dir, "Library", "LaunchAgents", Label+".plist"))
@@ -1013,7 +1133,7 @@ func TestService_Install_GivesAnOlderServiceTheCapturedStreamEnvironment(t *test
 	// Replaced and handed back to launchd: an environment written to a plist
 	// launchd is not reading again reaches no daemon.
 	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
-		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+		t.Errorf("second Install() calls = %v, want [bootout enable bootstrap]", fake.calls)
 	}
 
 	after, err := os.ReadFile(plistPath)
@@ -1229,8 +1349,8 @@ func TestService_Install_LoadsAPlistLeftBehindByAPreviousInstall(t *testing.T) {
 	}
 
 	// Nothing was loaded, so there was nothing to boot out.
-	if diff := strings.Join(fake.calls, ","); diff != "bootstrap" {
-		t.Errorf("Install() calls = %v, want [bootstrap]", fake.calls)
+	if diff := strings.Join(fake.calls, ","); diff != "enable,bootstrap" {
+		t.Errorf("Install() calls = %v, want [enable bootstrap]", fake.calls)
 	}
 
 	content, err := os.ReadFile(plistPath)
@@ -1424,7 +1544,7 @@ func TestService_Install_WaitsForThePreviousServiceToUnloadBeforeBootstrapping(t
 	}
 
 	if got := strings.Join(fake.calls, ","); got != wantReloadCalls {
-		t.Errorf("second Install() calls = %v, want [bootout bootstrap]", fake.calls)
+		t.Errorf("second Install() calls = %v, want [bootout enable bootstrap]", fake.calls)
 	}
 
 	if fake.bootstrappedWhileLoaded {
