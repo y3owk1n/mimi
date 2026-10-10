@@ -27,8 +27,8 @@ in this process whether or not the daemon is running.
 Available subcommands:
   space     the active Mission Control space and how many there are
   spaces    every Mission Control space, with its display and windows
-  window    the frontmost window's owner and frame
-  windows   every focusable window on the active space, with its frame
+  window    the frontmost window, as one entry of windows
+  every focusable window on the active space, with its frame
   minimized every window in the Dock, with its owner and title
   displays  every connected display, with its frames
   margins   the system tiled-window margins setting resize_window honors
@@ -197,15 +197,20 @@ to back. Accessibility permission is not needed.`,
 func buildQueryWindowCommand() *cobra.Command {
 	return &cobra.Command{
 		Use:   "window",
-		Short: "Report the frontmost window's owner and frame",
+		Short: "Report the frontmost window with its owner, frame, space, and display",
 		Long: `Report the frontmost window as JSON:
 
-  {"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}
+  {"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari",
+   "title":"Start Page","frame":{"x":100,"y":50,"width":1024,"height":768},
+   "order":0,"space":2,"display":1}
 
-"pid" is the process ID of the application that owns the window. The frame
-is in window coordinates: the origin is the top-left corner of the primary
-display and y grows downward, which is what "mimi action resize_window"
-takes for --x and --y. Accessibility permission is required.`,
+The fields are the ones each window in "mimi query windows" has, and "order"
+is always 0. "number" is what "mimi action focus_window --number" and
+"mimi action apply_frames" take. "pid" is the process ID of the application
+that owns the window. The frame is in window coordinates: the origin is the
+top-left corner of the primary display and y grows downward, which is what
+"mimi action resize_window" takes for --x and --y. Accessibility permission
+is required.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			return answerQuery(cobraCmd, action.QueryWindow)

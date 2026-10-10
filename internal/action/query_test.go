@@ -87,21 +87,32 @@ func TestExecutor_QuerySpace_ErrorPaths(t *testing.T) {
 	}
 }
 
-func TestExecutor_QueryWindow_ReportsTheFrontmostWindowAndItsFrame(t *testing.T) {
+// TestExecutor_QueryWindow_ReportsTheFrontmostWindowAsTheWindowsQueryDoes
+// pins that the frontmost window comes with every field one entry of the
+// windows query has, its space and display included.
+func TestExecutor_QueryWindow_ReportsTheFrontmostWindowAsTheWindowsQueryDoes(t *testing.T) {
 	t.Parallel()
 
-	desktop := desktopWithOneWindow()
+	desktop := desktopWithListedWindows()
+	desktop.frontmost = desktop.windows[0].id
+	desktop.screen = geometry.Screen{PrimaryHeight: 1080}
+	desktop.displays = []action.Display{{ID: 3, Frame: geometry.Rect{W: 1920, H: 1080}}}
+	desktop.spaces = []action.Space{{ID: 100, DisplayID: 3}, {ID: 200, DisplayID: 3}}
+	desktop.windowSpaceIDs = map[uint32]uint64{4242: 200}
 
 	got, err := action.NewExecutor(desktop).QueryWindow()
 	if err != nil {
 		t.Fatalf("QueryWindow() error = %v, want nil", err)
 	}
 
-	want := action.WindowInfo{
-		PID:   100,
-		Frame: action.Frame{X: 10, Y: 10, Width: 200, Height: 200},
+	want := action.WindowEntry{
+		Number: 4242, PID: 100, App: safariName, BundleID: safariBundleID,
+		Title:   safariTitle,
+		Frame:   action.Frame{X: 0, Y: 25, Width: 960, Height: 1055},
+		Space:   2,
+		Display: 1,
 	}
-	if got != want {
+	if !reflect.DeepEqual(got, want) {
 		t.Fatalf("QueryWindow() = %+v, want %+v", got, want)
 	}
 }
