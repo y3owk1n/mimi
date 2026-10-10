@@ -52,11 +52,15 @@ func TestAnswerQuery_PrintsOneLineOfJSON(t *testing.T) {
 		},
 		{
 			name: queryWindowCommandName,
-			answer: action.WindowInfo{
-				PID:   4242,
+			answer: action.WindowEntry{
+				Number: 4242, PID: 501, App: "Safari", BundleID: "com.apple.Safari",
+				Title: "Start Page",
 				Frame: action.Frame{X: 100, Y: 50, Width: 1024, Height: 768},
+				Space: 2, Display: 1,
 			},
-			want: `{"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}` + "\n",
+			want: `{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari",` +
+				`"title":"Start Page","frame":{"x":100,"y":50,"width":1024,"height":768},` +
+				`"order":0,"space":2,"display":1}` + "\n",
 		},
 	}
 
@@ -88,8 +92,8 @@ func TestAnswerQuery_AFailurePrintsNothingOnStdout(t *testing.T) {
 
 	failure := derrors.New(derrors.CodeActionFailed, "no active window found")
 
-	stdout, _, err := answerOn(t, func() (action.WindowInfo, error) {
-		return action.WindowInfo{}, failure
+	stdout, _, err := answerOn(t, func() (action.WindowEntry, error) {
+		return action.WindowEntry{}, failure
 	})
 	if err == nil {
 		t.Fatal("answerQuery() error = nil, want the query's failure")

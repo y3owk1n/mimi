@@ -411,13 +411,14 @@ $ mimi query spaces
 
 ### `mimi query window`
 
-The frontmost window, with its owner's PID and frame in window coordinates.
-The origin is the top-left of the primary display, and y grows downward.
-Accessibility permission is required.
+The frontmost window, with the fields each window in `mimi query windows`
+has. `order` is always 0. The frame is in window coordinates. The origin is
+the top-left of the primary display, and y grows downward. Accessibility
+permission is required.
 
 ```
 $ mimi query window
-{"pid":4242,"frame":{"x":100,"y":50,"width":1024,"height":768}}
+{"number":4242,"pid":501,"app":"Safari","bundleId":"com.apple.Safari","title":"Start Page","frame":{"x":100,"y":50,"width":1024,"height":768},"order":0,"space":2,"display":1}
 ```
 
 ### `mimi query windows`

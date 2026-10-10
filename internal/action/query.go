@@ -21,12 +21,6 @@ type Frame struct {
 	Height float64 `json:"height"`
 }
 
-// WindowInfo is what a window query reports about the frontmost window.
-type WindowInfo struct {
-	PID   int   `json:"pid"`
-	Frame Frame `json:"frame"`
-}
-
 // QuerySpace reports the active Mission Control space on the desktop mimi is
 // running on.
 func QuerySpace() (SpaceInfo, error) {
@@ -34,7 +28,7 @@ func QuerySpace() (SpaceInfo, error) {
 }
 
 // QueryWindow reports the frontmost window on the desktop mimi is running on.
-func QueryWindow() (WindowInfo, error) {
+func QueryWindow() (WindowEntry, error) {
 	return defaultExecutor.QueryWindow()
 }
 
@@ -66,38 +60,44 @@ func (e *Executor) QuerySpace() (SpaceInfo, error) {
 	return SpaceInfo{Index: index, Count: count}, nil
 }
 
-// QueryWindow reports the frontmost window and its frame.
+// QueryWindow reports the frontmost window as the windows query reports each
+// of its windows. It is in front, so its order is 0.
 //
 // The frame is read through Accessibility, so this checks the permission the
 // way resize_window does, and reports the same window resize_window would act
 // on.
-func (e *Executor) QueryWindow() (WindowInfo, error) {
+func (e *Executor) QueryWindow() (WindowEntry, error) {
 	err := e.desktop.EnsureAccessible()
 	if err != nil {
-		return WindowInfo{}, err
+		return WindowEntry{}, err
 	}
 
 	win, err := e.desktop.FrontmostWindow()
 	if err != nil {
-		return WindowInfo{}, err
+		return WindowEntry{}, err
 	}
 
 	frame, err := e.desktop.WindowFrame(win.ID)
 	if err != nil {
-		return WindowInfo{}, derrors.Wrapf(
+		return WindowEntry{}, derrors.Wrapf(
 			err,
 			derrors.CodeActionFailed,
 			"failed to get window frame",
 		)
 	}
 
-	return WindowInfo{
-		PID: win.PID,
-		Frame: Frame{
-			X:      frame.X,
-			Y:      frame.Y,
-			Width:  frame.W,
-			Height: frame.H,
-		},
-	}, nil
+	title, _ := e.desktop.WindowTitle(win.ID)
+	app, _ := e.desktop.ApplicationInfo(win.PID)
+
+	entry := []WindowEntry{{
+		Number:   win.Number,
+		PID:      win.PID,
+		App:      app.Name,
+		BundleID: app.BundleID,
+		Title:    title,
+		Frame:    frameOf(frame),
+	}}
+	e.locateWindows(entry)
+
+	return entry[0], nil
 }
