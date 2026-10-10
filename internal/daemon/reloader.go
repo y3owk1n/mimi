@@ -58,6 +58,14 @@ type reloader struct {
 	follow    *mousefocus.Engine
 	placer    *place.Engine
 	logger    *zap.SugaredLogger
+
+	// listeners is how many event streams are connected. While any is,
+	// every observer runs, so a stream sees events no config feature asks
+	// for. Guarded by mu.
+	listeners int
+	// updateObservers switches the native observers, native.UpdateObservers
+	// outside tests.
+	updateObservers func(native.ObserverConfig)
 }
 
 // newReloader bundles the dependencies a reload touches — the config the
@@ -101,6 +109,8 @@ func newReloader(
 		follow:    follow,
 		placer:    placer,
 		logger:    logger,
+
+		updateObservers: native.UpdateObservers,
 	}
 }
 
@@ -137,7 +147,6 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	}
 
 	rl.executor.UpdateSettings(&cfg.Settings)
-	native.UpdateObservers(getObserverConfig(cfg))
 	rl.router.SetDebounceWindow(time.Duration(cfg.Settings.ResizeDebounceMS) * time.Millisecond)
 
 	perm := permissions.Check()
@@ -145,13 +154,7 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 		warnAccessibilityGated(cfg, rl.logger)
 	}
 
-	observeWindows := perm.Accessibility && hasWindowEvents(cfg)
-
-	rl.axTracker.Update(observeWindows)
-
-	if observeWindows {
-		rl.router.AttachRunning()
-	}
+	rl.observeLocked(cfg, perm.Accessibility)
 
 	if rl.tiler != nil {
 		rl.tiler.Update(tilingConfigFor(cfg, perm.Accessibility), cfg.Settings.HookShell)
@@ -185,6 +188,25 @@ func (rl *reloader) Apply(cfg *config.Config) (reloadChanges, error) {
 	}, nil
 }
 
+// Listen turns every observer on for an event stream until the caller runs
+// the release it returns, so the stream sees each kind of event, not only
+// those the config asks for. Window events still need Accessibility.
+func (rl *reloader) Listen() func() {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	rl.listeners++
+	rl.observeLocked(rl.current, permissions.Check().Accessibility)
+
+	return func() {
+		rl.mu.Lock()
+		defer rl.mu.Unlock()
+
+		rl.listeners--
+		rl.observeLocked(rl.current, permissions.Check().Accessibility)
+	}
+}
+
 // Current is the config in effect: the last one a reload applied, or the one
 // the daemon started with.
 func (rl *reloader) Current() *config.Config {
@@ -192,6 +214,30 @@ func (rl *reloader) Current() *config.Config {
 	defer rl.mu.Unlock()
 
 	return rl.current
+}
+
+// observeLocked switches the native and window observers to what cfg needs,
+// or to every observer while an event stream listens. The caller holds mu.
+func (rl *reloader) observeLocked(cfg *config.Config, accessibility bool) {
+	observers := getObserverConfig(cfg)
+	if rl.listeners > 0 {
+		observers = native.ObserverConfig{
+			AppLifecycle: true,
+			Workspace:    true,
+			SystemState:  true,
+			Appearance:   true,
+		}
+	}
+
+	rl.updateObservers(observers)
+
+	observeWindows := accessibility && (hasWindowEvents(cfg) || rl.listeners > 0)
+
+	rl.axTracker.Update(observeWindows)
+
+	if observeWindows {
+		rl.router.AttachRunning()
+	}
 }
 
 // reloadChanges are the settings a reload did not apply, grouped by what the

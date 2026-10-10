@@ -26,9 +26,12 @@ var hookableKinds = func() map[events.EventKind]bool {
 }()
 
 // eventStream answers the events request: every hookable event the bus
-// publishes, as it happens, until the client hangs up.
-func eventStream(bus *events.Bus) ipc.StreamHandler {
+// publishes, as it happens, until the client hangs up. listen turns on the
+// observers behind every kind for as long as the client is connected.
+func eventStream(bus *events.Bus, listen func() func()) ipc.StreamHandler {
 	return func(ctx context.Context, _ action.Command, send func(v any) error) error {
+		defer listen()()
+
 		sub := bus.SubscribeNamed(
 			"event stream",
 			eventStreamBufSize,
