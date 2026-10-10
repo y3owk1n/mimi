@@ -8,6 +8,7 @@ import (
 	"os"
 	"path/filepath"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -729,4 +730,79 @@ func TestEngine_SetStore_DiscardsAnOlderStore(t *testing.T) {
 	if len(engine.appMinSizes) != 0 {
 		t.Fatalf("appMinSizes = %v, want nothing from an unversioned store", engine.appMinSizes)
 	}
+}
+
+// serializedDesktop counts the applies that run outside the serializer.
+type serializedDesktop struct {
+	*clampingDesktop
+
+	inside  atomic.Bool
+	outside atomic.Int32
+}
+
+func (d *serializedDesktop) Apply(frames []action.WindowFrame, animation *action.Animation) error {
+	if !d.inside.Load() {
+		d.outside.Add(1)
+	}
+
+	return d.clampingDesktop.Apply(frames, animation)
+}
+
+// TestEngine_Run_RewritesARefusedFrameThroughTheSerializer pins that the
+// frame the engine writes again after an animated apply goes through the
+// serializer, so it never interleaves with an action from the socket.
+func TestEngine_Run_RewritesARefusedFrameThroughTheSerializer(t *testing.T) {
+	t.Parallel()
+
+	desktop := &serializedDesktop{clampingDesktop: &clampingDesktop{
+		frames: map[uint32]action.Frame{
+			1: {Width: 500, Height: 500},
+			2: {X: 500, Width: 500, Height: 500},
+		},
+		minWidth: 600,
+	}}
+
+	var serializeMu sync.Mutex
+
+	serialize := func(work func() error) error {
+		serializeMu.Lock()
+		defer serializeMu.Unlock()
+
+		desktop.inside.Store(true)
+		defer desktop.inside.Store(false)
+
+		return work()
+	}
+
+	engine := New(desktop, serialize, nil)
+	engine.Update(config.TilingConfig{
+		Enabled:     true,
+		DebounceMS:  10,
+		TimeoutSecs: 5,
+		Animation:   config.AnimationConfig{Enabled: true, DurationMS: 10, Easing: "ease-out"},
+		Layout: `jq -c '{frames: [` +
+			`{number: 1, frame: {x: 0, y: 0, width: 500, height: 1000}}, ` +
+			`{number: 2, frame: {x: 500, y: 0, width: 500, height: 1000}}], state: null}'`,
+	}, "/bin/sh")
+
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+
+	done := make(chan struct{})
+
+	go func() {
+		engine.Run(ctx, make(events.Subscriber))
+		close(done)
+	}()
+
+	// Startup asks for window 2 at half, the window keeps its minimum, and
+	// the engine writes the frame once more without animation.
+	desktop.waitForApplies(t, 2, "startup and the rewrite of the refused frame")
+
+	if got := desktop.outside.Load(); got != 0 {
+		t.Fatalf("%d applies ran outside the serializer, want none", got)
+	}
+
+	cancel()
+	<-done
 }
