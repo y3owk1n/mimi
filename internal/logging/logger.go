@@ -37,6 +37,15 @@ func New(cfg *config.Config) *zap.SugaredLogger {
 	return newLogger(cfg, zapcore.AddSync(consoleWriter), term.IsTerminal(int(consoleWriter.Fd())))
 }
 
+// NewVerbose is the logger -v gives a CLI command: every level from debug up,
+// on stderr, so the command's own output on stdout stays as it was.
+func NewVerbose() *zap.SugaredLogger {
+	cfg := &config.Config{}
+	cfg.Settings.LogLevel = "debug"
+
+	return newLogger(cfg, zapcore.AddSync(os.Stderr), term.IsTerminal(int(os.Stderr.Fd())))
+}
+
 // newLogger builds the logger against an explicit console sink, so tests can
 // choose both the sink and whether it counts as a terminal.
 func newLogger(

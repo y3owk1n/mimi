@@ -6,6 +6,10 @@ import (
 	"os/signal"
 
 	"github.com/spf13/cobra"
+
+	"github.com/y3owk1n/mimi/internal/action"
+	"github.com/y3owk1n/mimi/internal/logging"
+	"github.com/y3owk1n/mimi/internal/native"
 )
 
 var (
@@ -42,6 +46,14 @@ Use "mimi start" to run the background daemon and react to window/space events v
 		PersistentPreRun: func(cobraCmd *cobra.Command, _ []string) {
 			state.resolveConfigPath()
 
+			// The daemon installs its own loggers over these when mimi start
+			// runs it.
+			if state.verbose {
+				logger := logging.NewVerbose()
+				native.SetLogger(logger.Named("native"))
+				action.SetLogger(logger.Named("action"))
+			}
+
 			// Silencing usage here rather than on the root command is what
 			// keeps usage for the errors it answers. Cobra parses flags and
 			// validates arguments before it reaches any persistent pre-run, so
@@ -64,8 +76,8 @@ Use "mimi start" to run the background daemon and react to window/space events v
 
 	root.PersistentFlags().StringVarP(&state.configPath, "config", "c", "",
 		"path to config file")
-	root.PersistentFlags().BoolP("verbose", "v", false,
-		"verbose output")
+	root.PersistentFlags().BoolVarP(&state.verbose, "verbose", "v", false,
+		"print debug logs on stderr, and run actions here rather than in the daemon so theirs show")
 
 	root.AddCommand(newStartCmd(state))
 	root.AddCommand(newStopCmd(state))

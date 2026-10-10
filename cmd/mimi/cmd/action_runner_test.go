@@ -204,3 +204,22 @@ func TestRunAction_FallsBackToDirectWhenNoDaemonListening(t *testing.T) {
 		t.Fatalf("expected CodeInvalidInput from direct execution's fallback, got %v", err)
 	}
 }
+
+// TestRunAction_RunsHereWhenVerbose pins that -v keeps an action in this
+// process even with a daemon listening, so the debug logs it asked for
+// include the action's. The fake daemon answers every request
+// with ok:true, and only the direct path errors on an empty action name.
+func TestRunAction_RunsHereWhenVerbose(t *testing.T) {
+	t.Parallel()
+
+	socketPath := filepath.Join(shortSocketDir(t), "mimi.sock")
+	state := stateWithSocketConfig(t, socketPath)
+	state.verbose = true
+
+	serveOneResponse(t, socketPath, `{"ok":true}`)
+
+	err := state.runAction(discardErrCommand(), action.Command{})
+	if !derrors.IsCode(err, derrors.CodeInvalidInput) {
+		t.Fatalf("runAction with -v = %v, want the direct path's invalid input error", err)
+	}
+}
