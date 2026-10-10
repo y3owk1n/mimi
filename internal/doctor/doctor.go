@@ -395,7 +395,7 @@ func layoutCheck(run LayoutRun) Check {
 			Name:   checkLayout,
 			Status: Fail,
 			Detail: run.Command + ": " + derrors.Message(run.Err),
-			Fix:    "run it by hand with mimi tiling preview --input | " + run.Command,
+			Fix:    "run it by hand with mimi tiling preview --input | jq -c '.[0]' | " + run.Command,
 		}
 	case run.Empty:
 		return Check{
