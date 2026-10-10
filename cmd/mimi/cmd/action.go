@@ -214,16 +214,29 @@ func buildWindowCommand(state *cliState, name action.Name, short, long string) *
 		Long:  long,
 		Args:  cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
-			number, _ := cobraCmd.Flags().GetUint32("number")
+			number := windowArgsFromFlags(cobraCmd).Number
 
 			return state.runAction(cobraCmd, action.NewWindowCommand(name, number))
 		},
 	}
 
-	cmd.Flags().
-		Uint32("number", 0, "Act on the window with that window-server number instead of the frontmost")
+	addNumberFlag(cmd)
 
 	return cmd
+}
+
+// addNumberFlag gives a window action the --number flag, which names the
+// window to act on in place of the frontmost.
+func addNumberFlag(cmd *cobra.Command) {
+	cmd.Flags().
+		Uint32("number", 0, "Act on the window with that window-server number instead of the frontmost")
+}
+
+// windowArgsFromFlags is the window --number names, or the frontmost for 0.
+func windowArgsFromFlags(cobraCmd *cobra.Command) action.WindowArgs {
+	number, _ := cobraCmd.Flags().GetUint32("number")
+
+	return action.WindowArgs{Number: number}
 }
 
 func buildSpaceCommand(state *cliState) *cobra.Command {
@@ -287,6 +300,9 @@ there, the same way "mimi action space" switches, and the moved window is
 brought back to the front on that space. Without it the window leaves and
 the current space stays in front.
 
+--number moves the window with that number, as "mimi query windows" reports
+it, in place of the frontmost. The window has to be on the active space.
+
 Examples:
   mimi action move_window_to_space 2             Move current window to space 2
   mimi action move_window_to_space next          Move window to next space (with wrap)
@@ -299,18 +315,21 @@ Examples:
 				return err
 			}
 
+			moveCmd.Window = windowArgsFromFlags(cobraCmd)
+
 			return state.runAction(cobraCmd, moveCmd)
 		},
 	}
 
 	cmd.Flags().
 		BoolVar(&follow, "follow", false, "Switch to the destination space after moving the window")
+	addNumberFlag(cmd)
 
 	return cmd
 }
 
 func buildMoveWindowToDisplayCommand(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	cmd := &cobra.Command{
 		Use:   "move_window_to_display <number|next|prev>",
 		Short: "Move the frontmost window to another display by index or cycle next/prev",
 		Long: `Move the frontmost window to a display by its 1-based index, or cycle to the
@@ -328,6 +347,10 @@ half of one display fills the left half of the other, whatever their sizes.
 The move goes through Accessibility, so it lands on the destination's active
 space with the same animation a drag would.
 
+--number moves the window with that number, as "mimi query windows" reports
+it, in place of the frontmost. The window has to be on the active space, and
+focus stays where it was.
+
 Examples:
   mimi action move_window_to_display 2        Move current window to the second display
   mimi action move_window_to_display next     Move window to the next display (with wrap)
@@ -339,9 +362,15 @@ Examples:
 				return err
 			}
 
+			moveCmd.Window = windowArgsFromFlags(cobraCmd)
+
 			return state.runAction(cobraCmd, moveCmd)
 		},
 	}
+
+	addNumberFlag(cmd)
+
+	return cmd
 }
 
 func buildFocusDisplayCommand(state *cliState) *cobra.Command {
@@ -424,6 +453,10 @@ no preset, anchor or margin involved. They take no other flag:
   --dx / --dy    move right and down (negative moves left and up)
   --dw / --dh    grow wider and taller (negative shrinks)
 
+--number resizes the window with that number, as "mimi query windows"
+reports it, in place of the frontmost. It combines with any of the above, and
+the window has to be on the active space.
+
 Examples:
   mimi action resize_window left-half
   mimi action resize_window --dx -50
@@ -446,9 +479,13 @@ Examples:
 				return err
 			}
 
+			resizeCmd.Window = windowArgsFromFlags(cobraCmd)
+
 			return state.runAction(cobraCmd, resizeCmd)
 		},
 	}
+
+	addNumberFlag(cmd)
 
 	cmd.Flags().IntP("width", "w", 0, "Absolute window width in points")
 	cmd.Flags().Int("height", 0, "Absolute window height in points")

@@ -176,17 +176,13 @@ func (e *Executor) MoveWindowToSpace(index int, follow bool) error {
 	return nil
 }
 
-// ResizeWindow resizes and repositions the frontmost window to satisfy req.
+// ResizeWindow resizes and repositions the window args names, the frontmost
+// by default, to satisfy req.
 //
 // It reads the window and its screen from the desktop, hands both to the pure
 // geometry, and writes back the frame it returns.
-func (e *Executor) ResizeWindow(req geometry.Request) error {
-	err := e.desktop.EnsureAccessible()
-	if err != nil {
-		return err
-	}
-
-	win, err := e.desktop.FrontmostWindow()
+func (e *Executor) ResizeWindow(req geometry.Request, args WindowArgs) error {
+	win, err := e.windowFor(args)
 	if err != nil {
 		return err
 	}

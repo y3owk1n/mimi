@@ -5,6 +5,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/json"
 	"net"
 	"path/filepath"
 	"strings"
@@ -14,6 +15,7 @@ import (
 	"github.com/spf13/cobra"
 
 	"github.com/y3owk1n/mimi/internal/action"
+	"github.com/y3owk1n/mimi/internal/ipc"
 )
 
 const (
@@ -775,6 +777,78 @@ func TestSpaceArgValidation_AcceptsEveryFormOfASpaceArgument(t *testing.T) {
 				if err != nil {
 					t.Errorf("%s %q rejected: %v", actionName, arg, err)
 				}
+			}
+		})
+	}
+}
+
+// recordingDaemon answers every request on socketPath as a daemon would and
+// hands each request it read to the channel it returns.
+func recordingDaemon(t *testing.T, socketPath string) <-chan ipc.Request {
+	t.Helper()
+
+	lc := net.ListenConfig{}
+
+	listener, err := lc.Listen(context.Background(), "unix", socketPath)
+	if err != nil {
+		t.Fatalf("listening on fake daemon socket: %v", err)
+	}
+
+	t.Cleanup(func() { _ = listener.Close() })
+
+	requests := make(chan ipc.Request, 1)
+
+	go func() {
+		for {
+			conn, acceptErr := listener.Accept()
+			if acceptErr != nil {
+				return
+			}
+
+			var req ipc.Request
+
+			line, _ := bufio.NewReader(conn).ReadBytes('\n')
+			if json.Unmarshal(line, &req) == nil {
+				requests <- req
+			}
+
+			_, _ = conn.Write([]byte("{\"ok\":true}\n"))
+			_ = conn.Close()
+		}
+	}()
+
+	return requests
+}
+
+// TestWindowActions_NumberReachesTheCommand pins that --number names the
+// window each of these actions sends, in place of the frontmost.
+func TestWindowActions_NumberReachesTheCommand(t *testing.T) {
+	t.Parallel()
+
+	cases := [][]string{
+		{string(action.NameResizeWindow), "--width", "400"},
+		{string(action.NameMoveWindowToSpace), "2"},
+		{string(action.NameMoveWindowToDisplay), "next"},
+	}
+
+	for _, argv := range cases {
+		t.Run(argv[0], func(t *testing.T) {
+			t.Parallel()
+
+			socket := filepath.Join(shortSocketDir(t), "mimi.sock")
+			requests := recordingDaemon(t, socket)
+
+			argv := append(argv, "--number", "4242")
+
+			_, err := runCommand(t, actionArgv(configWithSocket(t, socket), argv)...)
+			if err != nil {
+				t.Fatalf("%v: %v", argv, err)
+			}
+
+			req := <-requests
+			if req.Command.Name != action.Name(argv[0]) || req.Command.Window.Number != 4242 {
+				t.Fatalf("sent %s for window %d, want %s for window 4242",
+					req.Command.Name, req.Command.Window.Number, argv[0])
 			}
 		})
 	}

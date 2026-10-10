@@ -87,7 +87,7 @@ func TestExecutor_ResizeWindow_ErrorPaths(t *testing.T) {
 			testCase.breakIt(desktop)
 
 			err := action.NewExecutor(desktop).
-				ResizeWindow(geometry.Request{Preset: presetFor(t, presetFill)})
+				ResizeWindow(geometry.Request{Preset: presetFor(t, presetFill)}, action.WindowArgs{})
 			if err == nil {
 				t.Fatal("ResizeWindow() error = nil, want an error")
 			}
