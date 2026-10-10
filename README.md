@@ -163,7 +163,7 @@ mimi action resize_window <preset> [--cycle]  # halves, quadrants, thirds, two t
 mimi action resize_window center --width-percent 80 --height-percent 90
 mimi action resize_window --width 1024 --height 768 --anchor br
 mimi action resize_window --dx -50 --dw 100   # move and grow from where it is
-my-layout | mimi action apply_frames          # apply frames from any program
+my-layout | jq .frames | mimi action apply_frames   # apply a layout's frames
 
 # Close, minimize, full screen
 mimi action close_window | minimize_window | fullscreen_window [--number <id>]

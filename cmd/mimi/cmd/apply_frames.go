@@ -36,7 +36,7 @@ where each goes, apply. See examples/tiling in the mimi repository.
 Examples:
   mimi action apply_frames < frames.json
   mimi action apply_frames --file frames.json
-  my-layout | mimi action apply_frames`,
+  my-layout | jq .frames | mimi action apply_frames`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			frames, err := readFramesPayload(cobraCmd)
