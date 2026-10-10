@@ -94,12 +94,22 @@ func newConfigReloadCmd(state *cliState) *cobra.Command {
 }
 
 func newConfigInitCmd(state *cliState) *cobra.Command {
-	return &cobra.Command{
+	var force bool
+
+	cmd := &cobra.Command{
 		Use:   "init",
 		Short: "Create a default configuration file",
 		Long: `Writes the default config to the config path (default: ~/.config/mimi/config.toml).
-Safe to re-run — it will overwrite any existing config.`,
+It refuses when a config is already there, unless --force replaces it.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
+			if !force && config.Exists(state.configPath) {
+				return derrors.Newf(
+					derrors.CodeInvalidInput,
+					"a config already exists at %s, pass --force to replace it with the default",
+					state.configPath,
+				)
+			}
+
 			err := config.WriteDefault(state.configPath)
 			if err != nil {
 				return derrors.Wrapf(err, derrors.CodeConfigIOFailed, "writing default config")
@@ -111,6 +121,10 @@ Safe to re-run — it will overwrite any existing config.`,
 			return nil
 		},
 	}
+
+	cmd.Flags().BoolVar(&force, "force", false, "Replace an existing config with the default")
+
+	return cmd
 }
 
 func newConfigValidateCmd(state *cliState) *cobra.Command {

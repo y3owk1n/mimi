@@ -11,7 +11,7 @@ When none exists, commands use `$XDG_CONFIG_HOME/mimi/config.toml` if that
 variable is set, and `~/.config/mimi/config.toml` otherwise.
 
 ```bash
-mimi config init       # write the default config, overwriting any file already there
+mimi config init       # write the default config if none exists, --force replaces one
 mimi config validate   # check for errors
 mimi config dump       # print the loaded config, defaults filled in, as JSON
 mimi config reload     # send SIGHUP to the running daemon

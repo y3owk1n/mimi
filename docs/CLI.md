@@ -814,8 +814,8 @@ See [TROUBLESHOOTING.md](TROUBLESHOOTING.md#reading-mimi-services-status).
 ### `mimi config init`
 
 Write the default config to the config path (`~/.config/mimi/config.toml`
-unless `--config` or `XDG_CONFIG_HOME` says otherwise). It overwrites an
-existing config.
+unless `--config` or `XDG_CONFIG_HOME` says otherwise). It refuses when a
+config is already there. `--force` replaces it with the default.
 
 ### `mimi config validate`
 

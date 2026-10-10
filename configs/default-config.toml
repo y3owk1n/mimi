@@ -2,7 +2,7 @@
 # =============================================================================
 # Documentation: https://github.com/y3owk1n/mimi
 # Validate:      mimi config validate
-# Re-create:     mimi config init
+# Re-create:     mimi config init --force
 #
 # Immediate actions (no daemon required, but faster when it is running):
 #   mimi action focus_window
