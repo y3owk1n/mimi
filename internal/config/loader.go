@@ -131,8 +131,7 @@ func Load(path string) (*Config, error) {
 		UnknownKeys:     unknownKeys(meta, raw.Hooks, unknownHookKeys),
 	}
 
-	systrayEnabledSet := raw.Systray.Enabled != nil
-	if systrayEnabledSet {
+	if raw.Systray.Enabled != nil {
 		cfg.Systray.Enabled = *raw.Systray.Enabled
 	}
 
@@ -140,7 +139,7 @@ func Load(path string) (*Config, error) {
 		cfg.Systray.ShowWorkspaceNumber = *raw.Systray.ShowWorkspaceNumber
 	}
 
-	applyDefaults(cfg, systrayEnabledSet)
+	applyDefaults(cfg, meta.IsDefined)
 
 	err = validate(cfg)
 	if err != nil {
@@ -190,7 +189,9 @@ const (
 	defaultStackbarRadius             = -1.0
 )
 
-func applyDefaults(cfg *Config, systrayEnabledSet bool) {
+// applyDefaults fills in what the file left out. defined reports whether the
+// file set a key, so a setting where 0 means something keeps a written 0.
+func applyDefaults(cfg *Config, defined func(key ...string) bool) {
 	settings := &cfg.Settings
 	if settings.LogLevel == "" {
 		settings.LogLevel = "info"
@@ -244,7 +245,7 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.Dropzone.OutlineColor = defaultDropzoneOutlineColor
 	}
 
-	if cfg.Tiling.Dropzone.OutlineWidth == 0 {
+	if !defined("tiling", "dropzone", "outline_width") {
 		cfg.Tiling.Dropzone.OutlineWidth = defaultDropzoneOutlineWidth
 	}
 
@@ -256,7 +257,7 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.Dropzone.TargetOutlineColor = defaultDropzoneTargetOutlineColor
 	}
 
-	if cfg.Tiling.Dropzone.Radius == 0 {
+	if !defined("tiling", "dropzone", "radius") {
 		cfg.Tiling.Dropzone.Radius = defaultDropzoneRadius
 	}
 
@@ -272,11 +273,11 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		cfg.Tiling.Stackbar.Step = defaultStackbarStep
 	}
 
-	if cfg.Tiling.Stackbar.Taper == 0 {
+	if !defined("tiling", "stackbar", "taper") {
 		cfg.Tiling.Stackbar.Taper = defaultStackbarTaper
 	}
 
-	if cfg.Tiling.Stackbar.Radius == 0 {
+	if !defined("tiling", "stackbar", "radius") {
 		cfg.Tiling.Stackbar.Radius = defaultStackbarRadius
 	}
 
@@ -308,7 +309,7 @@ func applyDefaults(cfg *Config, systrayEnabledSet bool) {
 		settings.ResizeDebounceMS = 250
 	}
 
-	if !systrayEnabledSet {
+	if !defined("systray", "enabled") {
 		cfg.Systray.Enabled = true
 	}
 }
