@@ -87,7 +87,13 @@ Download from [GitHub Releases](https://github.com/y3owk1n/mimi/releases/latest)
 | Apple Silicon | `mimi-darwin-arm64.zip` |
 | Intel         | `mimi-darwin-amd64.zip` |
 
-Each archive has a `.sha256` checksum file.
+Each archive has a `.sha256` checksum file. Releases after 0.20.3 also carry a
+build provenance attestation, which shows the archive came from this
+repository's release workflow:
+
+```bash
+gh attestation verify mimi-darwin-arm64.zip --repo y3owk1n/mimi
+```
 
 </details>
 

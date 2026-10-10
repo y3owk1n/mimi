@@ -39,6 +39,13 @@ jobs:
             - release-please
             - prepare-release-macos-version
         if: ${{ needs.release-please.outputs.release_created == 'true' }}
+        # A called workflow can only narrow what its caller granted, so this
+        # job grants the attestation permissions publish-artifacts.yml needs,
+        # and no other job does. See the header of publish-artifacts.yml.
+        permissions:
+            contents: write
+            id-token: write
+            attestations: write
         uses: ./.github/workflows/publish-artifacts.yml
         with:
             release_tag: ${{ needs.release-please.outputs.tag_name }}
