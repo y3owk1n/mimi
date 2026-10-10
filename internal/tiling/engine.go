@@ -2059,7 +2059,7 @@ func (e *Engine) rememberLater(appliedAt time.Time) {
 		}
 
 		if animated && len(suspect) > 0 {
-			err := e.desktop.Apply(suspect, nil)
+			err := e.run(func() error { return e.desktop.Apply(suspect, nil) })
 			if err != nil {
 				e.logger.Debugw(
 					"rewriting suspect frames failed",
