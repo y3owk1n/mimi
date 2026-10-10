@@ -549,18 +549,6 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 
 		if (focusDisplay) {
 			mimiSetActiveMenuBarDisplay(new_did);
-			if (mimiDisplaySpaceID(new_did) != new_sid) {
-				CGEventRef clickDown = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, point, 0);
-				if (clickDown) {
-					CGEventPost(kCGHIDEventTap, clickDown);
-					CFRelease(clickDown);
-				}
-				CGEventRef clickUp = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, point, 0);
-				if (clickUp) {
-					CGEventPost(kCGHIDEventTap, clickUp);
-					CFRelease(clickUp);
-				}
-			}
 		}
 
 		return 1;
@@ -603,18 +591,6 @@ int MimiFocusSpaceUsingGesture(uint32_t new_did, uint64_t new_sid) {
 
 	if (focusDisplay) {
 		mimiSetActiveMenuBarDisplay(new_did);
-		if (mimiDisplaySpaceID(new_did) != new_sid) {
-			CGEventRef clickDown = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseDown, point, 0);
-			if (clickDown) {
-				CGEventPost(kCGHIDEventTap, clickDown);
-				CFRelease(clickDown);
-			}
-			CGEventRef clickUp = CGEventCreateMouseEvent(NULL, kCGEventLeftMouseUp, point, 0);
-			if (clickUp) {
-				CGEventPost(kCGHIDEventTap, clickUp);
-				CFRelease(clickUp);
-			}
-		}
 	}
 
 	return 1;
