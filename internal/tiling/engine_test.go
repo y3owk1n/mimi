@@ -10,6 +10,7 @@ import (
 	"strconv"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"testing"
 	"time"
 
@@ -1671,5 +1672,58 @@ func TestEngine_Pass_DoesNotWaitForAWindowARuleKeepsOut(t *testing.T) {
 
 	if elapsed := time.Since(start); elapsed >= 400*time.Millisecond {
 		t.Fatalf("Pass() took %s, want it not to wait for a window the rules keep out", elapsed)
+	}
+}
+
+// titleCountingDesktop is the fake desktop with the live one's way of listing
+// windows with titles it is handed, counting every title it would have had to
+// ask an application for.
+type titleCountingDesktop struct {
+	*fakeDesktop
+
+	asked atomic.Int64
+}
+
+func (d *titleCountingDesktop) Windows() (action.WindowsInfo, error) {
+	windows, err := d.fakeDesktop.Windows()
+	d.asked.Add(int64(len(windows.Windows)))
+
+	return windows, err
+}
+
+func (d *titleCountingDesktop) WindowsWithTitles(
+	known map[uint32]string,
+) (action.WindowsInfo, error) {
+	windows, err := d.fakeDesktop.Windows()
+
+	for _, win := range windows.Windows {
+		if _, ok := known[win.Number]; !ok {
+			d.asked.Add(1)
+		}
+	}
+
+	return windows, err
+}
+
+// TestEngine_Pass_ReadsBackFramesWithoutAskingForTitles pins that reading the
+// windows back after a pass reuses the titles the pass read. Without Screen
+// Recording each title is a round trip into its application, and a hung one
+// would hold every action behind the read-back.
+func TestEngine_Pass_ReadsBackFramesWithoutAskingForTitles(t *testing.T) {
+	t.Parallel()
+
+	desktop := &titleCountingDesktop{fakeDesktop: newDesktop()}
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(echoLayout), shell)
+
+	err := engine.Pass(context.Background(), tiling.Event{Kind: tiling.EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	if asked := desktop.asked.Load(); asked != 1 {
+		t.Fatalf("asked for %d titles, want 1, the one window's in the pass itself", asked)
 	}
 }
