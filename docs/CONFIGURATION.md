@@ -14,7 +14,7 @@ variable is set, and `~/.config/mimi/config.toml` otherwise.
 mimi config init       # write the default config if none exists, --force replaces one
 mimi config validate   # check for errors
 mimi config dump       # print the loaded config, defaults filled in, as JSON
-mimi config reload     # send SIGHUP to the running daemon
+mimi config reload     # reload the running daemon and report how it went
 ```
 
 `mimi config dump` prints camelCase JSON keys, such as `hookTimeoutSecs`.
@@ -26,7 +26,8 @@ mimi config reload     # send SIGHUP to the running daemon
 `mimi config reload`, the systray's reload item, and an edit to the config
 file on disk all trigger the same reload. A bad config (for example an invalid
 `title` regex) is rejected whole. The previous config stays in place and the
-failure is logged.
+failure is logged. `mimi config reload` prints how the reload went, and
+`mimi status` shows the last one, whatever triggered it.
 
 **Reloadable**. Every reload picks these up:
 

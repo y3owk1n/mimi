@@ -66,6 +66,9 @@ type reloader struct {
 	// updateObservers switches the native observers, native.UpdateObservers
 	// outside tests.
 	updateObservers func(native.ObserverConfig)
+
+	// last is how the last reload went, nil until one has run. Guarded by mu.
+	last *Reload
 }
 
 // newReloader bundles the dependencies a reload touches — the config the
@@ -214,6 +217,22 @@ func (rl *reloader) Current() *config.Config {
 	defer rl.mu.Unlock()
 
 	return rl.current
+}
+
+// LastReload is how the last reload went, nil until one has run.
+func (rl *reloader) LastReload() *Reload {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	return rl.last
+}
+
+// record keeps outcome as how the last reload went.
+func (rl *reloader) record(outcome Reload) {
+	rl.mu.Lock()
+	defer rl.mu.Unlock()
+
+	rl.last = &outcome
 }
 
 // observeLocked switches the native and window observers to what cfg needs,

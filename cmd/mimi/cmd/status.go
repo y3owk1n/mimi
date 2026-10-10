@@ -3,6 +3,7 @@ package cmd
 import (
 	"fmt"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/spf13/cobra"
@@ -100,6 +101,37 @@ func printProbe(cmd *cobra.Command, socketPath string) {
 				"accessibility (daemon): not granted (required for hooks, tiling and borders)",
 			)
 		}
+	}
+
+	printLastReload(cmd, status.LastReload)
+}
+
+// printLastReload prints how the daemon's last reload went, when it has run
+// one.
+func printLastReload(cmd *cobra.Command, last *daemon.Reload) {
+	if last == nil {
+		return
+	}
+
+	ago := time.Since(last.At).Round(time.Second)
+
+	if !last.OK {
+		cmd.Printf("last reload: failed %s ago (%s): %s\n", ago, last.Trigger, last.Error)
+
+		return
+	}
+
+	cmd.Printf("last reload: applied %s ago (%s)\n", ago, last.Trigger)
+
+	if len(last.RestartOnly) > 0 {
+		cmd.Printf("  restart to apply: %s\n", strings.Join(last.RestartOnly, ", "))
+	}
+
+	if len(last.ReinstallOnly) > 0 {
+		cmd.Printf(
+			"  mimi services install to apply: %s\n",
+			strings.Join(last.ReinstallOnly, ", "),
+		)
 	}
 }
 

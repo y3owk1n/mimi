@@ -37,12 +37,17 @@ to the user.
 
 ## Consequences
 
+- **A trigger learns the result from status, not from the reload.** The
+  daemon records how each reload went, `mimi status` reports the last one,
+  and `mimi config reload` asks for it after it signals, waiting for a reload
+  newer than the one it saw before. The signal stays the only way in.
 - **The systray reports a request, not a result.** Its menu item log line says
-  the reload was requested, matching what `mimi config reload` already prints.
-  Neither surface can honestly claim the config was applied, because neither
-  waits to find out. The sanctioned way to close that gap is a last-reload
-  status line in the systray menu, fed by the daemon's own reload outcome —
-  a systray feature, designed on its own, not a second route into reloading.
+  the reload was requested. It cannot honestly claim the config was applied,
+  because it does not wait to find out. The sanctioned way to close that gap
+  is a last-reload status line in the systray menu, fed by the daemon's own
+  reload outcome. That is a systray feature, designed on its own, not a second
+  route into reloading. `mimi config reload` closed the same gap that way,
+  through `mimi status`.
 - **`reloadTrigger` is deliberately coarse.** It has two values, `fsnotify` and
   `sighup`, and a systray click, a `mimi config reload`, and a hand-typed
   `kill -HUP` all arrive as the second one. That is not an omission to be

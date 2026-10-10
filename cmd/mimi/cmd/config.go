@@ -6,6 +6,7 @@ import (
 	"os"
 	"strings"
 	"syscall"
+	"time"
 
 	"github.com/spf13/cobra"
 
@@ -64,7 +65,11 @@ func newConfigReloadCmd(state *cliState) *cobra.Command {
 	return &cobra.Command{
 		Use:   "reload",
 		Short: "Reload configuration from disk",
-		Long:  "Reload the Mimi configuration file from disk without restarting the running daemon. Changes to hooks and settings take effect immediately.",
+		Long: `Reload the Mimi configuration file from disk without restarting the running
+daemon, then report how it went. A config the daemon could not apply is an
+error, and the daemon keeps the config it had. The command lists the settings
+a reload cannot apply with what applies them: a restart of the daemon, or for
+settings.service_path, mimi services install.`,
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			cfg, err := config.Load(state.configPath)
 			if err != nil {
@@ -76,6 +81,12 @@ func newConfigReloadCmd(state *cliState) *cobra.Command {
 				return derrors.New(derrors.CodeDaemonUnavailable, notRunning(pid))
 			}
 
+			// The reload the daemon reports next is the one this signal
+			// asks for. A daemon the CLI cannot ask still gets the signal,
+			// and its log says how the reload went.
+			before, probeErr := probeDaemon(cfg.Settings.SocketFile)
+			answers := probeErr == nil
+
 			proc, err := os.FindProcess(pid)
 			if err != nil {
 				return derrors.Wrapf(err, derrors.CodeInternal, "process %d not found", pid)
@@ -86,11 +97,78 @@ func newConfigReloadCmd(state *cliState) *cobra.Command {
 				return derrors.Wrapf(err, derrors.CodeInternal, "signaling process %d", pid)
 			}
 
-			cmd.Println("Configuration reload requested")
+			if !answers {
+				cmd.Println("Configuration reload requested")
 
-			return nil
+				return nil
+			}
+
+			outcome, err := awaitReload(cfg.Settings.SocketFile, before.LastReload)
+			if err != nil {
+				return err
+			}
+
+			return reportReload(cmd, outcome)
 		},
 	}
+}
+
+// reloadWait is how long mimi config reload waits for the daemon to report
+// the reload it asked for, and reloadPoll how often it asks.
+const (
+	reloadWait = 5 * time.Second
+	reloadPoll = 50 * time.Millisecond
+)
+
+// awaitReload asks the daemon at socketPath how its last reload went until
+// it reports one later than before, which may be nil.
+func awaitReload(socketPath string, before *daemon.Reload) (daemon.Reload, error) {
+	deadline := time.Now().Add(reloadWait)
+
+	for time.Now().Before(deadline) {
+		status, err := probeDaemon(socketPath)
+		if err == nil && status.LastReload != nil &&
+			(before == nil || status.LastReload.At.After(before.At)) {
+			return *status.LastReload, nil
+		}
+
+		time.Sleep(reloadPoll)
+	}
+
+	return daemon.Reload{}, derrors.Newf(
+		derrors.CodeDaemonUnavailable,
+		"reload requested, but the daemon reported none within %s. Its log says how it went",
+		reloadWait,
+	)
+}
+
+// reportReload prints a reload that applied, with the settings it could not,
+// and returns a reload that did not apply as the error.
+func reportReload(cmd *cobra.Command, outcome daemon.Reload) error {
+	if !outcome.OK {
+		return derrors.New(
+			derrors.CodeInvalidConfig,
+			"config not reloaded, the daemon keeps the one it had: "+outcome.Error,
+		)
+	}
+
+	cmd.Println("Configuration reloaded")
+
+	if len(outcome.RestartOnly) > 0 {
+		cmd.Printf(
+			"Restart the daemon to apply: %s\n",
+			strings.Join(outcome.RestartOnly, ", "),
+		)
+	}
+
+	if len(outcome.ReinstallOnly) > 0 {
+		cmd.Printf(
+			"Run mimi services install to apply: %s\n",
+			strings.Join(outcome.ReinstallOnly, ", "),
+		)
+	}
+
+	return nil
 }
 
 func newConfigInitCmd(state *cliState) *cobra.Command {
