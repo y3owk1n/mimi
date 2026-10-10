@@ -21,6 +21,12 @@ import (
 // share the command's stdout — an action's own output has to stay exactly what
 // it was with no daemon in the picture at all.
 func (s *cliState) runAction(cobraCmd *cobra.Command, cmd action.Command) error {
+	// -v asks for this process's debug logs, which an action run in the
+	// daemon would write to the daemon's log instead.
+	if s.verbose {
+		return action.ExecuteCommand(cmd)
+	}
+
 	socketPath := ipc.ResolveSocketPath(s.configPath)
 
 	err := ipc.TryExecute(socketPath, cmd)

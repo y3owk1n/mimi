@@ -21,11 +21,11 @@ mimi is a macOS window and space utility. Use `mimi action` for immediate comman
 
 ## Global flags
 
-| Flag        | Shorthand | Default | Description            |
-| ----------- | --------- | ------- | ---------------------- |
-| `--config`  | `-c`      | auto    | Path to config file    |
-| `--verbose` | `-v`      | `false` | Verbose output         |
-| `--version` |           |         | Print version and exit |
+| Flag        | Shorthand | Default | Description                            |
+| ----------- | --------- | ------- | -------------------------------------- |
+| `--config`  | `-c`      | auto    | Path to config file                    |
+| `--verbose` | `-v`      | `false` | Print debug logs on stderr, see below  |
+| `--version` |           |         | Print version and exit                 |
 
 With no `--config`, mimi uses the first config that exists out of
 `$XDG_CONFIG_HOME/mimi/config.toml`, `~/.config/mimi/config.toml` and
@@ -33,6 +33,12 @@ With no `--config`, mimi uses the first config that exists out of
 if `XDG_CONFIG_HOME` is set, else `~/.config/mimi/config.toml`.
 
 `mimi --version` prints the version, git commit and build date.
+
+`-v` prints mimi's debug logs on stderr and leaves stdout as it was, so a
+query's JSON still pipes into `jq`. An action run with `-v` runs in the CLI
+rather than in a listening daemon, because a daemon would write the action's
+logs to its own log. `mimi start -v` runs the daemon at `log_level = "debug"`
+whatever the config says.
 
 ---
 

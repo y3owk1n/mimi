@@ -9,6 +9,9 @@ import (
 // path before any command runs.
 type cliState struct {
 	configPath string
+	// verbose is -v: debug logs on stderr, and actions run in this process so
+	// their logs are among them.
+	verbose bool
 }
 
 // resolveConfigPath replaces an empty --config with the default config path.

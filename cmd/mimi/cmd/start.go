@@ -45,6 +45,10 @@ func newStartCmd(state *cliState) *cobra.Command {
 				return derrors.Wrapf(err, derrors.CodeInvalidConfig, "loading config")
 			}
 
+			if state.verbose {
+				cfg.Settings.LogLevel = "debug"
+			}
+
 			logger := logging.New(cfg)
 			logger.Infow("mimi starting", "version", Version, "config", state.configPath)
 

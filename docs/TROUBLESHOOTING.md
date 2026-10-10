@@ -36,8 +36,9 @@ MIMI_FORCE_DOCK_SWIPE_AUGMENTATION=1 mimi action space next
 mimi reads the variable once per process, so restart a running daemon for a
 change to take effect. A failure to build the payload logs under the `native`
 name. An unexpected event format, which means a macOS update changed the
-encoding, logs a warning. The other causes log at debug, so set
-`log_level = "debug"` to see them.
+encoding, logs a warning. The other causes log at debug. Run the action with
+`-v`, as in `mimi -v action space next`, to see them on the terminal, or set
+`log_level = "debug"` for the daemon's log.
 
 ## `mimi action` runs but seems to ignore the running daemon
 
