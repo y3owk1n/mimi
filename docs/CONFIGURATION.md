@@ -683,9 +683,8 @@ window's frame could not be read. `mimi_DISPLAYS_COUNT` and
   `pid`, `windowTitle`, and `extra`, an object of the extra variables by
   their lower-case names, `space_index` say.
 - mimi captures stdout and stderr together, up to 64 KiB, and logs them at
-  debug level when the hook succeeds. Nothing reaches the daemon's own
-  output.
-- A hook that exits non-zero logs at error level with its exit status. mimi
+  debug level. Nothing reaches the daemon's own output.
+- A hook that exits non-zero logs at warn level with its exit status. mimi
   kills one that runs past `settings.hook_timeout_secs`, or its own
   `timeout_secs`, along with everything it started, and logs it at warn
   level. Neither stops the other hooks for the event.

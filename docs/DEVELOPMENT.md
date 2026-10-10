@@ -30,12 +30,15 @@ internal/
   hooks/               Hook registry and executor
   shellexec/           Shell command lines with a timeout
   tiling/              Layout program engine
+  place/               Rule placement of new windows
+  mousefocus/          Focus follows the mouse
   border/              Window borders
   dropzone/            Drop preview while dragging
   stackbar/            Stack indicator
   config/              TOML config
   daemon/              Daemon lifecycle
   service/             launchd service management
+  doctor/              mimi doctor checks
   logging/             Logger and event log
   errors/              Coded errors
   paths/               Path helpers
