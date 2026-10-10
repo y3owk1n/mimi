@@ -62,6 +62,12 @@ Use "mimi start" to run the background daemon and react to window/space events v
 			// fails from here on is a runtime failure whose message should not
 			// be buried under a list of flags.
 			cobraCmd.SilenceUsage = true
+
+			// Cobra's Print methods write to stderr unless a command has an
+			// output of its own, and every command prints its result with
+			// them. Setting stdout here rather than on the root keeps the
+			// usage for a bad command line on stderr, next to its error.
+			cobraCmd.SetOut(cobraCmd.OutOrStdout())
 		},
 	}
 
