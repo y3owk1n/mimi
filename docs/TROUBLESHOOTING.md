@@ -33,8 +33,12 @@ other value forces the pre-27 one:
 MIMI_FORCE_DOCK_SWIPE_AUGMENTATION=1 mimi action space next
 ```
 
-mimi reads the variable once per process, so restart a running daemon for a
-change to take effect. A failure to build the payload logs under the `native`
+The example runs the switch in the CLI's own process only when no daemon is
+listening. A running daemon does the switch itself and reads its own
+environment. Stop it before trying the example, with `mimi services stop`
+for the service or `mimi stop` for one started by hand. Or start the daemon
+with the variable set, as in `MIMI_FORCE_DOCK_SWIPE_AUGMENTATION=1 mimi start`.
+mimi reads the variable once per process. A failure to build the payload logs under the `native`
 name. An unexpected event format, which means a macOS update changed the
 encoding, logs a warning. The other causes log at debug. Run the action with
 `-v`, as in `mimi -v action space next`, to see them on the terminal, or set

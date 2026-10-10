@@ -128,7 +128,9 @@ runs the new layout on the next pass without a restart. It hands the new
 layout the state the old one left for each space. The shipped layouts
 ignore state they did not write, so nothing else is needed between them. A
 custom layout may not, so run `mimi tiling reset --all` after switching to
-one, and `mimi tiling relayout` to lay the desktop out now.
+one, and `mimi tiling relayout` to lay the desktop out now. A reset also
+forgets every minimum window size the daemon has learned, which it learns
+again as windows refuse smaller frames.
 
 **Changing options.** Gap, animation, drop zone, stackbar, drag behaviour,
 and layout mode are keys under `[tiling]`, all reloadable on save. Edit

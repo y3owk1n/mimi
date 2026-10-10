@@ -130,11 +130,11 @@ NSWorkspace + AX observers (workspace.m, axobserver.m)
 
 ### Event bus
 
-A pub-sub bus that fans each event out to subscribers without blocking. A full subscriber buffer drops the event and increments a drop counter. Subscribers are the hook executor, the tiling engine, the border engine, and the event log writer when `settings.log_file` is set. Each subscriber can pass a kind filter so the bus skips events it does not want.
+A pub-sub bus that fans each event out to subscribers without blocking. A full subscriber buffer drops the event and increments a drop counter. Subscribers are the hook executor, the tiling engine, the border engine, the window placer, each `mimi events` client, and the event log writer when `settings.event_log_file` is set. Each subscriber can pass a kind filter so the bus skips events it does not want.
 
 ### Hook executor
 
-The executor matches events against configured hooks, applies the `app`, `bundle_id` and `title` filters, and runs shell commands with `mimi_*` environment variables.
+The executor matches events against configured hooks, applies the `app`, `bundle_id` and `title` filters, and runs shell commands with `mimi_*` environment variables and the event as JSON on stdin. Before it runs a command, it rewrites each `$mimi_*` reference so the shell expands it from the environment, inside single quotes too. No event value enters the command text, so a window title cannot run as code.
 
 ### Border
 
@@ -167,12 +167,15 @@ internal/
   shellexec/        Hook and layout command lines, killed with all they started
                     on timeout
   tiling/           The engine that runs the user's layout program on events
+  place/            Moves a new window to the space or display a rule names
+  mousefocus/       Focus follows the mouse
   border/           The engine that keeps a border under every window on events
   dropzone/         Drop preview while dragging a tiled window
   stackbar/         Stack indicator for windows a layout stacked
   config/           TOML config loading, validation and file watching
   daemon/           Daemon lifecycle and config reload
   service/          launchd service install, start, stop and status
+  doctor/           The checks behind mimi doctor
   logging/          Structured logger and event log writer
   errors/           Coded errors (derrors)
   paths/            Path helpers
