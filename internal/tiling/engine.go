@@ -2283,10 +2283,53 @@ func (e *Engine) saveMinSizes() {
 		return
 	}
 
-	err = os.WriteFile(e.store, data, storeFileMode)
+	err = writeStore(e.store, data)
 	if err != nil {
 		e.logger.Warnw("learned minimums not saved", "path", e.store, "err", err)
 	}
+}
+
+// writeStore writes data to a temporary file and renames it over path. A
+// daemon stopped mid-write then leaves the previous store, not a truncated
+// one that the next start discards.
+func writeStore(path string, data []byte) error {
+	tmpFile, err := os.CreateTemp(filepath.Dir(path), filepath.Base(path)+".tmp-*")
+	if err != nil {
+		return err
+	}
+
+	tmpPath := tmpFile.Name()
+
+	_, err = tmpFile.Write(data)
+	if err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+
+		return err
+	}
+
+	// CreateTemp makes the file 0600, and the store has always been 0644.
+	err = tmpFile.Chmod(storeFileMode)
+	if err != nil {
+		_ = tmpFile.Close()
+		_ = os.Remove(tmpPath)
+
+		return err
+	}
+
+	err = tmpFile.Close()
+	if err != nil {
+		_ = os.Remove(tmpPath)
+
+		return err
+	}
+
+	err = os.Rename(tmpPath, path)
+	if err != nil {
+		_ = os.Remove(tmpPath)
+	}
+
+	return err
 }
 
 // storeDirMode and storeFileMode are the permissions of the store and the
