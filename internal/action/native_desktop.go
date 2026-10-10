@@ -561,6 +561,11 @@ func (d *nativeDesktop) WindowSpaceID(number uint32) uint64 {
 	return native.WindowSpaceID(number)
 }
 
+// WindowOwnerPID is the pid of the window's application, or 0.
+func (d *nativeDesktop) WindowOwnerPID(number uint32) int {
+	return native.WindowOwnerPID(number)
+}
+
 // WindowsOnSpace lists the real windows on one space, front to back.
 func (d *nativeDesktop) WindowsOnSpace(id uint64) []uint32 {
 	return native.WindowsOnSpace(id)

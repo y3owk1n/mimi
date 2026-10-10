@@ -109,6 +109,11 @@ type fakeDesktop struct {
 	movedWindow action.WindowID
 	// movedByNumber is every window MoveWindowNumberToSpace moved, in order.
 	movedByNumber []uint32
+	// windowOwners is WindowOwnerPID's answer, by window number.
+	windowOwners map[uint32]int
+	// spaceOf puts a window, by number, on one space: it is listed only
+	// while that space is active. A window not in it is on every space.
+	spaceOf map[uint32]int
 	// raiseErr fails every RaiseWindow when set.
 	raiseErr error
 
@@ -201,14 +206,18 @@ func (d *fakeDesktop) FocusableWindows() ([]action.Window, int, error) {
 		return nil, -1, d.enumerateErr
 	}
 
-	windows := make([]action.Window, len(d.windows))
+	windows := make([]action.Window, 0, len(d.windows))
 	for index, win := range d.windows {
-		windows[index] = action.Window{
+		if space, ok := d.spaceOf[win.number]; ok && space != d.activeSpace {
+			continue
+		}
+
+		windows = append(windows, action.Window{
 			ID:     win.id,
 			PID:    win.pid,
 			Number: win.number,
 			Order:  win.order,
-		}
+		})
 
 		if win.frameErrOnce && d.enumerations > 0 {
 			d.windows[index].frameErr = nil
@@ -448,6 +457,10 @@ func (d *fakeDesktop) Spaces() ([]action.Space, error) {
 
 func (d *fakeDesktop) WindowSpaceID(number uint32) uint64 {
 	return d.windowSpaceIDs[number]
+}
+
+func (d *fakeDesktop) WindowOwnerPID(number uint32) int {
+	return d.windowOwners[number]
 }
 
 func (d *fakeDesktop) WindowsOnSpace(id uint64) []uint32 {

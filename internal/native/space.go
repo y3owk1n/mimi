@@ -280,6 +280,12 @@ func WindowSpaceID(number uint32) uint64 {
 	return uint64(C.MimiSpaceForWindowNumber(C.uint32_t(number)))
 }
 
+// WindowOwnerPID is the pid of the application that owns the window with
+// this number, on any space, or 0 when no window has it.
+func WindowOwnerPID(number uint32) int {
+	return int(C.MimiWindowOwnerPID(C.uint32_t(number)))
+}
+
 // WindowsOnSpace lists the real, unminimized windows on one space by number,
 // in theorder, front to back.
 func WindowsOnSpace(id uint64) []uint32 {

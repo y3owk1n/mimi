@@ -222,6 +222,10 @@ type Desktop interface {
 	// window is on, or 0 when it is on every space or on none.
 	WindowSpaceID(number uint32) uint64
 
+	// WindowOwnerPID is the pid of the application that owns the window with
+	// this number, on any space, or 0 when no window has it.
+	WindowOwnerPID(number uint32) int
+
 	// WindowsOnSpace lists the real, unminimized windows on one space by
 	// number, front to back.
 	WindowsOnSpace(id uint64) []uint32

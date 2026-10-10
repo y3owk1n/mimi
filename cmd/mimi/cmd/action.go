@@ -132,8 +132,8 @@ With --number, focus goes straight to that window instead, named by the
 window server's number as mimi query windows reports it. This is the one way
 to focus a window without saying where it is on screen. A layout's before and
 after command lines need that, and so does a hotkey bound to a window you
-noted earlier. The window has to be on the current space. Use focus_app to
-reach one that is not.`,
+noted earlier. For a window on another space, mimi switches to that space
+first, as "mimi action space" does, then focuses the window there.`,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			focusCmd, err := action.NewFocusWindowCommand(
 				backward,

@@ -149,6 +149,9 @@ typedef struct {
 MimiSpace *MimiCopySpaces(int *count);
 /// The space a window is on, or 0 when it is on every space or none.
 uint64_t MimiSpaceForWindowNumber(uint32_t number);
+/// The pid of the application that owns the window with this number, on any
+/// space, or 0 when no window has it.
+int MimiWindowOwnerPID(uint32_t number);
 /// Copy the numbers of every real, unminimized window on one space, in the
 /// window server's order. Sets *count; the caller frees the array. NULL when
 /// there are none.
