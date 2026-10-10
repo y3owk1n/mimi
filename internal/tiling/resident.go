@@ -150,6 +150,10 @@ func (r *Resident) Reduce(ctx context.Context, input Input) (Output, error) {
 			)
 		}
 
+		if errors.Is(reduceErr, errResidentGone) {
+			return Output{}, derrors.Wrap(reduceErr, derrors.CodeActionFailed, "layout failed")
+		}
+
 		return Output{}, reduceErr
 	}
 
