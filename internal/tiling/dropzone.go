@@ -42,7 +42,7 @@ func (e *Engine) DropPreview(ctx context.Context) (DropTarget, bool, error) {
 	e.mu.Lock()
 	defer e.mu.Unlock()
 
-	if !e.enabled || !e.onDrag || len(e.programs) == 0 || len(e.applied) == 0 {
+	if !e.enabled.Load() || !e.onDrag.Load() || len(e.programs) == 0 || len(e.applied) == 0 {
 		return DropTarget{}, false, nil
 	}
 

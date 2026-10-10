@@ -1532,3 +1532,49 @@ func TestEngine_Pass_RunsTheLayoutOnEveryDisplayAtOnce(t *testing.T) {
 		}
 	}
 }
+
+// TestEngine_KindFilter_AnswersDuringAPass pins that the bus filter never
+// waits for a pass. The daemon's router asks it about every event, so a
+// filter that waited would delay every hook, border and placer event until
+// the pass ended.
+func TestEngine_KindFilter_AnswersDuringAPass(t *testing.T) {
+	t.Parallel()
+
+	var applying sync.Once
+
+	inApply := make(chan struct{})
+	release := make(chan struct{})
+	desktop := newDesktop()
+	desktop.onApply = func() {
+		applying.Do(func() { close(inApply) })
+		<-release
+	}
+	engine := tiling.New(desktop, nil, nil)
+	engine.Update(enabled(echoLayout), shell)
+
+	passDone := make(chan error, 1)
+
+	go func() { passDone <- engine.Pass(context.Background(), tiling.Event{Kind: created}) }()
+
+	<-inApply
+
+	answered := make(chan bool, 1)
+
+	go func() { answered <- engine.KindFilter()(events.WindowCreated) }()
+
+	select {
+	case admitted := <-answered:
+		if !admitted {
+			t.Error("KindFilter refused window_created while enabled")
+		}
+	case <-time.After(time.Second):
+		t.Error("KindFilter waited for the pass to end")
+	}
+
+	close(release)
+
+	err := <-passDone
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+}

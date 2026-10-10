@@ -285,3 +285,53 @@ func TestEngine_SweepsOpenWindowsIntoPlaceOnStartAndOnRuleChange(t *testing.T) {
 		t.Fatalf("moves after a changed reload = %v, want both windows sent to space 4", got)
 	}
 }
+
+// TestEngine_KindFilterAnswersWhileReadingWindows pins that the bus filter
+// never waits for the engine to read an application's windows. The daemon's
+// router asks it about every event, so a filter that waited would delay
+// every other subscriber's events while a slow application answered.
+func TestEngine_KindFilterAnswersWhileReadingWindows(t *testing.T) {
+	t.Parallel()
+
+	var reading sync.Once
+
+	inRead := make(chan struct{})
+	release := make(chan struct{})
+
+	fake := &fakeDesktop{}
+	desktop := fake.desktop()
+	windowsOf := desktop.WindowsOf
+	desktop.WindowsOf = func(pid int) []place.Window {
+		reading.Do(func() { close(inRead) })
+		<-release
+
+		return windowsOf(pid)
+	}
+
+	engine := place.New(desktop, nil)
+	engine.Update([]config.TilingRule{{BundleID: slackGlob, Space: 3}})
+
+	ctx, cancel := context.WithCancel(context.Background())
+	t.Cleanup(cancel)
+	t.Cleanup(func() { close(release) })
+
+	sub := make(events.Subscriber, 1)
+	go engine.Run(ctx, sub)
+
+	sub <- events.Event{Kind: events.WindowCreated, PID: 10}
+
+	<-inRead
+
+	answered := make(chan bool, 1)
+
+	go func() { answered <- engine.KindFilter()(events.WindowCreated) }()
+
+	select {
+	case admitted := <-answered:
+		if !admitted {
+			t.Error("KindFilter refused window_created with a rule that places windows")
+		}
+	case <-time.After(time.Second):
+		t.Error("KindFilter waited for the window read to end")
+	}
+}
