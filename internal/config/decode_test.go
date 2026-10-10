@@ -280,6 +280,39 @@ asyncc = true
 	}
 }
 
+func TestLoad_KeepsAZeroSizeAndDefaultsAnUnsetOne(t *testing.T) {
+	t.Parallel()
+
+	cfg, err := Load(writeConfig(t, `
+[tiling.dropzone]
+outline_width = 0
+radius = 0
+
+[tiling.stackbar]
+taper = 0
+radius = 0
+`))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	zone, bar := cfg.Tiling.Dropzone, cfg.Tiling.Stackbar
+	if zone.OutlineWidth != 0 || zone.Radius != 0 || bar.Taper != 0 || bar.Radius != 0 {
+		t.Errorf("a size set to 0 should stay 0, got dropzone %+v, stackbar %+v", zone, bar)
+	}
+
+	cfg, err = Load(writeConfig(t, ""))
+	if err != nil {
+		t.Fatalf("Load() error = %v, want nil", err)
+	}
+
+	zone, bar = cfg.Tiling.Dropzone, cfg.Tiling.Stackbar
+	if zone.OutlineWidth != defaultDropzoneOutlineWidth || zone.Radius != defaultDropzoneRadius ||
+		bar.Taper != defaultStackbarTaper || bar.Radius != defaultStackbarRadius {
+		t.Errorf("an unset size should take its default, got dropzone %+v, stackbar %+v", zone, bar)
+	}
+}
+
 func TestLoad_TheDefaultConfigHasNoUnknownKeys(t *testing.T) {
 	t.Parallel()
 
