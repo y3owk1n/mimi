@@ -606,7 +606,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 		}
 
 		if cmd.FocusWindow.Number != 0 {
-			return e.FocusWindowNumber(cmd.FocusWindow.Number)
+			return e.focusWindowNumberAnywhere(cmd.FocusWindow.Number)
 		}
 
 		return e.FocusWindow(cmd.FocusWindow)

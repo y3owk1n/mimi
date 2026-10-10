@@ -164,23 +164,97 @@ func validateAnimation(animation Animation) error {
 // number on the active space, the way a layout asks for it after moving
 // focus along its own structure.
 func (e *Executor) FocusWindowNumber(number uint32) error {
-	err := e.desktop.EnsureAccessible()
+	focused, err := e.focusOnActiveSpace(number)
+	if err != nil || focused {
+		return err
+	}
+
+	return derrors.Newf(derrors.CodeActionFailed, "window %d is not on the active space", number)
+}
+
+// focusWindowNumberAnywhere is FocusWindowNumber reaching a window on another
+// space too. It switches to that space the way focus_app does, then raises
+// the window there. The tiling engine and focus follows mouse keep to
+// FocusWindowNumber, since neither may switch spaces.
+func (e *Executor) focusWindowNumberAnywhere(number uint32) error {
+	focused, err := e.focusOnActiveSpace(number)
+	if err != nil || focused {
+		return err
+	}
+
+	index, err := e.spaceIndexOfWindow(number)
 	if err != nil {
 		return err
+	}
+
+	pid := e.desktop.WindowOwnerPID(number)
+	if index == 0 || pid == 0 {
+		return derrors.Newf(
+			derrors.CodeActionFailed,
+			"window %d is on no space mimi can switch to",
+			number,
+		)
+	}
+
+	switched, err := e.bringSpaceForward(index)
+	if err != nil {
+		return err
+	}
+
+	err = e.desktop.RaiseWindow(pid, number)
+	if err != nil {
+		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to raise window")
+	}
+
+	if switched {
+		e.desktop.RefreshWorkspaceTitle()
+	}
+
+	return nil
+}
+
+// focusOnActiveSpace focuses the window with this number when it is on the
+// active space, and reports whether it was.
+func (e *Executor) focusOnActiveSpace(number uint32) (bool, error) {
+	err := e.desktop.EnsureAccessible()
+	if err != nil {
+		return false, err
 	}
 
 	windows, err := e.windowsNamed([]uint32{number})
 	if err != nil {
-		return err
+		return false, err
 	}
 
 	for _, win := range windows {
 		if win.Number == number {
-			return e.desktop.ActivateWindow(win.ID)
+			return true, e.desktop.ActivateWindow(win.ID)
 		}
 	}
 
-	return derrors.Newf(derrors.CodeActionFailed, "window %d is not on the active space", number)
+	return false, nil
+}
+
+// spaceIndexOfWindow is the 1-based index of the space the window with this
+// number is on, or 0 when it is on every space or none.
+func (e *Executor) spaceIndexOfWindow(number uint32) (int, error) {
+	spaceID := e.desktop.WindowSpaceID(number)
+	if spaceID == 0 {
+		return 0, nil
+	}
+
+	spaces, err := e.desktop.Spaces()
+	if err != nil {
+		return 0, derrors.Wrapf(err, derrors.CodeActionFailed, "failed to list spaces")
+	}
+
+	for index, space := range spaces {
+		if space.ID == spaceID {
+			return index + 1, nil
+		}
+	}
+
+	return 0, nil
 }
 
 // FocusWindowNumber focuses a window by number on the desktop mimi is

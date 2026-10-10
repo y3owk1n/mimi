@@ -297,6 +297,21 @@ uint64_t MimiSpaceForWindowNumber(uint32_t number) {
 	return space;
 }
 
+int MimiWindowOwnerPID(uint32_t number) {
+	CFArrayRef windowList = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, number);
+	if (!windowList)
+		return 0;
+
+	int pid = 0;
+	if (CFArrayGetCount(windowList) == 1) {
+		NSDictionary *info = (__bridge NSDictionary *)CFArrayGetValueAtIndex(windowList, 0);
+		pid = [info[(__bridge NSString *)kCGWindowOwnerPID] intValue];
+	}
+
+	CFRelease(windowList);
+	return pid;
+}
+
 #pragma mark - Public Application API
 
 int MimiFindApplication(const char *query) {

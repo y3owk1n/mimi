@@ -138,8 +138,10 @@ mimi action focus_window --number 4242
 
 This is the only way to focus a window without saying where it is on screen.
 A layout's `before` and `after` command lines need that, and so does a hotkey
-bound to a window you noted earlier. The window has to be on the current
-space. Use `mimi action focus_app` to switch space and reach a window.
+bound to a window you noted earlier. For a window on another space, mimi
+switches to that space first, with the same gesture `mimi action space` uses,
+then focuses the window there. A layout's own focus and focus follows mouse
+never switch spaces.
 
 ### `mimi action focus_app <name|bundle-id>`
 
