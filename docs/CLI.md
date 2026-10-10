@@ -608,7 +608,14 @@ ipc: socket available at /Users/me/.local/share/mimi/mimi.sock
 daemon: v0.20.0, up 2h3m0s, config /Users/me/.config/mimi/config.toml
 features: 3 hook(s), tiling on, borders on, systray off
 accessibility (daemon): granted
+last reload: applied 5m0s ago (fsnotify)
 ```
+
+The last line appears once the daemon has reloaded. It says whether the
+config applied, when, and what triggered it, `fsnotify` for a save and
+`sighup` for `mimi config reload`, the systray, or a signal sent by hand. A
+failed reload adds the reason, and a reload that changed settings it cannot
+apply lists them on the lines after it.
 
 The two Accessibility lines can differ. macOS grants the permission per
 binary, and a CLI run from a terminal asks on the terminal's behalf. Hooks,
@@ -869,7 +876,21 @@ Print the resolved config as JSON.
 ### `mimi config reload`
 
 Send SIGHUP to the running daemon, found through `settings.pid_file`, so it
-reloads the config without a restart.
+reloads the config without a restart, then wait up to five seconds for the
+daemon to report how the reload went and print it:
+
+```
+$ mimi config reload
+Configuration reloaded
+Restart the daemon to apply: settings.log_level
+```
+
+A config the daemon could not apply is an error, exit code 1, with the
+reason. The daemon keeps the config it had. The second line lists settings
+the reload changed that need a restart, and another line lists those that
+need `mimi services install`. When the CLI cannot reach the daemon over its
+socket, the daemon still gets the signal, and the command prints
+`Configuration reload requested`.
 
 ---
 

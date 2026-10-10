@@ -21,6 +21,24 @@ type Status struct {
 	// run from a terminal asks on the terminal's behalf. A daemon too old to
 	// report it leaves it nil.
 	Accessibility *bool `json:"accessibility,omitempty"`
+	// LastReload is how the last reload went, nil until one has run or from
+	// a daemon too old to report it.
+	LastReload *Reload `json:"lastReload,omitempty"`
+}
+
+// Reload is the outcome of one reload, whatever triggered it: when it ran,
+// whether the config applied, and the settings it changed that a reload
+// cannot apply, by TOML key.
+type Reload struct {
+	At      time.Time `json:"at"`
+	Trigger string    `json:"trigger"`
+	OK      bool      `json:"ok"`
+	// Error is why the config was not applied, when it was not.
+	Error string `json:"error,omitempty"`
+	// RestartOnly needs a daemon restart, and ReinstallOnly the service
+	// installed again.
+	RestartOnly   []string `json:"restartOnly,omitempty"`
+	ReinstallOnly []string `json:"reinstallOnly,omitempty"`
 }
 
 // Features is what the running config turns on, as far as the permission
@@ -41,6 +59,7 @@ func statusAnswer(
 	started time.Time,
 	startedWith, holdsNow bool,
 	current func() *config.Config,
+	lastReload func() *Reload,
 ) (json.RawMessage, error) {
 	cfg := current()
 
@@ -55,5 +74,6 @@ func statusAnswer(
 			Systray: cfg.Systray.Enabled,
 		},
 		Accessibility: &holdsNow,
+		LastReload:    lastReload(),
 	})
 }

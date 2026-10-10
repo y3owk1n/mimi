@@ -216,6 +216,7 @@ func runCore(
 				accessibilityGranted,
 				permissions.Check().Accessibility,
 				cfgReloader.Current,
+				cfgReloader.LastReload,
 			)
 		},
 	)
@@ -505,12 +506,22 @@ func reloadConfig(
 		changes, err = cfgReloader.Apply(newCfg)
 	}
 
+	outcome := Reload{At: time.Now(), Trigger: string(trigger)}
+
 	if err != nil {
 		logger.Warnw(reloadFailedMessage, "trigger", trigger, "err", err)
 		reportReload(systray.ReloadOutcomeFailed)
 
+		outcome.Error = derrors.Message(err)
+		cfgReloader.record(outcome)
+
 		return
 	}
+
+	outcome.OK = true
+	outcome.RestartOnly = changes.restartOnly
+	outcome.ReinstallOnly = changes.reinstallOnly
+	cfgReloader.record(outcome)
 
 	warnUnknownKeys(newCfg, logger)
 
