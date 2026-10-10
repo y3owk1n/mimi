@@ -307,7 +307,7 @@ func eventEnv(evt events.Event) []string {
 		"mimi_EVENT_ID="+evt.ID,
 		"mimi_APP_NAME="+evt.AppName,
 		"mimi_BUNDLE_ID="+evt.BundleID,
-		fmt.Sprintf("mimi_PID=%d", evt.PID),
+		"mimi_PID="+pid(evt),
 		"mimi_WINDOW_TITLE="+evt.WindowTitle,
 		"mimi_WINDOW_NUMBER="+windowNumber(evt),
 		"mimi_TIMESTAMP="+evt.At.Format(time.RFC3339),
@@ -317,6 +317,15 @@ func eventEnv(evt events.Event) []string {
 	}
 
 	return vars
+}
+
+// pid is mimi_PID, empty when the event names no application.
+func pid(evt events.Event) string {
+	if evt.PID == 0 {
+		return ""
+	}
+
+	return strconv.Itoa(evt.PID)
 }
 
 // windowNumber is mimi_WINDOW_NUMBER, empty when the event names no window.

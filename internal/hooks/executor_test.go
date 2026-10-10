@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 	"time"
@@ -142,6 +143,18 @@ func TestEventEnvProducesAllMimiVars(t *testing.T) {
 
 	for _, w := range want {
 		if _, ok := envSet[w]; !ok {
+			t.Errorf("eventEnv missing %q\nfull env: %v", w, env)
+		}
+	}
+}
+
+func TestEventEnvLeavesTheAppVarsEmptyWithoutAnApp(t *testing.T) {
+	t.Parallel()
+
+	env := eventEnv(events.Event{Kind: events.SystemWake})
+
+	for _, w := range []string{"mimi_APP_NAME=", "mimi_BUNDLE_ID=", "mimi_PID="} {
+		if !slices.Contains(env, w) {
 			t.Errorf("eventEnv missing %q\nfull env: %v", w, env)
 		}
 	}
