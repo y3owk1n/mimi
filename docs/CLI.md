@@ -574,8 +574,10 @@ mimi start -c /path/to/config.toml
 
 ### `mimi stop`
 
-Stop the running daemon via SIGTERM. With no PID file, it prints that mimi is
-not running and exits 0.
+Stop the running daemon via SIGTERM. With no PID file, or one that names a
+process other than a running mimi, it prints that mimi is not running and exits
+0. A daemon the launchd service runs starts again a moment later. Use
+`mimi services stop` to stop the service.
 
 ### `mimi status`
 
@@ -766,6 +768,12 @@ once the unload works.
 
 Control the launchd service directly.
 
+`stop` unloads the service and disables it, so it stays stopped across logins
+until `start`. A plain `mimi stop` does not last, because the service keeps
+mimi alive and launchd starts it again a moment later. `start` enables the
+service again and loads it, which starts mimi. A stopped service keeps its
+plist, so `restart` on one says to run `start`.
+
 `restart` checks that a job is loaded, then restarts it with one
 `launchctl kickstart -k`:
 
@@ -782,6 +790,7 @@ loaded:
 Service loaded and running (pid 1478)
 Service loaded but not running (last exit status 1)
 Service loaded
+Service stopped (run `mimi services start` to start it)
 Service not loaded
 Service state unknown: launchctl could not be run
 ```

@@ -29,8 +29,11 @@ type launcher interface {
 	bootout(ctx context.Context, target string) error
 	// start starts the already-loaded service named label.
 	start(ctx context.Context, label string) error
-	// stop stops the already-loaded service named label.
-	stop(ctx context.Context, label string) error
+	// enable and disable set whether launchd may load target (e.g.
+	// "gui/501/com.y3owk1n.mimi"), at login and on bootstrap alike. launchd
+	// keeps the setting across logins.
+	enable(ctx context.Context, target string) error
+	disable(ctx context.Context, target string) error
 	// kickstart restarts target (e.g. "gui/501/com.y3owk1n.mimi") in one call:
 	// launchd kills whatever is running under the job and spawns it again. It
 	// takes a domain target rather than a label because it acts on the job
@@ -99,8 +102,12 @@ func (execLauncher) start(ctx context.Context, label string) error {
 	return exec.CommandContext(ctx, "launchctl", "start", label).Run()
 }
 
-func (execLauncher) stop(ctx context.Context, label string) error {
-	return exec.CommandContext(ctx, "launchctl", "stop", label).Run()
+func (execLauncher) enable(ctx context.Context, target string) error {
+	return exec.CommandContext(ctx, "launchctl", "enable", target).Run()
+}
+
+func (execLauncher) disable(ctx context.Context, target string) error {
+	return exec.CommandContext(ctx, "launchctl", "disable", target).Run()
 }
 
 // kickstart runs `launchctl kickstart -k target`. The -k is what makes it a

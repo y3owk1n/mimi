@@ -154,7 +154,8 @@ startup indefinitely, and the service stays loaded the whole time.
 | `Service loaded and running (pid 1478)`               | Healthy. launchd has a live process for it.                                                                                 |
 | `Service loaded but not running (last exit status 1)` | launchd is respawning it. A non-zero status that does not change is a crash loop. The captured stderr below says why.       |
 | `Service loaded`                                      | Neither number was available. The daemon has never run, a signal killed it rather than it exiting, or mimi could not read launchd's description of the job. That output is undocumented, so when mimi cannot parse it the line loses the detail but still reports that the service is loaded. |
-| `Service not loaded`                                  | No service is installed, or it was unloaded.                                                                                |
+| ``Service stopped (run `mimi services start` to start it)`` | `mimi services stop` stopped it. Its plist is installed, and it stays stopped across logins until `mimi services start`.     |
+| `Service not loaded`                                  | No service is installed.                                                                                                    |
 | `Service state unknown: launchctl could not be run`   | `launchctl` could not run at all, because it is missing from `PATH` or could not be spawned. mimi learned nothing about the service, which may still be running. `mimi services install` refuses to run in this state, and `uninstall` fails instead of ignoring a failed unload. |
 
 `launchctl print gui/$(id -u)/com.y3owk1n.mimi` prints the full description mimi

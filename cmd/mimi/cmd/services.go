@@ -100,7 +100,7 @@ func newServicesStartCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "start",
 		Short: "Start the system service",
-		Long:  "Start the Mimi launchd service. The daemon will begin running in the background.",
+		Long:  "Start the installed Mimi launchd service, including one that `mimi services stop` stopped. It loads the service again, and launchd starts it at login again from then on.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			err := defaultService.Start(cmd.Context())
 			if err != nil {
@@ -118,7 +118,7 @@ func newServicesStopCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "stop",
 		Short: "Stop the system service",
-		Long:  "Stop the Mimi launchd service. The daemon process will be terminated.",
+		Long:  "Stop the Mimi launchd service and keep it stopped, across logins too, until `mimi services start`. mimi unloads and disables the service and leaves its plist installed.\n\nlaunchd keeps the service alive, so `mimi stop` only ends the daemon until launchd starts it again a moment later.",
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			err := defaultService.Stop(cmd.Context())
 			if err != nil {
@@ -240,6 +240,10 @@ func loadedLine(status service.Status) string {
 	case service.LoadStateLoaded:
 		return runningLine(status)
 	case service.LoadStateNotLoaded:
+		if status.Installed {
+			return "Service stopped (run `mimi services start` to start it)"
+		}
+
 		return "Service not loaded"
 	case service.LoadStateUnknown:
 		return unknownStateLine
