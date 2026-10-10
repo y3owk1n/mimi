@@ -175,22 +175,27 @@ that display's center, and the pointer stays there. The same applies to
 Move the frontmost window to a space by 1-based index, or cycle with
 wrapping. This uses private SkyLight APIs and does not require disabling SIP.
 
-| Flag       | Description                                                      |
-| ---------- | ---------------------------------------------------------------- |
-| `--follow` | Switch to the destination space once the window is there         |
+| Flag           | Description                                                      |
+| -------------- | ---------------------------------------------------------------- |
+| `--follow`     | Switch to the destination space once the window is there         |
+| `--number <n>` | Move the window with that window-server number instead of the frontmost |
 
 With `--follow`, the switch uses the same dock-swipe gesture as `space`, and
 mimi raises the moved window again once the switch lands. If the move lands
 but the switch or raise fails, the error says so and the window stays on its
 new space.
 
+With `--number`, the window has to be on the active space, as for every
+action that takes it.
+
 ### `mimi action move_window_to_display <number|next|prev>`
 
 Move the frontmost window to another display by 1-based index, or cycle with
 wrapping. Displays are counted left to right, then top to bottom. The window
 lands on the destination's active space and keeps the share of the display it
-had. A window already on the destination does not move. Accessibility
-permission is required.
+had. A window already on the destination does not move. `--number <n>` moves
+the window with that window-server number instead of the frontmost, and focus
+stays where it was. Accessibility permission is required.
 
 ### `mimi action focus_display <number|next|prev>`
 
@@ -203,7 +208,8 @@ permission is required.
 
 ### `mimi action resize_window [preset] [flags]`
 
-Resize and reposition the frontmost window. mimi follows the macOS tiled
+Resize and reposition the frontmost window, or the window named with
+`--number <n>`. mimi follows the macOS tiled
 window margins setting, with full margins on screen edges and half margins on
 split edges. A window too small to give up its margins gets the requested size
 with no margins.
@@ -296,6 +302,7 @@ mimi action resize_window --width 1024 --height 768 --x 100 --y 50 --anchor tl
 mimi action resize_window left-half --no-margin
 mimi action resize_window left-half --cycle
 mimi action resize_window center --width-percent 80 --height-percent 90
+mimi action resize_window left-half --number 4242
 ```
 
 ### `mimi action close_window`

@@ -623,8 +623,26 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 			return err
 		}
 
+		if cmd.Window.Number != 0 {
+			win, err := e.windowFor(cmd.Window)
+			if err != nil {
+				return err
+			}
+
+			return e.MoveWindowNumberToSpace(
+				win.PID,
+				win.Number,
+				index,
+				cmd.MoveWindowToSpace.Follow,
+			)
+		}
+
 		return e.MoveWindowToSpace(index, cmd.MoveWindowToSpace.Follow)
 	case NameMoveWindowToDisplay:
+		if cmd.Window.Number != 0 {
+			return e.MoveWindowNumberToDisplay(cmd.Window.Number, cmd.MoveWindowToDisplay, false)
+		}
+
 		return e.MoveWindowToDisplay(cmd.MoveWindowToDisplay)
 	case NameFocusDisplay:
 		return e.FocusDisplay(cmd.FocusDisplay)
@@ -641,7 +659,7 @@ func (e *Executor) ExecuteCommand(cmd Command) error {
 			return err
 		}
 
-		return e.ResizeWindow(req)
+		return e.ResizeWindow(req, cmd.Window)
 	case NameCloseWindow:
 		return e.CloseWindow(cmd.Window)
 	case NameMinimizeWindow:
