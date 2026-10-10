@@ -55,12 +55,12 @@ func (t *AXTracker) Enabled() bool {
 
 // Install installs an AX observer for the given PID.
 func (t *AXTracker) Install(pid int) bool {
+	t.mu.Lock()
+	defer t.mu.Unlock()
+
 	if !t.enabled {
 		return false
 	}
-
-	t.mu.Lock()
-	defer t.mu.Unlock()
 
 	if _, ok := t.tracked[pid]; ok {
 		return true

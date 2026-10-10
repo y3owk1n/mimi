@@ -174,3 +174,33 @@ func TestAXTracker_Update_EnableAgainAllowsInstall(t *testing.T) {
 		t.Errorf("installAX calls = %d, want 1", len(calls.installed))
 	}
 }
+
+// TestAXTracker_InstallAndUpdate_AtOnce pins that Install reads the enabled
+// flag under the tracker's lock. A reload calls Update on its own goroutine
+// while the router installs observers, so an unlocked read is a data race,
+// and the race detector fails this test when the read is unlocked.
+func TestAXTracker_InstallAndUpdate_AtOnce(t *testing.T) {
+	tracker, _ := newFakeTracker(true, true)
+
+	done := make(chan struct{})
+
+	go func() {
+		defer close(done)
+
+		for index := range 200 {
+			tracker.Update(index%2 == 0)
+		}
+	}()
+
+	for pid := range 200 {
+		tracker.Install(pid)
+	}
+
+	<-done
+
+	tracker.Update(false)
+
+	if len(tracker.tracked) != 0 {
+		t.Errorf("tracked %d observers after disabling, want none", len(tracker.tracked))
+	}
+}
