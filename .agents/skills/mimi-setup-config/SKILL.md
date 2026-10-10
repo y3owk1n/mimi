@@ -44,8 +44,8 @@ so after step 2 below, the user's own file is the quickest reference.
 2. **Find or create the file.** The first existing path wins:
    `--config`, `$XDG_CONFIG_HOME/mimi/config.toml`,
    `~/.config/mimi/config.toml`, then `mimi.toml` in the working directory.
-   When none exists, run `mimi config init`. Never run it over an existing
-   file, it overwrites without asking.
+   When none exists, run `mimi config init`. Never pass `--force` over an
+   existing file, it replaces the user's config with the default.
 
 3. **Ask what they want, then edit only those sections.** The sections are
    `[settings]`, `[systray]`, `[tiling]`, `[border]`, and `[hooks]`. Leave

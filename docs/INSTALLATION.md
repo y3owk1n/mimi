@@ -522,7 +522,7 @@ mimi status  # Should show "mimi: running (pid ...)"
 
 Mimi loads config from `~/.config/mimi/config.toml` by default. See [CONFIGURATION.md](CONFIGURATION.md) for the full search order.
 
-To get started, run `mimi config init`, which writes the default config to that path and overwrites any existing file. You can also copy `configs/default-config.toml` there by hand.
+To get started, run `mimi config init`, which writes the default config to that path. It refuses when a config is already there, and `--force` replaces it. You can also copy `configs/default-config.toml` there by hand.
 
 See [CONFIGURATION.md](CONFIGURATION.md) for all options, and [TROUBLESHOOTING.md](TROUBLESHOOTING.md) if something does not work.
 

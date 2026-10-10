@@ -190,6 +190,34 @@ func TestConfigInit_WithoutConfigFlag_WritesToTheDefaultConfigPath(t *testing.T)
 	}
 }
 
+// TestConfigInit_KeepsAnExistingConfig pins that config init never replaces a
+// config it finds unless told to with --force.
+func TestConfigInit_KeepsAnExistingConfig(t *testing.T) {
+	xdg := isolateConfigHome(t)
+	path := filepath.Join(xdg, "mimi", "config.toml")
+	writeConfig(t, path, "/marker/mine.log")
+
+	_, err := runCommand(t, "config", "init")
+	if err == nil || !strings.Contains(err.Error(), "already exists") {
+		t.Fatalf("config init over an existing config = %v, want a refusal", err)
+	}
+
+	data, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil || !strings.Contains(string(data), "/marker/mine.log") {
+		t.Fatalf("config init changed the existing config: %q, %v", data, err)
+	}
+
+	_, err = runCommand(t, "config", "init", "--force")
+	if err != nil {
+		t.Fatalf("config init --force: %v", err)
+	}
+
+	data, err = os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil || strings.Contains(string(data), "/marker/mine.log") {
+		t.Fatalf("config init --force kept the old config: %v", err)
+	}
+}
+
 func TestConfigReload_WithoutConfigFlag_GetsPastTheConfigPath(t *testing.T) {
 	xdg := isolateConfigHome(t)
 	writeConfig(t, filepath.Join(xdg, "mimi", "config.toml"), "/marker/default.log")
