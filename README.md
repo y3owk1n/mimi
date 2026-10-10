@@ -188,7 +188,7 @@ alt - h         : mimi action focus_window --left
 alt - l         : mimi action focus_window --right
 ```
 
-**Hooks.** Filter a hook by app name or bundle ID glob, window title regex, or space number. A leading `!` negates a filter. mimi passes event details as environment variables and quotes each value for the shell.
+**Hooks.** Filter a hook by app name or bundle ID glob, window title regex, or space number. A leading `!` negates a filter. mimi passes event details as environment variables, and a crafted window title cannot run as code.
 
 ```toml
 [hooks]

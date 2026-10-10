@@ -692,14 +692,18 @@ window's frame could not be read. `mimi_DISPLAYS_COUNT` and
   says `hook matched` or `hook skipped` with the reason for every hook the
   event reached.
 
-Write references without your own quotes. mimi substitutes each value as a
-single shell token wrapped in single quotes, so a crafted window title cannot
-break out of the command. A reference inside your own double quotes shows the
-wrapping quotes literally.
+A reference works inside single quotes, inside double quotes, or bare. mimi
+never puts a value into the command text. It rewrites each reference so the
+shell reads the value from the environment as one word. A crafted window
+title therefore cannot run as code.
 
 ```toml
-# Correct, the value quotes itself:
-on_window_title_change = [{ run = "notify-send $mimi_WINDOW_TITLE" }]
+# All three print the title as is:
+on_window_title_change = [
+  { run = "notify-send $mimi_WINDOW_TITLE" },
+  { run = "echo 'title: $mimi_WINDOW_TITLE'" },
+  { run = "echo \"title: $mimi_WINDOW_TITLE\"" },
+]
 ```
 
 ---
