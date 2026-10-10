@@ -260,6 +260,26 @@ on_window_focussed = [{ run = "echo typo", ap = "Code" }]
 	}
 }
 
+func TestLoad_RecordsUnknownKeysInAHookTable(t *testing.T) {
+	t.Parallel()
+
+	path := writeConfig(t, `
+[[hooks.on_app_launch]]
+run = "echo launch"
+asyncc = true
+`)
+
+	cfg, err := Load(path)
+	if err != nil {
+		t.Fatalf("an unrecognized key must not stop the config loading: %v", err)
+	}
+
+	want := []string{"hooks.on_app_launch[0].asyncc"}
+	if !slices.Equal(cfg.UnknownKeys, want) {
+		t.Errorf("UnknownKeys: got %v, want %v", cfg.UnknownKeys, want)
+	}
+}
+
 func TestLoad_TheDefaultConfigHasNoUnknownKeys(t *testing.T) {
 	t.Parallel()
 
