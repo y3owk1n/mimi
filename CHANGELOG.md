@@ -1,5 +1,73 @@
 # Changelog
 
+## [0.21.0](https://github.com/y3owk1n/mimi/compare/v0.20.3...v0.21.0) (2026-10-10)
+
+
+### Features
+
+* **cli:** cycle spaces on one display with --same-display ([#400](https://github.com/y3owk1n/mimi/issues/400)) ([e33fd98](https://github.com/y3owk1n/mimi/commit/e33fd986072156cc02e1db9b465a9e8142b809fd))
+* **cli:** focus a window on another space with focus_window --number ([#401](https://github.com/y3owk1n/mimi/issues/401)) ([ee1fdaf](https://github.com/y3owk1n/mimi/commit/ee1fdafa53a69ea0236dd789afc5a59692f7b798))
+* **cli:** print status and doctor as JSON with --json ([#402](https://github.com/y3owk1n/mimi/issues/402)) ([64aaf31](https://github.com/y3owk1n/mimi/commit/64aaf31a79baf7b611594e91e146b125563bbdd9))
+* **cli:** report how a config reload went ([#399](https://github.com/y3owk1n/mimi/issues/399)) ([8007016](https://github.com/y3owk1n/mimi/commit/8007016347f2f5602354ad3524a1f22fc87a577e))
+* **cli:** report the frontmost window in full from query window ([#394](https://github.com/y3owk1n/mimi/issues/394)) ([c703e71](https://github.com/y3owk1n/mimi/commit/c703e7162d5ac4ea0a296dab24ac41262d2a594d))
+* **cli:** take --number on resize_window and the move actions ([#396](https://github.com/y3owk1n/mimi/issues/396)) ([b07d616](https://github.com/y3owk1n/mimi/commit/b07d61628448a1439d812444b3f2c175d92bb424))
+* **hooks:** pass the window's number to window hooks ([#395](https://github.com/y3owk1n/mimi/issues/395)) ([0a8db18](https://github.com/y3owk1n/mimi/commit/0a8db182cc1950c124ddcc3cf6fb14fe9385c1bc))
+* **hooks:** report the closed window's number on window_closed ([#397](https://github.com/y3owk1n/mimi/issues/397)) ([87c040b](https://github.com/y3owk1n/mimi/commit/87c040b23ec067dc4cc82e7765de3f4c3fb63cfa))
+* **hooks:** watch every event kind while hooks tail is connected ([#398](https://github.com/y3owk1n/mimi/issues/398)) ([eb5d10c](https://github.com/y3owk1n/mimi/commit/eb5d10c80eb53b8ae1ba801c0bdaf692b4b8d80a))
+
+
+### Bug Fixes
+
+* **border,action:** detect Mission Control and App Expose properly ([#361](https://github.com/y3owk1n/mimi/issues/361)) ([f470f1f](https://github.com/y3owk1n/mimi/commit/f470f1f4e0c64fc056310a09fe3a2ff855337e6d))
+* **build:** fill the Info.plist versions in just bundle and the nix build ([#385](https://github.com/y3owk1n/mimi/issues/385)) ([7ef416b](https://github.com/y3owk1n/mimi/commit/7ef416be00f915cacc1dc1c126188bc22bfe7650))
+* **build:** stamp the man pages with the release version ([#408](https://github.com/y3owk1n/mimi/issues/408)) ([3b7f32e](https://github.com/y3owk1n/mimi/commit/3b7f32e3554cb6a3c3622ccf328aa8bb4624387d))
+* **cli:** list every subcommand in the query and action help ([#409](https://github.com/y3owk1n/mimi/issues/409)) ([9ff5dab](https://github.com/y3owk1n/mimi/commit/9ff5dab79901f9f81d648ba74185529fb5994677))
+* **cli:** make -v print debug logs ([#378](https://github.com/y3owk1n/mimi/issues/378)) ([5f790aa](https://github.com/y3owk1n/mimi/commit/5f790aae375577df3bf92594a8f2cc911c3ac6bb))
+* **cli:** make the apply_frames example pick out a layout's frames ([#410](https://github.com/y3owk1n/mimi/issues/410)) ([32cff0f](https://github.com/y3owk1n/mimi/commit/32cff0fb0bafabf5df48d5ad0b8f667064c9f663))
+* **cli:** print command results on stdout ([#407](https://github.com/y3owk1n/mimi/issues/407)) ([bf484fe](https://github.com/y3owk1n/mimi/commit/bf484fea42c4f616bab757c4a1cea33b4d95f213))
+* **config:** keep a 0 drop zone or stack bar size instead of the default ([#406](https://github.com/y3owk1n/mimi/issues/406)) ([063887c](https://github.com/y3owk1n/mimi/commit/063887c04a7904292d07bbcef149f0c04cbca1de))
+* **config:** reject a hook title filter that is not a regular expression ([#372](https://github.com/y3owk1n/mimi/issues/372)) ([074fbf2](https://github.com/y3owk1n/mimi/commit/074fbf2b4b2f9f1427a4cb9c70dd5955dabbd1db))
+* **config:** reject an unknown field in a [[hooks]] table entry ([#404](https://github.com/y3owk1n/mimi/issues/404)) ([51b0fdd](https://github.com/y3owk1n/mimi/commit/51b0fdd3d6db05d543e2f53d20a160163e3ff177))
+* **config:** stop mimi config init replacing an existing config ([#373](https://github.com/y3owk1n/mimi/issues/373)) ([81ffc16](https://github.com/y3owk1n/mimi/commit/81ffc162b86fe8d04aba9c65652c48307a4299f5))
+* **daemon:** never follow a link when emptying the captured logs ([#388](https://github.com/y3owk1n/mimi/issues/388)) ([91044dd](https://github.com/y3owk1n/mimi/commit/91044dd79f87bac69bb418e58fff9b3ab897c07f))
+* **daemon:** refuse to start a second daemon and stop signalling stale PIDs ([#370](https://github.com/y3owk1n/mimi/issues/370)) ([5e5b18b](https://github.com/y3owk1n/mimi/commit/5e5b18b94619c0c146716278e6b93eaa6fd3758c))
+* **daemon:** warn about each subscriber's first dropped event ([#380](https://github.com/y3owk1n/mimi/issues/380)) ([ae42aa3](https://github.com/y3owk1n/mimi/commit/ae42aa350eeca3b585d7abe524569a301e52e513))
+* **doctor:** suggest a layout command that works when the layout check fails ([#412](https://github.com/y3owk1n/mimi/issues/412)) ([47630a1](https://github.com/y3owk1n/mimi/commit/47630a11cc8d4d6b28efb2a6a9f33ca955a2b0a2))
+* **hooks,tiling:** kill everything a hook or layout started when it times out ([#366](https://github.com/y3owk1n/mimi/issues/366)) ([ea566c7](https://github.com/y3owk1n/mimi/commit/ea566c78107931c28251d45f7d79ffee5369d1df))
+* **hooks:** leave mimi_PID empty when the event has no app ([#405](https://github.com/y3owk1n/mimi/issues/405)) ([1c07df6](https://github.com/y3owk1n/mimi/commit/1c07df6650d99b9270860b25921586228daae2c8))
+* **hooks:** stop a window title running as code inside a quoted hook variable ([#364](https://github.com/y3owk1n/mimi/issues/364)) ([19b1c30](https://github.com/y3owk1n/mimi/commit/19b1c30aa7d0aa352f872d4f9561e31c5e0a3b96))
+* **logging:** make the event log opt-in and rotate it ([#381](https://github.com/y3owk1n/mimi/issues/381)) ([15d757e](https://github.com/y3owk1n/mimi/commit/15d757e5038c137957aeb932fded2a96e1e7fbef))
+* **observe:** read whether window observers are enabled under the lock ([#389](https://github.com/y3owk1n/mimi/issues/389)) ([363589e](https://github.com/y3owk1n/mimi/commit/363589e2c725a88233f6c09013a8c3cc67576090))
+* **service:** make mimi services stop keep the service stopped ([#371](https://github.com/y3owk1n/mimi/issues/371)) ([b2b462c](https://github.com/y3owk1n/mimi/commit/b2b462c6e2d724be4d7c9f00323b13386900b200))
+* **space:** stop a cross-display space switch clicking into the target display ([#368](https://github.com/y3owk1n/mimi/issues/368)) ([33a5a45](https://github.com/y3owk1n/mimi/commit/33a5a45772499d4b4d308952890065d354f372de))
+* **space:** stop a space switch reporting success when it posted no swipe ([#367](https://github.com/y3owk1n/mimi/issues/367)) ([d4069fb](https://github.com/y3owk1n/mimi/commit/d4069fbe2e3cc63cb4c3d85e5924b44932a5f21b))
+* **status,doctor:** report the daemon's own Accessibility grant ([#379](https://github.com/y3owk1n/mimi/issues/379)) ([a85ac25](https://github.com/y3owk1n/mimi/commit/a85ac25733f7def1cbde6978db448f3b8c4d9962))
+* **tiling:** report a resident layout that exited as a layout failure ([#392](https://github.com/y3owk1n/mimi/issues/392)) ([44e56b9](https://github.com/y3owk1n/mimi/commit/44e56b9ff623c1d4cc2912ff0130fdc5b56f75fa))
+* **tiling:** rewrite a refused frame through the serializer ([#390](https://github.com/y3owk1n/mimi/issues/390)) ([00c8edb](https://github.com/y3owk1n/mimi/commit/00c8edbfbd05524ebcef0707aabd6a508ecc0a1b))
+* **tiling:** stop a layout pass delaying hooks and borders until it ends ([#365](https://github.com/y3owk1n/mimi/issues/365)) ([04507e7](https://github.com/y3owk1n/mimi/commit/04507e78e93cbd07abb9f39af334b06d42a481a4))
+* **tiling:** write the learned minimums through a renamed temp file ([#391](https://github.com/y3owk1n/mimi/issues/391)) ([d6632f0](https://github.com/y3owk1n/mimi/commit/d6632f07782457f88079c3507cdc9b9779ee6532))
+* **window:** report no active window instead of a frame error for an app with none ([#369](https://github.com/y3owk1n/mimi/issues/369)) ([e68daf9](https://github.com/y3owk1n/mimi/commit/e68daf9e2b86574725bf056bf3bb53b4bc82838c))
+
+
+### Performance Improvements
+
+* **tiling:** reuse window titles when reading frames back ([#376](https://github.com/y3owk1n/mimi/issues/376)) ([b7f0303](https://github.com/y3owk1n/mimi/commit/b7f030324cf070ec788202cb55959510c37c5bf2))
+* **tiling:** stop waiting on new windows the rules keep out ([#374](https://github.com/y3owk1n/mimi/issues/374)) ([5cc4f2f](https://github.com/y3owk1n/mimi/commit/5cc4f2fae02587f1b7ef57370789f53cb04d5a79))
+* **tiling:** stop writing frames to windows already at them ([#375](https://github.com/y3owk1n/mimi/issues/375)) ([e6dc6f9](https://github.com/y3owk1n/mimi/commit/e6dc6f9583e36a31d7fbd75fe26205458f946528))
+
+
+### Improvements
+
+* **tiling:** log what a pass spent and which windows it left out ([#382](https://github.com/y3owk1n/mimi/issues/382)) ([9ce5cf1](https://github.com/y3owk1n/mimi/commit/9ce5cf1ce1ed8d37c1ac07b87aa1f9226ef9797d))
+
+
+### Documentation
+
+* bring the architecture, hook, and troubleshooting docs in line with the code ([#393](https://github.com/y3owk1n/mimi/issues/393)) ([e4c227b](https://github.com/y3owk1n/mimi/commit/e4c227b8a86218b878c0dadbfa067c57947fda17))
+* correct the docs and skills against the code before the beta release ([#413](https://github.com/y3owk1n/mimi/issues/413)) ([941ea9d](https://github.com/y3owk1n/mimi/commit/941ea9dfa6263d0e4ae76676d2731b9a1c3b3355))
+* **readme:** mark mimi as beta ([#403](https://github.com/y3owk1n/mimi/issues/403)) ([ea8fcec](https://github.com/y3owk1n/mimi/commit/ea8fcec5298749a029e9f2309096cc14868c14bb))
+* **tiling:** note that drag previews run a oneshot layout up to 25 times a second ([#377](https://github.com/y3owk1n/mimi/issues/377)) ([479a33e](https://github.com/y3owk1n/mimi/commit/479a33e9f103d7f3a11a47aec82701a2e4693746))
+
 ## [0.20.3](https://github.com/y3owk1n/mimi/compare/v0.20.2...v0.20.3) (2026-10-07)
 
 
