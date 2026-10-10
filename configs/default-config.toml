@@ -18,6 +18,8 @@
 #   mimi_BUNDLE_ID    — bundle identifier (e.g. "com.apple.Safari")
 #   mimi_PID          — app process ID
 #   mimi_WINDOW_TITLE — focused window title (window events only)
+#   mimi_WINDOW_NUMBER — the window's number, what focus_window --number takes
+#                       (window events only)
 #   mimi_TIMESTAMP    — RFC3339 timestamp
 # Workspace hooks also receive mimi_WINDOWS_COUNT, mimi_INFO, mimi_SPACE_INDEX
 # and mimi_SPACE_COUNT. See docs/CONFIGURATION.md.

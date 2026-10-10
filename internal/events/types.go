@@ -108,7 +108,12 @@ type Event struct {
 	// serialized — and is used to key the resize debounce per window rather
 	// than per title. Zero for events that do not originate from a specific
 	// window (app lifecycle, workspace).
-	WindowID uint64            `json:"-"`
-	At       time.Time         `json:"at"`
-	Extra    map[string]string `json:"extra,omitempty"`
+	WindowID uint64 `json:"-"`
+	// WindowNumber is the window server's number for the window a window
+	// event came from, the number mimi query windows reports and
+	// focus_window --number takes. Zero when the event has no window or
+	// macOS did not report the number.
+	WindowNumber uint32            `json:"windowNumber,omitempty"`
+	At           time.Time         `json:"at"`
+	Extra        map[string]string `json:"extra,omitempty"`
 }
