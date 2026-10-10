@@ -199,29 +199,30 @@ func TestBus_Unsubscribe_KeepsRemainingFiltersAligned(t *testing.T) {
 	}
 }
 
-func TestBus_SetDropHandler_ReportsEachDropWithItsKindAndBuffer(t *testing.T) {
+func TestBus_SetDropHandler_ReportsEachDropWithItsSubscriberKindAndBuffer(t *testing.T) {
 	t.Parallel()
 
 	bus := events.NewBus()
 
 	type drop struct {
+		name   string
 		kind   events.EventKind
 		buffer int
 	}
 
 	var drops []drop
 
-	bus.SetDropHandler(func(kind events.EventKind, buffer int) {
-		drops = append(drops, drop{kind, buffer})
+	bus.SetDropHandler(func(name string, kind events.EventKind, buffer int) {
+		drops = append(drops, drop{name, kind, buffer})
 	})
 
-	_ = bus.Subscribe(1)
+	_ = bus.SubscribeNamed("slow", 1, nil)
 
 	bus.Publish(events.Event{Kind: testKindA})
 	bus.Publish(events.Event{Kind: testKindB})
 	bus.Publish(events.Event{Kind: testKindC})
 
-	want := []drop{{testKindB, 1}, {testKindC, 1}}
+	want := []drop{{"slow", testKindB, 1}, {"slow", testKindC, 1}}
 	if len(drops) != len(want) || drops[0] != want[0] || drops[1] != want[1] {
 		t.Errorf("drops = %v, want %v", drops, want)
 	}

@@ -78,29 +78,41 @@ func TestLogEventDropCounts_WarnsWhenAnythingWasDropped(t *testing.T) {
 	}
 }
 
-func TestDropLogger_WarnsOnceThenLogsAtDebug(t *testing.T) {
+// TestDropLogger_WarnsOncePerSubscriber pins that each subscriber's first
+// drop is a warning. One shared warning went to whichever subscriber dropped
+// first, usually the borders, whose drops are expected. A hook that missed
+// events afterwards was never reported above debug.
+func TestDropLogger_WarnsOncePerSubscriber(t *testing.T) {
 	t.Parallel()
 
 	core, logs := observer.New(zapcore.DebugLevel)
 	onDrop := dropLogger(zap.New(core).Sugar())
 
-	onDrop("window_moved", 256)
-	onDrop("window_moved", 256)
-	onDrop("window_focused", 256)
+	onDrop(borderSubName, "window_moved", 16)
+	onDrop("hooks", "window_moved", 256)
+	onDrop("hooks", "window_focused", 256)
+	onDrop("tiling", "window_focused", 64)
 
 	entries := logs.All()
-	if len(entries) != 3 {
-		t.Fatalf("got %d entries, want 3", len(entries))
+	if len(entries) != 4 {
+		t.Fatalf("got %d entries, want 4", len(entries))
 	}
 
-	if entries[0].Level != zapcore.WarnLevel || entries[1].Level != zapcore.DebugLevel ||
-		entries[2].Level != zapcore.DebugLevel {
-		t.Errorf("levels = [%v, %v, %v], want a warning first and debug after",
-			entries[0].Level, entries[1].Level, entries[2].Level)
+	want := []zapcore.Level{
+		zapcore.DebugLevel,
+		zapcore.WarnLevel,
+		zapcore.DebugLevel,
+		zapcore.WarnLevel,
+	}
+	for index, entry := range entries {
+		if entry.Level != want[index] {
+			t.Errorf("entry %d level = %v, want %v", index, entry.Level, want[index])
+		}
 	}
 
-	if fmt.Sprint(entries[0].ContextMap()["kind"]) != "window_moved" ||
-		entries[0].ContextMap()["buffer"] != int64(256) {
-		t.Errorf("first drop fields = %v, want kind and buffer", entries[0].ContextMap())
+	fields := entries[1].ContextMap()
+	if fields["subscriber"] != "hooks" || fmt.Sprint(fields["kind"]) != "window_moved" ||
+		fields["buffer"] != int64(256) {
+		t.Errorf("first hooks drop fields = %v, want subscriber, kind and buffer", fields)
 	}
 }

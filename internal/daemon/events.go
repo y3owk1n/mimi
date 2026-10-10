@@ -29,9 +29,13 @@ var hookableKinds = func() map[events.EventKind]bool {
 // publishes, as it happens, until the client hangs up.
 func eventStream(bus *events.Bus) ipc.StreamHandler {
 	return func(ctx context.Context, _ action.Command, send func(v any) error) error {
-		sub := bus.SubscribeWithFilter(eventStreamBufSize, func(kind events.EventKind) bool {
-			return hookableKinds[kind]
-		})
+		sub := bus.SubscribeNamed(
+			"event stream",
+			eventStreamBufSize,
+			func(kind events.EventKind) bool {
+				return hookableKinds[kind]
+			},
+		)
 		defer bus.Unsubscribe(sub)
 
 		for {
