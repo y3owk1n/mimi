@@ -69,7 +69,7 @@ jobs:
               run: just release-ci-darwin arm64 ${{ inputs.version_override }}
 
             - name: Generate man pages
-              run: go run ./cmd/genman build/man
+              run: go run -ldflags="-X github.com/y3owk1n/mimi/cmd/mimi/cmd.Version=${{ inputs.version_override }}" ./cmd/genman build/man
 
             - name: Bundle mimi-darwin-arm64
               run: |
@@ -154,7 +154,7 @@ jobs:
               run: just release-ci-darwin amd64 ${{ inputs.version_override }}
 
             - name: Generate man pages
-              run: go run ./cmd/genman build/man
+              run: go run -ldflags="-X github.com/y3owk1n/mimi/cmd/mimi/cmd.Version=${{ inputs.version_override }}" ./cmd/genman build/man
 
             - name: Bundle mimi-darwin-amd64
               run: |
