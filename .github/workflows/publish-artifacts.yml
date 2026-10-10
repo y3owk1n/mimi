@@ -34,6 +34,16 @@ on:
 
 name: publish-artifacts
 
+# Each job attests its zip with actions/attest-build-provenance, so
+# `gh attestation verify <file> --repo y3owk1n/mimi` traces a download back to
+# this workflow, this commit and this runner. The .sha256 files cannot show
+# that. The same job writes them and uploads them with the same token as the
+# zip, so they show a download is intact, not that the build was ours.
+# Attesting needs `id-token: write` to sign and `attestations: write` to store,
+# granted per job. A reusable workflow can only narrow what its caller granted,
+# so release-please.yml grants the same on the job that calls this one. Without
+# them there, signing here stops.
+
 env:
     # Same floor as the #cgo flags, so the Go runtime/cgo shim matches.
     MACOSX_DEPLOYMENT_TARGET: "14.0"
@@ -42,7 +52,9 @@ jobs:
     build-darwin-arm64-artifacts:
         runs-on: macos-latest
         permissions:
-            contents: write
+            contents: write # upload the release files
+            id-token: write # attest-build-provenance: sign the provenance
+            attestations: write # attest-build-provenance: store it on the repo
         steps:
             - uses: actions/checkout@v7
 
@@ -112,6 +124,11 @@ jobs:
                   shasum -a 256 mimi-darwin-arm64.zip | awk '{print $1}' > mimi-darwin-arm64.zip.sha256
                   ls -l mimi-darwin-arm64.zip mimi-darwin-arm64.zip.sha256
 
+            - name: Attest darwin arm64 build provenance
+              uses: actions/attest-build-provenance@v4
+              with:
+                  subject-path: mimi-darwin-arm64.zip
+
             - name: Upload darwin arm64 release artifacts
               env:
                   GH_TOKEN: ${{ secrets.upload_token || github.token }}
@@ -121,7 +138,9 @@ jobs:
     build-darwin-amd64-artifacts:
         runs-on: macos-15-intel
         permissions:
-            contents: write
+            contents: write # upload the release files
+            id-token: write # attest-build-provenance: sign the provenance
+            attestations: write # attest-build-provenance: store it on the repo
         steps:
             - uses: actions/checkout@v7
 
@@ -190,6 +209,11 @@ jobs:
               run: |
                   shasum -a 256 mimi-darwin-amd64.zip | awk '{print $1}' > mimi-darwin-amd64.zip.sha256
                   ls -l mimi-darwin-amd64.zip mimi-darwin-amd64.zip.sha256
+
+            - name: Attest darwin amd64 build provenance
+              uses: actions/attest-build-provenance@v4
+              with:
+                  subject-path: mimi-darwin-amd64.zip
 
             - name: Upload darwin amd64 release artifacts
               env:
