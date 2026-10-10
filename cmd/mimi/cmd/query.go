@@ -27,8 +27,8 @@ in this process whether or not the daemon is running.
 Available subcommands:
   space     the active Mission Control space and how many there are
   spaces    every Mission Control space, with its display and windows
-  window    the frontmost window, as one entry of windows
-  every focusable window on the active space, with its frame
+  window    the frontmost window, in the same JSON shape as a windows entry
+  windows   every focusable window on the active space, with its frame
   minimized every window in the Dock, with its owner and title
   displays  every connected display, with its frames
   margins   the system tiled-window margins setting resize_window honors

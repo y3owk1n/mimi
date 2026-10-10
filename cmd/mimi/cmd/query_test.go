@@ -3,6 +3,7 @@ package cmd
 
 import (
 	"bytes"
+	"slices"
 	"strings"
 	"testing"
 
@@ -124,6 +125,41 @@ func TestQueryCommand_WithoutASubcommandStillListsItsSubcommands(t *testing.T) {
 		if !strings.Contains(out, name) {
 			t.Errorf("mimi query never named the %q subcommand, got: %s", name, out)
 		}
+	}
+}
+
+func TestQueryHelp_ListsEverySubcommandByName(t *testing.T) {
+	isolateConfigHome(t)
+
+	out, err := runCommand(t, queryCommandName, "--help")
+	if err != nil {
+		t.Fatalf("mimi query --help: %v", err)
+	}
+
+	_, list, found := strings.Cut(out, "Available subcommands:\n")
+	if !found {
+		t.Fatalf("mimi query --help has no subcommand list, got: %s", out)
+	}
+
+	list, _, _ = strings.Cut(list, "\n\n")
+
+	var listed []string
+	for line := range strings.Lines(list) {
+		listed = append(listed, strings.Fields(line)[0])
+	}
+
+	subs := newQueryCmd().Commands()
+
+	want := make([]string, 0, len(subs))
+	for _, sub := range subs {
+		want = append(want, sub.Name())
+	}
+
+	slices.Sort(listed)
+	slices.Sort(want)
+
+	if !slices.Equal(listed, want) {
+		t.Errorf("mimi query --help lists %v, want %v", listed, want)
 	}
 }
 

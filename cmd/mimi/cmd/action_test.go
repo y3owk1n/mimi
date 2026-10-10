@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"net"
 	"path/filepath"
+	"slices"
 	"strings"
 	"sync/atomic"
 	"testing"
@@ -552,6 +553,31 @@ func listeningDaemon(t *testing.T, socketPath string) *atomic.Int64 {
 // against the config at configPath.
 func actionArgv(configPath string, argv []string) []string {
 	return append([]string{"--config", configPath, actionCommandName}, argv...)
+}
+
+func TestActionHelp_ListsEverySubcommand(t *testing.T) {
+	isolateConfigHome(t)
+
+	out, err := runCommand(t, "action", "--help")
+	if err != nil {
+		t.Fatalf("mimi action --help: %v", err)
+	}
+
+	_, list, found := strings.Cut(out, "Available subcommands:\n")
+	if !found {
+		t.Fatalf("mimi action --help has no subcommand list, got: %s", out)
+	}
+
+	list, _, _ = strings.Cut(list, "\n\n")
+	listed := strings.FieldsFunc(list, func(r rune) bool {
+		return r == ' ' || r == ',' || r == '\n'
+	})
+
+	for _, sub := range newActionCmd(&cliState{}).Commands() {
+		if !slices.Contains(listed, sub.Name()) {
+			t.Errorf("mimi action --help never lists %q, got:\n%s", sub.Name(), list)
+		}
+	}
 }
 
 // TestActionCommands_RejectMalformedArgumentsWithoutOpeningASocket covers
