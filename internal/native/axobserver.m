@@ -9,6 +9,8 @@
 #import <ApplicationServices/ApplicationServices.h>
 #import <Cocoa/Cocoa.h>
 
+extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
+
 @interface AXEntry : NSObject
 @property AXObserverRef observer;
 @property AXUIElementRef appElement;
@@ -117,11 +119,20 @@ static void dispatchAXEvent(int kind, pid_t pid, AXUIElementRef element) {
 	// windows of one app that happen to share a title no longer collide.
 	unsigned long long windowID = (unsigned long long)(uintptr_t)element;
 
+	// The window server's number for the window, which the actions and
+	// queries name it by. 0 when the element no longer reports one.
+	CGWindowID number = 0;
+	if (_AXUIElementGetWindow(element, &number) != kAXErrorSuccess) {
+		number = 0;
+	}
+
 	double centerX = 0;
 	double centerY = 0;
 	int hasCenter = axWindowCenter(element, &centerX, &centerY) ? 1 : 0;
 
-	goAXEvent(kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, hasCenter, centerX, centerY);
+	goAXEvent(
+	    kind, (char *)appName, (char *)bundleID, (int)pid, (char *)title, windowID, number, hasCenter, centerX,
+	    centerY);
 }
 
 // axDispatchFocus dispatches window_focus for element unless the last one

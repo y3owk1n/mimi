@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"regexp"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -284,7 +285,7 @@ func (ex *Executor) execute(parent context.Context, hook Hook, evt events.Event)
 	}
 }
 
-const baseEnvVarCount = 7
+const baseEnvVarCount = 8
 
 // eventJSON is the event as one line of JSON, the same document the event
 // log writes, for the hook's stdin. A hook that wants the whole event
@@ -308,6 +309,7 @@ func eventEnv(evt events.Event) []string {
 		"mimi_BUNDLE_ID="+evt.BundleID,
 		fmt.Sprintf("mimi_PID=%d", evt.PID),
 		"mimi_WINDOW_TITLE="+evt.WindowTitle,
+		"mimi_WINDOW_NUMBER="+windowNumber(evt),
 		"mimi_TIMESTAMP="+evt.At.Format(time.RFC3339),
 	)
 	for k, v := range evt.Extra {
@@ -315,6 +317,15 @@ func eventEnv(evt events.Event) []string {
 	}
 
 	return vars
+}
+
+// windowNumber is mimi_WINDOW_NUMBER, empty when the event names no window.
+func windowNumber(evt events.Event) string {
+	if evt.WindowNumber == 0 {
+		return ""
+	}
+
+	return strconv.FormatUint(uint64(evt.WindowNumber), 10)
 }
 
 var mimiVarRegex = regexp.MustCompile(`^(?:\$\{(mimi_[A-Za-z0-9_]+)\}|\$(mimi_[A-Za-z0-9_]+))`)
@@ -405,7 +416,7 @@ func isNameChar(char byte) bool {
 func eventEnvName(name string, evt events.Event) (string, bool) {
 	switch name {
 	case "mimi_EVENT", "mimi_EVENT_ID", "mimi_APP_NAME", "mimi_BUNDLE_ID",
-		"mimi_PID", "mimi_WINDOW_TITLE", "mimi_TIMESTAMP":
+		"mimi_PID", "mimi_WINDOW_TITLE", "mimi_WINDOW_NUMBER", "mimi_TIMESTAMP":
 		return name, true
 	}
 

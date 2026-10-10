@@ -630,6 +630,7 @@ Every hook receives:
 | `mimi_BUNDLE_ID` | Bundle identifier |
 | `mimi_PID` | Process ID |
 | `mimi_WINDOW_TITLE` | Window title (window events only) |
+| `mimi_WINDOW_NUMBER` | The window's number, as `mimi query windows` reports it and `mimi action focus_window --number` takes it (window events only) |
 | `mimi_TIMESTAMP` | RFC3339 timestamp |
 | `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
 | `mimi_INFO` | JSON workspace info (workspace events only) |
@@ -642,15 +643,15 @@ Every hook receives:
 
 ### Which variables each hook carries
 
-The seven variables from `mimi_EVENT` to `mimi_TIMESTAMP` are always set.
+The eight variables from `mimi_EVENT` to `mimi_TIMESTAMP` are always set.
 `mimi_EVENT`, `mimi_EVENT_ID` and `mimi_TIMESTAMP` are never empty. The rest
 are empty strings on a hook whose event has nothing to put in them, and the
 extra variables below are set only on the hooks named.
 
-| Hook | `mimi_APP_NAME`, `mimi_BUNDLE_ID`, `mimi_PID` | `mimi_WINDOW_TITLE` | Extra |
+| Hook | `mimi_APP_NAME`, `mimi_BUNDLE_ID`, `mimi_PID` | `mimi_WINDOW_TITLE`, `mimi_WINDOW_NUMBER` | Extra |
 | --- | --- | --- | --- |
 | `on_app_*` | set | empty | none |
-| `on_window_*` | set | set, `""` when the window has none | `mimi_DISPLAY_INDEX` |
+| `on_window_*` | set | set. A title the window lacks, or a number macOS does not report, is `""` | `mimi_DISPLAY_INDEX` |
 | `on_workspace_changed` | empty | empty | `mimi_WINDOWS_COUNT`, `mimi_INFO`, `mimi_SPACE_INDEX`, `mimi_SPACE_COUNT`, `mimi_DISPLAY_INDEX` |
 | `on_system_sleep`, `on_system_wake` | empty | empty | none |
 | `on_display_changed` | empty | empty | `mimi_DISPLAYS_COUNT`, `mimi_DISPLAYS` |
@@ -680,7 +681,7 @@ window's frame could not be read. `mimi_DISPLAYS_COUNT` and
   ```
 
   The fields are `id`, `kind`, `at`, and when set `appName`, `bundleId`,
-  `pid`, `windowTitle`, and `extra`, an object of the extra variables by
+  `pid`, `windowTitle`, `windowNumber`, and `extra`, an object of the extra variables by
   their lower-case names, `space_index` say.
 - mimi captures stdout and stderr together, up to 64 KiB, and logs them at
   debug level. Nothing reaches the daemon's own output.

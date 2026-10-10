@@ -205,6 +205,7 @@ const (
 	fireBundleFlag  = "bundle-id"
 	firePIDFlag     = "pid"
 	fireTitleFlag   = "title"
+	fireNumberFlag  = "number"
 	fireDisplayFlag = "display"
 	fireExtraFlag   = "extra"
 )
@@ -275,6 +276,7 @@ running one is not involved.`,
 	cmd.Flags().String(fireBundleFlag, "", "the application's bundle identifier")
 	cmd.Flags().Int(firePIDFlag, 0, "the application's process id")
 	cmd.Flags().String(fireTitleFlag, "", "the window's title")
+	cmd.Flags().Uint32(fireNumberFlag, 0, "the window's number, as mimi query windows reports it")
 	cmd.Flags().Int(fireDisplayFlag, 0, "the display the event happened on, 1-based")
 	cmd.Flags().StringArray(fireExtraFlag, nil, "an extra variable, as key=value (repeatable)")
 
@@ -299,6 +301,7 @@ func eventFromFlags(cobraCmd *cobra.Command, kind events.EventKind) (events.Even
 	bundle, _ := flags.GetString(fireBundleFlag)
 	pid, _ := flags.GetInt(firePIDFlag)
 	title, _ := flags.GetString(fireTitleFlag)
+	number, _ := flags.GetUint32(fireNumberFlag)
 	display, _ := flags.GetInt(fireDisplayFlag)
 	extras, _ := flags.GetStringArray(fireExtraFlag)
 
@@ -307,13 +310,14 @@ func eventFromFlags(cobraCmd *cobra.Command, kind events.EventKind) (events.Even
 	}
 
 	evt := events.Event{
-		ID:          uuid.NewString(),
-		Kind:        kind,
-		AppName:     app,
-		BundleID:    bundle,
-		PID:         pid,
-		WindowTitle: title,
-		At:          time.Now(),
+		ID:           uuid.NewString(),
+		Kind:         kind,
+		AppName:      app,
+		BundleID:     bundle,
+		PID:          pid,
+		WindowTitle:  title,
+		WindowNumber: number,
+		At:           time.Now(),
 	}
 
 	for _, extra := range extras {

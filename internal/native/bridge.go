@@ -276,18 +276,20 @@ func goAXEvent(
 	pid C.int,
 	windowTitle *C.char,
 	windowID C.ulonglong,
+	windowNumber C.uint,
 	hasCenter C.int,
 	centerX, centerY C.double,
 ) {
 	evt := events.Event{
-		ID:          uuid.NewString(),
-		Kind:        kindFromInt(int(kind)),
-		AppName:     C.GoString(appName),
-		BundleID:    C.GoString(bundleID),
-		PID:         int(pid),
-		WindowTitle: C.GoString(windowTitle),
-		WindowID:    uint64(windowID),
-		At:          time.Now(),
+		ID:           uuid.NewString(),
+		Kind:         kindFromInt(int(kind)),
+		AppName:      C.GoString(appName),
+		BundleID:     C.GoString(bundleID),
+		PID:          int(pid),
+		WindowTitle:  C.GoString(windowTitle),
+		WindowID:     uint64(windowID),
+		WindowNumber: uint32(windowNumber),
+		At:           time.Now(),
 	}
 
 	if hasCenter != 0 {

@@ -304,15 +304,16 @@ func (r *Router) newDebounceEntry(key string, evt events.Event) *resizeState {
 		r.mu.Unlock()
 
 		r.publish(events.Event{
-			ID:          uuid.NewString(),
-			Kind:        settledKind(snapshot.Kind),
-			AppName:     snapshot.AppName,
-			BundleID:    snapshot.BundleID,
-			PID:         snapshot.PID,
-			WindowTitle: snapshot.WindowTitle,
-			WindowID:    snapshot.WindowID,
-			At:          time.Now(),
-			Extra:       snapshot.Extra,
+			ID:           uuid.NewString(),
+			Kind:         settledKind(snapshot.Kind),
+			AppName:      snapshot.AppName,
+			BundleID:     snapshot.BundleID,
+			PID:          snapshot.PID,
+			WindowTitle:  snapshot.WindowTitle,
+			WindowID:     snapshot.WindowID,
+			WindowNumber: snapshot.WindowNumber,
+			At:           time.Now(),
+			Extra:        snapshot.Extra,
 		})
 	})
 

@@ -83,6 +83,50 @@ func TestHooksFire_ExtraReachesTheHook(t *testing.T) {
 	}
 }
 
+// TestHooksFire_WindowNumberReachesTheHook pins mimi_WINDOW_NUMBER and the
+// windowNumber field of the event on stdin, both left out when the event
+// names no window.
+func TestHooksFire_WindowNumberReachesTheHook(t *testing.T) {
+	xdg := isolateConfigHome(t)
+	writeConfigFile(t, filepath.Join(xdg, "mimi", "config.toml"), `[hooks]
+on_window_focus = ["echo number=$mimi_WINDOW_NUMBER", "jq -c '{windowNumber}'"]
+`)
+
+	cases := []struct {
+		name string
+		args []string
+		want []string
+	}{
+		{
+			name: "with a number",
+			args: []string{"--number", "4242"},
+			want: []string{"    number=4242\n", `    {"windowNumber":4242}` + "\n"},
+		},
+		{
+			name: "without one",
+			want: []string{"    number=\n", `    {"windowNumber":null}` + "\n"},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			out, err := runCommand(
+				t,
+				append([]string{"hooks", "fire", "on_window_focus"}, testCase.args...)...,
+			)
+			if err != nil {
+				t.Fatalf("hooks fire: %v\n%s", err, out)
+			}
+
+			for _, want := range testCase.want {
+				if !strings.Contains(out, want) {
+					t.Fatalf("output lacks %q:\n%s", want, out)
+				}
+			}
+		})
+	}
+}
+
 func TestHooksFire_RejectsAnUnknownKind(t *testing.T) {
 	xdg := isolateConfigHome(t)
 	writeConfigFile(t, filepath.Join(xdg, "mimi", "config.toml"), hooksConfig)
