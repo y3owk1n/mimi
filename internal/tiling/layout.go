@@ -5,11 +5,11 @@ import (
 	"context"
 	"encoding/json"
 	"errors"
-	"os/exec"
 	"strings"
 	"time"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
+	"github.com/y3owk1n/mimi/internal/shellexec"
 )
 
 // maxLayoutOutputBytes caps what is kept of a layout's stderr for the error
@@ -54,7 +54,7 @@ func (p Program) Reduce(ctx context.Context, input Input) (Output, error) {
 		defer cancel()
 	}
 
-	cmd := exec.CommandContext(ctx, p.Shell, "-c", p.Command)
+	cmd := shellexec.Command(ctx, p.Shell, p.Command)
 	cmd.Stdin = bytes.NewReader(payload)
 
 	var stdout, stderr bytes.Buffer
@@ -62,7 +62,7 @@ func (p Program) Reduce(ctx context.Context, input Input) (Output, error) {
 	cmd.Stdout = &stdout
 	cmd.Stderr = &limitedBuffer{buf: &stderr, limit: maxLayoutOutputBytes}
 
-	err = cmd.Run()
+	err = shellexec.Run(cmd)
 	if err != nil {
 		if errors.Is(ctx.Err(), context.DeadlineExceeded) {
 			return Output{}, derrors.Newf(

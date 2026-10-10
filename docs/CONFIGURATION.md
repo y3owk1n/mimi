@@ -680,8 +680,11 @@ window's frame could not be read. `mimi_DISPLAYS_COUNT` and
   output.
 - A hook that exits non-zero logs at error level with its exit status. mimi
   kills one that runs past `settings.hook_timeout_secs`, or its own
-  `timeout_secs`, and logs it at warn level. Neither stops the other hooks
-  for the event.
+  `timeout_secs`, along with everything it started, and logs it at warn
+  level. Neither stops the other hooks for the event.
+- A hook that starts something in the background with `&` finishes when
+  its shell exits. mimi does not wait for what it started, and leaves it
+  running.
 - Hooks for one event run in config order. A hook without `async` runs
   before the next hook of the same kind starts, and before the daemon reads
   the next event, so a slow one delays everything behind it. An `async`
