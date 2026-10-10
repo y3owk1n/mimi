@@ -295,3 +295,37 @@ func TestExecutor_ApplyFrames_WritesOneApplicationsFramesInPayloadOrder(t *testi
 		t.Fatalf("pid 101 writes = %v, want %v", odd, want)
 	}
 }
+
+// TestExecutor_ApplyFrames_LeavesAWindowAlreadyAtItsFrameAlone pins that
+// apply_frames writes only the windows that move. A layout returns every
+// window it places, most of them where they already are, and each write is a
+// round trip into the application.
+func TestExecutor_ApplyFrames_LeavesAWindowAlreadyAtItsFrameAlone(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithListedWindows()
+	cmd := applyFramesCommandFor(
+		t,
+		action.WindowFrame{
+			Number: 4242,
+			Frame:  action.Frame{X: 0, Y: 25, Width: 960, Height: 1055},
+		},
+		action.WindowFrame{
+			Number: 4243,
+			Frame:  action.Frame{X: 960, Y: 25, Width: 640, Height: 1055},
+		},
+	)
+
+	err := action.NewExecutor(desktop).ExecuteCommand(cmd)
+	if err != nil {
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+	}
+
+	if want := []action.WindowID{desktop.windows[1].id}; !slices.Equal(desktop.frameWrites, want) {
+		t.Fatalf("frame writes = %v, want only window 4243's %v", desktop.frameWrites, want)
+	}
+
+	if got, want := desktop.windows[1].frame, (geometry.Rect{X: 960, Y: 25, W: 640, H: 1055}); got != want {
+		t.Fatalf("window 4243 frame = %v, want %v", got, want)
+	}
+}
