@@ -85,9 +85,9 @@ func TestLoad_SpaceFilterIsAcceptedAsANumberOrAString(t *testing.T) {
 }
 
 // TestLoad_RejectsFiltersThatCannotMean: a space or display filter on a
-// hook whose events carry none, a number that is not one, and a filter
-// that is only the negation prefix are all reported by the key the user
-// typed.
+// hook whose events carry none, a number that is not one, a title that is
+// not a regular expression, and a filter that is only the negation prefix are
+// all reported by the key the user typed.
 func TestLoad_RejectsFiltersThatCannotMean(t *testing.T) {
 	t.Parallel()
 
@@ -118,6 +118,10 @@ func TestLoad_RejectsFiltersThatCannotMean(t *testing.T) {
 		"display zero": {
 			src:  "[hooks]\non_window_focus = [{ run = \"true\", display = 0 }]\n",
 			want: "hooks.on_window_focus[0]: display must be a 1-based display number",
+		},
+		"title that is not a regular expression": {
+			src:  "[hooks]\non_window_focus = [{ run = \"true\", title = \"([\" }]\n",
+			want: "hooks.on_window_focus[0]: title filter is not a regular expression: error parsing regexp",
 		},
 		"app filter that is only a !": {
 			src:  "[hooks]\non_app_activate = [{ run = \"true\", app = \"!\" }]\n",

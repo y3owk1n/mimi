@@ -58,10 +58,10 @@ func parseIndexFilter(noun, filter string) (string, bool, error) {
 	return strconv.Itoa(index), negated, nil
 }
 
-// validateFilters holds the rules a hook entry's filters are held to beyond
-// what compiles: a filter that is nothing but the negation prefix names
-// nothing to negate, and a space or display filter only means something on
-// a hook whose events carry one.
+// validateFilters checks a hook entry's filters against the rules the daemon
+// applies. The title filter must compile as a regular expression. A filter
+// that is only the negation prefix has nothing to negate. A space or display
+// filter means something only on a hook whose events carry one.
 func validateFilters(kind HookKind, entry HookEntry) []string {
 	var errs []string
 
@@ -73,6 +73,11 @@ func validateFilters(kind HookKind, entry HookEntry) []string {
 		if filter == negation {
 			errs = append(errs, name+" filter is only a "+negation+", with nothing to negate")
 		}
+	}
+
+	_, err := CompileRegexpFilter(entry.Title)
+	if err != nil {
+		errs = append(errs, "title filter is not a regular expression: "+err.Error())
 	}
 
 	if entry.Space != "" {
