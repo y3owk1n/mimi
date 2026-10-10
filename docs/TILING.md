@@ -544,6 +544,11 @@ would act on, mimi marks that window too, in the zone's target colours.
 `bsp.py` names the window it would swap with and `strip.py` the column it
 would join. See [CONFIGURATION.md](CONFIGURATION.md#drop-zone).
 
+A drag runs the layout up to 25 times a second, at most once every 40
+milliseconds. With `layout_mode = "oneshot"` each of those runs starts your
+program again, so a layout in an interpreted language such as Python or Node
+pays its startup cost on every run. `layout_mode = "resident"` pays it once.
+
 The engine tells a move from a resize by comparing where the windows landed
 against where it last placed them, so a terminal that snaps its width to the
 character grid on every move still reads as a move. For a second after each
