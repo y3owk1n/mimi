@@ -2,8 +2,13 @@
 package tiling
 
 import (
+	"fmt"
 	"testing"
 	"time"
+
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/y3owk1n/mimi/internal/config"
 	"github.com/y3owk1n/mimi/internal/events"
@@ -73,4 +78,43 @@ func TestEngine_Run_IgnoresADragOfAWindowARuleKeepsOut(t *testing.T) {
 	sub <- events.Event{Kind: events.WindowMove, PID: 11}
 
 	waitFor(1, "a drag of the window a rule keeps out")
+}
+
+// TestEngine_Pass_LogsTheWindowsItLeftOutAndWhatItSpent pins the two debug
+// lines docs/TILING.md sends a user to: the windows a pass left out, by
+// reason, and how long each part of the pass took.
+func TestEngine_Pass_LogsTheWindowsItLeftOutAndWhatItSpent(t *testing.T) {
+	core, logs := observer.New(zapcore.DebugLevel)
+	engine := New(newPairDesktop(), nil, zap.New(core).Sugar())
+
+	manage := false
+	engine.Update(config.TilingConfig{
+		Enabled:     true,
+		TimeoutSecs: 5,
+		Layout:      `jq -c '{frames: [.windows[] | {number, frame}], state: null}'`,
+		Rules:       []config.TilingRule{{App: "A", Manage: &manage}},
+	}, "/bin/sh")
+
+	err := engine.Pass(t.Context(), Event{Kind: EventRelayout})
+	if err != nil {
+		t.Fatalf("Pass() error = %v", err)
+	}
+
+	engine.Wait()
+
+	left := logs.FilterMessage("windows left out").All()
+	if len(left) != 1 || fmt.Sprint(left[0].ContextMap()["rule"]) != "[1]" {
+		t.Fatalf("windows left out = %+v, want window 1 under rule", left)
+	}
+
+	applied := logs.FilterMessage("pass applied").All()
+	if len(applied) != 1 {
+		t.Fatalf("got %d pass applied lines, want 1", len(applied))
+	}
+
+	for _, field := range []string{"read_ms", "layout_ms", "apply_ms", "total_ms"} {
+		if _, ok := applied[0].ContextMap()[field]; !ok {
+			t.Errorf("pass applied has no %s: %v", field, applied[0].ContextMap())
+		}
+	}
 }

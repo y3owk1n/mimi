@@ -751,10 +751,14 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		return nil
 	}
 
+	passStart := time.Now()
+
 	inputs, err := e.settledInputsLocked(ctx, event)
 	if err != nil {
 		return err
 	}
+
+	readMS := time.Since(passStart).Milliseconds()
 
 	var (
 		frames []action.WindowFrame
@@ -763,10 +767,14 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		after  []string
 	)
 
+	layoutStart := time.Now()
+
 	outputs, err := e.reduceAll(ctx, inputs)
 	if err != nil {
 		return err
 	}
+
+	layoutMS := time.Since(layoutStart).Milliseconds()
 
 	for index, out := range outputs {
 		input := inputs[index]
@@ -801,7 +809,13 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 	e.tellStacks()
 
 	if len(frames) == 0 && focus == 0 && len(before) == 0 && len(after) == 0 {
-		e.logger.Debugw("pass applied nothing", "kind", event.Kind, "displays", len(inputs))
+		e.logger.Debugw(
+			"pass applied nothing",
+			"kind", event.Kind,
+			"displays", len(inputs),
+			"read_ms", readMS,
+			"layout_ms", layoutMS,
+		)
 
 		return nil
 	}
@@ -883,8 +897,14 @@ func (e *Engine) passLocked(ctx context.Context, event Event) error {
 		len(inputs),
 		"frames",
 		len(frames),
+		"read_ms",
+		readMS,
+		"layout_ms",
+		layoutMS,
 		"apply_ms",
 		time.Since(applyStart).Milliseconds(),
+		"total_ms",
+		time.Since(passStart).Milliseconds(),
 	)
 
 	return nil
@@ -1314,6 +1334,7 @@ func (e *Engine) settledInputsLocked(ctx context.Context, event Event) ([]Input,
 	}
 
 	inputs := e.buildInputsLocked(event, read)
+	e.logLeftOut(read, inputs)
 
 	e.carryReplacedLocked(inputs)
 
@@ -1693,6 +1714,64 @@ func (e *Engine) buildInputsLocked(event Event, read desktopRead) []Input {
 	}
 
 	return inputs
+}
+
+// logLeftOut logs at debug each window the window server listed that no
+// layout sees this pass. It lists them by number under their reason, checking
+// the reasons in the order buildInputsLocked does.
+func (e *Engine) logLeftOut(read desktopRead, inputs []Input) {
+	given := make(map[uint32]bool)
+
+	for _, input := range inputs {
+		for _, win := range input.Windows {
+			given[win.Number] = true
+		}
+	}
+
+	managed := make(map[uint32]bool, len(read.windows.Windows))
+	for _, win := range read.windows.Windows {
+		managed[win.Number] = true
+	}
+
+	reasons := []string{"rule", "full_screen", "menu_bar", "other_space", "no_layout"}
+	left := make(map[string][]uint32)
+
+	for _, win := range read.listed {
+		if given[win.Number] {
+			continue
+		}
+
+		display, _ := action.DisplayOf(win.Frame, read.displays)
+
+		reason := "no_layout"
+
+		switch {
+		case !managed[win.Number]:
+			reason = "rule"
+		case read.fullScreen[display.ID]:
+			reason = "full_screen"
+		case coversMenuBar(win.Frame, display):
+			reason = "menu_bar"
+		case win.Space != 0 && win.Space != read.spaces[display.ID]:
+			reason = "other_space"
+		}
+
+		left[reason] = append(left[reason], win.Number)
+	}
+
+	if len(left) == 0 {
+		return
+	}
+
+	var fields []any
+
+	for _, reason := range reasons {
+		if numbers, ok := left[reason]; ok {
+			fields = append(fields, reason, numbers)
+		}
+	}
+
+	e.logger.Debugw("windows left out", fields...)
 }
 
 // handBackLocked fills the input's Unmanaged and Stacks from what the layout
