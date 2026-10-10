@@ -9,7 +9,6 @@ import (
 	"os"
 	"os/exec"
 	"regexp"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
@@ -318,73 +317,101 @@ func eventEnv(evt events.Event) []string {
 	return vars
 }
 
-var mimiVarRegex = regexp.MustCompile(`\${mimi_[A-Za-z0-9_]+}|\$mimi_[A-Za-z0-9_]+`)
+var mimiVarRegex = regexp.MustCompile(`^(?:\$\{(mimi_[A-Za-z0-9_]+)\}|\$(mimi_[A-Za-z0-9_]+))`)
 
-// replaceEventVars substitutes $mimi_FOO and ${mimi_FOO} occurrences in runCmd
-// with the values from evt. Uses a per-event lookup closure (no map allocation
-// in the common case) and only falls back to a per-event scan for keys not
-// produced by eventEnv (i.e. user-provided Extra keys).
+// replaceEventVars rewrites each $mimi_FOO and ${mimi_FOO} reference in runCmd
+// so the shell expands it from the hook's environment, where eventEnv exports
+// every value. No value enters the command text. A window title is whatever a
+// web page chose to call itself, and it cannot run as code whatever quotes
+// the user put around the reference.
 //
-// Each substituted value is wrapped by shellQuote so it lands as a single,
-// inert shell token. The values carry untrusted, attacker-influenced text —
-// a window title is whatever a web page or document chose to call itself —
-// and this string is handed straight to `sh -c`. Without quoting, a title
-// like `'; rm -rf ~; '` would break out of the command and run as its own
-// statement.
+// Each rewrite matches the quotes around the reference, so it still expands
+// to the value as one word. Outside quotes it becomes "$mimi_FOO". Inside
+// single quotes it becomes '"$mimi_FOO"', which closes the user's quote and
+// reopens it. Inside double quotes the reference stays as written. If the
+// scan misreads the quotes, the hook prints the wrong text but runs nothing
+// new.
 func replaceEventVars(runCmd string, evt events.Event) string {
-	return mimiVarRegex.ReplaceAllStringFunc(runCmd, func(match string) string {
-		var varName string
-		if strings.HasPrefix(match, "${") {
-			varName = match[2 : len(match)-1]
-		} else {
-			varName = match[1:]
+	var out strings.Builder
+
+	var quote byte
+
+	for idx := 0; idx < len(runCmd); idx++ {
+		char := runCmd[idx]
+
+		switch {
+		case char == '\\' && quote != '\'' && idx+1 < len(runCmd):
+			out.WriteString(runCmd[idx : idx+2])
+			idx++
+
+			continue
+		case (char == '\'' || char == '"') && (quote == 0 || quote == char):
+			if quote == 0 {
+				quote = char
+			} else {
+				quote = 0
+			}
+		case char == '$':
+			match := mimiVarRegex.FindStringSubmatch(runCmd[idx:])
+			if match == nil {
+				break
+			}
+
+			name := match[1] + match[2]
+
+			envName, ok := eventEnvName(name, evt)
+			if !ok {
+				break
+			}
+
+			out.WriteString(envReference(envName, quote, runCmd[idx+len(match[0]):]))
+			idx += len(match[0]) - 1
+
+			continue
 		}
 
-		if val, ok := lookupEventVar(varName, evt); ok {
-			return shellQuote(val)
-		}
-
-		return match
-	})
-}
-
-// shellQuote wraps s in single quotes so `sh -c` treats it as one literal
-// token, escaping any embedded single quote with the standard POSIX
-// '\” idiom (close the quote, emit an escaped quote, reopen). The result is
-// safe in every unquoted or single-quoted context; a value substituted inside
-// the user's own double quotes will show its wrapping quotes literally, which
-// is the documented trade-off for closing the injection hole.
-func shellQuote(s string) string {
-	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
-}
-
-// lookupEventVar resolves a mimi_* environment variable name (including the
-// "mimi_" prefix) to its value for the given event. Returns false if the
-// name does not correspond to a known variable. This avoids allocating a
-// map[string]string on every event.
-func lookupEventVar(name string, evt events.Event) (string, bool) {
-	switch name {
-	case "mimi_EVENT":
-		return string(evt.Kind), true
-	case "mimi_EVENT_ID":
-		return evt.ID, true
-	case "mimi_APP_NAME":
-		return evt.AppName, true
-	case "mimi_BUNDLE_ID":
-		return evt.BundleID, true
-	case "mimi_PID":
-		return strconv.Itoa(evt.PID), true
-	case "mimi_WINDOW_TITLE":
-		return evt.WindowTitle, true
-	case "mimi_TIMESTAMP":
-		return evt.At.Format(time.RFC3339), true
+		out.WriteByte(char)
 	}
 
-	if strings.HasPrefix(name, "mimi_") {
-		extraKey := strings.ToLower(name[len("mimi_"):])
-		if v, ok := evt.Extra[extraKey]; ok {
-			return v, true
+	return out.String()
+}
+
+// envReference expands the environment variable name as one word inside
+// quote. rest is the command text after the reference, which decides whether
+// a reference in double quotes needs braces.
+func envReference(name string, quote byte, rest string) string {
+	switch quote {
+	case '\'':
+		return `'"$` + name + `"'`
+	case '"':
+		if rest != "" && isNameChar(rest[0]) {
+			return "${" + name + "}"
 		}
+
+		return "$" + name
+	default:
+		return `"$` + name + `"`
+	}
+}
+
+func isNameChar(char byte) bool {
+	return char == '_' || ('0' <= char && char <= '9') ||
+		('a' <= char && char <= 'z') || ('A' <= char && char <= 'Z')
+}
+
+// eventEnvName is the name eventEnv exports a reference's value under, or
+// false when name is not one of the event's variables. Extra variables match
+// in any case, because eventEnv upper-cases their keys.
+func eventEnvName(name string, evt events.Event) (string, bool) {
+	switch name {
+	case "mimi_EVENT", "mimi_EVENT_ID", "mimi_APP_NAME", "mimi_BUNDLE_ID",
+		"mimi_PID", "mimi_WINDOW_TITLE", "mimi_TIMESTAMP":
+		return name, true
+	}
+
+	extraKey := strings.ToLower(strings.TrimPrefix(name, "mimi_"))
+	if _, ok := evt.Extra[extraKey]; ok {
+		return "mimi_" + strings.ToUpper(extraKey), true
 	}
 
 	return "", false
