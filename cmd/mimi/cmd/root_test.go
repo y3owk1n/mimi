@@ -195,14 +195,14 @@ func TestConfigReload_WithoutConfigFlag_GetsPastTheConfigPath(t *testing.T) {
 	writeConfig(t, filepath.Join(xdg, "mimi", "config.toml"), "/marker/default.log")
 
 	// The daemon is not running under this test's temporary HOME, so reload is
-	// expected to fail — but on the missing PID file, never on the config path.
+	// expected to fail, but on finding no daemon, never on the config path.
 	_, err := runCommand(t, "config", "reload")
 	if err == nil {
 		t.Fatal("expected config reload to fail without a running daemon")
 	}
 
-	if !strings.Contains(err.Error(), "reading pid file") {
-		t.Errorf("config reload failed before reaching the PID file: %v", err)
+	if !strings.Contains(err.Error(), "not running") {
+		t.Errorf("config reload failed before looking for the daemon: %v", err)
 	}
 }
 

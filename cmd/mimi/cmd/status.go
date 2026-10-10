@@ -3,11 +3,11 @@ package cmd
 import (
 	"fmt"
 	"os"
-	"syscall"
 	"time"
 
 	"github.com/spf13/cobra"
 
+	"github.com/y3owk1n/mimi/internal/daemon"
 	derrors "github.com/y3owk1n/mimi/internal/errors"
 	"github.com/y3owk1n/mimi/internal/paths"
 	"github.com/y3owk1n/mimi/internal/permissions"
@@ -20,18 +20,11 @@ func newStatusCmd(state *cliState) *cobra.Command {
 		RunE: func(cmd *cobra.Command, _ []string) error {
 			pidPath, socketPath := state.runtimePaths()
 
-			pid, err := readPID(pidPath)
-			if err != nil {
-				cmd.Println("mimi: not running")
+			pid, running := daemon.RunningPID(pidPath)
+			if running {
+				cmd.Printf("mimi: running (pid %d)\n", pid)
 			} else {
-				proc, findErr := os.FindProcess(pid)
-
-				running := findErr == nil && proc.Signal(syscall.Signal(0)) == nil
-				if running {
-					cmd.Printf("mimi: running (pid %d)\n", pid)
-				} else {
-					cmd.Println("mimi: not running (stale PID file)")
-				}
+				cmd.Println(notRunning(pid))
 			}
 
 			perm := permissions.Check()

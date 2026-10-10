@@ -121,14 +121,19 @@ Or make the hook independent of `PATH` by calling absolute paths.
 
 ```bash
 mimi config validate
-mimi status          # check for stale PID file
-rm ~/.local/share/mimi/mimi.pid
+mimi status
 mimi start
 ```
 
-`mimi start` overwrites a stale PID file. Until then, `mimi status` reports
-`not running (stale PID file)`. `mimi start` runs in the
-foreground, so it prints any startup error to the terminal.
+`mimi start` runs in the foreground, so it prints any startup error to the
+terminal. It refuses with `mimi is already running (pid N)` while another
+mimi daemon runs. Stop that one first with `mimi stop`, or with
+`mimi services stop` when launchd runs it, since launchd starts a stopped
+service again.
+
+A daemon that crashed leaves its PID file behind, and that file does not
+count. `mimi status` reports it as `not running (stale PID file)`, `mimi stop`
+and `mimi config reload` signal nothing, and `mimi start` overwrites it.
 
 ## launchd service issues
 
