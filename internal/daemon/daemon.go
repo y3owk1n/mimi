@@ -8,7 +8,7 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-	"sync/atomic"
+	"sync"
 	"syscall"
 	"time"
 
@@ -43,6 +43,9 @@ const (
 	// borderSubBufSize is small on purpose. Every event asks for the same
 	// sync, and the drawer folds the ones that pile up into one.
 	borderSubBufSize = 16
+	// borderSubName names the border subscriber, whose drops are expected
+	// for the reason above.
+	borderSubName = "borders"
 )
 
 // Run starts the mimi daemon: window/space observers, hooks executor, and config watcher.
@@ -347,7 +350,7 @@ func setupEventPipeline(
 	// Subscribe the executor with a kind filter so the bus can drop events
 	// for which no hooks are registered, avoiding a channel send on the
 	// hot path of high-frequency events.
-	hookSub := bus.SubscribeWithFilter(hookSubBufSize, reg.KindFilter())
+	hookSub := bus.SubscribeNamed("hooks", hookSubBufSize, reg.KindFilter())
 
 	// The tiling engine is always built and subscribed, so that enabling
 	// [tiling] on a reload is enough to start it; its filter admits nothing
@@ -359,14 +362,14 @@ func setupEventPipeline(
 		filepath.Join(filepath.Dir(paths.ExpandHome(cfg.Settings.SocketFile)), "minsizes.json"),
 	)
 	tiler.Update(tilingConfigFor(cfg, accessibilityGranted), cfg.Settings.HookShell)
-	tileSub := bus.SubscribeWithFilter(tileSubBufSize, tiler.KindFilter())
+	tileSub := bus.SubscribeNamed("tiling", tileSubBufSize, tiler.KindFilter())
 
 	// The border engine is likewise always built and subscribed, and admits
 	// nothing while disabled. A drag reaches it ahead of the debounce, so
 	// a border follows the window rather than catching up when it settles.
 	borders := border.New(border.NativeDrawer())
 	borders.Update(borderConfigFor(cfg, accessibilityGranted))
-	borderSub := bus.SubscribeWithFilter(borderSubBufSize, borders.KindFilter())
+	borderSub := bus.SubscribeNamed(borderSubName, borderSubBufSize, borders.KindFilter())
 
 	// The drop zone hears the same raw drags, and previews the drop with
 	// the tiling engine while the button is down.
@@ -400,7 +403,7 @@ func setupEventPipeline(
 	// created. The moves go through the action worker like any action.
 	placer := place.New(place.NativeDesktop(serialize), logger.Named("place"))
 	placer.Update(placementRulesFor(cfg, accessibilityGranted))
-	placeSub := bus.SubscribeWithFilter(borderSubBufSize, placer.KindFilter())
+	placeSub := bus.SubscribeNamed("placer", borderSubBufSize, placer.KindFilter())
 
 	// The event log is opt-in via [settings].log_file; when present, write
 	// every event so the user can replay what happened. When disabled, the
@@ -411,7 +414,7 @@ func setupEventPipeline(
 	var logSub events.Subscriber
 
 	if logPath != "" {
-		logSub = bus.Subscribe(logSubBufSize)
+		logSub = bus.SubscribeNamed("event log", logSubBufSize, nil)
 	} else {
 		logSub = bus.SubscribeWithFilter(
 			hookSubBufSize,
@@ -643,20 +646,36 @@ func shutdown(cancel context.CancelFunc, pipeline *eventPipeline, logger *zap.Su
 // only — place either count becomes observable: the native counter lives in
 // the daemon process's own address space (mimi status runs in the CLI
 // process and can never see it), and the bus has no other reader.
-// dropLogger logs the first event the bus drops as a warning, since a hook
-// or an engine then missed something, and every later one at debug, since a
-// subscriber that is behind drops many in a row.
-func dropLogger(logger *zap.SugaredLogger) func(events.EventKind, int) {
-	var warned atomic.Bool
+// dropLogger logs the first event each subscriber drops as a warning, since a
+// hook or an engine then missed something. It logs every later drop at debug,
+// since a subscriber that is behind drops many in a row. The borders drop by
+// design, so it logs all of theirs at debug.
+func dropLogger(logger *zap.SugaredLogger) func(string, events.EventKind, int) {
+	var (
+		warnedMu sync.Mutex
+		warned   = map[string]bool{}
+	)
 
-	return func(kind events.EventKind, buffer int) {
-		if warned.CompareAndSwap(false, true) {
-			logger.Warnw("event dropped, a subscriber is behind", "kind", kind, "buffer", buffer)
+	return func(name string, kind events.EventKind, buffer int) {
+		warnedMu.Lock()
+		first := !warned[name] && name != borderSubName
+		warned[name] = true
+		warnedMu.Unlock()
 
-			return
+		log := logger.Debugw
+		if first {
+			log = logger.Warnw
 		}
 
-		logger.Debugw("event dropped, a subscriber is behind", "kind", kind, "buffer", buffer)
+		log(
+			"event dropped, a subscriber is behind",
+			"subscriber",
+			name,
+			"kind",
+			kind,
+			"buffer",
+			buffer,
+		)
 	}
 }
 

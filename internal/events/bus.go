@@ -18,8 +18,9 @@ type Bus struct {
 	mu        sync.RWMutex
 	subs      []Subscriber
 	filters   []KindFilter
+	names     []string
 	dropCount atomic.Int64
-	onDrop    func(kind EventKind, buffer int)
+	onDrop    func(name string, kind EventKind, buffer int)
 }
 
 // NewBus creates a new event bus.
@@ -27,10 +28,10 @@ func NewBus() *Bus {
 	return &Bus{}
 }
 
-// SetDropHandler has the bus call onDrop with the event's kind and the
-// subscriber's buffer size each time Publish discards an event because that
-// buffer is full. It is set before anything publishes.
-func (b *Bus) SetDropHandler(onDrop func(kind EventKind, buffer int)) {
+// SetDropHandler has the bus call onDrop with the subscriber's name, the
+// event's kind and the subscriber's buffer size each time Publish discards an
+// event because that buffer is full. It is set before anything publishes.
+func (b *Bus) SetDropHandler(onDrop func(name string, kind EventKind, buffer int)) {
 	b.mu.Lock()
 	b.onDrop = onDrop
 	b.mu.Unlock()
@@ -46,11 +47,18 @@ func (b *Bus) Subscribe(bufSize int) Subscriber {
 // events whose kind returns false from the filter, avoiding the channel
 // send entirely. Pass nil to receive every event.
 func (b *Bus) SubscribeWithFilter(bufSize int, filter KindFilter) Subscriber {
+	return b.SubscribeNamed("", bufSize, filter)
+}
+
+// SubscribeNamed is SubscribeWithFilter with a name. The bus passes the name to
+// the drop handler when this subscriber drops an event.
+func (b *Bus) SubscribeNamed(name string, bufSize int, filter KindFilter) Subscriber {
 	subCh := make(Subscriber, bufSize)
 
 	b.mu.Lock()
 	b.subs = append(b.subs, subCh)
 	b.filters = append(b.filters, filter)
+	b.names = append(b.names, name)
 	b.mu.Unlock()
 
 	return subCh
@@ -61,12 +69,13 @@ func (b *Bus) Unsubscribe(sub Subscriber) {
 	b.mu.Lock()
 	defer b.mu.Unlock()
 
-	for i, s := range b.subs {
-		if s == sub {
-			b.subs = append(b.subs[:i], b.subs[i+1:]...)
-			b.filters = append(b.filters[:i], b.filters[i+1:]...)
+	for index, existing := range b.subs {
+		if existing == sub {
+			b.subs = append(b.subs[:index], b.subs[index+1:]...)
+			b.filters = append(b.filters[:index], b.filters[index+1:]...)
+			b.names = append(b.names[:index], b.names[index+1:]...)
 
-			close(s)
+			close(existing)
 
 			return
 		}
@@ -91,7 +100,7 @@ func (b *Bus) Publish(evt Event) {
 			b.dropCount.Add(1)
 
 			if b.onDrop != nil {
-				b.onDrop(evt.Kind, cap(sub))
+				b.onDrop(b.names[idx], evt.Kind, cap(sub))
 			}
 		}
 	}
