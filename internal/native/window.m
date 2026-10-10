@@ -97,8 +97,10 @@ void *MimiGetFrontmostWindow(void) {
 		CFArrayRef windows = NULL;
 
 		if (batchError == kAXErrorSuccess && windowValues && CFArrayGetCount(windowValues) >= 2) {
+			// An application with no focused window answers with an AXValue that holds
+			// an error, so only an AX element counts as the focused window.
 			CFTypeRef focusedVal = (CFTypeRef)CFArrayGetValueAtIndex(windowValues, 0);
-			if (focusedVal && CFGetTypeID(focusedVal) != CFNullGetTypeID()) {
+			if (focusedVal && CFGetTypeID(focusedVal) == AXUIElementGetTypeID()) {
 				window = (AXUIElementRef)focusedVal;
 				CFRetain(window);
 			}
