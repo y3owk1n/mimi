@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"os"
-	"path/filepath"
 	"strings"
 
 	"go.uber.org/zap"
@@ -140,24 +139,24 @@ func jsonEncoderConfig() zapcore.EncoderConfig {
 	return encoderConfig
 }
 
-// WriteEventLog subscribes to the event bus and writes JSON events to a log file.
+// WriteEventLog writes every event on sub to path, one JSON document a line,
+// and rotates the file with the same limits as the log file. It writes
+// nothing when path is empty.
 func WriteEventLog(
 	ctx context.Context,
 	sub events.Subscriber,
-	logPath string,
+	path string,
 	logger *zap.SugaredLogger,
 ) {
-	if logPath == "" {
+	if path == "" {
 		return
 	}
 
-	eventLogPath := logPath + ".events.jsonl"
-
-	logFile, err := openAppend(eventLogPath)
-	if err != nil {
-		logger.Warnw("cannot open event log", "err", err)
-
-		return
+	logFile := &lumberjack.Logger{
+		Filename:   paths.ExpandHome(path),
+		MaxSize:    logMaxSizeMB,
+		MaxBackups: logMaxBackups,
+		MaxAge:     logMaxAgeDays,
 	}
 
 	defer func() { _ = logFile.Close() }()
@@ -192,17 +191,6 @@ func WriteEventLog(
 			logger.Debugw("event log write failed", "err", err)
 		}
 	}
-}
-
-func openAppend(path string) (*os.File, error) {
-	path = paths.ExpandHome(path)
-
-	err := os.MkdirAll(filepath.Dir(path), 0o755) //nolint:mnd
-	if err != nil {
-		return nil, err
-	}
-
-	return os.OpenFile(path, os.O_APPEND|os.O_CREATE|os.O_WRONLY, 0o644) //nolint:mnd
 }
 
 // parseLevel maps a configured log_level onto its zap level, reporting

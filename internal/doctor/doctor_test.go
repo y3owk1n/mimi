@@ -185,6 +185,18 @@ func TestAssess_FailsADaemonWithoutAccessibility(t *testing.T) {
 	}
 }
 
+// TestAssess_LeavesAnUnsetLogFileAlone pins that a log file is opt-in. Doctor
+// reports one that is unset without asking for it.
+func TestAssess_LeavesAnUnsetLogFileAlone(t *testing.T) {
+	facts := healthy()
+	facts.LogFile = ""
+
+	check := statusOf(t, doctor.Assess(facts), "log file")
+	if check.Status != doctor.Skip || check.Fix != "" {
+		t.Fatalf("got %+v", check)
+	}
+}
+
 func TestMissingHookCommands_ResolvesAgainstTheServicePath(t *testing.T) {
 	bin := t.TempDir()
 

@@ -349,9 +349,8 @@ func logCheck(facts Facts) Check {
 	case facts.LogFile == "":
 		return Check{
 			Name:   checkLogFile,
-			Status: Warn,
-			Detail: "settings.log_file is unset",
-			Fix:    "set it to keep the daemon's log for a bug report",
+			Status: Skip,
+			Detail: "not set, the daemon logs to its console only",
 		}
 	case !facts.LogDirWritable:
 		return Check{

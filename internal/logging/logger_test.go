@@ -228,3 +228,56 @@ func TestNewLogger_UnknownLevelWarnsAndFallsBackToInfo(t *testing.T) {
 		t.Errorf("unknown log_level did not fall back to info: %q", buf.String())
 	}
 }
+
+// TestWriteEventLog_WritesEachEventAsALineAtItsPath pins the event log's file.
+// It holds every event the bus delivers, one JSON document a line, at the
+// path settings.event_log_file names.
+func TestWriteEventLog_WritesEachEventAsALineAtItsPath(t *testing.T) {
+	t.Parallel()
+
+	path := filepath.Join(t.TempDir(), "logs", "mimi.events.jsonl")
+
+	sub := make(events.Subscriber, 2)
+	sub <- events.Event{Kind: events.AppActivate, ID: "one", AppName: "Safari"}
+
+	sub <- events.Event{Kind: events.WindowFocus, ID: "two", WindowTitle: "Inbox"}
+
+	close(sub)
+
+	WriteEventLog(t.Context(), sub, path, zap.NewNop().Sugar())
+
+	data, err := os.ReadFile(path) //nolint:gosec // test-controlled path
+	if err != nil {
+		t.Fatalf("reading the event log: %v", err)
+	}
+
+	lines := strings.Split(strings.TrimSpace(string(data)), "\n")
+	if len(lines) != 2 {
+		t.Fatalf("event log has %d lines, want 2:\n%s", len(lines), data)
+	}
+
+	var second events.Event
+
+	err = json.Unmarshal([]byte(lines[1]), &second)
+	if err != nil || second.ID != "two" || second.WindowTitle != "Inbox" {
+		t.Fatalf("second line = %q (%v), want the window_focus event", lines[1], err)
+	}
+}
+
+// TestWriteEventLog_WritesNothingWithoutAPath pins that the event log is off
+// unless settings.event_log_file is set. With no path it returns without
+// taking a single event from the bus.
+func TestWriteEventLog_WritesNothingWithoutAPath(t *testing.T) {
+	t.Parallel()
+
+	sub := make(events.Subscriber, 1)
+	sub <- events.Event{Kind: events.AppActivate, ID: "one"}
+
+	close(sub)
+
+	WriteEventLog(t.Context(), sub, "", zap.NewNop().Sugar())
+
+	if len(sub) != 1 {
+		t.Fatal("the event log read an event with no path to write it to")
+	}
+}

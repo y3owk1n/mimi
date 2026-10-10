@@ -559,6 +559,7 @@ func expandPaths(cfg *Config) {
 	}
 
 	cfg.Settings.LogFile = paths.ExpandHome(cfg.Settings.LogFile)
+	cfg.Settings.EventLogFile = paths.ExpandHome(cfg.Settings.EventLogFile)
 	cfg.Settings.PIDFile = paths.ExpandHome(cfg.Settings.PIDFile)
 	cfg.Settings.SocketFile = paths.ExpandHome(cfg.Settings.SocketFile)
 }

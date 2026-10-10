@@ -55,6 +55,7 @@ type SettingsConfig struct {
 	LogFile          string `json:"logFile"          reload:"restart-only"   toml:"log_file"`
 	LogLevel         string `json:"logLevel"         reload:"restart-only"   toml:"log_level"`
 	LogFormat        string `json:"logFormat"        reload:"restart-only"   toml:"log_format"`
+	EventLogFile     string `json:"eventLogFile"     reload:"restart-only"   toml:"event_log_file"`
 	HookTimeoutSecs  int    `json:"hookTimeoutSecs"  reload:"reloadable"     toml:"hook_timeout_secs"`
 	HookShell        string `json:"hookShell"        reload:"reloadable"     toml:"hook_shell"`
 	MaxHookWorkers   int    `json:"maxHookWorkers"   reload:"restart-only"   toml:"max_hook_workers"`

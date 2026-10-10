@@ -232,9 +232,9 @@ func TestSetupEventPipeline_LogSubscriber(t *testing.T) {
 	// what's under test.
 	const unhookedKind = events.AppQuit
 
-	t.Run("log_file set subscribes a real subscriber", func(t *testing.T) {
+	t.Run("event_log_file set subscribes a real subscriber", func(t *testing.T) {
 		cfg := &config.Config{Settings: baseSettings()}
-		cfg.Settings.LogFile = "/tmp/mimi-test-event-log.jsonl"
+		cfg.Settings.EventLogFile = "/tmp/mimi-test-event-log.jsonl"
 
 		logger := zap.NewNop().Sugar()
 
@@ -252,23 +252,26 @@ func TestSetupEventPipeline_LogSubscriber(t *testing.T) {
 		}
 	})
 
-	t.Run("log_file unset subscribes a subscriber that rejects everything", func(t *testing.T) {
-		cfg := &config.Config{Settings: baseSettings()}
+	t.Run(
+		"event_log_file unset subscribes a subscriber that rejects everything",
+		func(t *testing.T) {
+			cfg := &config.Config{Settings: baseSettings()}
 
-		logger := zap.NewNop().Sugar()
+			logger := zap.NewNop().Sugar()
 
-		result := mustSetupPipeline(t, cfg, logger, false)
+			result := mustSetupPipeline(t, cfg, logger, false)
 
-		for _, kind := range events.AllKinds {
-			result.bus.Publish(events.Event{Kind: kind, At: time.Now()})
-		}
+			for _, kind := range events.AllKinds {
+				result.bus.Publish(events.Event{Kind: kind, At: time.Now()})
+			}
 
-		select {
-		case evt := <-result.logSub:
-			t.Fatalf("expected no-op log subscriber to receive nothing, got kind %s", evt.Kind)
-		case <-time.After(100 * time.Millisecond):
-		}
-	})
+			select {
+			case evt := <-result.logSub:
+				t.Fatalf("expected no-op log subscriber to receive nothing, got kind %s", evt.Kind)
+			case <-time.After(100 * time.Millisecond):
+			}
+		},
+	)
 }
 
 func TestSetupEventPipeline_HookSubUsesRegistryKindFilter(t *testing.T) {
