@@ -1,6 +1,7 @@
 package action_test
 
 import (
+	"slices"
 	"sync"
 	"testing"
 	"time"
@@ -198,7 +199,7 @@ func TestExecutor_ApplyFrames_SendsAWindowOnItsWayOnToItsNewFrame(t *testing.T) 
 	t.Parallel()
 
 	desktop := newSteppingDesktop()
-	animation := action.Animation{DurationMS: 80, Easing: "linear"}
+	animation := action.Animation{DurationMS: 400, Easing: "linear"}
 	executor := action.NewExecutor(desktop)
 
 	first := action.WindowFrame{
@@ -215,7 +216,19 @@ func TestExecutor_ApplyFrames_SendsAWindowOnItsWayOnToItsNewFrame(t *testing.T) 
 		t.Fatalf("first apply_frames error = %v", err)
 	}
 
-	time.Sleep(25 * time.Millisecond)
+	// Send the second frame once the window has passed its x, so the window
+	// has to turn back. A fixed sleep let a slow runner send it before the
+	// first step, and the window then never turned.
+	deadline := time.Now().Add(time.Second)
+	for !slices.ContainsFunc(desktop.stepsOf(1), func(step geometry.Rect) bool {
+		return step.X > second.Frame.X
+	}) {
+		if time.Now().After(deadline) {
+			t.Fatal("the window never set off towards the first frame")
+		}
+
+		time.Sleep(time.Millisecond)
+	}
 
 	err = executor.ExecuteCommand(animatedApplyFramesCommand(&animation, second))
 	if err != nil {
