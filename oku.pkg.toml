@@ -79,3 +79,4 @@ name = "mimi"
 command = "bin/mimi"
 args = ["start"]
 restart = "always"
+interactive = true
