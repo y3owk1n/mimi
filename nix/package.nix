@@ -124,7 +124,7 @@ else
 
     # scripts/update-nix-hashes.sh writes this, and the two zip hashes above.
     # The nix-hashes workflow runs it after every push to main.
-    vendorHash = "sha256-7gqj0UtPbrRQ3X1aaT1OH6Pg4kVE9LYny5uBsQ6Lc4Y=";
+    vendorHash = "sha256-EOHRHGsdIGstZj6P8kbwgR4BR0yhsbEFoh2uzAdqeVQ=";
 
     ldflags = [
       "-s"
