@@ -36,6 +36,15 @@ brew tap y3owk1n/tap
 brew install --cask y3owk1n/tap/mimi
 ```
 
+The `mimi-nightly` cask installs the [nightly build](https://github.com/y3owk1n/mimi/releases/tag/nightly). Every push to `main` replaces it. Homebrew refuses to install stable and nightly together, so uninstall one first.
+
+```bash
+brew install --cask y3owk1n/tap/mimi-nightly
+brew upgrade --cask --greedy y3owk1n/tap/mimi-nightly
+```
+
+The nightly cask's version is always `latest`, so a plain `brew upgrade` skips it. Upgrade it with `--greedy`.
+
 ---
 
 ## Method 2: Nix flake
@@ -608,7 +617,8 @@ The flake's `packages` output covers `aarch64-darwin` only. On an Intel Mac, app
 ### Homebrew
 
 ```bash
-brew uninstall --cask y3owk1n/tap/mimi
+brew uninstall --cask y3owk1n/tap/mimi          # stable
+brew uninstall --cask y3owk1n/tap/mimi-nightly  # nightly
 ```
 
 ### Manual
