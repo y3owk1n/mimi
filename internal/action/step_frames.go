@@ -58,7 +58,10 @@ func (a *animator) start(
 		}
 
 		if entry.Animate != nil && !*entry.Animate {
+			restore := enhancedUIOff(desktop, win.PID)
 			errs[index] = desktop.SetWindowFrame(win.ID, rectOfFrame(entry.Frame))
+
+			restore()
 
 			continue
 		}

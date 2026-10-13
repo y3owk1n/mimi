@@ -392,8 +392,6 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 		groups[win.PID] = append(groups[win.PID], index)
 	}
 
-	stepper, _ := e.desktop.(FrameStepper)
-
 	var writers sync.WaitGroup
 
 	for pid, indexes := range groups {
@@ -401,16 +399,7 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 
 		go func(pid int, indexes []int) {
 			defer writers.Done()
-
-			// Under the enhanced interface some applications animate
-			// every move they are given. A write that arrives during
-			// that animation is applied to the old frame, and its size
-			// or position is lost.
-			if stepper != nil {
-				if was, ok := stepper.SetEnhancedUI(pid, false); ok && was {
-					defer stepper.SetEnhancedUI(pid, true)
-				}
-			}
+			defer enhancedUIOff(e.desktop, pid)()
 
 			for _, index := range indexes {
 				entry := frames[index]
@@ -425,6 +414,25 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 	writers.Wait()
 
 	return collectFailures(frames, messages, errs)
+}
+
+// enhancedUIOff switches off the enhanced accessibility interface of the
+// application with this pid, when the desktop can. It returns a function that
+// switches the interface back on, which does nothing when it was already off.
+// Under that interface some applications animate every move they are given.
+// They apply a write that arrives during that animation to the old frame, and
+// the window loses its size or position.
+func enhancedUIOff(desktop Desktop, pid int) func() {
+	stepper, ok := desktop.(FrameStepper)
+	if !ok {
+		return func() {}
+	}
+
+	if was, ok := stepper.SetEnhancedUI(pid, false); !ok || !was {
+		return func() {}
+	}
+
+	return func() { stepper.SetEnhancedUI(pid, true) }
 }
 
 // inPlace reports whether the desktop already has window id at frame. A layout

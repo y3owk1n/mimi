@@ -129,6 +129,8 @@ func (e *Executor) moveWindowToDisplay(win Window, target DisplayArg) error {
 		displays[toIndex].Visible,
 	)
 
+	defer enhancedUIOff(e.desktop, win.PID)()
+
 	err = e.desktop.SetWindowFrame(win.ID, frame)
 	if err != nil {
 		return derrors.Wrapf(err, derrors.CodeActionFailed, "failed to move window")

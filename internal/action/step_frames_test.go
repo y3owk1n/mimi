@@ -28,8 +28,13 @@ type steppingDesktop struct {
 }
 
 func newSteppingDesktop() *steppingDesktop {
+	return steppingOver(desktopWithListedWindows())
+}
+
+// steppingOver wraps fake in a desktop that can step frames.
+func steppingOver(fake *fakeDesktop) *steppingDesktop {
 	return &steppingDesktop{
-		fakeDesktop: desktopWithListedWindows(),
+		fakeDesktop: fake,
 		steps:       map[action.WindowID][]geometry.Rect{},
 		off:         map[int]bool{},
 		landed:      make(chan action.StepReport, 16),
@@ -194,9 +199,10 @@ func TestExecutor_ApplyFrames_StepsEveryWindowHomeInTheBackground(t *testing.T) 
 	}
 
 	// Each of the two applications has its interface switched off, then
-	// back on.
+	// back on. Placing the window that skips the animation switches its
+	// application's interface off and on once more.
 	switchedOff, switchedOn := 0, 0
-	for _, enabled := range desktop.enhancedSwitches(t, 4) {
+	for _, enabled := range desktop.enhancedSwitches(t, 6) {
 		if enabled {
 			switchedOn++
 		} else {
@@ -204,12 +210,20 @@ func TestExecutor_ApplyFrames_StepsEveryWindowHomeInTheBackground(t *testing.T) 
 		}
 	}
 
-	if switchedOff != 2 || switchedOn != 2 {
+	if switchedOff != 3 || switchedOn != 3 {
 		t.Errorf(
-			"enhanced interface switched off %d and on %d times, want 2 and 2",
+			"enhanced interface switched off %d and on %d times, want 3 and 3",
 			switchedOff,
 			switchedOn,
 		)
+	}
+
+	desktop.mu.Lock()
+	writtenOn := desktop.writtenOn
+	desktop.mu.Unlock()
+
+	if writtenOn != 0 {
+		t.Errorf("%d frames written with the enhanced interface on, want 0", writtenOn)
 	}
 }
 
@@ -334,6 +348,67 @@ func TestExecutor_ApplyFrames_WritesWithTheEnhancedInterfaceOffWithoutAnAnimatio
 			switchedOff,
 			switchedOn,
 		)
+	}
+}
+
+func TestExecutor_WindowActions_WriteWithTheEnhancedInterfaceOff(t *testing.T) {
+	t.Parallel()
+
+	cases := []struct {
+		name    string
+		desktop func() *fakeDesktop
+		command func(t *testing.T) action.Command
+	}{
+		{
+			name:    "resize_window",
+			desktop: desktopWithOneWindow,
+			command: func(t *testing.T) action.Command {
+				t.Helper()
+
+				return resizeCommandFor(t, action.ResizeWindowArgs{Width: 400, WidthSet: true})
+			},
+		},
+		{
+			// The first write lands short, so the move writes twice.
+			name: "move_window_to_display",
+			desktop: func() *fakeDesktop {
+				desktop := desktopWithDisplays()
+				desktop.windows[0].clampsFirstWrite = true
+
+				return desktop
+			},
+			command: func(t *testing.T) action.Command {
+				t.Helper()
+
+				return displayCommandFor(t, nextKeyword)
+			},
+		},
+	}
+
+	for _, testCase := range cases {
+		t.Run(testCase.name, func(t *testing.T) {
+			t.Parallel()
+
+			desktop := steppingOver(testCase.desktop())
+
+			err := action.NewExecutor(desktop).ExecuteCommand(testCase.command(t))
+			if err != nil {
+				t.Fatalf("ExecuteCommand(%s) error = %v, want nil", testCase.name, err)
+			}
+
+			desktop.mu.Lock()
+			writtenOn := desktop.writtenOn
+			switches := append([]bool(nil), desktop.enhanced...)
+			desktop.mu.Unlock()
+
+			if writtenOn != 0 {
+				t.Errorf("%d frames written with the enhanced interface on, want 0", writtenOn)
+			}
+
+			if !slices.Equal(switches, []bool{false, true}) {
+				t.Errorf("enhanced interface switched %v, want off then back on", switches)
+			}
+		})
 	}
 }
 
