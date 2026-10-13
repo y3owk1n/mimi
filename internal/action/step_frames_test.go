@@ -12,24 +12,40 @@ import (
 )
 
 // steppingDesktop is a fake desktop that can step frames: it records every
-// step per window, how the enhanced interface was switched, and signals
+// step per window, how the enhanced interface was switched, and how many
+// frames it wrote while their application's interface was on. It signals
 // each application's report as it lands.
 type steppingDesktop struct {
 	*fakeDesktop
 
-	mu       sync.Mutex
-	steps    map[action.WindowID][]geometry.Rect
-	enhanced []bool
-	reports  []action.StepReport
-	landed   chan action.StepReport
+	mu        sync.Mutex
+	steps     map[action.WindowID][]geometry.Rect
+	enhanced  []bool
+	off       map[int]bool
+	writtenOn int
+	reports   []action.StepReport
+	landed    chan action.StepReport
 }
 
 func newSteppingDesktop() *steppingDesktop {
 	return &steppingDesktop{
 		fakeDesktop: desktopWithListedWindows(),
 		steps:       map[action.WindowID][]geometry.Rect{},
+		off:         map[int]bool{},
 		landed:      make(chan action.StepReport, 16),
 	}
+}
+
+func (d *steppingDesktop) SetWindowFrame(windowID action.WindowID, frame geometry.Rect) error {
+	d.mu.Lock()
+	for index := range d.windows {
+		if d.windows[index].id == windowID && !d.off[d.windows[index].pid] {
+			d.writtenOn++
+		}
+	}
+	d.mu.Unlock()
+
+	return d.fakeDesktop.SetWindowFrame(windowID, frame)
 }
 
 func (d *steppingDesktop) StepWindowFrame(id action.WindowID, frame geometry.Rect) error {
@@ -48,11 +64,12 @@ func (d *steppingDesktop) FinishSteps(report action.StepReport) {
 	d.landed <- report
 }
 
-func (d *steppingDesktop) SetEnhancedUI(_ int, enabled bool) (bool, bool) {
+func (d *steppingDesktop) SetEnhancedUI(pid int, enabled bool) (bool, bool) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 
 	d.enhanced = append(d.enhanced, enabled)
+	d.off[pid] = !enabled
 
 	return true, true
 }
@@ -176,7 +193,8 @@ func TestExecutor_ApplyFrames_StepsEveryWindowHomeInTheBackground(t *testing.T) 
 		)
 	}
 
-	// Two applications: each has its interface switched off, then back on.
+	// Each of the two applications has its interface switched off, then
+	// back on.
 	switchedOff, switchedOn := 0, 0
 	for _, enabled := range desktop.enhancedSwitches(t, 4) {
 		if enabled {
@@ -268,6 +286,54 @@ func TestExecutor_ApplyFrames_SendsAWindowOnItsWayOnToItsNewFrame(t *testing.T) 
 	case <-desktop.landed:
 		t.Error("the later frame ran as a second animation, want it to join the first")
 	case <-time.After(150 * time.Millisecond):
+	}
+}
+
+func TestExecutor_ApplyFrames_WritesWithTheEnhancedInterfaceOffWithoutAnAnimation(t *testing.T) {
+	t.Parallel()
+
+	desktop := newSteppingDesktop()
+	targets := []action.WindowFrame{
+		{Number: 4242, Frame: action.Frame{X: 10, Y: 10, Width: 945, Height: 1060}},
+		{Number: 4243, Frame: action.Frame{X: 965, Y: 10, Width: 945, Height: 1060}},
+	}
+
+	err := action.NewExecutor(desktop).ExecuteCommand(applyFramesCommandFor(t, targets...))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(apply_frames) error = %v, want nil", err)
+	}
+
+	for index, target := range targets {
+		if got, want := desktop.frameOf(index), rectOf(target.Frame); got != want {
+			t.Errorf("window %d landed at %+v, want %+v", target.Number, got, want)
+		}
+	}
+
+	desktop.mu.Lock()
+	writtenOn := desktop.writtenOn
+	desktop.mu.Unlock()
+
+	if writtenOn != 0 {
+		t.Errorf("%d frames written with the enhanced interface on, want 0", writtenOn)
+	}
+
+	// Each of the two applications has its interface switched off, then
+	// back on.
+	switchedOff, switchedOn := 0, 0
+	for _, enabled := range desktop.enhancedSwitches(t, 4) {
+		if enabled {
+			switchedOn++
+		} else {
+			switchedOff++
+		}
+	}
+
+	if switchedOff != 2 || switchedOn != 2 {
+		t.Errorf(
+			"enhanced interface switched off %d and on %d times, want 2 and 2",
+			switchedOff,
+			switchedOn,
+		)
 	}
 }
 
