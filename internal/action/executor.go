@@ -199,6 +199,8 @@ func (e *Executor) ResizeWindow(req geometry.Request, args WindowArgs) error {
 		return err
 	}
 
+	defer enhancedUIOff(e.desktop, win.PID)()
+
 	return e.desktop.SetWindowFrame(win.ID, geometry.Resize(current, screen, req))
 }
 
