@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.21.1](https://github.com/y3owk1n/mimi/compare/v0.21.0...v0.21.1) (2026-10-13)
+
+
+### Bug Fixes
+
+* **action:** switch off enhanced accessibility while resizing or moving a window ([#421](https://github.com/y3owk1n/mimi/issues/421)) ([62bc311](https://github.com/y3owk1n/mimi/commit/62bc3117c068d8134a746054d910b43edd954a5f))
+* **native:** log a failed enhanced interface write only when the setting stayed ([#422](https://github.com/y3owk1n/mimi/issues/422)) ([6f2c319](https://github.com/y3owk1n/mimi/commit/6f2c319fec22a91591284b1f6c61a5b61dc51fb1))
+* **tiling:** switch off enhanced accessibility while placing windows without animation ([#419](https://github.com/y3owk1n/mimi/issues/419)) ([22075a0](https://github.com/y3owk1n/mimi/commit/22075a0e617b3e831793ed538430e4924b570de6))
+
+
+### Documentation
+
+* **installation:** install the nightly build with Homebrew ([#424](https://github.com/y3owk1n/mimi/issues/424)) ([9c220e8](https://github.com/y3owk1n/mimi/commit/9c220e83e9063098dceaec23d0e2861b97f65bd5))
+
 ## [0.21.0](https://github.com/y3owk1n/mimi/compare/v0.20.3...v0.21.0) (2026-10-10)
 
 
