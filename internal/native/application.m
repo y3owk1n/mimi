@@ -176,21 +176,32 @@ uint32_t *MimiCopyRealWindowNumbersOnSpace(uint64_t sid, int *count) {
 	}
 }
 
+static CFStringRef kMimiAXEnhancedUserInterfaceAttribute = CFSTR("AXEnhancedUserInterface");
+
+/// Reads the application's enhanced interface setting. It returns 1 when the
+/// setting is on, 0 when it is off, and -1 when the application has none.
+static int mimiEnhancedUserInterface(AXUIElementRef app) {
+	CFTypeRef value = NULL;
+	if (AXUIElementCopyAttributeValue(app, kMimiAXEnhancedUserInterfaceAttribute, &value) != kAXErrorSuccess || !value)
+		return -1;
+	int on = (CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(value)) ? 1 : 0;
+	CFRelease(value);
+	return on;
+}
+
 int MimiSetEnhancedUserInterface(int pid, int enabled) {
 	@autoreleasepool {
 		AXUIElementRef app = AXUIElementCreateApplication((pid_t)pid);
 		if (!app)
 			return -1;
-		CFStringRef attribute = CFSTR("AXEnhancedUserInterface");
-		CFTypeRef value = NULL;
-		int was = -1;
-		if (AXUIElementCopyAttributeValue(app, attribute, &value) == kAXErrorSuccess && value) {
-			was = (CFGetTypeID(value) == CFBooleanGetTypeID() && CFBooleanGetValue(value)) ? 1 : 0;
-			CFRelease(value);
-		}
+		int was = mimiEnhancedUserInterface(app);
 		if (was >= 0 && was != enabled) {
-			AXError err = AXUIElementSetAttributeValue(app, attribute, enabled ? kCFBooleanTrue : kCFBooleanFalse);
-			if (err != kAXErrorSuccess)
+			AXError err = AXUIElementSetAttributeValue(
+			    app, kMimiAXEnhancedUserInterfaceAttribute, enabled ? kCFBooleanTrue : kCFBooleanFalse);
+			// Some applications report a write of the setting as not
+			// implemented and apply it anyway. The write failed only when
+			// the setting did not change.
+			if (err != kAXErrorSuccess && mimiEnhancedUserInterface(app) != enabled)
 				MimiLog(
 				    MimiLogLevelDebug, @"AX write failed",
 				    @{@"attribute" : @"AXEnhancedUserInterface",
