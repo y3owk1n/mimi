@@ -392,13 +392,25 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 		groups[win.PID] = append(groups[win.PID], index)
 	}
 
+	stepper, _ := e.desktop.(FrameStepper)
+
 	var writers sync.WaitGroup
 
-	for _, indexes := range groups {
+	for pid, indexes := range groups {
 		writers.Add(1)
 
-		go func(indexes []int) {
+		go func(pid int, indexes []int) {
 			defer writers.Done()
+
+			// Under the enhanced interface some applications animate
+			// every move they are given. A write that arrives during
+			// that animation is applied to the old frame, and its size
+			// or position is lost.
+			if stepper != nil {
+				if was, ok := stepper.SetEnhancedUI(pid, false); ok && was {
+					defer stepper.SetEnhancedUI(pid, true)
+				}
+			}
 
 			for _, index := range indexes {
 				entry := frames[index]
@@ -407,7 +419,7 @@ func (e *Executor) writeFrames(frames []WindowFrame, windows []Window) ([]string
 					rectOfFrame(entry.Frame),
 				)
 			}
-		}(indexes)
+		}(pid, indexes)
 	}
 
 	writers.Wait()
