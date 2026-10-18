@@ -61,7 +61,7 @@ jobs:
             # Install the toolchain CI builds and tests with, at the versions
             # oku.lock pins, so a release builds with the same go CI ran.
             - name: Setup the toolchain
-              uses: y3owk1n/oku@v0.15.0
+              uses: y3owk1n/oku@v0.18.0
               env:
                   GITHUB_TOKEN: ${{ github.token }}
 
@@ -146,7 +146,7 @@ jobs:
             # Install the toolchain CI builds and tests with, at the versions
             # oku.lock pins, so a release builds with the same go CI ran.
             - name: Setup the toolchain
-              uses: y3owk1n/oku@v0.15.0
+              uses: y3owk1n/oku@v0.18.0
               env:
                   GITHUB_TOKEN: ${{ github.token }}
 
