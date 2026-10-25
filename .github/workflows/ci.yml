@@ -42,7 +42,7 @@ jobs:
             # versions oku.lock pins. The action installs the oku release of its
             # own tag.
             - name: Setup the toolchain
-              uses: y3owk1n/oku@v0.18.0
+              uses: y3owk1n/oku@v0.18.3
               env:
                   GITHUB_TOKEN: ${{ github.token }}
 
