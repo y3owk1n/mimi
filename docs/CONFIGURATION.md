@@ -636,7 +636,7 @@ Every hook receives:
 | `mimi_TIMESTAMP` | RFC3339 timestamp |
 | `mimi_WINDOWS_COUNT` | Window count (workspace events only) |
 | `mimi_INFO` | JSON workspace info (workspace events only) |
-| `mimi_SPACE_INDEX` | 1-based index of the space now in front (workspace events only) |
+| `mimi_SPACE_INDEX` | 1-based index of the space now in front on the display the event happened on (workspace events only) |
 | `mimi_SPACE_COUNT` | How many Mission Control spaces there are (workspace events only) |
 | `mimi_DISPLAY_INDEX` | The display the event happened on, as `move_window_to_display` counts them (window and workspace events) |
 | `mimi_APPEARANCE` | `dark` or `light`, the mode now in effect (`on_appearance_changed` only) |
