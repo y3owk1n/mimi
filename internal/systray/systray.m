@@ -23,6 +23,7 @@ extern void systray_on_exit(void);
 
 static id gWorkspaceObserver = nil;
 static id gActiveDisplayObserver = nil;
+static id gScreenParametersObserver = nil;
 static NSAttributedString *gLastWorkspaceTitle = nil;
 
 // The keys of one entry spacesInFrontFromSkyLight returns.
@@ -469,6 +470,16 @@ void MimiStartWorkspaceTitleObserver(void) {
 		                                     usingBlock:^(__unused NSNotification *note) {
 			                                     scheduleWorkspaceTitleRefresh();
 		                                     }];
+
+		// Connecting, disconnecting, or rearranging displays changes how many
+		// numbers the title has and their order, with no space change.
+		gScreenParametersObserver =
+		    [[NSNotificationCenter defaultCenter] addObserverForName:NSApplicationDidChangeScreenParametersNotification
+		                                                      object:nil
+		                                                       queue:[NSOperationQueue mainQueue]
+		                                                  usingBlock:^(__unused NSNotification *note) {
+			                                                  scheduleWorkspaceTitleRefresh();
+		                                                  }];
 	});
 }
 
@@ -484,6 +495,11 @@ void MimiStopWorkspaceTitleObserver(void) {
 		if (gActiveDisplayObserver) {
 			[nc removeObserver:gActiveDisplayObserver];
 			gActiveDisplayObserver = nil;
+		}
+
+		if (gScreenParametersObserver) {
+			[[NSNotificationCenter defaultCenter] removeObserver:gScreenParametersObserver];
+			gScreenParametersObserver = nil;
 		}
 
 		gLastWorkspaceTitle = nil;
