@@ -24,6 +24,8 @@ type Executor struct {
 	// animated apply_frames.
 	animationMu sync.Mutex
 	animation   *animator
+
+	parked parkedSpace
 }
 
 // NewExecutor returns an Executor that drives the given desktop.
@@ -306,14 +308,17 @@ func sameApplicationOnly(windows []Window, focusedIndex int) ([]Window, int, err
 // the given 1-based index, unless focus is already on that space. A switch to
 // a space already showing on another display only moves the cursor, so focus
 // would otherwise stay on the display it was on. An empty space has no window
-// to take focus, and focus stays where it was.
+// to take focus, so focus stays where it was and mimi parks the space.
 func (e *Executor) focusFrontWindowOn(index int) error {
 	spaces, err := e.desktop.Spaces()
 	if err != nil || index > len(spaces) {
+		e.parked.set(0, 0, false, 0)
+
 		return nil //nolint:nilerr // the switch landed, and focus is only a follow-up to it
 	}
 
 	target := spaces[index-1].ID
+	e.parked.leaveFor(target)
 
 	front, err := e.desktop.FrontmostWindow()
 	if err == nil && e.desktop.WindowSpaceID(front.Number) == target {
@@ -322,6 +327,8 @@ func (e *Executor) focusFrontWindowOn(index int) error {
 
 	windows := e.desktop.WindowsOnSpace(target)
 	if len(windows) == 0 {
+		e.parkOn(target)
+
 		return nil
 	}
 

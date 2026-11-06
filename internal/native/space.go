@@ -95,7 +95,9 @@ func SpaceCount() int {
 	return int(C.MimiCountMissionControlSpaces())
 }
 
-// ActiveSpaceIndex returns the 1-based index of the currently active space.
+// ActiveSpaceIndex returns the 1-based index of the space you are on, the one
+// in front on the display with keyboard focus. The cursor may be on another
+// display.
 func ActiveSpaceIndex() (int, error) {
 	count := SpaceCount()
 	if count == 0 {
@@ -325,6 +327,7 @@ type spaceHistory struct {
 	mu       sync.Mutex
 	current  uint64
 	recent   uint64
+	switches uint64
 	watching bool
 	held     bool
 }
@@ -357,6 +360,15 @@ func (h *spaceHistory) note(sid uint64) {
 	}
 
 	h.recent, h.current = h.current, sid
+	h.switches++
+}
+
+// switchCount is how many times note has moved the history along.
+func (h *spaceHistory) switchCount() uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.switches
 }
 
 // hold makes note ignore every space until release, for the length of a
@@ -392,14 +404,18 @@ func RecentSpaceID() (uint64, bool) {
 	return history.last()
 }
 
-// watchSpaces starts the history at the space you are on now.
-func watchSpaces() {
-	history.start(uint64(C.MimiMenuBarSpaceID()))
+// SpaceSwitchCount is how many times the space you are on has changed since
+// the daemon started watching. It stays 0 in any other process.
+func SpaceSwitchCount() uint64 {
+	return history.switchCount()
 }
 
-// noteActiveSpace records the space you are on. That is the space in front
-// on the display with the menu bar, because the menu bar follows keyboard
-// focus and the cursor may not.
+// watchSpaces starts the history at the space you are on now.
+func watchSpaces() {
+	history.start(uint64(C.MimiActiveSpaceID()))
+}
+
+// noteActiveSpace records the space you are on.
 func noteActiveSpace() {
-	history.note(uint64(C.MimiMenuBarSpaceID()))
+	history.note(uint64(C.MimiActiveSpaceID()))
 }

@@ -305,12 +305,9 @@ uint32_t MimiSpaceDisplayID(uint64_t sid) {
 	return did;
 }
 
-/// Get the space ID currently active on the cursor's display.
-uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID()); }
-
 uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
 
-uint64_t MimiMenuBarSpaceID(void) {
+uint64_t MimiActiveSpaceID(void) {
 	CFStringRef uuid = SLSCopyActiveMenuBarDisplayIdentifier(SLSMainConnectionID());
 	uint32_t did = mimiDisplayIDFromUUID(uuid);
 	if (uuid) {

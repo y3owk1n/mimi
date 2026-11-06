@@ -523,6 +523,10 @@ func (d *nativeDesktop) RecentSpaceID() (uint64, bool) {
 	return native.RecentSpaceID()
 }
 
+func (d *nativeDesktop) SpaceSwitchCount() uint64 {
+	return native.SpaceSwitchCount()
+}
+
 func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	displays, err := native.Displays()
 	if err != nil {

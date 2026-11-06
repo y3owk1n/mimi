@@ -214,6 +214,11 @@ type Desktop interface {
 	// the daemon does.
 	RecentSpaceID() (uint64, bool)
 
+	// SpaceSwitchCount is how many times the space you are on has changed
+	// since the daemon started watching. It stays 0 in a process that does
+	// not watch space changes.
+	SpaceSwitchCount() uint64
+
 	// FullScreenDisplays is the set of connected displays, by id, whose
 	// space in front is a full-screen application space. macOS lays that
 	// space out itself, for one window or a split-view pair.

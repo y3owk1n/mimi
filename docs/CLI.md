@@ -177,7 +177,10 @@ that display's center, and the pointer stays there. The same applies to
 Once the space is in front, mimi gives keyboard focus to its front window
 when focus is on another space. This matters when the space was already
 showing on another display, because moving the pointer does not move focus.
-An empty space has no window to focus, so focus stays where it was.
+An empty space has no window to focus, so focus stays where it was. The
+daemon then remembers that empty space. Until focus moves, `next` and `prev`
+step from it, and `recent` switches between it and the space that kept
+focus.
 
 With `--same-display`, `next` and `prev` cycle among the spaces of the
 display the active space is on, and wrap on that display. A space number with
@@ -421,8 +424,9 @@ mimi query space | jq .index
 ### `mimi query space`
 
 The active space and the space count, in the 1-based ordering `mimi action space`
-takes. `index` is the space in front on the display holding the cursor. Needs
-no Accessibility permission.
+takes. `index` is the space in front on the display with keyboard focus,
+which is the display holding the active menu bar. The pointer can be on
+another display. Needs no Accessibility permission.
 
 ```
 $ mimi query space
@@ -436,7 +440,7 @@ takes. `id` is the window server's identifier for the space and survives
 reordering. `display` is the display the space belongs to, numbered as
 `move_window_to_display` counts them. `visible` marks the space in front on
 its display, and `focused` is the index into `spaces` of the one in front on
-the display holding the cursor, or -1. `windows` lists the real, unminimized
+the display with keyboard focus, or -1. `windows` lists the real, unminimized
 windows on the space by number, front to back. Needs no Accessibility
 permission.
 

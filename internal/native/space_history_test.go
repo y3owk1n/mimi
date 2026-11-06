@@ -60,3 +60,21 @@ func TestSpaceHistory_HoldSkipsTheSpacesASwitchPassesThrough(t *testing.T) {
 		t.Fatalf("last() = %d after a switch from 1 to 4 through 2 and 3, want 1", recent)
 	}
 }
+
+func TestSpaceHistory_CountsEverySwitchItRecords(t *testing.T) {
+	t.Parallel()
+
+	var tracked spaceHistory
+
+	tracked.start(1)
+	tracked.note(2)
+	tracked.note(2)
+	tracked.hold()
+	tracked.note(3)
+	tracked.release()
+	tracked.note(1)
+
+	if got := tracked.switchCount(); got != 2 {
+		t.Fatalf("switchCount() = %d after switches to 2 and back to 1, want 2", got)
+	}
+}
