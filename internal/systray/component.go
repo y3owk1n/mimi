@@ -3,7 +3,6 @@ package systray
 import (
 	"context"
 	"os/exec"
-	"strconv"
 	"sync"
 	"time"
 
@@ -147,21 +146,13 @@ func (c *Component) handleEvents() {
 	}
 }
 
+// setTrayTitle writes the title when it is a fixed one. With the space number
+// on, the workspace title observer writes it as it starts, and a title
+// written here as well would land after it and replace it.
 func (c *Component) setTrayTitle() {
 	if !c.showWorkspaceNumber {
 		SetTitle("M")
-
-		return
 	}
-
-	wsNum := ActiveWorkspaceNumber()
-	if wsNum < 0 {
-		SetTitle("M")
-
-		return
-	}
-
-	SetTitle(strconv.Itoa(wsNum + 1))
 }
 
 func (c *Component) openURL(url string, label string) {

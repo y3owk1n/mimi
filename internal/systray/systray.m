@@ -12,7 +12,6 @@
 #import <Cocoa/Cocoa.h>
 #include <CoreGraphics/CoreGraphics.h>
 #include <dlfcn.h>
-#include <limits.h>
 
 #pragma mark - External Function Declarations
 
@@ -24,9 +23,19 @@ extern void systray_on_exit(void);
 
 static id gWorkspaceObserver = nil;
 static id gActiveDisplayObserver = nil;
-static int gLastWorkspaceTitle = INT_MIN;
+static NSAttributedString *gLastWorkspaceTitle = nil;
 
-static int activeWorkspaceNumberFromSkyLight(void) {
+// The keys of one entry spacesInFrontFromSkyLight returns.
+static NSString *const kTitleNumberKey = @"number";
+static NSString *const kTitleFocusedKey = @"focused";
+static NSString *const kTitleXKey = @"x";
+static NSString *const kTitleYKey = @"y";
+
+/// The space in front on every display, ordered the way mimi counts displays,
+/// left to right and then top to bottom. Each entry holds the space's 1-based
+/// Mission Control number, the number mimi action space takes, and whether its
+/// display has keyboard focus. nil when SkyLight cannot be read.
+static NSArray<NSDictionary *> *spacesInFrontFromSkyLight(void) {
 	static void *skyLight = NULL;
 	static dispatch_once_t onceToken;
 	dispatch_once(&onceToken, ^{
@@ -36,7 +45,7 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 	});
 
 	if (!skyLight)
-		return -1;
+		return nil;
 
 	// Function pointer types for private SkyLight APIs.
 	typedef int (*SLSMainConnectionIDFunc)(void);
@@ -68,33 +77,28 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 				    @"managed_display_spaces" : @(SLSCopyManagedDisplaySpaces != NULL),
 			    });
 		});
-		return -1;
+		return nil;
 	}
 
 	int conn = SLSMainConnectionID();
 
-	// Determine which display currently has the menu bar / keyboard focus.
-	// This is the display the user is actively interacting with. The returned
-	// value is a UUID string matching the "Display Identifier" key in the
-	// managed display spaces data.
+	// The display with the menu bar is the one with keyboard focus. The value
+	// is a UUID string matching the "Display Identifier" key below.
 	CFStringRef activeDisplayUUID = SLSCopyActiveMenuBarDisplayIdentifier(conn);
 	if (!activeDisplayUUID) {
-		return -1;
+		return nil;
 	}
 
-	// Fetch the managed display spaces — array of per-display dictionaries.
 	CFArrayRef managed = SLSCopyManagedDisplaySpaces(conn);
 	if (!managed) {
 		CFRelease(activeDisplayUUID);
-		return -1;
+		return nil;
 	}
 
+	NSMutableArray<NSDictionary *> *found = [NSMutableArray array];
 	int counter = 0;
-	int foundIndex = -1;
-	bool foundActive = false;
 
-	NSArray *displays = (__bridge NSArray *)managed;
-	for (NSDictionary *display in displays) {
+	for (NSDictionary *display in (__bridge NSArray *)managed) {
 		NSString *displayID = display[@"Display Identifier"];
 		BOOL isActive = displayID != nil &&
 		                CFStringCompare((__bridge CFStringRef)displayID, activeDisplayUUID, 0) == kCFCompareEqualTo;
@@ -107,9 +111,12 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 			continue;
 		}
 
+		int number = -1;
+
 		for (id spaceDict in spaces) {
+			counter++;
+
 			if (![spaceDict isKindOfClass:[NSDictionary class]]) {
-				counter++;
 				continue;
 			}
 
@@ -117,29 +124,44 @@ static int activeWorkspaceNumberFromSkyLight(void) {
 			if (![sid isKindOfClass:[NSNumber class]]) {
 				sid = spaceDict[@"ManagedSpaceID"];
 			}
-			if (![sid isKindOfClass:[NSNumber class]]) {
-				counter++;
-				continue;
-			}
 
-			if (isActive && currentSpaceID != nil &&
+			if ([sid isKindOfClass:[NSNumber class]] && currentSpaceID != nil &&
 			    [sid unsignedLongLongValue] == [currentSpaceID unsignedLongLongValue]) {
-				foundIndex = counter;
-				foundActive = true;
+				number = counter;
 			}
-
-			counter++;
 		}
 
-		if (foundActive) {
-			break;
+		if (number < 0) {
+			continue;
 		}
+
+		// With displays sharing one set of spaces the identifier names no
+		// display, and the bounds stay empty, which is fine for one entry.
+		CGRect bounds = CGRectZero;
+		CFUUIDRef uuid = displayID ? CFUUIDCreateFromString(NULL, (__bridge CFStringRef)displayID) : NULL;
+		if (uuid) {
+			bounds = CGDisplayBounds(CGDisplayGetDisplayIDFromUUID(uuid));
+			CFRelease(uuid);
+		}
+
+		[found addObject:@{
+			kTitleNumberKey : @(number),
+			kTitleFocusedKey : @(isActive),
+			kTitleXKey : @(bounds.origin.x),
+			kTitleYKey : @(bounds.origin.y),
+		}];
 	}
 
 	CFRelease(managed);
 	CFRelease(activeDisplayUUID);
 
-	return foundIndex;
+	[found sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+		NSComparisonResult byX = [a[kTitleXKey] compare:b[kTitleXKey]];
+
+		return byX != NSOrderedSame ? byX : [a[kTitleYKey] compare:b[kTitleYKey]];
+	}];
+
+	return found;
 }
 
 #pragma mark - Static State
@@ -277,13 +299,10 @@ void MimiSetTooltip(const char *tooltip) {
 	});
 }
 
-int MimiGetActiveWorkspaceNumber(void) {
+/// The space number read from the on-screen window list, for when SkyLight
+/// gives none, or -1.
+static int activeWorkspaceNumberFromWindowList(void) {
 	@autoreleasepool {
-		int skyLightIndex = activeWorkspaceNumberFromSkyLight();
-		if (skyLightIndex >= 0) {
-			return skyLightIndex;
-		}
-
 		MimiLog(MimiLogLevelDebug, @"space number not found through SkyLight, reading the window list", nil);
 
 		CFArrayRef windowList = CGWindowListCopyWindowInfo(
@@ -362,26 +381,61 @@ void runOnMainThread(void (^block)(void)) {
 
 #pragma mark - Workspace Title Observer
 
-static void applyWorkspaceTitle(int workspaceNumber) {
+/// The menu bar title for the spaces in front: one display's number as plain
+/// text, or every display's numbers joined by " | " with the focused display's
+/// in bold. All menu bars show the same title, which is why it carries every
+/// display. With no space from SkyLight it is the window list's number, or M.
+static NSAttributedString *workspaceTitle(NSArray<NSDictionary *> *spaces) {
+	NSFont *font = [NSFont menuBarFontOfSize:0];
+
+	if (spaces.count < 2) {
+		NSString *text = @"M";
+
+		if (spaces.count == 1) {
+			text = [spaces[0][kTitleNumberKey] stringValue];
+		} else {
+			int workspace = activeWorkspaceNumberFromWindowList();
+			if (workspace >= 0) {
+				text = [NSString stringWithFormat:@"%d", workspace + 1];
+			}
+		}
+
+		return [[NSAttributedString alloc] initWithString:text attributes:@{NSFontAttributeName : font}];
+	}
+
+	NSFont *bold = [[NSFontManager sharedFontManager] convertFont:font toHaveTrait:NSBoldFontMask];
+	NSMutableAttributedString *title = [[NSMutableAttributedString alloc] init];
+
+	for (NSUInteger index = 0; index < spaces.count; index++) {
+		if (index > 0) {
+			[title appendAttributedString:[[NSAttributedString alloc] initWithString:@" | "
+			                                                              attributes:@{NSFontAttributeName : font}]];
+		}
+
+		NSDictionary *space = spaces[index];
+		NSFont *numberFont = [space[kTitleFocusedKey] boolValue] ? bold : font;
+		[title appendAttributedString:[[NSAttributedString alloc] initWithString:[space[kTitleNumberKey] stringValue]
+		                                                              attributes:@{NSFontAttributeName : numberFont}]];
+	}
+
+	return title;
+}
+
+static void refreshWorkspaceTitle(void) {
 	if (!appDelegate || !appDelegate.statusItem) {
 		return;
 	}
 
-	NSString *title = workspaceNumber >= 0 ? [NSString stringWithFormat:@"%d", workspaceNumber + 1] : @"M";
-
-	appDelegate.statusItem.button.image = nil;
-	[appDelegate.statusItem.button setImagePosition:NSNoImage];
-	appDelegate.statusItem.button.title = title;
-}
-
-static void refreshWorkspaceTitle(void) {
-	int workspace = MimiGetActiveWorkspaceNumber();
-	if (workspace == gLastWorkspaceTitle) {
+	NSAttributedString *title = workspaceTitle(spacesInFrontFromSkyLight());
+	if ([title isEqualToAttributedString:gLastWorkspaceTitle]) {
 		return;
 	}
 
-	gLastWorkspaceTitle = workspace;
-	applyWorkspaceTitle(workspace);
+	gLastWorkspaceTitle = title;
+
+	appDelegate.statusItem.button.image = nil;
+	[appDelegate.statusItem.button setImagePosition:NSNoImage];
+	appDelegate.statusItem.button.attributedTitle = title;
 }
 
 static void scheduleWorkspaceTitleRefresh(void) {
@@ -432,7 +486,7 @@ void MimiStopWorkspaceTitleObserver(void) {
 			gActiveDisplayObserver = nil;
 		}
 
-		gLastWorkspaceTitle = INT_MIN;
+		gLastWorkspaceTitle = nil;
 	});
 }
 

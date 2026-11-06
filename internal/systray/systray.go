@@ -86,11 +86,6 @@ func SetTooltip(tooltip string) {
 	C.MimiSetTooltip(cTooltip)
 }
 
-// ActiveWorkspaceNumber returns the number of the active workspace.
-func ActiveWorkspaceNumber() int {
-	return int(C.MimiGetActiveWorkspaceNumber())
-}
-
 // StartWorkspaceTitleObserver listens for space changes and updates the tray title immediately.
 func StartWorkspaceTitleObserver() {
 	C.MimiStartWorkspaceTitleObserver()
