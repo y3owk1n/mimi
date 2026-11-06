@@ -65,9 +65,16 @@ func writeConfigFile(t *testing.T, path, body string) {
 func runCommand(t *testing.T, args ...string) (string, error) {
 	t.Helper()
 
+	return runCommandWith(t, &cliState{}, args...)
+}
+
+// runCommandWith is runCommand on a tree built around state.
+func runCommandWith(t *testing.T, state *cliState, args ...string) (string, error) {
+	t.Helper()
+
 	var out bytes.Buffer
 
-	root := newRootCmd()
+	root := newRootCmdWith(state)
 	root.SetOut(&out)
 	root.SetErr(&out)
 	root.SetArgs(args)

@@ -285,7 +285,7 @@ func (s *cliState) runTiling(cobraCmd *cobra.Command, cmd action.Command) error 
 	local := cfg.Tiling
 	local.Enabled = true
 
-	engine := tiling.New(tiling.LiveDesktop{}, nil, nil)
+	engine := tiling.New(s.desktop(), nil, nil)
 	engine.Update(local, cfg.Settings.HookShell)
 
 	err = engine.Command(cobraCmd.Context(), tiling.EventFromArgs(cmd.Tiling))

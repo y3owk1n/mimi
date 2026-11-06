@@ -74,44 +74,53 @@ func TestTilingCommands_ReachTheDaemonAsATilingAction(t *testing.T) {
 	}
 }
 
+// oneWindowDesktop is a desktop of one display with one window on it, so a
+// tiling engine in the CLI has something to lay out without the real desktop.
+// It accepts every write and drops it.
+type oneWindowDesktop struct{}
+
+func (oneWindowDesktop) Windows() (action.WindowsInfo, error) {
+	return action.WindowsInfo{Windows: []action.WindowEntry{
+		{Number: 1, PID: 10, App: "A", Frame: action.Frame{Width: 500, Height: 500}},
+	}}, nil
+}
+
+func (oneWindowDesktop) Displays() ([]action.DisplayEntry, error) {
+	return []action.DisplayEntry{
+		{Index: 1, ID: 7, Visible: action.Frame{Width: 1000, Height: 1000}},
+	}, nil
+}
+
+func (oneWindowDesktop) ActiveSpaces() (map[uint32]int, error) {
+	return map[uint32]int{7: 1}, nil
+}
+
+func (oneWindowDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
+	return map[uint32]uint64{7: 1001}, nil
+}
+
+func (oneWindowDesktop) FullScreenDisplays() (map[uint32]bool, error) {
+	return map[uint32]bool{}, nil
+}
+
+func (oneWindowDesktop) Margins() (action.MarginsInfo, error) { return action.MarginsInfo{}, nil }
+
+func (oneWindowDesktop) Apply([]action.WindowFrame, *action.Animation) error { return nil }
+
+func (oneWindowDesktop) Focus(uint32) error { return nil }
+
 // TestTilingCommands_RunALocalEngineWithoutADaemon: no daemon, so the layout
-// runs here. The layout below fails on purpose, which is how the test knows
-// it ran, and its stderr is what the user sees. The engine runs a layout
-// only for a display with a window on it, so a desktop with none, a CI
-// runner's, has nothing to run and the test cannot tell; it skips there.
-//
-// The integration tier opens and closes windows on the same desktop while
-// this runs, so a window seen before the relayout can be gone during it.
-// The layout creates a file when it runs. No error and no file means the
-// relayout found nothing to lay out, and the test skips. No error with the
-// file there means the layout ran and its failure was lost, which fails.
+// runs here. The layout fails on purpose, which is how the test knows it ran,
+// and its stderr is what the user sees.
 func TestTilingCommands_RunALocalEngineWithoutADaemon(t *testing.T) {
 	t.Parallel()
 
-	windows, queryErr := action.QueryWindows()
-	if queryErr != nil || len(windows.Windows) == 0 {
-		t.Skipf(
-			"needs a desktop with a window to lay out (windows: %d, err: %v)",
-			len(windows.Windows),
-			queryErr,
-		)
-	}
-
-	ranFile := filepath.Join(t.TempDir(), "ran")
 	socketPath := filepath.Join(shortSocketDir(t), "none.sock")
-	configPath := tilingConfigWith(
-		t,
-		socketPath,
-		`touch "`+ranFile+`"; echo ran-locally >&2; exit 3`,
-	)
+	configPath := tilingConfigWith(t, socketPath, `echo ran-locally >&2; exit 3`)
 
-	_, err := runCommand(t, "--config", configPath, "tiling", "relayout")
+	state := &cliState{tilingDesktop: oneWindowDesktop{}}
 
-	_, ranErr := os.Stat(ranFile)
-	if err == nil && ranErr != nil {
-		t.Skip("the window closed before the relayout, so there was nothing to lay out")
-	}
-
+	_, err := runCommandWith(t, state, "--config", configPath, "tiling", "relayout")
 	if err == nil || !strings.Contains(err.Error(), "ran-locally") {
 		t.Fatalf("tiling relayout without a daemon = %v, want the local layout's failure", err)
 	}
