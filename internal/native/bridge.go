@@ -73,6 +73,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 
 	if obsCfg.Workspace {
 		watchSpaces()
+		seedActiveSpaces()
 	}
 
 	eventCh <- events.Event{
@@ -165,9 +166,12 @@ func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
 
 	noteActiveSpace()
 
-	evt := workspaceChangeEvent(kindFromInt(int(kind)), int(windowCount), info, activeSpace)
+	did := changedDisplay()
+	space := func() (int, int, bool) { return spaceInFront(did) }
 
-	if did := changedDisplay(); did != 0 {
+	evt := workspaceChangeEvent(kindFromInt(int(kind)), int(windowCount), info, space)
+
+	if did != 0 {
 		evt.Extra[DisplayIDKey] = strconv.FormatUint(uint64(did), 10)
 	}
 
@@ -202,13 +206,30 @@ var (
 	lastActiveMu sync.Mutex
 )
 
-// changedDisplay is the display whose space in front changed since the
-// last space change, or the display under the cursor when none did or this
-// is the first change seen. 0 when the displays cannot be read.
-func changedDisplay() uint32 {
+// seedActiveSpaces records the space in front on each display before the
+// first space change, so that change can tell which display it was on. If a
+// space change arrives before the seed, changedDisplay has already recorded a
+// newer state, and the seed leaves it alone.
+func seedActiveSpaces() {
+	active, ok := activeSpacesByDisplay()
+	if !ok {
+		return
+	}
+
+	lastActiveMu.Lock()
+	defer lastActiveMu.Unlock()
+
+	if len(lastActive) == 0 {
+		lastActive = active
+	}
+}
+
+// activeSpacesByDisplay is the space in front on each display, and false when
+// the displays cannot be read.
+func activeSpacesByDisplay() (map[uint32]uint64, bool) {
 	displays, err := Displays()
 	if err != nil {
-		return 0
+		return nil, false
 	}
 
 	ids := make([]uint32, len(displays))
@@ -216,7 +237,17 @@ func changedDisplay() uint32 {
 		ids[index] = display.ID
 	}
 
-	active := ActiveSpaceIDs(ids)
+	return ActiveSpaceIDs(ids), true
+}
+
+// changedDisplay is the display whose space in front changed since the
+// last space change, or the display under the cursor when none did. 0 when
+// the displays cannot be read.
+func changedDisplay() uint32 {
+	active, ok := activeSpacesByDisplay()
+	if !ok {
+		return 0
+	}
 
 	lastActiveMu.Lock()
 	defer lastActiveMu.Unlock()
@@ -240,13 +271,25 @@ func changedDisplay() uint32 {
 	return changed
 }
 
-// activeSpace is the read a workspace change carries to its hooks: the 1-based
-// index of the space now in front and how many spaces there are. ok is false
-// when Mission Control could not be enumerated, in which case the event says
-// nothing about the space rather than naming a wrong one.
-func activeSpace() (int, int, bool) {
-	index, err := ActiveSpaceIndex()
-	if err != nil {
+// spaceInFront is what a workspace change tells its hooks about the space:
+// the 1-based index of the space now in front on did, the display the change
+// happened on, and how many spaces there are. Reading the space from that
+// display makes it match mimi_DISPLAY_INDEX, even when keyboard focus stayed
+// on another display. When did is 0, no display could be read, and the space
+// is the one you are on. ok is false when Mission Control could not be
+// enumerated, so the event leaves the space out rather than name a wrong one.
+func spaceInFront(did uint32) (int, int, bool) {
+	if did == 0 {
+		index, err := ActiveSpaceIndex()
+		if err != nil {
+			return 0, 0, false
+		}
+
+		return index, SpaceCount(), true
+	}
+
+	index := ActiveSpaceIndexes([]uint32{did})[did]
+	if index == 0 {
 		return 0, 0, false
 	}
 
