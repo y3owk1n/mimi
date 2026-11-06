@@ -609,3 +609,124 @@ func TestExecutor_Space_EmptyTargetSpaceKeepsFocus(t *testing.T) {
 
 	wantFocused(t, desktop, 1)
 }
+
+// desktopWithEmptySpaceOnOtherDisplay has spaces 1 and 2 on one display, each
+// with a window, and an empty space 3 on another display. Focus is on space 2,
+// and a switch to the empty space leaves it there.
+func desktopWithEmptySpaceOnOtherDisplay() *fakeDesktop {
+	desktop := desktopWithWindows(2, 1)
+	desktop.windows[0].number = 1
+	desktop.windows[1].number = 2
+	desktop.spaceCount = 3
+	desktop.activeSpace = 2
+	desktop.spaces = []action.Space{
+		{ID: 71, DisplayID: 1},
+		{ID: 42, DisplayID: 1},
+		{ID: 93, DisplayID: 2},
+	}
+	desktop.windowSpaceIDs = map[uint32]uint64{1: 71, 2: 42}
+	desktop.spaceWindows = map[uint64][]uint32{71: {1}, 42: {2}}
+	desktop.emptySpaceKeepsFocus = true
+	desktop.watchingSpaces = true
+
+	return desktop
+}
+
+func TestExecutor_Space_NextStepsOnFromAnEmptySpaceFocusCouldNotFollow(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithEmptySpaceOnOtherDisplay()
+	executor := action.NewExecutor(desktop)
+
+	err := executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, nextKeyword))
+	if err != nil {
+		t.Fatalf("first space next error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 2 {
+		t.Fatalf(
+			"active space = %d after switching to the empty space, want focus left on 2",
+			desktop.activeSpace,
+		)
+	}
+
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, nextKeyword))
+	if err != nil {
+		t.Fatalf("second space next error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 1 {
+		t.Fatalf(
+			"active space = %d, want 1, the space after the empty space 3",
+			desktop.activeSpace,
+		)
+	}
+}
+
+func TestExecutor_Space_NextForgetsTheEmptySpaceOnceFocusMoves(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithEmptySpaceOnOtherDisplay()
+	executor := action.NewExecutor(desktop)
+
+	err := executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, "3"))
+	if err != nil {
+		t.Fatalf("space 3 error = %v, want nil", err)
+	}
+
+	desktop.activeSpace = 1
+
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, nextKeyword))
+	if err != nil {
+		t.Fatalf("space next error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 2 {
+		t.Fatalf(
+			"active space = %d, want 2, the space after the one focus moved to",
+			desktop.activeSpace,
+		)
+	}
+}
+
+func TestExecutor_Recent_FromAnEmptySpaceGoesBackToTheSpaceThatKeptFocus(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithEmptySpaceOnOtherDisplay()
+	desktop.activeSpace = 1
+	desktop.recentSpaceID = 42
+	executor := action.NewExecutor(desktop)
+
+	err := executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, "3"))
+	if err != nil {
+		t.Fatalf("space 3 error = %v, want nil", err)
+	}
+
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, recentKeyword))
+	if err != nil {
+		t.Fatalf("space recent error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 1 {
+		t.Fatalf("active space = %d, want 1, the space that kept focus", desktop.activeSpace)
+	}
+
+	// Focus never left space 1, so only the parked space sends recent back
+	// to the empty space 3. prev from there lands on space 2.
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, recentKeyword))
+	if err != nil {
+		t.Fatalf("second space recent error = %v, want nil", err)
+	}
+
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, prevKeyword))
+	if err != nil {
+		t.Fatalf("space prev error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 2 {
+		t.Fatalf(
+			"active space = %d after recent then prev, want 2, the space before the empty space 3",
+			desktop.activeSpace,
+		)
+	}
+}

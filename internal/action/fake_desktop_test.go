@@ -85,6 +85,10 @@ type fakeDesktop struct {
 	// the space's index, so distinct spaces stay distinct without a test
 	// having to name ids it does not care about.
 	activeSpaceIDs map[uint32]uint64
+	// emptySpaceKeepsFocus leaves activeSpace alone when FocusSpace switches
+	// to a space with no windows, the way a switch to an empty space showing
+	// on another display leaves keyboard focus where it was.
+	emptySpaceKeepsFocus bool
 	// recentSpaceID and watchingSpaces are what RecentSpaceID reports.
 	recentSpaceID  uint64
 	watchingSpaces bool
@@ -519,6 +523,11 @@ func fakeSpaceID(index int) uint64 {
 func (d *fakeDesktop) FocusSpace(index int) error {
 	if d.focusSpaceErr != nil {
 		return d.focusSpaceErr
+	}
+
+	if d.emptySpaceKeepsFocus && index <= len(d.spaces) &&
+		len(d.spaceWindows[d.spaces[index-1].ID]) == 0 {
+		return nil
 	}
 
 	d.activeSpace = index

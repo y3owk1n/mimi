@@ -292,7 +292,7 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 		return e.recentSpaceIndex(name)
 	}
 
-	current, err := e.desktop.ActiveSpaceIndex()
+	current, err := e.currentSpaceIndex()
 	if err != nil {
 		return 0, err
 	}
@@ -322,6 +322,16 @@ func (e *Executor) recentSpaceIndex(name Name) (int, error) {
 		)
 	}
 
+	// Around a parked space, recent toggles between it and the space that
+	// kept focus.
+	if parked, kept, here, ok := e.parkedIndexes(); ok {
+		if here {
+			return kept, nil
+		}
+
+		return parked, nil
+	}
+
 	if recent == 0 {
 		return 0, derrors.Newf(
 			derrors.CodeActionFailed,
@@ -335,10 +345,8 @@ func (e *Executor) recentSpaceIndex(name Name) (int, error) {
 		return 0, derrors.Wrapf(err, derrors.CodeActionFailed, "failed to list spaces")
 	}
 
-	for index, space := range spaces {
-		if space.ID == recent {
-			return index + 1, nil
-		}
+	if index := spaceIndex(spaces, recent); index != 0 {
+		return index, nil
 	}
 
 	return 0, derrors.Newf(
