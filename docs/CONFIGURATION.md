@@ -163,6 +163,14 @@ enabled = true                 # restart-only
 show_workspace_number = false  # show active space number in menu bar. restart-only
 ```
 
+With `show_workspace_number` on and more than one display, the title shows
+the space in front on every display, such as `1 | 10`, ordered the way
+`move_window_to_display` counts displays. The focused display's number is
+bold. macOS draws the same title on every display's menu bar, which is why it
+carries all of them. The numbers are the ones `mimi action space` takes. With
+one display, or with displays sharing one set of spaces, the title is a
+single number.
+
 ---
 
 ## Tiling

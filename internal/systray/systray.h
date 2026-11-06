@@ -10,7 +10,6 @@ void MimiQuit(void);
 void MimiSetIcon(const char *iconBytes, int length, bool isTemplate);
 void MimiSetTitle(const char *title);
 void MimiSetTooltip(const char *tooltip);
-int MimiGetActiveWorkspaceNumber(void);
 void MimiStartWorkspaceTitleObserver(void);
 void MimiStopWorkspaceTitleObserver(void);
 void MimiRefreshWorkspaceTitle(void);
