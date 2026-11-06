@@ -157,12 +157,11 @@ int MimiWindowOwnerPID(uint32_t number);
 /// there are none.
 uint32_t *MimiCopyRealWindowNumbersOnSpace(uint64_t sid, int *count);
 uint32_t MimiSpaceDisplayID(uint64_t sid);
+/// The space ID you are on: the one in front on the display holding the
+/// active menu bar, which follows keyboard focus, or 0.
 uint64_t MimiActiveSpaceID(void);
 /// The space ID in front on the given display, or 0.
 uint64_t MimiDisplayActiveSpaceID(uint32_t did);
-/// The space ID in front on the display holding the active menu bar, which
-/// follows keyboard focus, or 0.
-uint64_t MimiMenuBarSpaceID(void);
 int MimiDisplaySpaceIsFullScreen(uint32_t did);
 /// What MimiFocusSpaceUsingGesture returns when it cannot find the space in
 /// front and the target among one display's spaces. It posts no swipe then.

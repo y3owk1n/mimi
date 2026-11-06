@@ -159,9 +159,10 @@ func buildQuerySpaceCommand() *cobra.Command {
 
   {"index":2,"count":5}
 
-"index" is the 1-based index of the space in front, in the same ordering
-"mimi action space" takes, and "count" is how many spaces there are across
-every connected display. Accessibility permission is not needed.`,
+"index" is the 1-based index of the space in front on the display with
+keyboard focus, in the same ordering "mimi action space" takes, and "count"
+is how many spaces there are across every connected display. Accessibility
+permission is not needed.`,
 		Args: cobra.NoArgs,
 		RunE: func(cobraCmd *cobra.Command, _ []string) error {
 			return answerQuery(cobraCmd, action.QuerySpace)
@@ -184,7 +185,7 @@ by display. "id" is the window server's identifier for the space, which
 stays the same when spaces are reordered. "display" is the display the space
 belongs to, as "mimi action move_window_to_display" counts them. "visible"
 marks the space in front on its display, and "focused" is the index into
-"spaces" of the one in front on the display holding the cursor, or -1.
+"spaces" of the one in front on the display with keyboard focus, or -1.
 "windows" is every real, unminimized window on the space by number, front
 to back. Accessibility permission is not needed.`,
 		Args: cobra.NoArgs,

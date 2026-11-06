@@ -95,7 +95,9 @@ func SpaceCount() int {
 	return int(C.MimiCountMissionControlSpaces())
 }
 
-// ActiveSpaceIndex returns the 1-based index of the currently active space.
+// ActiveSpaceIndex returns the 1-based index of the space you are on, the one
+// in front on the display with keyboard focus. The cursor may be on another
+// display.
 func ActiveSpaceIndex() (int, error) {
 	count := SpaceCount()
 	if count == 0 {
@@ -394,12 +396,10 @@ func RecentSpaceID() (uint64, bool) {
 
 // watchSpaces starts the history at the space you are on now.
 func watchSpaces() {
-	history.start(uint64(C.MimiMenuBarSpaceID()))
+	history.start(uint64(C.MimiActiveSpaceID()))
 }
 
-// noteActiveSpace records the space you are on. That is the space in front
-// on the display with the menu bar, because the menu bar follows keyboard
-// focus and the cursor may not.
+// noteActiveSpace records the space you are on.
 func noteActiveSpace() {
-	history.note(uint64(C.MimiMenuBarSpaceID()))
+	history.note(uint64(C.MimiActiveSpaceID()))
 }
