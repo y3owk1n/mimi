@@ -73,6 +73,7 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 
 	if obsCfg.Workspace {
 		watchSpaces()
+		seedActiveSpaces()
 	}
 
 	eventCh <- events.Event{
@@ -205,13 +206,30 @@ var (
 	lastActiveMu sync.Mutex
 )
 
-// changedDisplay is the display whose space in front changed since the
-// last space change, or the display under the cursor when none did or this
-// is the first change seen. 0 when the displays cannot be read.
-func changedDisplay() uint32 {
+// seedActiveSpaces records the space in front on each display before the
+// first space change, so that change can tell which display it was on. If a
+// space change arrives before the seed, changedDisplay has already recorded a
+// newer state, and the seed leaves it alone.
+func seedActiveSpaces() {
+	active, ok := activeSpacesByDisplay()
+	if !ok {
+		return
+	}
+
+	lastActiveMu.Lock()
+	defer lastActiveMu.Unlock()
+
+	if len(lastActive) == 0 {
+		lastActive = active
+	}
+}
+
+// activeSpacesByDisplay is the space in front on each display, and false when
+// the displays cannot be read.
+func activeSpacesByDisplay() (map[uint32]uint64, bool) {
 	displays, err := Displays()
 	if err != nil {
-		return 0
+		return nil, false
 	}
 
 	ids := make([]uint32, len(displays))
@@ -219,7 +237,17 @@ func changedDisplay() uint32 {
 		ids[index] = display.ID
 	}
 
-	active := ActiveSpaceIDs(ids)
+	return ActiveSpaceIDs(ids), true
+}
+
+// changedDisplay is the display whose space in front changed since the
+// last space change, or the display under the cursor when none did. 0 when
+// the displays cannot be read.
+func changedDisplay() uint32 {
+	active, ok := activeSpacesByDisplay()
+	if !ok {
+		return 0
+	}
 
 	lastActiveMu.Lock()
 	defer lastActiveMu.Unlock()
