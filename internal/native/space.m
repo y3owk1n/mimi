@@ -32,6 +32,7 @@ extern CFStringRef SLSCopyManagedDisplayForSpace(int cid, uint64_t sid);
 extern uint64_t SLSManagedDisplayGetCurrentSpace(int cid, CFStringRef uuid);
 extern int SLSGetSpaceManagementMode(int cid);
 extern CGError SLSSetActiveMenuBarDisplayIdentifier(int cid, CFStringRef uuid, CFStringRef repeat_uuid);
+extern CFStringRef SLSCopyActiveMenuBarDisplayIdentifier(int cid);
 extern CGError SLSGetCurrentCursorLocation(int cid, CGPoint *point);
 extern AXError _AXUIElementGetWindow(AXUIElementRef element, CGWindowID *out);
 // SLSMoveWindowsToManagedSpace reports nothing, so a caller that needs to know
@@ -308,6 +309,22 @@ uint32_t MimiSpaceDisplayID(uint64_t sid) {
 uint64_t MimiActiveSpaceID(void) { return mimiDisplaySpaceID(mimiCursorDisplayID()); }
 
 uint64_t MimiDisplayActiveSpaceID(uint32_t did) { return mimiDisplaySpaceID(did); }
+
+uint64_t MimiMenuBarSpaceID(void) {
+	CFStringRef uuid = SLSCopyActiveMenuBarDisplayIdentifier(SLSMainConnectionID());
+	uint32_t did = mimiDisplayIDFromUUID(uuid);
+	if (uuid) {
+		CFRelease(uuid);
+	}
+
+	// With displays sharing one set of spaces the identifier names no
+	// display, and every display shows the same space anyway.
+	if (!did) {
+		did = mimiCursorDisplayID();
+	}
+
+	return mimiDisplaySpaceID(did);
+}
 
 // Space management mode 1 is "Displays have separate Spaces" on.
 int MimiSpacesSpanDisplays(void) { return SLSGetSpaceManagementMode(SLSMainConnectionID()) != 1; }

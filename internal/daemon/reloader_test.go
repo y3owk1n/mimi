@@ -407,7 +407,8 @@ func TestReloader_Listen_TurnsEveryObserverOnWhileAStreamListens(t *testing.T) {
 
 	releaseSecond()
 
-	if last := switched[len(switched)-1]; last != (native.ObserverConfig{}) {
-		t.Fatalf("with no stream listening, observers = %+v, want none", last)
+	// An empty config still watches spaces, for space recent.
+	if last := switched[len(switched)-1]; last != (native.ObserverConfig{Workspace: true}) {
+		t.Fatalf("with no stream listening, observers = %+v, want only the workspace one", last)
 	}
 }

@@ -134,6 +134,14 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		// inside Safari/Electron apps, etc.) and produced a stream of
 		// spurious workspace_changed events.
 		tempNotifToKind[NSWorkspaceActiveSpaceDidChangeNotification] = @(MIMI_KIND_WORKSPACE_CHANGED);
+
+		// Undocumented: posted when keyboard focus moves to another
+		// display. That changes the space you are on without any display
+		// changing its space, which space recent has to hear.
+		[wsnc addObserver:self
+		         selector:@selector(activeDisplayChanged:)
+		             name:@"NSWorkspaceActiveDisplayDidChangeNotification"
+		           object:nil];
 	}
 
 	self.notifToKind = tempNotifToKind;
@@ -149,6 +157,10 @@ static _Atomic(CFRunLoopRef) gRunLoop = NULL;
 		            name:@"AppleInterfaceThemeChangedNotification"
 		          object:nil];
 	}
+}
+
+- (void)activeDisplayChanged:(NSNotification *)note {
+	goActiveDisplayChangeEvent();
 }
 
 - (void)screenParametersChanged:(NSNotification *)note {

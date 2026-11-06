@@ -7,6 +7,7 @@ package native
 import "C"
 
 import (
+	"sync"
 	"unsafe"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -34,6 +35,15 @@ func FocusSpace(index int) error {
 			index,
 		)
 	}
+
+	// A jump of several spaces swipes through each space between, and macOS
+	// reports every one. The history ignores those reports and records only
+	// the space the switch ends on.
+	history.hold()
+	defer func() {
+		history.release()
+		noteActiveSpace()
+	}()
 
 	switch C.MimiFocusSpaceUsingGesture(C.uint32_t(did), C.uint64_t(sid)) {
 	case 0:
@@ -305,4 +315,91 @@ func WindowsOnSpace(id uint64) []uint32 {
 	}
 
 	return numbers
+}
+
+// spaceHistory is what space recent reads: the space you are on and the one
+// you were on before. Every space change and every move of keyboard focus to
+// another display updates it. Only the daemon watches for either, so watching
+// is false in any other process, such as a one-shot CLI.
+type spaceHistory struct {
+	mu       sync.Mutex
+	current  uint64
+	recent   uint64
+	watching bool
+	held     bool
+}
+
+// history is this process's space history.
+//
+//nolint:gochecknoglobals // one desktop per process
+var history spaceHistory
+
+// start begins the history at sid, the space you are on now, with nothing to
+// go back to yet.
+func (h *spaceHistory) start(sid uint64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.current = sid
+	h.watching = true
+}
+
+// note makes sid the current space and the old current space the recent one.
+// It ignores sid when it is already current, because macOS can report one
+// switch twice. A switch to a space on another display posts both a display
+// change and a space change.
+func (h *spaceHistory) note(sid uint64) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	if h.held || sid == 0 || sid == h.current {
+		return
+	}
+
+	h.recent, h.current = h.current, sid
+}
+
+// hold makes note ignore every space until release, for the length of a
+// switch mimi makes itself.
+func (h *spaceHistory) hold() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.held = true
+}
+
+// release ends hold.
+func (h *spaceHistory) release() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	h.held = false
+}
+
+// last is the space you were on before the last switch, or 0 when none has
+// been seen, and whether this history is watching at all.
+func (h *spaceHistory) last() (uint64, bool) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.recent, h.watching
+}
+
+// RecentSpaceID is the space you were on before the last switch, or 0 when
+// none has been seen. The bool is false when this process does not watch
+// space changes, which only the daemon does.
+func RecentSpaceID() (uint64, bool) {
+	return history.last()
+}
+
+// watchSpaces starts the history at the space you are on now.
+func watchSpaces() {
+	history.start(uint64(C.MimiMenuBarSpaceID()))
+}
+
+// noteActiveSpace records the space you are on. That is the space in front
+// on the display with the menu bar, because the menu bar follows keyboard
+// focus and the cursor may not.
+func noteActiveSpace() {
+	history.note(uint64(C.MimiMenuBarSpaceID()))
 }

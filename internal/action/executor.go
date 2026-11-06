@@ -107,7 +107,7 @@ func (e *Executor) FocusSpace(index int) error {
 
 	e.desktop.RefreshWorkspaceTitle()
 
-	return nil
+	return e.focusFrontWindowOn(index)
 }
 
 // MoveWindowToSpace moves the frontmost window to the space at the given
@@ -300,6 +300,42 @@ func sameApplicationOnly(windows []Window, focusedIndex int) ([]Window, int, err
 	}
 
 	return kept, keptFocused, nil
+}
+
+// focusFrontWindowOn gives keyboard focus to the front window of the space at
+// the given 1-based index, unless focus is already on that space. A switch to
+// a space already showing on another display only moves the cursor, so focus
+// would otherwise stay on the display it was on. An empty space has no window
+// to take focus, and focus stays where it was.
+func (e *Executor) focusFrontWindowOn(index int) error {
+	spaces, err := e.desktop.Spaces()
+	if err != nil || index > len(spaces) {
+		return nil //nolint:nilerr // the switch landed, and focus is only a follow-up to it
+	}
+
+	target := spaces[index-1].ID
+
+	front, err := e.desktop.FrontmostWindow()
+	if err == nil && e.desktop.WindowSpaceID(front.Number) == target {
+		return nil
+	}
+
+	windows := e.desktop.WindowsOnSpace(target)
+	if len(windows) == 0 {
+		return nil
+	}
+
+	err = e.FocusWindowNumber(windows[0])
+	if err != nil {
+		return derrors.Wrapf(
+			err,
+			derrors.CodeActionFailed,
+			"switched to space %d but could not focus its front window",
+			index,
+		)
+	}
+
+	return nil
 }
 
 // ensureSpaceExists is the one range check both space actions share. A space

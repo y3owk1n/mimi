@@ -71,6 +71,10 @@ func StartObservers(obsCfg ObserverConfig, beforeRunLoop func() bool) bool {
 		return false
 	}
 
+	if obsCfg.Workspace {
+		watchSpaces()
+	}
+
 	eventCh <- events.Event{
 		ID:      uuid.NewString(),
 		Kind:    events.Startup,
@@ -159,6 +163,8 @@ func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
 		info = C.GoString(infoJSON)
 	}
 
+	noteActiveSpace()
+
 	evt := workspaceChangeEvent(kindFromInt(int(kind)), int(windowCount), info, activeSpace)
 
 	if did := changedDisplay(); did != 0 {
@@ -166,6 +172,14 @@ func goWorkspaceChangeEvent(kind C.int, windowCount C.int, infoJSON *C.char) {
 	}
 
 	trySend(evt)
+}
+
+// goActiveDisplayChangeEvent runs when keyboard focus moves to another
+// display. No hook fires for it, but it changes the space you are on.
+//
+//export goActiveDisplayChangeEvent
+func goActiveDisplayChangeEvent() {
+	noteActiveSpace()
 }
 
 // The extras the native layer puts on an event for the daemon to turn into

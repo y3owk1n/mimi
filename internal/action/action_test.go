@@ -14,6 +14,7 @@ const (
 	nextKeyword     = "next"
 	prevKeyword     = "prev"
 	previousKeyword = "previous"
+	recentKeyword   = "recent"
 
 	presetLeftHalf    = "left-half"
 	presetRightHalf   = "right-half"
@@ -44,8 +45,8 @@ const (
 )
 
 // TestParseSpaceArg_AcceptedForms covers the accepted half of the one space
-// argument rule: a 1-based number, "next", "prev", or "previous", surrounding
-// whitespace included.
+// argument rule: a 1-based number, "next", "prev", "previous", or "recent",
+// surrounding whitespace included.
 func TestParseSpaceArg_AcceptedForms(t *testing.T) {
 	t.Parallel()
 
@@ -59,6 +60,7 @@ func TestParseSpaceArg_AcceptedForms(t *testing.T) {
 		{name: nextKeyword, arg: nextKeyword, want: action.SpaceArg{Direction: 1}},
 		{name: prevKeyword, arg: prevKeyword, want: action.SpaceArg{Direction: -1}},
 		{name: previousKeyword, arg: previousKeyword, want: action.SpaceArg{Direction: -1}},
+		{name: recentKeyword, arg: " recent ", want: action.SpaceArg{Recent: true}},
 	}
 
 	for _, testCase := range cases {

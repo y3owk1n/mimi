@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/y3owk1n/mimi/internal/config"
+	"github.com/y3owk1n/mimi/internal/native"
 )
 
 const (
@@ -103,54 +104,6 @@ func TestHasAppEvents(t *testing.T) {
 	}
 }
 
-func TestHasWorkspaceEvents(t *testing.T) {
-	tests := []struct {
-		name     string
-		cfg      *config.Config
-		expected bool
-	}{
-		{
-			name:     testCaseNameEmptyConfig,
-			cfg:      &config.Config{},
-			expected: false,
-		},
-		{
-			name: "workspace changed only",
-			cfg: &config.Config{
-				Hooks: config.HooksConfig{
-					WorkspaceChanged: []config.HookEntry{{Run: hookRunEcho}},
-				},
-			},
-			expected: true,
-		},
-		{
-			name: "window events do not count as workspace events",
-			cfg: &config.Config{
-				Hooks: config.HooksConfig{
-					WindowFocus: []config.HookEntry{{Run: hookRunEcho}},
-				},
-			},
-			expected: false,
-		},
-		{
-			// The tiling engine lays a space out when it comes to the
-			// front, which it hears of only from the workspace observer.
-			name:     "tiling enabled counts, with no hooks at all",
-			cfg:      &config.Config{Tiling: config.TilingConfig{Enabled: true}},
-			expected: true,
-		},
-	}
-
-	for _, tt := range tests {
-		t.Run(tt.name, func(t *testing.T) {
-			result := hasWorkspaceEvents(tt.cfg)
-			if result != tt.expected {
-				t.Errorf("hasWorkspaceEvents() = %v, expected %v", result, tt.expected)
-			}
-		})
-	}
-}
-
 func TestGetObserverConfig(t *testing.T) {
 	cfg := &config.Config{
 		Hooks: config.HooksConfig{
@@ -169,9 +122,11 @@ func TestGetObserverConfig(t *testing.T) {
 		t.Error("expected Workspace to be true when workspace hooks are configured")
 	}
 
+	// The workspace observer stays on with nothing configured, because
+	// space recent needs to hear every switch.
 	emptyObs := getObserverConfig(&config.Config{})
-	if emptyObs.AppLifecycle || emptyObs.Workspace || emptyObs.Appearance {
-		t.Errorf("expected all observers disabled on empty config, got: %+v", emptyObs)
+	if emptyObs != (native.ObserverConfig{Workspace: true}) {
+		t.Errorf("expected only the workspace observer on an empty config, got: %+v", emptyObs)
 	}
 
 	appearanceObs := getObserverConfig(&config.Config{
@@ -203,9 +158,5 @@ func TestGetObserverConfig(t *testing.T) {
 	})
 	if !appOnlyObs.AppLifecycle {
 		t.Error("expected AppLifecycle enabled for app-only config")
-	}
-
-	if appOnlyObs.Workspace {
-		t.Error("expected Workspace disabled for app-only config")
 	}
 }

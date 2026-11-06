@@ -242,10 +242,10 @@ func windowArgsFromFlags(cobraCmd *cobra.Command) action.WindowArgs {
 
 func buildSpaceCommand(state *cliState) *cobra.Command {
 	cmd := &cobra.Command{
-		Use:   "space <number|next|prev>",
-		Short: "Focus a Mission Control space by index or cycle next/prev",
-		Long: `Focus a Mission Control space by its 1-based index, or cycle to the next or
-previous space.
+		Use:   "space <number|next|prev|recent>",
+		Short: "Focus a Mission Control space by index, cycle next/prev, or go back to the recent one",
+		Long: `Focus a Mission Control space by its 1-based index, cycle to the next or
+previous space, or go back to the most recent one.
 
 Spaces are enumerated in Mission Control ordering across all connected
 displays. Index 1 is the first space (typically the leftmost on the
@@ -256,16 +256,24 @@ on the last space wraps to space 1, and "prev" on space 1 wraps to the
 last space. With --same-display, they cycle among the spaces of the display
 the active space is on, and wrap on that display.
 
+The "recent" keyword goes back to the space you were on before the last
+switch, so running it again switches back and forth between two spaces. A
+trackpad swipe counts, and so does moving focus to another display. Only the
+daemon sees every switch, so "recent" needs the daemon running.
+
 macOS does not provide a public API to activate a space, so mimi
 synthesizes a high-velocity horizontal dock swipe gesture to fast-forward
 to the destination space without the standard swipe animation. When the
 destination sits on a different display, the cursor is warped to its
-center first so the gesture is attributed to the correct screen.
+center first so the gesture is attributed to the correct screen. Once the
+space is in front, its front window gets keyboard focus when focus is
+elsewhere. When the space is empty, focus stays where it was.
 
 Examples:
   mimi action space 1        Focus the first Mission Control space
   mimi action space next     Cycle to the next space (with wrap)
   mimi action space prev     Cycle to the previous space (with wrap)
+  mimi action space recent   Go back to the space you were on before
   mimi action space next --same-display
                              Cycle to the next space on this display`,
 		Args: validateSpaceArg(action.NameSpace),
@@ -314,10 +322,10 @@ func buildMoveWindowToSpaceCommand(state *cliState) *cobra.Command {
 	var follow bool
 
 	cmd := &cobra.Command{
-		Use:   "move_window_to_space <number|next|prev>",
-		Short: "Move current focused window to a Mission Control space by index or cycle next/prev",
+		Use:   "move_window_to_space <number|next|prev|recent>",
+		Short: "Move current focused window to a Mission Control space by index, next/prev, or the recent one",
 		Long: `Move the currently focused window to a Mission Control space by its 1-based
-index, or cycle to the next or previous space.
+index, cycle to the next or previous space, or send it to the most recent one.
 
 Spaces are enumerated in Mission Control ordering across all connected
 displays. Index 1 is the first space, index 2 the second, and so on.
@@ -326,6 +334,9 @@ The "next" and "prev" keywords cycle through spaces with wrapping — "next"
 on the last space wraps to space 1, and "prev" on space 1 wraps to the
 last space. With --same-display, they cycle among the spaces of the display
 the active space is on, and wrap on that display.
+
+The "recent" keyword names the space you were on before the last switch, as
+"mimi action space recent" does, and needs the daemon running.
 
 This command uses private APIs (SkyLight) to move the window instantly
 without scripting additions or disabling SIP on macOS.
@@ -342,6 +353,8 @@ Examples:
   mimi action move_window_to_space 2             Move current window to space 2
   mimi action move_window_to_space next          Move window to next space (with wrap)
   mimi action move_window_to_space prev          Move window to previous space (with wrap)
+  mimi action move_window_to_space recent --follow
+                                                 Move window to the recent space and go with it
   mimi action move_window_to_space next --follow Move window to next space and go with it`,
 		Args: validateSpaceArg(action.NameMoveWindowToSpace),
 		RunE: func(cobraCmd *cobra.Command, args []string) error {

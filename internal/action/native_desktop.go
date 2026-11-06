@@ -519,6 +519,10 @@ func (d *nativeDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
 	return native.ActiveSpaceIDs(ids), nil
 }
 
+func (d *nativeDesktop) RecentSpaceID() (uint64, bool) {
+	return native.RecentSpaceID()
+}
+
 func (d *nativeDesktop) FullScreenDisplays() (map[uint32]bool, error) {
 	displays, err := native.Displays()
 	if err != nil {

@@ -85,6 +85,9 @@ type fakeDesktop struct {
 	// the space's index, so distinct spaces stay distinct without a test
 	// having to name ids it does not care about.
 	activeSpaceIDs map[uint32]uint64
+	// recentSpaceID and watchingSpaces are what RecentSpaceID reports.
+	recentSpaceID  uint64
+	watchingSpaces bool
 	// fullScreenDisplays is what FullScreenDisplays reports.
 	fullScreenDisplays map[uint32]bool
 	// spaces is what Spaces reports, and spacesErr fails it.
@@ -500,6 +503,10 @@ func (d *fakeDesktop) ActiveSpaceIDs() (map[uint32]uint64, error) {
 	}
 
 	return ids, nil
+}
+
+func (d *fakeDesktop) RecentSpaceID() (uint64, bool) {
+	return d.recentSpaceID, d.watchingSpaces
 }
 
 // fakeSpaceID is the identifier the fake gives the space at a Mission Control
