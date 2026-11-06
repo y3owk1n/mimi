@@ -174,6 +174,11 @@ come in front within a second. When the destination is on another display, mimi 
 that display's center, and the pointer stays there. The same applies to
 `move_window_to_space --follow`.
 
+Once the space is in front, mimi gives keyboard focus to its front window
+when focus is on another space. This matters when the space was already
+showing on another display, because moving the pointer does not move focus.
+An empty space has no window to focus, so focus stays where it was.
+
 With `--same-display`, `next` and `prev` cycle among the spaces of the
 display the active space is on, and wrap on that display. A space number with
 `--same-display` is an error.

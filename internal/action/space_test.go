@@ -548,3 +548,64 @@ func TestSpaceArg_RecentTakesNoSameDisplay(t *testing.T) {
 		t.Fatalf("SameDisplayOnly() error = %v, want invalid input", err)
 	}
 }
+
+// desktopWithFocusOnOtherDisplay has two spaces, each in front on its own
+// display, with keyboard focus on window 1 on space 1. Window 2 is the front
+// window of space 2.
+func desktopWithFocusOnOtherDisplay() *fakeDesktop {
+	desktop := desktopWithWindows(2, 0)
+	desktop.windows[0].number = 1
+	desktop.windows[1].number = 2
+	desktop.spaceCount = 2
+	desktop.activeSpace = 1
+	desktop.spaces = []action.Space{{ID: 71, DisplayID: 1}, {ID: 42, DisplayID: 2}}
+	desktop.windowSpaceIDs = map[uint32]uint64{1: 71, 2: 42}
+	desktop.spaceWindows = map[uint64][]uint32{71: {1}, 42: {2}}
+
+	return desktop
+}
+
+func TestExecutor_Space_FocusesTheFrontWindowOfTheTargetSpace(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithFocusOnOtherDisplay()
+
+	err := action.NewExecutor(desktop).ExecuteCommand(spaceCommandFor(t, action.NameSpace, "2"))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(space 2) error = %v, want nil", err)
+	}
+
+	wantFocused(t, desktop, 2)
+}
+
+func TestExecutor_Space_LeavesFocusAloneWhenItIsAlreadyThere(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithFocusOnOtherDisplay()
+	desktop.windowSpaceIDs[1] = 42
+
+	err := action.NewExecutor(desktop).ExecuteCommand(spaceCommandFor(t, action.NameSpace, "2"))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(space 2) error = %v, want nil", err)
+	}
+
+	wantFocused(t, desktop, 1)
+}
+
+func TestExecutor_Space_EmptyTargetSpaceKeepsFocus(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithFocusOnOtherDisplay()
+	delete(desktop.spaceWindows, 42)
+
+	err := action.NewExecutor(desktop).ExecuteCommand(spaceCommandFor(t, action.NameSpace, "2"))
+	if err != nil {
+		t.Fatalf("ExecuteCommand(space 2) error = %v, want nil", err)
+	}
+
+	if desktop.activeSpace != 2 {
+		t.Fatalf("active space = %d, want 2", desktop.activeSpace)
+	}
+
+	wantFocused(t, desktop, 1)
+}

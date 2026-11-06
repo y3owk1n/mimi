@@ -265,7 +265,9 @@ macOS does not provide a public API to activate a space, so mimi
 synthesizes a high-velocity horizontal dock swipe gesture to fast-forward
 to the destination space without the standard swipe animation. When the
 destination sits on a different display, the cursor is warped to its
-center first so the gesture is attributed to the correct screen.
+center first so the gesture is attributed to the correct screen. Once the
+space is in front, its front window gets keyboard focus when focus is
+elsewhere. When the space is empty, focus stays where it was.
 
 Examples:
   mimi action space 1        Focus the first Mission Control space
