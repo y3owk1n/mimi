@@ -730,3 +730,34 @@ func TestExecutor_Recent_FromAnEmptySpaceGoesBackToTheSpaceThatKeptFocus(t *test
 		)
 	}
 }
+
+func TestExecutor_Space_NextForgetsTheEmptySpaceAfterFocusLeftAndCameBack(t *testing.T) {
+	t.Parallel()
+
+	desktop := desktopWithEmptySpaceOnOtherDisplay()
+	executor := action.NewExecutor(desktop)
+
+	err := executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, "3"))
+	if err != nil {
+		t.Fatalf("space 3 error = %v, want nil", err)
+	}
+
+	// The trackpad goes to space 1 and back to space 2 before the next
+	// command. Focus ends where it was, but the space you are on changed
+	// twice.
+	desktop.spaceSwitches += 2
+
+	err = executor.ExecuteCommand(spaceCommandFor(t, action.NameSpace, nextKeyword))
+	if err != nil {
+		t.Fatalf("space next error = %v, want nil", err)
+	}
+
+	// next from space 2 is the empty space 3, which leaves focus on 2. Next
+	// from the forgotten space 3 would have wrapped to space 1.
+	if desktop.activeSpace != 2 {
+		t.Fatalf(
+			"active space = %d, want 2, after next from space 2 to the empty space 3",
+			desktop.activeSpace,
+		)
+	}
+}

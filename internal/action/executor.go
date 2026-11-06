@@ -312,7 +312,7 @@ func sameApplicationOnly(windows []Window, focusedIndex int) ([]Window, int, err
 func (e *Executor) focusFrontWindowOn(index int) error {
 	spaces, err := e.desktop.Spaces()
 	if err != nil || index > len(spaces) {
-		e.parked.set(0, 0, false)
+		e.parked.set(0, 0, false, 0)
 
 		return nil //nolint:nilerr // the switch landed, and focus is only a follow-up to it
 	}

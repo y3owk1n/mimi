@@ -327,6 +327,7 @@ type spaceHistory struct {
 	mu       sync.Mutex
 	current  uint64
 	recent   uint64
+	switches uint64
 	watching bool
 	held     bool
 }
@@ -359,6 +360,15 @@ func (h *spaceHistory) note(sid uint64) {
 	}
 
 	h.recent, h.current = h.current, sid
+	h.switches++
+}
+
+// switchCount is how many times note has moved the history along.
+func (h *spaceHistory) switchCount() uint64 {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+
+	return h.switches
 }
 
 // hold makes note ignore every space until release, for the length of a
@@ -392,6 +402,12 @@ func (h *spaceHistory) last() (uint64, bool) {
 // space changes, which only the daemon does.
 func RecentSpaceID() (uint64, bool) {
 	return history.last()
+}
+
+// SpaceSwitchCount is how many times the space you are on has changed since
+// the daemon started watching. It stays 0 in any other process.
+func SpaceSwitchCount() uint64 {
+	return history.switchCount()
 }
 
 // watchSpaces starts the history at the space you are on now.
