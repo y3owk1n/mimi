@@ -927,12 +927,12 @@ int MimiActivateWindow(void *window) {
 				  @"ax_error" : @(raiseError)});
 		}
 
-		// Some applications support no raise for their windows, and answer
-		// with either unsupported error. The application is active and the
-		// window focused by now, so that is not a failure.
-		bool activated = raiseError == kAXErrorSuccess || raiseError == kAXErrorActionUnsupported ||
-		                 raiseError == kAXErrorAttributeUnsupported;
+		// Some applications do not support raising their windows, and return
+		// one of the two unsupported errors. When the main and focused writes
+		// above succeeded, the window has focus, so that is not a failure.
+		bool raiseUnsupported = raiseError == kAXErrorActionUnsupported || raiseError == kAXErrorAttributeUnsupported;
+		bool focused = mainErr == kAXErrorSuccess && focusErr == kAXErrorSuccess;
 
-		return activated ? 1 : 0;
+		return (raiseError == kAXErrorSuccess || (raiseUnsupported && focused)) ? 1 : 0;
 	}
 }
