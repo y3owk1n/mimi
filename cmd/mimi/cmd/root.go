@@ -29,8 +29,12 @@ var RootCmd = newRootCmd()
 // Every tree owns its flag state, so two trees never share a config path and a
 // test can drive one without leaking into the next.
 func newRootCmd() *cobra.Command {
-	state := &cliState{}
+	return newRootCmdWith(&cliState{})
+}
 
+// newRootCmdWith builds the command tree around state, which lets a test give
+// the commands a desktop of its own.
+func newRootCmdWith(state *cliState) *cobra.Command {
 	root := &cobra.Command{
 		Use:   "mimi",
 		Short: "macOS window and space utility",
