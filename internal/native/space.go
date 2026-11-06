@@ -7,6 +7,7 @@ package native
 import "C"
 
 import (
+	"sync"
 	"unsafe"
 
 	derrors "github.com/y3owk1n/mimi/internal/errors"
@@ -54,6 +55,11 @@ func FocusSpace(index int) error {
 			SpaceIndexes()[inFront()],
 		)
 	}
+
+	// Switching to a space already showing on another display only moves
+	// the menu bar, and macOS posts no notification for that, so FocusSpace
+	// records the switch here.
+	noteSpace(sid)
 
 	return nil
 }
@@ -305,4 +311,61 @@ func WindowsOnSpace(id uint64) []uint32 {
 	}
 
 	return numbers
+}
+
+// The space history space recent reads: the space you are on and the one
+// you were on before. Every space change and every move of keyboard focus to
+// another display updates it. Only the daemon watches for either, so
+// watchingSpaces is false in any other process, such as a one-shot CLI.
+//
+//nolint:gochecknoglobals // one desktop per process
+var (
+	currentSpace   uint64
+	recentSpace    uint64
+	watchingSpaces bool
+	spaceHistoryMu sync.Mutex
+)
+
+// RecentSpaceID is the space you were on before the last switch, or 0 when
+// none has been seen. The bool is false when this process does not watch
+// space changes, which only the daemon does.
+func RecentSpaceID() (uint64, bool) {
+	spaceHistoryMu.Lock()
+	defer spaceHistoryMu.Unlock()
+
+	return recentSpace, watchingSpaces
+}
+
+// watchSpaces starts the history at the space you are on now, with nothing
+// to go back to yet.
+func watchSpaces() {
+	sid := uint64(C.MimiMenuBarSpaceID())
+
+	spaceHistoryMu.Lock()
+	defer spaceHistoryMu.Unlock()
+
+	currentSpace = sid
+	watchingSpaces = true
+}
+
+// noteActiveSpace records the space you are on. That is the space in front
+// on the display with the menu bar, because the menu bar follows keyboard
+// focus and the cursor may not.
+func noteActiveSpace() {
+	noteSpace(uint64(C.MimiMenuBarSpaceID()))
+}
+
+// noteSpace makes sid the current space and the old current space the recent
+// one. It ignores sid when it is already current, because macOS can report
+// one switch twice. A switch to a space on another display posts both a
+// display change and a space change.
+func noteSpace(sid uint64) {
+	spaceHistoryMu.Lock()
+	defer spaceHistoryMu.Unlock()
+
+	if sid == 0 || sid == currentSpace {
+		return
+	}
+
+	recentSpace, currentSpace = currentSpace, sid
 }

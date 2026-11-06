@@ -208,6 +208,12 @@ type Desktop interface {
 	// caller that remembers something about a space keys it by this one.
 	ActiveSpaceIDs() (map[uint32]uint64, error)
 
+	// RecentSpaceID is the window server's identifier for the space you
+	// were on before the last switch, or 0 when none has been seen. The bool
+	// is false when this process does not watch space changes, which only
+	// the daemon does.
+	RecentSpaceID() (uint64, bool)
+
 	// FullScreenDisplays is the set of connected displays, by id, whose
 	// space in front is a full-screen application space. macOS lays that
 	// space out itself, for one window or a split-view pair.

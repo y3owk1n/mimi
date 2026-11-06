@@ -48,14 +48,17 @@ const (
 )
 
 // SpaceArg is the parsed form of the one argument space and
-// move_window_to_space take: either an absolute 1-based Index, or a relative
-// Direction (+1 for next, -1 for prev), never both.
+// move_window_to_space take: an absolute 1-based Index, a relative Direction
+// (+1 for next, -1 for prev), or Recent, exactly one of them.
 type SpaceArg struct {
 	Index     int `json:"index"`
 	Direction int `json:"direction"` // +1 for next, -1 for prev; 0 means absolute index
 	// SameDisplay keeps next and prev among the spaces of the display the
 	// active space is on. It takes no absolute index.
 	SameDisplay bool `json:"sameDisplay,omitempty"`
+	// Recent names the space you were on before the last switch, which only
+	// the daemon knows.
+	Recent bool `json:"recent,omitempty"`
 }
 
 // DisplayArg is the parsed form of the one argument move_window_to_display
@@ -75,8 +78,9 @@ type indexArg struct {
 }
 
 // ParseSpaceArg is the only place the written form of a space argument is
-// read — a 1-based number, "next", "prev", or "previous" — so every path that
-// takes one from a user rejects a malformed argument in the same words.
+// read. It takes a 1-based number, "next", "prev", "previous", or "recent",
+// and every path that takes one from a user rejects a malformed argument in
+// the same words.
 //
 // It answers "what does this string mean"; validateSpaceArg answers "does this
 // value name a space", which is the question left once the string is gone and
@@ -87,6 +91,10 @@ type indexArg struct {
 // name is the action the argument was given to, and appears in those words;
 // it is the only part of them that differs between the two space actions.
 func ParseSpaceArg(name Name, args []string) (SpaceArg, error) {
+	if len(args) == 1 && strings.TrimSpace(args[0]) == "recent" {
+		return SpaceArg{Recent: true}, nil
+	}
+
 	arg, err := parseIndexArg(name, spaceNoun, args)
 	if err != nil {
 		return SpaceArg{}, err
@@ -119,9 +127,10 @@ func parseIndexArg(name Name, noun string, args []string) (indexArg, error) {
 	if len(args) != 1 {
 		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s requires exactly one argument: a 1-based %s number, \"next\", or \"prev\"",
+			"%s requires exactly one argument: a 1-based %s number, %s",
 			name,
 			noun,
+			keywordsFor(noun),
 		)
 	}
 
@@ -129,13 +138,14 @@ func parseIndexArg(name Name, noun string, args []string) (indexArg, error) {
 	if raw == "" {
 		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s argument cannot be empty: give a 1-based %s number, \"next\", or \"prev\"",
+			"%s argument cannot be empty: give a 1-based %s number, %s",
 			name,
 			noun,
+			keywordsFor(noun),
 		)
 	}
 
-	arg, err := indexArgOf(name, raw)
+	arg, err := indexArgOf(name, noun, raw)
 	if err != nil {
 		return indexArg{}, err
 	}
@@ -154,7 +164,7 @@ func parseIndexArg(name Name, noun string, args []string) (indexArg, error) {
 
 // indexArgOf is the spelling half of parseIndexArg: which value a written
 // argument denotes, with raw already trimmed and known non-empty.
-func indexArgOf(name Name, raw string) (indexArg, error) {
+func indexArgOf(name Name, noun, raw string) (indexArg, error) {
 	switch raw {
 	case "next":
 		return indexArg{direction: 1}, nil
@@ -166,8 +176,9 @@ func indexArgOf(name Name, raw string) (indexArg, error) {
 	if parseErr != nil || index < 1 {
 		return indexArg{}, derrors.Newf(
 			derrors.CodeInvalidInput,
-			"%s argument must be a positive integer, \"next\", or \"prev\", got %q",
+			"%s argument must be a positive integer, %s, got %q",
 			name,
+			keywordsFor(noun),
 			raw,
 		)
 	}
@@ -184,6 +195,18 @@ func indexArgOf(name Name, raw string) (indexArg, error) {
 //
 // name is the action the argument was given to, and appears in the rejection.
 func validateSpaceArg(name Name, arg SpaceArg) error {
+	if arg.Recent {
+		if arg.Index != 0 || arg.Direction != 0 || arg.SameDisplay {
+			return derrors.Newf(
+				derrors.CodeInvalidInput,
+				"%s: recent takes no space number, direction, or --same-display",
+				name,
+			)
+		}
+
+		return nil
+	}
+
 	if arg.SameDisplay && arg.Direction == 0 {
 		return derrors.Newf(
 			derrors.CodeInvalidInput,
@@ -224,11 +247,22 @@ func validateIndexArg(name Name, noun string, arg indexArg) error {
 
 	return derrors.Newf(
 		derrors.CodeInvalidInput,
-		"%s must name exactly one %s: a 1-based %s number, \"next\", or \"prev\"",
+		"%s must name exactly one %s: a 1-based %s number, %s",
 		name,
 		noun,
 		noun,
+		keywordsFor(noun),
 	)
+}
+
+// keywordsFor lists the words an argument naming noun takes besides a
+// number, as the rejections spell them.
+func keywordsFor(noun string) string {
+	if noun == spaceNoun {
+		return `"next", "prev", or "recent"`
+	}
+
+	return `"next", or "prev"`
 }
 
 // resolveSpaceArg turns a SpaceArg into the 1-based space number it names,
@@ -242,7 +276,7 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 		return 0, err
 	}
 
-	if parsed.Direction == 0 {
+	if parsed.Direction == 0 && !parsed.Recent {
 		return parsed.Index, nil
 	}
 
@@ -252,6 +286,10 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 	err = e.desktop.EnsureAccessible()
 	if err != nil {
 		return 0, err
+	}
+
+	if parsed.Recent {
+		return e.recentSpaceIndex(name)
 	}
 
 	current, err := e.desktop.ActiveSpaceIndex()
@@ -269,6 +307,45 @@ func (e *Executor) resolveSpaceArg(name Name, parsed SpaceArg) (int, error) {
 	}
 
 	return ((current - 1 + parsed.Direction + count) % count) + 1, nil
+}
+
+// recentSpaceIndex is the 1-based index of the space you were on before the
+// last switch. Only the daemon hears switches, so any other process reports
+// that the daemon is needed, not a guessed space.
+func (e *Executor) recentSpaceIndex(name Name) (int, error) {
+	recent, watching := e.desktop.RecentSpaceID()
+	if !watching {
+		return 0, derrors.Newf(
+			derrors.CodeNotSupported,
+			"%s recent needs the daemon, which remembers the last space, and no daemon is listening",
+			name,
+		)
+	}
+
+	if recent == 0 {
+		return 0, derrors.Newf(
+			derrors.CodeActionFailed,
+			"%s recent: no switch seen since the daemon started",
+			name,
+		)
+	}
+
+	spaces, err := e.desktop.Spaces()
+	if err != nil {
+		return 0, derrors.Wrapf(err, derrors.CodeActionFailed, "failed to list spaces")
+	}
+
+	for index, space := range spaces {
+		if space.ID == recent {
+			return index + 1, nil
+		}
+	}
+
+	return 0, derrors.Newf(
+		derrors.CodeActionFailed,
+		"%s recent: the last space no longer exists",
+		name,
+	)
 }
 
 // stepOnDisplay steps direction from current among the spaces on current's

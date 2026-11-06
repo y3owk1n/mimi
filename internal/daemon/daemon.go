@@ -863,13 +863,6 @@ func hasAppEvents(cfg *config.Config) bool {
 	return cfg.Hooks.HasGroup(config.GroupApp)
 }
 
-// hasWorkspaceEvents reports whether anything in cfg needs the workspace
-// observer: a workspace hook, or the tiling engine, which lays a space out
-// when it comes to the front.
-func hasWorkspaceEvents(cfg *config.Config) bool {
-	return cfg.Hooks.HasGroup(config.GroupWorkspace) || cfg.Tiling.Enabled
-}
-
 func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 	return native.ObserverConfig{
 		// Window hooks need the app-lifecycle observer too, not just the AX
@@ -878,7 +871,9 @@ func getObserverConfig(cfg *config.Config) native.ObserverConfig {
 		// union is policy, which is why it lives here rather than as a column
 		// on config.HookKinds.
 		AppLifecycle: hasWindowEvents(cfg) || hasAppEvents(cfg),
-		Workspace:    hasWorkspaceEvents(cfg),
+		// Always on, because space recent needs to hear every switch, not
+		// only when a workspace hook or the tiling engine asks.
+		Workspace: true,
 		// The tiling engine lays the desktop out again when a display
 		// comes or goes, so it needs the system observer as a system hook
 		// does.

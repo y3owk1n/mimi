@@ -95,6 +95,7 @@ mimi action focus_app Safari
 mimi action space 1
 mimi action space next
 mimi action space prev
+mimi action space recent
 mimi action move_window_to_space 2
 mimi action move_window_to_space next
 mimi action move_window_to_space prev
@@ -164,7 +165,7 @@ mimi action focus_app Safari || open -a Safari
   without a space switch. An application with no window is reopened as if
   its Dock icon were clicked.
 
-### `mimi action space <number|next|prev>`
+### `mimi action space <number|next|prev|recent>`
 
 Focus a Mission Control space by 1-based index, or cycle with wrapping. mimi
 synthesizes a dock-swipe gesture, since no public macOS API switches spaces,
@@ -181,10 +182,20 @@ display the active space is on, and wrap on that display. A space number with
 mimi action space next --same-display
 ```
 
-### `mimi action move_window_to_space <number|next|prev>`
+`recent` goes back to the space you were on before the last switch, so
+running it again switches back and forth between two spaces. A switch counts
+however it happened, including a trackpad swipe. With more than one display,
+moving focus to another display counts too, even when no space changed
+there. The space you are on is the one in front on the display with the menu
+bar. Only the daemon sees every switch, so `recent` needs the daemon running.
+Without it, or before the first switch since the daemon started, `recent`
+fails.
+
+### `mimi action move_window_to_space <number|next|prev|recent>`
 
 Move the frontmost window to a space by 1-based index, or cycle with
-wrapping. This uses private SkyLight APIs and does not require disabling SIP.
+wrapping. `recent` names the space `space recent` would go back to. This
+uses private SkyLight APIs and does not require disabling SIP.
 
 | Flag           | Description                                                      |
 | -------------- | ---------------------------------------------------------------- |

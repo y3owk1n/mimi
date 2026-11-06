@@ -799,7 +799,7 @@ func TestSpaceArgValidation_RejectsBeforeRunE(t *testing.T) {
 func TestSpaceArgValidation_AcceptsEveryFormOfASpaceArgument(t *testing.T) {
 	t.Parallel()
 
-	accepted := []string{"1", "42", "next", "prev", "previous", " 2 "}
+	accepted := []string{"1", "42", "next", "prev", "previous", "recent", " 2 "}
 	validators := spaceArgValidators()
 
 	for _, arg := range accepted {
