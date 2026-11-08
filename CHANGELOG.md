@@ -1,5 +1,19 @@
 # Changelog
 
+## [0.22.0](https://github.com/y3owk1n/mimi/compare/v0.21.1...v0.22.0) (2026-11-08)
+
+
+### Features
+
+* **action:** go back to the previous space with space recent ([#435](https://github.com/y3owk1n/mimi/issues/435)) ([e353da6](https://github.com/y3owk1n/mimi/commit/e353da664e4a141f8ad577fd358aab7f8f108fcd))
+* **systray:** show the space on every display in the menu bar ([#440](https://github.com/y3owk1n/mimi/issues/440)) ([32d0ef2](https://github.com/y3owk1n/mimi/commit/32d0ef29a451f8f03432a6558ecc6d876cb1524b))
+
+
+### Bug Fixes
+
+* **hooks:** report the space that changed in a workspace hook ([#439](https://github.com/y3owk1n/mimi/issues/439)) ([707230e](https://github.com/y3owk1n/mimi/commit/707230ec8d19e92c980c356e4cd8adfc04c00fa9))
+* **space:** treat the space with keyboard focus as the active space ([#437](https://github.com/y3owk1n/mimi/issues/437)) ([e744062](https://github.com/y3owk1n/mimi/commit/e744062457cf610b1bea6e6876e115af5a4c0806))
+
 ## [0.21.1](https://github.com/y3owk1n/mimi/compare/v0.21.0...v0.21.1) (2026-10-13)
 
 
