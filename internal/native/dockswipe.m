@@ -151,7 +151,7 @@ static uint8_t *mimiBuildIOHIDPayload(CGEventRef event, size_t *outLength) {
 	if (includeVelocity) {
 		MimiIOHIDVelocityEventData *velocity =
 		    (MimiIOHIDVelocityEventData *)(payload + sizeof(MimiIOHIDSystemQueueElementHeader) +
-		                                   sizeof(MimiIOHIDFluidTouchGestureData));
+			                               sizeof(MimiIOHIDFluidTouchGestureData));
 		velocity->base.size = sizeof(MimiIOHIDVelocityEventData);
 		velocity->base.type = kMimiIOHIDEventTypeVelocity;
 		velocity->base.depth = 1;

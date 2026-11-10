@@ -462,7 +462,7 @@ mimi = { ref = "github:y3owk1n/mimi", service = true }
 
 ### Requirements
 
-- Go 1.26+
+- Go 1.27+
 - Xcode Command Line Tools
 - Just command runner
 

@@ -418,7 +418,12 @@ func TestServer_RunsTheCommandTheClientBuiltUnchanged(t *testing.T) {
 	}
 
 	cancel()
-	<-runDone
+
+	err := <-runDone
+	if err != nil {
+		t.Errorf("Run returned %v, want nil once the context ends", err)
+	}
+
 	server.Shutdown()
 }
 

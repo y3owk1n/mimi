@@ -62,8 +62,9 @@ func enabled() config.StackbarConfig {
 
 func stackOf(active uint32, windows ...uint32) tiling.PlacedStack {
 	return tiling.PlacedStack{
-		Stack: tiling.Stack{Windows: windows, Active: active},
-		Frame: action.Frame{X: 10, Y: 20, Width: 300, Height: 400},
+		Windows: windows,
+		Active:  active,
+		Frame:   action.Frame{X: 10, Y: 20, Width: 300, Height: 400},
 	}
 }
 
