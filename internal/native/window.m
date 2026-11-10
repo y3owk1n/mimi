@@ -502,6 +502,33 @@ int MimiWindowIsReal(void *window) {
 	return real ? 1 : 0;
 }
 
+bool MimiGetWindowServerFrame(uint32_t number, double *result) {
+	if (!number)
+		return false;
+
+	@autoreleasepool {
+		CFArrayRef list = CGWindowListCopyWindowInfo(kCGWindowListOptionIncludingWindow, number);
+		if (!list)
+			return false;
+
+		CGRect rect;
+		bool found = false;
+		if (CFArrayGetCount(list) == 1) {
+			NSDictionary *info = (__bridge NSDictionary *)CFArrayGetValueAtIndex(list, 0);
+			found = CGRectMakeWithDictionaryRepresentation((__bridge CFDictionaryRef)info[(id)kCGWindowBounds], &rect);
+		}
+		CFRelease(list);
+		if (!found)
+			return false;
+
+		result[0] = rect.origin.x;
+		result[1] = rect.origin.y;
+		result[2] = rect.size.width;
+		result[3] = rect.size.height;
+		return true;
+	}
+}
+
 double *MimiGetWindowFrame(void *window) {
 	if (!window)
 		return NULL;

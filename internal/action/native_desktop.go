@@ -47,7 +47,7 @@ type nativeDesktop struct {
 	frames   map[WindowID]geometry.Rect
 	// listed is the window server's list by number, taken with the last
 	// enumeration and again after a write, since a write moves the
-	// windows. It answers frames, and titles when the server names them,
+	// windows. It answers titles when the server names them,
 	// without a round trip into the application.
 	listed map[uint32]native.ListedWindow
 }
@@ -226,27 +226,17 @@ func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 	var frame geometry.Rect
 
 	err := d.withWindow(windowID, func(element *native.Element) error {
-		// The window server's answer is where the window is on screen,
-		// and costs no round trip into the application.
-		if listed, ok := d.listedWindow(element); ok {
-			frame = geometry.Rect{
-				X: listed.Frame.X,
-				Y: listed.Frame.Y,
-				W: listed.Frame.W,
-				H: listed.Frame.H,
-			}
-			d.rememberFrame(windowID, frame)
+		var err error
 
-			return nil
-		}
-
-		posX, posY, width, height, err := element.GetFrame()
+		frame, err = d.readWindowFrame(
+			windowID,
+			element.Number(),
+			native.WindowServerFrame,
+			element.GetFrame,
+		)
 		if err != nil {
 			return err
 		}
-
-		frame = geometry.Rect{X: posX, Y: posY, W: width, H: height}
-		d.rememberFrame(windowID, frame)
 
 		return nil
 	})
@@ -606,6 +596,29 @@ func (d *nativeDesktop) MoveWindowNumberToSpace(number uint32, index int) error 
 // invocation with no daemon running.
 func (d *nativeDesktop) RefreshWorkspaceTitle() {
 	systray.RefreshWorkspaceTitle()
+}
+
+func (d *nativeDesktop) readWindowFrame(
+	windowID WindowID,
+	number uint32,
+	serverFrame func(uint32) (native.Frame, bool),
+	axFrame func() (float64, float64, float64, float64, error),
+) (geometry.Rect, error) {
+	var frame geometry.Rect
+	if current, ok := serverFrame(number); ok {
+		frame = rectOf(current)
+	} else {
+		x, y, width, height, err := axFrame()
+		if err != nil {
+			return geometry.Rect{}, err
+		}
+
+		frame = geometry.Rect{X: x, Y: y, W: width, H: height}
+	}
+
+	d.rememberFrame(windowID, frame)
+
+	return frame, nil
 }
 
 // withWindow runs apply against the reference behind windowID, holding the lock

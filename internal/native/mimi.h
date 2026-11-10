@@ -103,6 +103,7 @@ double *MimiCopyScreenFrames(int *count);
 #pragma mark - Window Frame Functions
 
 double *MimiGetWindowFrame(void *window);
+bool MimiGetWindowServerFrame(uint32_t number, double *result);
 int MimiSetWindowFrame(void *window, double x, double y, double w, double h);
 int MimiSetWindowPosition(void *window, double x, double y);
 
