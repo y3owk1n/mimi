@@ -46,9 +46,10 @@ type nativeDesktop struct {
 	framesMu sync.Mutex
 	frames   map[WindowID]geometry.Rect
 	// listed is the window server's list by number, taken with the last
-	// enumeration and again after a write, since a write moves the
-	// windows. It answers titles when the server names them,
-	// without a round trip into the application.
+	// enumeration. It answers titles when the server names them, without a
+	// round trip into the application. WindowFrame and atSize ask the window
+	// server for a frame each time, since a window can move after the
+	// enumeration took the list.
 	listed map[uint32]native.ListedWindow
 }
 
@@ -226,17 +227,22 @@ func (d *nativeDesktop) WindowFrame(windowID WindowID) (geometry.Rect, error) {
 	var frame geometry.Rect
 
 	err := d.withWindow(windowID, func(element *native.Element) error {
-		var err error
+		// The window server's answer is where the window is on screen
+		// now, and costs no round trip into the application.
+		if current, ok := native.WindowServerFrame(element.Number()); ok {
+			frame = rectOf(current)
+			d.rememberFrame(windowID, frame)
 
-		frame, err = d.readWindowFrame(
-			windowID,
-			element.Number(),
-			native.WindowServerFrame,
-			element.GetFrame,
-		)
+			return nil
+		}
+
+		posX, posY, width, height, err := element.GetFrame()
 		if err != nil {
 			return err
 		}
+
+		frame = geometry.Rect{X: posX, Y: posY, W: width, H: height}
+		d.rememberFrame(windowID, frame)
 
 		return nil
 	})
@@ -298,15 +304,14 @@ func (d *nativeDesktop) SetWindowFrame(windowID WindowID, frame geometry.Rect) e
 		}
 
 		d.rememberFrame(windowID, frame)
-		d.relist()
 
 		return nil
 	})
 }
 
-// StepWindowFrame writes one step of a window's frame, moving it alone when
-// the application last had it at the size asked for, as SetWindowFrame does,
-// without taking the window server's list again after every step.
+// StepWindowFrame writes one step of a window's frame. When mimi last wrote
+// the window at the step's size, it only moves the window. Unlike
+// SetWindowFrame, it does not ask the window server whether that size held.
 func (d *nativeDesktop) StepWindowFrame(windowID WindowID, frame geometry.Rect) error {
 	return d.withWindow(windowID, func(element *native.Element) error {
 		last, known := d.rememberedSize(windowID)
@@ -328,10 +333,8 @@ func (d *nativeDesktop) StepWindowFrame(windowID WindowID, frame geometry.Rect) 
 	})
 }
 
-// FinishSteps takes the window server's list once an application's windows
-// have landed, and logs what the steps cost.
+// FinishSteps logs what an application's steps cost, after its last step.
 func (d *nativeDesktop) FinishSteps(report StepReport) {
-	d.relist()
 	native.LogAnimationSteps(
 		report.Windows,
 		report.Frames,
@@ -598,29 +601,6 @@ func (d *nativeDesktop) RefreshWorkspaceTitle() {
 	systray.RefreshWorkspaceTitle()
 }
 
-func (d *nativeDesktop) readWindowFrame(
-	windowID WindowID,
-	number uint32,
-	serverFrame func(uint32) (native.Frame, bool),
-	axFrame func() (float64, float64, float64, float64, error),
-) (geometry.Rect, error) {
-	var frame geometry.Rect
-	if current, ok := serverFrame(number); ok {
-		frame = rectOf(current)
-	} else {
-		x, y, width, height, err := axFrame()
-		if err != nil {
-			return geometry.Rect{}, err
-		}
-
-		frame = geometry.Rect{X: x, Y: y, W: width, H: height}
-	}
-
-	d.rememberFrame(windowID, frame)
-
-	return frame, nil
-}
-
 // withWindow runs apply against the reference behind windowID, holding the lock
 // for as long as apply does — which is what stops a later lookup releasing the
 // reference out from under it.
@@ -652,9 +632,9 @@ func (d *nativeDesktop) rememberFrame(id WindowID, frame geometry.Rect) {
 
 // atSize reports whether the window already has the size of frame, so
 // that a write need only move it. The remembered size is the one mimi
-// last wrote, and an application can drop a write. A match there is
-// checked against a fresh window server list, which shows the size the
-// window kept and costs no round trip into the application.
+// last wrote, and an application can drop a write. atSize checks a match
+// there against the window server, which shows the size the window kept and
+// costs no round trip into the application.
 func (d *nativeDesktop) atSize(
 	element *native.Element,
 	windowID WindowID,
@@ -665,14 +645,12 @@ func (d *nativeDesktop) atSize(
 		return false
 	}
 
-	d.relist()
-
-	listed, ok := d.listedWindow(element)
+	current, ok := native.WindowServerFrame(element.Number())
 	if !ok {
 		return true
 	}
 
-	return sameLength(listed.Frame.W, frame.W) && sameLength(listed.Frame.H, frame.H)
+	return sameLength(current.W, frame.W) && sameLength(current.H, frame.H)
 }
 
 // rememberedSize is the size the window was last read at or written to,
@@ -684,16 +662,6 @@ func (d *nativeDesktop) rememberedSize(id WindowID) (geometry.Rect, bool) {
 	frame, ok := d.frames[id]
 
 	return frame, ok
-}
-
-// relist takes the window server's list afresh.
-func (d *nativeDesktop) relist() {
-	listed := listing(native.WindowList(true))
-
-	d.framesMu.Lock()
-	defer d.framesMu.Unlock()
-
-	d.listed = listed
 }
 
 // listing is the window server's entry for a window, when it has one.
