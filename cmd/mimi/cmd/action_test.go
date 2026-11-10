@@ -229,7 +229,7 @@ func TestResizeWindowCommand_ReportsThePositionalArgumentAndTheFlagsInOneOrder(t
 		{
 			name:    "an unparsable flag value beats the preset",
 			argv:    []string{resizeWindowCommandName, unknownPreset, "--height", "abc"},
-			wantErr: `invalid argument "abc" for "--height" flag: strconv.ParseInt: parsing "abc": invalid syntax`,
+			wantErr: `invalid argument "abc" for "--height" flag: must be an integer`,
 		},
 		{
 			name:    "an unknown flag beats the preset",

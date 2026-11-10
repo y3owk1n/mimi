@@ -88,6 +88,11 @@ func TestServerClientRoundTrip(t *testing.T) {
 	}
 
 	cancel()
-	<-errCh
+
+	err := <-errCh
+	if err != nil {
+		t.Errorf("Run returned %v, want nil once the context ends", err)
+	}
+
 	server.Shutdown()
 }

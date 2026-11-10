@@ -38,7 +38,7 @@ This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 
 ### Prerequisites
 
-- Go 1.26+ ([install Go](https://golang.org/dl/))
+- Go 1.27+ ([install Go](https://golang.org/dl/))
 - Xcode Command Line Tools: `xcode-select --install`
 - [just](https://github.com/casey/just), the command runner: `brew install just`
 - golangci-lint: `brew install golangci-lint`
@@ -51,7 +51,7 @@ This project follows the [Code of Conduct](CODE_OF_CONDUCT.md). By participating
 ```bash
 git clone https://github.com/y3owk1n/mimi.git
 cd mimi
-go version          # Should be 1.26+
+go version          # Should be 1.27+
 just --version
 golangci-lint --version
 just --list         # See all available commands

@@ -77,7 +77,12 @@ func TestServer_RejectsARequestOnAnotherProtocolVersion(t *testing.T) {
 			resp := sendRawRequest(t, socketPath, testCase.line)
 
 			cancel()
-			<-runDone
+
+			err := <-runDone
+			if err != nil {
+				t.Errorf("Run returned %v, want nil once the context ends", err)
+			}
+
 			server.Shutdown()
 
 			if testCase.wantRun {
