@@ -174,6 +174,19 @@ func (e *Element) Title() string {
 	return C.GoString(cTitle)
 }
 
+// WindowServerFrame reads one window's current frame from the window server.
+func WindowServerFrame(number uint32) (Frame, bool) {
+	var values [4]C.double
+	if !bool(C.MimiGetWindowServerFrame(C.uint32_t(number), &values[0])) {
+		return Frame{}, false
+	}
+
+	return Frame{
+		X: float64(values[0]), Y: float64(values[1]),
+		W: float64(values[2]), H: float64(values[3]),
+	}, true
+}
+
 // GetFrame returns the window's position and size [x, y, w, h] in screen coordinates.
 func (e *Element) GetFrame() (float64, float64, float64, float64, error) {
 	if e.ref == nil {
