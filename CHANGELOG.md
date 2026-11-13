@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.22.1](https://github.com/y3owk1n/mimi/compare/v0.22.0...v0.22.1) (2026-11-13)
+
+
+### Bug Fixes
+
+* **action:** keep resized windows on their current display ([#444](https://github.com/y3owk1n/mimi/issues/444)) ([c2e377c](https://github.com/y3owk1n/mimi/commit/c2e377cd32968cd4902b933e13a860c69dcac330))
+
+
+### Performance Improvements
+
+* **action:** skip the window list after each write ([#446](https://github.com/y3owk1n/mimi/issues/446)) ([927521c](https://github.com/y3owk1n/mimi/commit/927521c4dc0f0df9b8b97e0698db10e36fdbbcfc))
+
 ## [0.22.0](https://github.com/y3owk1n/mimi/compare/v0.21.1...v0.22.0) (2026-11-08)
 
 
